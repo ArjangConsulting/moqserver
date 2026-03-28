@@ -107,14 +107,29 @@ data class RequestRules(
     val verifyCookies: Boolean? = null,
     @SerialName("query_params")
     val queryParams: List<RuleMatcher>? = null,
+    val cookies: List<RuleMatcher>? = null,
 )
 
-/** A request validation rule for matching headers or query parameters. */
+/** Match type for a request validation rule. */
+@Serializable
+enum class MatchType {
+    @SerialName("require") REQUIRE,
+    @SerialName("equal_to") EQUAL_TO,
+    @SerialName("contains") CONTAINS,
+    @SerialName("begins_with") BEGINS_WITH,
+    @SerialName("ends_with") ENDS_WITH,
+    @SerialName("not_equal_to") NOT_EQUAL_TO,
+    @SerialName("not_contains") NOT_CONTAINS,
+}
+
+/** A request validation rule for matching headers, cookies, or query parameters. */
 @Serializable
 data class RuleMatcher(
     val name: String,
     val match: String? = null,
     val required: Boolean? = null,
+    @SerialName("match_type")
+    val matchType: MatchType? = null,
 )
 
 /** GraphQL operation matching configuration. */
