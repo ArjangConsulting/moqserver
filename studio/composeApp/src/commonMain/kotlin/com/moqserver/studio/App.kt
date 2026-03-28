@@ -133,15 +133,19 @@ private fun StudioTopBar(
     onRefreshCompanion: () -> Unit,
     onAIAction: (AIAction) -> Unit,
 ) {
+    val titleStatus = state.statusLine.takeUnless { state.project != null && it == "Project loaded" }
+
     TopAppBar(
         title = {
             Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 Text(state.project?.manifest?.name ?: "Moq Studio")
-                Text(
-                    text = state.statusLine,
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
+                titleStatus?.let {
+                    Text(
+                        text = it,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
             }
         },
         actions = {
