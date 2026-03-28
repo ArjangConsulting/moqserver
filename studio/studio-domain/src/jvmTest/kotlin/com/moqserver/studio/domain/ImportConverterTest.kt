@@ -57,7 +57,7 @@ class ImportConverterTest {
         assertTrue(endpoint.variants.any { it.isDefault == true && it.name == "Success" })
         assertEquals("error", endpoint.variants.first { it.name == "Error" }.referenceName)
         assertEquals("success", endpoint.variants.first { it.name == "Success" }.referenceName)
-        assertEquals("success2", endpoint.variants.first { it.name == "Success 2" }.referenceName)
+        assertEquals("success_2", endpoint.variants.first { it.name == "Success_2" }.referenceName)
 
         val fallbackBody = endpoint.variants.first { it.name == "Error" }.body
         assertIs<YamlValue.Str>(fallbackBody)
@@ -67,7 +67,7 @@ class ImportConverterTest {
         assertIs<YamlValue.Bool>(booleanBody)
         assertEquals(true, booleanBody.value)
 
-        val objectBody = endpoint.variants.first { it.name == "Success 2" }.body
+        val objectBody = endpoint.variants.first { it.name == "Success_2" }.body
         assertTrue(objectBody is YamlValue.Obj)
         val idValue = objectBody.value["id"]
         assertIs<YamlValue.Int>(idValue)

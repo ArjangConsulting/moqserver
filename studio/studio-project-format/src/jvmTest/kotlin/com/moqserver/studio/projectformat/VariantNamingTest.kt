@@ -22,16 +22,34 @@ class VariantNamingTest {
         val error = suggestedVariantName(status = 404, existingNames = names, preferredName = "error-404")
 
         assertEquals("Success", success)
-        assertEquals("Success 2", successTwo)
+        assertEquals("Success_2", successTwo)
         assertEquals("Error", error)
     }
 
     @Test
-    fun `preserves custom names`() {
+    fun `preserves custom names that are already code-compatible`() {
         assertEquals(
             "Unauthorized",
             suggestedVariantName(status = 401, preferredName = "Unauthorized"),
         )
+    }
+
+    @Test
+    fun `sanitizes names with spaces to use underscores`() {
+        assertEquals("Not_Found", suggestedVariantName(status = 404, preferredName = "Not Found"))
+        assertEquals("Internal_Server_Error", suggestedVariantName(status = 500, preferredName = "Internal Server Error"))
+    }
+
+    @Test
+    fun `sanitizes names that start with a digit`() {
+        assertEquals("_404", sanitizeToCodeCompatibleName("404"))
+        assertEquals("_2xx_success", sanitizeToCodeCompatibleName("2xx success"))
+    }
+
+    @Test
+    fun `collapses consecutive special characters into a single underscore`() {
+        assertEquals("Not_Found", sanitizeToCodeCompatibleName("Not--Found"))
+        assertEquals("Server_Error", sanitizeToCodeCompatibleName("Server  Error"))
     }
 
     @Test
