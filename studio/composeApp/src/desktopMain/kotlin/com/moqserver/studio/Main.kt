@@ -94,6 +94,9 @@ fun main(args: Array<String>) {
                 }
             }
 
+            fun guardProjectTransition(): Boolean =
+                confirmProjectTransition(window, appViewModel.state.value, repo, appViewModel, lastFileDirectory, Dispatchers.IO)
+
             LaunchedEffect(pendingProjectOpenPath.value) {
                 val path = pendingProjectOpenPath.value ?: return@LaunchedEffect
                 pendingProjectOpenPath.value = null
@@ -109,9 +112,6 @@ fun main(args: Array<String>) {
                     ioDispatcher = Dispatchers.IO,
                 )
             }
-
-            fun guardProjectTransition(): Boolean =
-                confirmProjectTransition(window, appViewModel.state.value, repo, appViewModel, lastFileDirectory, Dispatchers.IO)
 
             fun requestOpenProject() {
                 scope.launch(exceptionHandler) {
