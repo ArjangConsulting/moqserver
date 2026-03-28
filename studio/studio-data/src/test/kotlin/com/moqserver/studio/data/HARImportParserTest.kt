@@ -1,5 +1,6 @@
 package com.moqserver.studio.data
 
+import com.moqserver.studio.projectformat.MatchType
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
@@ -91,5 +92,60 @@ class HARImportParserTest {
 
         val invalidBase64Response = endpoint.responses.first { it.statusCode == 500 }
         assertEquals("@@@", invalidBase64Response.body)
+    }
+
+    @Test
+    fun `parses request cookies from har cookies and cookie header`() {
+        val har = """
+            {
+              "log": {
+                "version": "1.2",
+                "entries": [
+                  {
+                    "request": {
+                      "method": "GET",
+                      "url": "https://api.test/users",
+                      "headers": [],
+                      "cookies": [
+                        { "name": "session_id", "value": "abc123" }
+                      ]
+                    },
+                    "response": {
+                      "status": 200,
+                      "headers": [],
+                      "content": { "mimeType": "application/json", "text": "{}" }
+                    }
+                  },
+                  {
+                    "request": {
+                      "method": "GET",
+                      "url": "https://api.test/profile",
+                      "headers": [
+                        { "name": "Cookie", "value": "theme=dark; locale=en-US" }
+                      ]
+                    },
+                    "response": {
+                      "status": 200,
+                      "headers": [],
+                      "content": { "mimeType": "application/json", "text": "{}" }
+                    }
+                  }
+                ]
+              }
+            }
+        """.trimIndent()
+
+        val spec = parser.parse(har)
+
+        val users = spec.endpoints.first { it.path == "/users" }
+        assertEquals(1, users.cookies.size)
+        assertEquals("session_id", users.cookies.single().name)
+        assertEquals("abc123", users.cookies.single().match)
+
+        val profile = spec.endpoints.first { it.path == "/profile" }
+        assertEquals(2, profile.cookies.size)
+        assertEquals("dark", profile.cookies.first { it.name == "theme" }.match)
+        assertEquals("en-US", profile.cookies.first { it.name == "locale" }.match)
+        assertEquals(MatchType.EQUAL_TO, profile.cookies.first { it.name == "theme" }.matchType)
     }
 }

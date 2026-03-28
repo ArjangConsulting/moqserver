@@ -1,6 +1,7 @@
 package com.moqserver.studio.domain
 
 import com.moqserver.studio.projectformat.AuthType
+import com.moqserver.studio.projectformat.RuleMatcher
 import kotlinx.serialization.Serializable
 
 /** A fully parsed API spec — intermediate model before conversion to MoqProject. */
@@ -21,6 +22,7 @@ data class ParsedEndpoint(
     val authHeaderName: String? = null,
     val requiredQueryParameters: List<String> = emptyList(),
     val requiredHeaders: List<String> = emptyList(),
+    val cookies: List<RuleMatcher> = emptyList(),
     val requiresBody: Boolean = false,
     val acceptedContentTypes: List<String> = emptyList(),
 )

@@ -140,9 +140,10 @@ object ImportConverter {
             .ifEmpty { null }
         val queryParams = parsed.requiredQueryParameters.map { RuleMatcher(name = it, required = true) }
             .ifEmpty { null }
+        val cookies = parsed.cookies.ifEmpty { null }
 
-        return if (headers != null || queryParams != null) {
-            RequestRules(headers = headers, queryParams = queryParams)
+        return if (headers != null || queryParams != null || cookies != null) {
+            RequestRules(headers = headers, queryParams = queryParams, cookies = cookies)
         } else {
             null
         }

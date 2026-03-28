@@ -150,6 +150,7 @@ class YamlProjectCodec {
             headers = (map["headers"] as? List<*>)?.map { parseRuleMatcher(it as Map<*, *>) },
             verifyCookies = map.bool("verify_cookies"),
             queryParams = (map["query_params"] as? List<*>)?.map { parseRuleMatcher(it as Map<*, *>) },
+            cookies = (map["cookies"] as? List<*>)?.map { parseRuleMatcher(it as Map<*, *>) },
         )
     }
 
@@ -253,6 +254,13 @@ class YamlProjectCodec {
                 qp.forEach { lines += encodeRuleMatcher(it, indent = 4) }
             } else if (qp != null) {
                 lines += "  query_params: []"
+            }
+            val cookies = rules.cookies
+            if (cookies != null && cookies.isNotEmpty()) {
+                lines += "  cookies:"
+                cookies.forEach { lines += encodeRuleMatcher(it, indent = 4) }
+            } else if (cookies != null) {
+                lines += "  cookies: []"
             }
         }
 
