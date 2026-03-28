@@ -22,8 +22,18 @@ import java.util.*
  * Uses swagger-parser for OpenAPI handling, mirroring the Swift OpenAPIParser logic.
  */
 class OpenAPIImportParser {
-    private val maxStubDepth = 32
     private val logger = loggerFor<OpenAPIImportParser>()
+
+    companion object {
+        private const val MAX_STUB_DEPTH = 32
+        private const val DEFAULT_TITLE = "Untitled API"
+        private const val DEFAULT_VERSION = "1.0"
+        private const val DEFAULT_STATUS_CODE = 200
+        private const val DEFAULT_VARIANT_NAME = "default"
+        private const val CONTENT_TYPE_HEADER = "Content-Type"
+        private const val APPLICATION_JSON = "application/json"
+        private const val DEFAULT_JSON_BODY = "{}"
+    }
 
     fun parse(content: String): ParsedSpec {
         logger.info("Parsing OpenAPI spec ({} bytes)", content.length)
@@ -80,8 +90,8 @@ class OpenAPIImportParser {
         }
 
         return ParsedSpec(
-            title = openAPI.info?.title ?: "Untitled API",
-            version = openAPI.info?.version ?: "1.0",
+            title = openAPI.info?.title ?: DEFAULT_TITLE,
+            version = openAPI.info?.version ?: DEFAULT_VERSION,
             endpoints = endpoints,
             warnings = warnings,
         ).also {
@@ -152,8 +162,8 @@ class OpenAPIImportParser {
                     usedNames.add(name)
 
                     val headers = responseHeaders.toMutableMap()
-                    headers.keys.removeAll { it.equals("Content-Type", ignoreCase = true) }
-                    headers["Content-Type"] = contentType
+                    headers.keys.removeAll { it.equals(CONTENT_TYPE_HEADER, ignoreCase = true) }
+                    headers[CONTENT_TYPE_HEADER] = contentType
 
                     val body = extractBody(mediaType, contentType)
 
@@ -172,11 +182,11 @@ class OpenAPIImportParser {
         if (responses.isEmpty()) {
             responses.add(
                 ParsedResponse(
-                    name = "default",
-                    statusCode = 200,
-                    headers = mapOf("Content-Type" to "application/json"),
-                    body = "{}",
-                )
+                    name = DEFAULT_VARIANT_NAME,
+                    statusCode = DEFAULT_STATUS_CODE,
+                    headers = mapOf(CONTENT_TYPE_HEADER to APPLICATION_JSON),
+                    body = DEFAULT_JSON_BODY,
+                ),
             )
         }
 
@@ -188,9 +198,9 @@ class OpenAPIImportParser {
     ): List<Pair<String, io.swagger.v3.oas.models.media.MediaType>> {
         val sorted = mutableListOf<Pair<String, io.swagger.v3.oas.models.media.MediaType>>()
         // JSON first
-        content["application/json"]?.let { sorted.add("application/json" to it) }
+        content[APPLICATION_JSON]?.let { sorted.add(APPLICATION_JSON to it) }
         for ((type, mediaType) in content.entries.sortedBy { it.key }) {
-            if (type == "application/json") continue
+            if (type == APPLICATION_JSON) continue
             sorted.add(type to mediaType)
         }
         return sorted
@@ -271,12 +281,12 @@ class OpenAPIImportParser {
         visited: MutableSet<Schema<*>> =
             Collections.newSetFromMap(IdentityHashMap()),
     ): String {
-        if (depth >= maxStubDepth) return "{}"
-        if (!visited.add(schema)) return "{}"
+        if (depth >= MAX_STUB_DEPTH) return DEFAULT_JSON_BODY
+        if (!visited.add(schema)) return DEFAULT_JSON_BODY
 
         return try {
             schema.example?.let { example ->
-                return formatExample(example, "application/json")
+                return formatExample(example, APPLICATION_JSON)
             }
 
             when (schema.type) {
@@ -285,18 +295,18 @@ class OpenAPIImportParser {
                 "number" -> "0.0"
                 "boolean" -> "false"
                 "array" -> {
-                    val itemStub = schema.items?.let { generateJsonStub(it, depth + 1, visited) } ?: "{}"
+                    val itemStub = schema.items?.let { generateJsonStub(it, depth + 1, visited) } ?: DEFAULT_JSON_BODY
                     "[$itemStub]"
                 }
                 "object" -> {
                     val props = schema.properties.orEmpty()
-                    if (props.isEmpty()) return "{}"
+                    if (props.isEmpty()) return DEFAULT_JSON_BODY
                     val entries = props.entries.sortedBy { it.key }.joinToString(",") { (k, v) ->
                         "\"$k\":${generateJsonStub(v, depth + 1, visited)}"
                     }
                     "{$entries}"
                 }
-                else -> "{}"
+                else -> DEFAULT_JSON_BODY
             }
         } finally {
             visited.remove(schema)
@@ -306,7 +316,7 @@ class OpenAPIImportParser {
     private fun defaultBody(mediaType: String): String? {
         val lower = mediaType.lowercase()
         return when {
-            isJsonMediaType(lower) -> "{}"
+            isJsonMediaType(lower) -> DEFAULT_JSON_BODY
             isXmlMediaType(lower) -> "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<root/>"
             isHtmlMediaType(lower) -> "<!DOCTYPE html>\n<html><head><title>Mock Response</title></head><body><p>mock-response</p></body></html>"
             lower == "text/csv" -> "column1,column2\nvalue1,value2"
@@ -449,16 +459,16 @@ class OpenAPIImportParser {
     // -- Helpers --
 
     private fun parseStatusCode(statusStr: String): Int {
-        return statusStr.toIntOrNull() ?: 200
+        return statusStr.toIntOrNull() ?: DEFAULT_STATUS_CODE
     }
 
     private fun statusCodeToVariantName(statusStr: String, code: Int): String {
-        if (statusStr == "default") return "default"
+        if (statusStr == DEFAULT_VARIANT_NAME) return DEFAULT_VARIANT_NAME
         return when (code) {
-			in 200..299 -> "default"
-			in 400..599 -> "error-$code"
-			else -> "$code"
-		}
+            in 200..299 -> DEFAULT_VARIANT_NAME
+            in 400..599 -> "error-$code"
+            else -> "$code"
+        }
     }
 
     private fun contentTypeSuffix(contentType: String): String {

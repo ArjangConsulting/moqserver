@@ -32,6 +32,8 @@ make docker-run     # docker-compose up
 # Studio
 make studio-build   # compile Kotlin desktop target
 make studio-run     # run the desktop app
+make studio-test    # run all Studio tests
+make studio-lint    # run detekt linting (all modules)
 make studio-package # package for current OS
 make studio-dmg     # macOS .dmg
 make studio-deb     # Linux .deb

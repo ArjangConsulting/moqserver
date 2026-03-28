@@ -23,6 +23,13 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.moqserver.studio.projectformat.ValidationDiagnostic
 
+private object ValidationPanelStrings {
+    const val VALIDATION = "Validation"
+    const val NO_ISSUES = "No issues"
+    const val SEVERITY_ERROR = "E"
+    const val SEVERITY_WARNING = "W"
+}
+
 @Composable
 fun ValidationPanel(
     diagnostics: List<ValidationDiagnostic>,
@@ -42,18 +49,18 @@ fun ValidationPanel(
             },
         ) {
             Row(
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
-                horizontalArrangement = Arrangement.spacedBy(16.dp),
+                modifier = Modifier.fillMaxWidth().padding(horizontal = StudioDimens.xl, vertical = StudioDimens.m),
+                horizontalArrangement = Arrangement.spacedBy(StudioDimens.xl),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text(
-                    text = "Validation",
+                    text = ValidationPanelStrings.VALIDATION,
                     style = MaterialTheme.typography.titleSmall,
                     fontWeight = FontWeight.SemiBold,
                 )
                 if (diagnostics.isEmpty()) {
                     Text(
-                        "No issues",
+                        ValidationPanelStrings.NO_ISSUES,
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onPrimaryContainer,
                     )
@@ -94,12 +101,16 @@ private fun DiagnosticRow(
         modifier = Modifier
             .fillMaxWidth()
             .clickable(onClick = onClick)
-            .padding(horizontal = 16.dp, vertical = 6.dp),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
+            .padding(horizontal = StudioDimens.xl, vertical = StudioDimens.s),
+        horizontalArrangement = Arrangement.spacedBy(StudioDimens.m),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         SeverityBadge(
-            text = if (diagnostic.severity == ValidationDiagnostic.Severity.ERROR) "E" else "W",
+            text = if (diagnostic.severity == ValidationDiagnostic.Severity.ERROR) {
+                ValidationPanelStrings.SEVERITY_ERROR
+            } else {
+                ValidationPanelStrings.SEVERITY_WARNING
+            },
             isError = diagnostic.severity == ValidationDiagnostic.Severity.ERROR,
         )
         Column(modifier = Modifier.weight(1f)) {
@@ -131,8 +142,8 @@ private fun SeverityBadge(text: String, isError: Boolean) {
         color = color,
         fontWeight = FontWeight.Bold,
         modifier = Modifier
-            .clip(RoundedCornerShape(4.dp))
+            .clip(RoundedCornerShape(StudioDimens.xs))
             .background(color.copy(alpha = 0.12f))
-            .padding(horizontal = 6.dp, vertical = 2.dp),
+            .padding(horizontal = StudioDimens.s, vertical = StudioDimens.xxs),
     )
 }

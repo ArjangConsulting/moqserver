@@ -4,6 +4,8 @@ import com.moqserver.studio.domain.CompanionRequest
 
 object PromptBuilder {
 
+    private const val DEFAULT_MAX_VARIANTS = 3
+
     fun buildAnalyzePrompt(request: CompanionRequest): String = buildString {
         appendLine("You are an API specification analyzer. Analyze the following API specification and return structured findings.")
         appendLine()
@@ -76,7 +78,7 @@ object PromptBuilder {
             intent.type?.let { appendLine("Focus on: $it") }
         }
 
-        val maxVariants = request.options?.maxVariants ?: 3
+        val maxVariants = request.options?.maxVariants ?: DEFAULT_MAX_VARIANTS
         appendLine()
         appendLine("Generate up to $maxVariants variants per endpoint.")
         appendLine("Include error cases (4xx, 5xx) alongside success cases.")

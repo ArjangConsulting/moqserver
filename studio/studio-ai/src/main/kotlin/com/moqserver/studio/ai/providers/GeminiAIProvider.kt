@@ -22,13 +22,13 @@ import kotlinx.serialization.json.Json
 
 class GeminiAIProvider(
     val apiKey: String,
-    val baseUrl: String = "https://generativelanguage.googleapis.com",
-    val defaultModel: String = "gemini-1.5-flash",
+    val baseUrl: String = DEFAULT_BASE_URL,
+    val defaultModel: String = DEFAULT_MODEL,
     private val httpClient: HttpClient = defaultClient(),
 ) : AIProvider {
 
-    override val id = "gemini"
-    override val displayName = "Google Gemini"
+    override val id = PROVIDER_ID
+    override val displayName = DISPLAY_NAME
     override val kind = AIProviderKind.HOSTED
     override val capabilities = setOf(
         AIProviderCapability.ANALYZE_SPEC,
@@ -49,11 +49,11 @@ class GeminiAIProvider(
     override suspend fun validateConfig(): List<String> {
         val issues = mutableListOf<String>()
         if (apiKey.isBlank()) {
-            issues += "Gemini API key is not configured."
+            issues += "$DISPLAY_NAME API key is not configured."
             return issues
         }
         if (!checkAvailability()) {
-            issues += "Could not reach Gemini API. Check your API key and network."
+            issues += "Could not reach $DISPLAY_NAME API. Check your API key and network."
         }
         return issues
     }
@@ -73,14 +73,14 @@ class GeminiAIProvider(
                 setBody(bodyMap)
             }
         } catch (e: Exception) {
-            throw AIProviderException.Unavailable("Gemini", e.message ?: "network error", retryable = true)
+            throw AIProviderException.Unavailable(DISPLAY_NAME, e.message ?: "network error", retryable = true)
         }
 
         when (response.status.value) {
-            401, 403 -> throw AIProviderException.AuthInvalid("Gemini")
-            429 -> throw AIProviderException.Unavailable("Gemini", "rate limit exceeded", retryable = true)
+            401, 403 -> throw AIProviderException.AuthInvalid(DISPLAY_NAME)
+            429 -> throw AIProviderException.Unavailable(DISPLAY_NAME, "rate limit exceeded", retryable = true)
             !in 200..299 -> throw AIProviderException.Unavailable(
-                "Gemini",
+                DISPLAY_NAME,
                 "HTTP ${response.status.value}",
                 retryable = response.status.value >= 500,
             )
@@ -93,7 +93,7 @@ class GeminiAIProvider(
             ?.parts
             ?.firstOrNull()
             ?.text
-            ?: throw AIProviderException.ParseFailure("Gemini")
+            ?: throw AIProviderException.ParseFailure(DISPLAY_NAME)
 
         return AICompletionResult(
             text = text,
@@ -126,6 +126,13 @@ class GeminiAIProvider(
         val candidatesTokenCount: Int? = null,
         val totalTokenCount: Int? = null,
     )
+
+    companion object {
+        const val PROVIDER_ID = "gemini"
+        const val DISPLAY_NAME = "Google Gemini"
+        const val DEFAULT_BASE_URL = "https://generativelanguage.googleapis.com"
+        const val DEFAULT_MODEL = "gemini-1.5-flash"
+    }
 }
 
 private fun defaultClient() = HttpClient(CIO) {

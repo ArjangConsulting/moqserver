@@ -83,10 +83,12 @@ class AISettingsRepository(
         private const val OPENAI_API_KEY_CREDENTIAL = "openai.api-key"
         private const val ANTHROPIC_API_KEY_CREDENTIAL = "anthropic.api-key"
         private const val GEMINI_API_KEY_CREDENTIAL = "gemini.api-key"
+        private const val SETTINGS_DIR = ".moqserver"
+        private const val SETTINGS_FILENAME = "studio-settings.json"
 
         fun defaultSettingsFile(): File {
             val home = System.getProperty("user.home")
-            return File(home, ".moqserver/studio-settings.json")
+            return File(home, "$SETTINGS_DIR/$SETTINGS_FILENAME")
         }
     }
 }

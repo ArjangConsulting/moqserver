@@ -1,0 +1,7 @@
+<?xml version="1.0" ?>
+<SmellBaseline>
+  <ManuallySuppressedIssues></ManuallySuppressedIssues>
+  <CurrentIssues>
+    <ID>TrailingCommaOnCallSite:ImportConverterTest.kt$ImportConverterTest$( RuleMatcher( name = "session_id", match = "abc123", required = true, matchType = MatchType.EQUAL_TO, ) )</ID>
+  </CurrentIssues>
+</SmellBaseline>

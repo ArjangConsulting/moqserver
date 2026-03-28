@@ -13,6 +13,18 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
+/**
+ * HTTP status code badge colors.
+ * Keep in sync with [com.moqserver.studio.StudioColors] httpSuccess/httpRedirect/etc.
+ */
+private object StatusCodeColors {
+    val success = Color(0xFF2E7D32)
+    val redirect = Color(0xFF7B5E00)
+    val clientError = Color(0xFFBF360C)
+    val serverError = Color(0xFFC62828)
+    val unknown = Color(0xFF616161)
+}
+
 @Composable
 fun MethodBadge(method: String) {
     val color = when (method.uppercase()) {
@@ -41,11 +53,11 @@ fun MethodBadge(method: String) {
 @Composable
 fun StatusBadge(status: Int) {
     val color = when {
-        status in 200..299 -> Color(0xFF2E7D32) // green
-        status in 300..399 -> Color(0xFF7B5E00) // amber
-        status in 400..499 -> Color(0xFFBF360C) // deep orange-red
-        status >= 500 -> Color(0xFFC62828)       // red
-        else -> Color(0xFF616161)
+        status in 200..299 -> StatusCodeColors.success
+        status in 300..399 -> StatusCodeColors.redirect
+        status in 400..499 -> StatusCodeColors.clientError
+        status >= 500 -> StatusCodeColors.serverError
+        else -> StatusCodeColors.unknown
     }
     Text(
         text = "$status",

@@ -1,0 +1,35 @@
+<?xml version="1.0" ?>
+<SmellBaseline>
+  <ManuallySuppressedIssues></ManuallySuppressedIssues>
+  <CurrentIssues>
+    <ID>ArgumentListWrapping:PromptBuilder.kt$PromptBuilder$("You are a mock API response generator. Generate realistic mock response variants for the specified endpoints.")</ID>
+    <ID>ArgumentListWrapping:PromptBuilder.kt$PromptBuilder$("You are an API specification analyzer. Analyze the following API specification and return structured findings.")</ID>
+    <ID>NoUnusedImports:GeminiAIProvider.kt$com.moqserver.studio.ai.providers.GeminiAIProvider.kt</ID>
+    <ID>NoUnusedImports:OllamaAIProvider.kt$com.moqserver.studio.ai.providers.OllamaAIProvider.kt</ID>
+    <ID>RedundantSuspendModifier:AIProviderRegistry.kt$AIProviderRegistry$suspend</ID>
+    <ID>SwallowedException:AnthropicAIProvider.kt$AnthropicAIProvider$e: Exception</ID>
+    <ID>SwallowedException:GeminiAIProvider.kt$GeminiAIProvider$e: Exception</ID>
+    <ID>SwallowedException:OllamaAIProvider.kt$OllamaAIProvider$e: Exception</ID>
+    <ID>SwallowedException:OpenAIAIProvider.kt$OpenAIAIProvider$e: Exception</ID>
+    <ID>UnreachableCode:AnthropicAIProvider.kt$AnthropicAIProvider$return AICompletionResult( text = text, model = result.model ?: effectiveModel, promptTokens = result.usage?.inputTokens, completionTokens = result.usage?.outputTokens, totalTokens = (result.usage?.inputTokens ?: 0) + (result.usage?.outputTokens ?: 0), latencyMs = System.currentTimeMillis() - start, )</ID>
+    <ID>UnreachableCode:AnthropicAIProvider.kt$AnthropicAIProvider$status</ID>
+    <ID>UnreachableCode:AnthropicAIProvider.kt$AnthropicAIProvider$val result = response.body&lt;AnthropicMessagesResponse&gt;()</ID>
+    <ID>UnreachableCode:AnthropicAIProvider.kt$AnthropicAIProvider$val text = result.content.firstOrNull { it.type == "text" }?.text ?: throw AIProviderException.ParseFailure(DISPLAY_NAME)</ID>
+    <ID>UnreachableCode:AnthropicAIProvider.kt$AnthropicAIProvider$value</ID>
+    <ID>UnreachableCode:GeminiAIProvider.kt$GeminiAIProvider$return AICompletionResult( text = text, model = effectiveModel, promptTokens = result.usageMetadata?.promptTokenCount, completionTokens = result.usageMetadata?.candidatesTokenCount, totalTokens = result.usageMetadata?.totalTokenCount, latencyMs = System.currentTimeMillis() - start, )</ID>
+    <ID>UnreachableCode:GeminiAIProvider.kt$GeminiAIProvider$status</ID>
+    <ID>UnreachableCode:GeminiAIProvider.kt$GeminiAIProvider$val result = response.body&lt;GeminiGenerateResponse&gt;()</ID>
+    <ID>UnreachableCode:GeminiAIProvider.kt$GeminiAIProvider$val text = result.candidates .firstOrNull() ?.content ?.parts ?.firstOrNull() ?.text ?: throw AIProviderException.ParseFailure(DISPLAY_NAME)</ID>
+    <ID>UnreachableCode:GeminiAIProvider.kt$GeminiAIProvider$value</ID>
+    <ID>UnreachableCode:OllamaAIProvider.kt$OllamaAIProvider$!response.status.isSuccess()</ID>
+    <ID>UnreachableCode:OllamaAIProvider.kt$OllamaAIProvider$return AICompletionResult( text = result.response, model = effectiveModel, latencyMs = System.currentTimeMillis() - start, )</ID>
+    <ID>UnreachableCode:OllamaAIProvider.kt$OllamaAIProvider$val result = response.body&lt;OllamaGenerateResponse&gt;()</ID>
+    <ID>UnreachableCode:OllamaAIProvider.kt$OllamaAIProvider${ throw AIProviderException.Unavailable( DISPLAY_NAME, "HTTP ${response.status.value}", retryable = response.status.value &gt;= 500, ) }</ID>
+    <ID>UnreachableCode:OpenAIAIProvider.kt$OpenAIAIProvider$return AICompletionResult( text = text, model = result.model ?: effectiveModel, promptTokens = result.usage?.promptTokens, completionTokens = result.usage?.completionTokens, totalTokens = result.usage?.totalTokens, latencyMs = System.currentTimeMillis() - start, )</ID>
+    <ID>UnreachableCode:OpenAIAIProvider.kt$OpenAIAIProvider$status</ID>
+    <ID>UnreachableCode:OpenAIAIProvider.kt$OpenAIAIProvider$val result = response.body&lt;OpenAIChatResponse&gt;()</ID>
+    <ID>UnreachableCode:OpenAIAIProvider.kt$OpenAIAIProvider$val text = result.choices.firstOrNull()?.message?.content ?: throw AIProviderException.ParseFailure(DISPLAY_NAME)</ID>
+    <ID>UnreachableCode:OpenAIAIProvider.kt$OpenAIAIProvider$value</ID>
+    <ID>Wrapping:PromptBuilder.kt$PromptBuilder$;</ID>
+  </CurrentIssues>
+</SmellBaseline>

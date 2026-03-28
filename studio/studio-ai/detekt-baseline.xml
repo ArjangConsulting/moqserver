@@ -1,0 +1,15 @@
+<?xml version="1.0" ?>
+<SmellBaseline>
+  <ManuallySuppressedIssues></ManuallySuppressedIssues>
+  <CurrentIssues>
+    <ID>ArgumentListWrapping:PromptBuilder.kt$PromptBuilder$("You are a mock API response generator. Generate realistic mock response variants for the specified endpoints.")</ID>
+    <ID>ArgumentListWrapping:PromptBuilder.kt$PromptBuilder$("You are an API specification analyzer. Analyze the following API specification and return structured findings.")</ID>
+    <ID>NoUnusedImports:GeminiAIProvider.kt$com.moqserver.studio.ai.providers.GeminiAIProvider.kt</ID>
+    <ID>NoUnusedImports:OllamaAIProvider.kt$com.moqserver.studio.ai.providers.OllamaAIProvider.kt</ID>
+    <ID>SwallowedException:AnthropicAIProvider.kt$AnthropicAIProvider$e: Exception</ID>
+    <ID>SwallowedException:GeminiAIProvider.kt$GeminiAIProvider$e: Exception</ID>
+    <ID>SwallowedException:OllamaAIProvider.kt$OllamaAIProvider$e: Exception</ID>
+    <ID>SwallowedException:OpenAIAIProvider.kt$OpenAIAIProvider$e: Exception</ID>
+    <ID>Wrapping:PromptBuilder.kt$PromptBuilder$;</ID>
+  </CurrentIssues>
+</SmellBaseline>

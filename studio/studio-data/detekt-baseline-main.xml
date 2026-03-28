@@ -1,0 +1,37 @@
+<?xml version="1.0" ?>
+<SmellBaseline>
+  <ManuallySuppressedIssues></ManuallySuppressedIssues>
+  <CurrentIssues>
+    <ID>ArgumentListWrapping:OpenAPIImportParser.kt$OpenAPIImportParser$( "OpenAPI endpoint: {} {} → {} variant(s), auth={}", method, pathStr, responses.size, authType, )</ID>
+    <ID>ArgumentListWrapping:OpenAPIImportParser.kt$OpenAPIImportParser$( operation, openAPI.security.orEmpty(), securitySchemes )</ID>
+    <ID>ArgumentListWrapping:OpenAPIImportParser.kt$OpenAPIImportParser$("image/svg")</ID>
+    <ID>ArgumentListWrapping:OpenAPIImportParser.kt$OpenAPIImportParser$(lower)</ID>
+    <ID>ArgumentListWrapping:SecureCredentialStore.kt$MacOSKeychainCredentialStore$("Keychain command failed for '{}': {}", args.firstOrNull().orEmpty(), stderr.ifBlank { exitCode.toString() })</ID>
+    <ID>CyclomaticComplexMethod:HARImportParser.kt$HARImportParser$fun parse(content: String): ParsedSpec</ID>
+    <ID>CyclomaticComplexMethod:OpenAPIImportParser.kt$OpenAPIImportParser$private fun resolveAuth( operation: Operation, globalSecurity: List&lt;SecurityRequirement&gt;, securitySchemes: Map&lt;String, SecurityScheme&gt;, ): Pair&lt;AuthType, String?&gt;</ID>
+    <ID>DestructuringDeclarationWithTooManyEntries:OpenAPIImportParser.kt$OpenAPIImportParser$val (reqQuery, reqHeaders, reqCookies, requiresBody, acceptedContentTypes) = extractRequestRules(operation, pathItem.parameters.orEmpty())</ID>
+    <ID>Indentation:AISettingsRepository.kt$AISettingsRepository$ </ID>
+    <ID>LargeClass:OpenAPIImportParser.kt$OpenAPIImportParser</ID>
+    <ID>LongMethod:HARImportParser.kt$HARImportParser$fun parse(content: String): ParsedSpec</ID>
+    <ID>LongMethod:OpenAPIImportParser.kt$OpenAPIImportParser$fun parse(content: String): ParsedSpec</ID>
+    <ID>LoopWithTooManyJumpStatements:HARImportParser.kt$HARImportParser$for</ID>
+    <ID>MaxLineLength:OpenAPIImportParser.kt$OpenAPIImportParser$isHtmlMediaType(lower) -&gt; "&lt;!DOCTYPE html&gt;\n&lt;html&gt;&lt;head&gt;&lt;title&gt;Mock Response&lt;/title&gt;&lt;/head&gt;&lt;body&gt;&lt;p&gt;mock-response&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;"</ID>
+    <ID>MaxLineLength:OpenAPIImportParser.kt$OpenAPIImportParser$lower.startsWith("image/svg") -&gt; "&lt;svg xmlns=\"http://www.w3.org/2000/svg\" width=\"100\" height=\"100\"&gt;&lt;rect width=\"100\" height=\"100\" fill=\"#ccc\"/&gt;&lt;text x=\"10\" y=\"55\" font-size=\"12\"&gt;mock&lt;/text&gt;&lt;/svg&gt;"</ID>
+    <ID>MaximumLineLength:OpenAPIImportParser.kt$OpenAPIImportParser$ </ID>
+    <ID>NoWildcardImports:OpenAPIImportParser.kt$import com.moqserver.studio.projectformat.*</ID>
+    <ID>RedundantSuspendModifier:LocalCompanionClient.kt$LocalCompanionClient$suspend</ID>
+    <ID>TrailingCommaOnCallSite:OpenAPIImportParser.kt$OpenAPIImportParser$( "Unable to parse OpenAPI spec: ${result.messages.joinToString("; ")}" )</ID>
+    <ID>TrailingCommaOnCallSite:OpenAPIImportParser.kt$OpenAPIImportParser$( ParsedEndpoint( method = method, path = pathStr, alias = resolveAlias(operation, method, pathStr), description = operation.description?.trim()?.takeIf { it.isNotEmpty() }, referenceName = operation.operationId?.trim()?.takeIf { it.isNotEmpty() }, responses = responses, authType = authType, authHeaderName = authHeaderName, queryParameters = reqQuery, requiredQueryParameters = reqQuery.filter { it.required == true }.map { it.name }, requiredHeaders = reqHeaders, cookies = reqCookies, requiresBody = requiresBody, acceptedContentTypes = acceptedContentTypes, ) )</ID>
+    <ID>TrailingCommaOnCallSite:OpenAPIImportParser.kt$OpenAPIImportParser$( ParsedResponse( name = name, statusCode = code, headers = headers, body = body, ) )</ID>
+    <ID>TrailingCommaOnCallSite:OpenAPIImportParser.kt$OpenAPIImportParser$( ParsedResponse(name = name, statusCode = code, headers = responseHeaders) )</ID>
+    <ID>TrailingCommaOnCallSite:OpenAPIImportParser.kt$OpenAPIImportParser$( operation, openAPI.security.orEmpty(), securitySchemes )</ID>
+    <ID>TrailingCommaOnCallSite:OpenAPIImportParser.kt$OpenAPIImportParser$( value.entries.associate { (k, v) -&gt; k.toString() to anyToJsonElement(v) } )</ID>
+    <ID>UnreachableCode:HARImportParser.kt$HARImportParser$return headerValue .split(';') .mapNotNull { pair -&gt; val separatorIndex = pair.indexOf('=') if (separatorIndex &lt;= 0) return@mapNotNull null val name = pair.substring(0, separatorIndex).trim() if (name.isEmpty()) return@mapNotNull null val value = pair.substring(separatorIndex + 1).trim() name to value } .toMap()</ID>
+    <ID>UnreachableCode:HARImportParser.kt$HARImportParser$val headerValue = request.headers.firstOrNull { it.name.orEmpty().equals(COOKIE_HEADER, ignoreCase = true) }?.value ?: return emptyMap()</ID>
+    <ID>UnreachableCode:OpenAPIImportParser.kt$OpenAPIImportParser$param.example?.toString() ?: param.examples?.values?.firstOrNull()?.value?.toString() ?: param.schema?.example?.toString()</ID>
+    <ID>UnusedPrivateMember:HARImportParser.kt$HARImportParser$private fun requestCookies(exchanges: List&lt;CapturedExchange&gt;): List&lt;RuleMatcher&gt;</ID>
+    <ID>UnusedPrivateMember:HARImportParser.kt$HARImportParser$private fun requestCookies(request: HarRequest): Map&lt;String, String&gt;</ID>
+    <ID>UseCheckOrError:SecureCredentialStore.kt$UnsupportedSecureCredentialStore$throw IllegalStateException("Secure credential storage is not available on $osName.")</ID>
+    <ID>Wrapping:SecureCredentialStore.kt$MacOSKeychainCredentialStore$exitCode.toString()</ID>
+  </CurrentIssues>
+</SmellBaseline>

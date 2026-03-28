@@ -26,34 +26,34 @@ import io.ktor.serialization.kotlinx.json.json
 import kotlinx.serialization.json.Json
 
 class LocalCompanionClient(
-    private val baseUrl: String = "http://127.0.0.1:8081",
+    private val baseUrl: String = DEFAULT_BASE_URL,
     private val client: HttpClient = HttpClient(CIO) {
         install(ContentNegotiation) {
             json(
                 Json {
                     ignoreUnknownKeys = true
                     prettyPrint = true
-                }
+                },
             )
         }
-    }
+    },
 ) {
     private val json = Json { ignoreUnknownKeys = true }
     private val logger = loggerFor<LocalCompanionClient>()
     val endpoint: String get() = baseUrl
 
     suspend fun health(): HealthResponse {
-        logger.debug("GET {}/health", baseUrl)
+        logger.debug("GET {}{}", baseUrl, HEALTH_PATH)
         val start = System.currentTimeMillis()
-        return client.get("$baseUrl/health").body<HealthResponse>().also {
+        return client.get("$baseUrl$HEALTH_PATH").body<HealthResponse>().also {
             logger.debug("health: status={}, {}ms", it.status, System.currentTimeMillis() - start)
         }
     }
 
     suspend fun providers(): ProvidersResponse {
-        logger.debug("GET {}/ai/providers", baseUrl)
+        logger.debug("GET {}{}", baseUrl, PROVIDERS_PATH)
         val start = System.currentTimeMillis()
-        return client.get("$baseUrl/ai/providers").body<ProvidersResponse>().also { response ->
+        return client.get("$baseUrl$PROVIDERS_PATH").body<ProvidersResponse>().also { response ->
             val available = response.providers.count { it.available }
             logger.info(
                 "providers: {} total, {} available, {}ms",
@@ -65,9 +65,9 @@ class LocalCompanionClient(
     }
 
     suspend fun validateConfig(request: ValidateConfigRequest): ValidateConfigResponse {
-        logger.debug("POST {}/ai/validate-config provider={}", baseUrl, request.providerId)
+        logger.debug("POST {}{} provider={}", baseUrl, VALIDATE_CONFIG_PATH, request.providerId)
         val start = System.currentTimeMillis()
-        return client.post("$baseUrl/ai/validate-config") {
+        return client.post("$baseUrl$VALIDATE_CONFIG_PATH") {
             contentType(ContentType.Application.Json)
             setBody(request)
         }.body<ValidateConfigResponse>().also { response ->
@@ -82,9 +82,9 @@ class LocalCompanionClient(
 
     suspend fun analyzeSpec(request: CompanionRequest): CompanionResponse<AnalyzeSpecResult> {
         val endpointCount = request.projectContext?.endpoints?.size ?: 0
-        logger.info("POST ai/analyze-spec provider={}, endpoints={}", request.providerId, endpointCount)
+        logger.info("POST {} provider={}, endpoints={}", ANALYZE_SPEC_PATH, request.providerId, endpointCount)
         val start = System.currentTimeMillis()
-        val response = client.post("$baseUrl/ai/analyze-spec") {
+        val response = client.post("$baseUrl$ANALYZE_SPEC_PATH") {
             contentType(ContentType.Application.Json)
             setBody(request)
         }
@@ -100,9 +100,9 @@ class LocalCompanionClient(
 
     suspend fun generateVariants(request: CompanionRequest): CompanionResponse<GenerateVariantsResult> {
         val selection = request.selection?.endpointKeys?.joinToString() ?: "(none)"
-        logger.info("POST ai/generate-variants provider={}, selection={}", request.providerId, selection)
+        logger.info("POST {} provider={}, selection={}", GENERATE_VARIANTS_PATH, request.providerId, selection)
         val start = System.currentTimeMillis()
-        val response = client.post("$baseUrl/ai/generate-variants") {
+        val response = client.post("$baseUrl$GENERATE_VARIANTS_PATH") {
             contentType(ContentType.Application.Json)
             setBody(request)
         }
@@ -118,9 +118,9 @@ class LocalCompanionClient(
 
     suspend fun refineProject(request: CompanionRequest): CompanionResponse<RefineProjectResult> {
         val endpointCount = request.projectContext?.endpoints?.size ?: 0
-        logger.info("POST ai/refine-project provider={}, endpoints={}", request.providerId, endpointCount)
+        logger.info("POST {} provider={}, endpoints={}", REFINE_PROJECT_PATH, request.providerId, endpointCount)
         val start = System.currentTimeMillis()
-        val response = client.post("$baseUrl/ai/refine-project") {
+        val response = client.post("$baseUrl$REFINE_PROJECT_PATH") {
             contentType(ContentType.Application.Json)
             setBody(request)
         }
@@ -133,6 +133,16 @@ class LocalCompanionClient(
             logger.info("refine-project completed in {}ms", System.currentTimeMillis() - start)
         }
     }
+
+    companion object {
+        const val DEFAULT_BASE_URL = "http://127.0.0.1:8081"
+        private const val HEALTH_PATH = "/health"
+        private const val PROVIDERS_PATH = "/ai/providers"
+        private const val VALIDATE_CONFIG_PATH = "/ai/validate-config"
+        private const val ANALYZE_SPEC_PATH = "/ai/analyze-spec"
+        private const val GENERATE_VARIANTS_PATH = "/ai/generate-variants"
+        private const val REFINE_PROJECT_PATH = "/ai/refine-project"
+    }
 }
 
 class CompanionApiException(
@@ -141,15 +151,18 @@ class CompanionApiException(
     val retryable: Boolean,
 ) : Exception(message) {
     companion object {
+        private const val ERROR_CODE_PREFIX = "http_"
+        private val RETRYABLE_STATUS_RANGE = 500..599
+
         fun fromResponse(statusCode: Int, body: String, json: Json): CompanionApiException {
             return try {
                 val error = json.decodeFromString<CompanionErrorResponse>(body)
                 CompanionApiException(error.error.code, error.error.message, error.error.retryable)
             } catch (_: Exception) {
                 CompanionApiException(
-                    code = "http_$statusCode",
+                    code = "$ERROR_CODE_PREFIX$statusCode",
                     message = "Companion returned HTTP $statusCode",
-                    retryable = statusCode in 500..599,
+                    retryable = statusCode in RETRYABLE_STATUS_RANGE,
                 )
             }
         }

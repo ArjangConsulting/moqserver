@@ -22,13 +22,13 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 
 class OllamaAIProvider(
-    val baseUrl: String = "http://localhost:11434",
-    val defaultModel: String = "llama3.1",
+    val baseUrl: String = DEFAULT_BASE_URL,
+    val defaultModel: String = DEFAULT_MODEL,
     private val httpClient: HttpClient = defaultClient(),
 ) : AIProvider {
 
-    override val id = "ollama"
-    override val displayName = "Ollama"
+    override val id = PROVIDER_ID
+    override val displayName = DISPLAY_NAME
     override val kind = AIProviderKind.LOCAL
     override val capabilities = setOf(
         AIProviderCapability.ANALYZE_SPEC,
@@ -38,7 +38,7 @@ class OllamaAIProvider(
 
     override suspend fun checkAvailability(): Boolean {
         return try {
-            val response = httpClient.get("$baseUrl/api/tags")
+            val response = httpClient.get("$baseUrl$TAGS_PATH")
             response.status.isSuccess()
         } catch (_: Exception) {
             false
@@ -48,11 +48,11 @@ class OllamaAIProvider(
     override suspend fun validateConfig(): List<String> {
         val issues = mutableListOf<String>()
         if (baseUrl.isBlank()) {
-            issues += "Ollama base URL is not configured."
+            issues += "$DISPLAY_NAME base URL is not configured."
             return issues
         }
         if (!checkAvailability()) {
-            issues += "Ollama is not reachable at $baseUrl. Make sure it is running."
+            issues += "$DISPLAY_NAME is not reachable at $baseUrl. Make sure it is running."
         }
         return issues
     }
@@ -69,17 +69,17 @@ class OllamaAIProvider(
         }
 
         val response = try {
-            httpClient.post("$baseUrl/api/generate") {
+            httpClient.post("$baseUrl$GENERATE_PATH") {
                 contentType(ContentType.Application.Json)
                 setBody(bodyMap)
             }
         } catch (e: Exception) {
-            throw AIProviderException.Unavailable("Ollama", e.message ?: "network error", retryable = true)
+            throw AIProviderException.Unavailable(DISPLAY_NAME, e.message ?: "network error", retryable = true)
         }
 
         if (!response.status.isSuccess()) {
             throw AIProviderException.Unavailable(
-                "Ollama",
+                DISPLAY_NAME,
                 "HTTP ${response.status.value}",
                 retryable = response.status.value >= 500,
             )
@@ -98,6 +98,15 @@ class OllamaAIProvider(
         val response: String,
         val model: String? = null,
     )
+
+    companion object {
+        const val PROVIDER_ID = "ollama"
+        const val DISPLAY_NAME = "Ollama"
+        const val DEFAULT_BASE_URL = "http://localhost:11434"
+        const val DEFAULT_MODEL = "llama3.1"
+        private const val TAGS_PATH = "/api/tags"
+        private const val GENERATE_PATH = "/api/generate"
+    }
 }
 
 private fun defaultClient() = HttpClient(CIO) {

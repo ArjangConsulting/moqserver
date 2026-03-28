@@ -1,4 +1,4 @@
-.PHONY: build test smoke run clean release docker-build studio-build studio-package studio-run
+.PHONY: build test smoke run clean release docker-build studio-build studio-package studio-run studio-test studio-lint
 
 # ── Server (Swift) ──────────────────────────────────────────────
 
@@ -58,3 +58,9 @@ studio-msi:
 
 studio-uber-jar:
 	cd studio && ./gradlew :composeApp:packageUberJarForCurrentOS
+
+studio-test:
+	cd studio && ./gradlew test
+
+studio-lint:
+	cd studio && ./gradlew detektAll

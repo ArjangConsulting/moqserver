@@ -13,27 +13,51 @@ data class AISettings(
 
 @Serializable
 data class OllamaSettings(
-    val baseUrl: String = "http://localhost:11434",
-    val defaultModel: String = "Qwen3.5-coder",
-)
+    val baseUrl: String = DEFAULT_BASE_URL,
+    val defaultModel: String = DEFAULT_MODEL,
+) {
+    companion object {
+        /** Keep in sync with OllamaAIProvider defaults in studio-ai. */
+        const val DEFAULT_BASE_URL = "http://localhost:11434"
+        const val DEFAULT_MODEL = "Qwen3.5-coder"
+    }
+}
 
 @Serializable
 data class OpenAISettings(
     val apiKey: String = "",
-    val baseUrl: String = "https://api.openai.com/v1",
-    val defaultModel: String = "gpt-4o",
-)
+    val baseUrl: String = DEFAULT_BASE_URL,
+    val defaultModel: String = DEFAULT_MODEL,
+) {
+    companion object {
+        /** Keep in sync with OpenAIAIProvider defaults in studio-ai. */
+        const val DEFAULT_BASE_URL = "https://api.openai.com/v1"
+        const val DEFAULT_MODEL = "gpt-4o"
+    }
+}
 
 @Serializable
 data class AnthropicSettings(
     val apiKey: String = "",
-    val baseUrl: String = "https://api.anthropic.com",
-    val defaultModel: String = "claude-sonnet-4-6",
-)
+    val baseUrl: String = DEFAULT_BASE_URL,
+    val defaultModel: String = DEFAULT_MODEL,
+) {
+    companion object {
+        /** Keep in sync with AnthropicAIProvider defaults in studio-ai. */
+        const val DEFAULT_BASE_URL = "https://api.anthropic.com"
+        const val DEFAULT_MODEL = "claude-sonnet-4-6"
+    }
+}
 
 @Serializable
 data class GeminiSettings(
     val apiKey: String = "",
-    val baseUrl: String = "https://generativelanguage.googleapis.com",
-    val defaultModel: String = "gemini-1.5-flash",
-)
+    val baseUrl: String = DEFAULT_BASE_URL,
+    val defaultModel: String = DEFAULT_MODEL,
+) {
+    companion object {
+        /** Keep in sync with GeminiAIProvider defaults in studio-ai. */
+        const val DEFAULT_BASE_URL = "https://generativelanguage.googleapis.com"
+        const val DEFAULT_MODEL = "gemini-1.5-flash"
+    }
+}

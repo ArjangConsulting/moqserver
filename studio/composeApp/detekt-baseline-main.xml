@@ -1,0 +1,33 @@
+<?xml version="1.0" ?>
+<SmellBaseline>
+  <ManuallySuppressedIssues></ManuallySuppressedIssues>
+  <CurrentIssues>
+    <ID>ArgumentListWrapping:Main.kt$(window, appViewModel.state.value, repo, appViewModel, lastFileDirectory)</ID>
+    <ID>CognitiveComplexMethod:Main.kt$fun main(args: Array&lt;String&gt;)</ID>
+    <ID>CyclomaticComplexMethod:Main.kt$fun main(args: Array&lt;String&gt;)</ID>
+    <ID>ImportOrdering:ActualResourceCollectors.kt$import kotlin.OptIn import kotlin.String import kotlin.collections.Map import org.jetbrains.compose.resources.DrawableResource import org.jetbrains.compose.resources.FontResource import org.jetbrains.compose.resources.PluralStringResource import org.jetbrains.compose.resources.StringArrayResource import org.jetbrains.compose.resources.StringResource</ID>
+    <ID>Indentation:ActualResourceCollectors.kt$ </ID>
+    <ID>InjectDispatcher:Main.kt$IO</ID>
+    <ID>LongMethod:Main.kt$fun main(args: Array&lt;String&gt;)</ID>
+    <ID>LongMethod:StudioPreviews.kt$private fun previewProject(): MoqProject</ID>
+    <ID>TrailingCommaOnCallSite:AISettingsScreen.kt$( onClick = { onSave( settings.copy( ollama = ollama, openai = openai, anthropic = anthropic, gemini = gemini, ) ) } )</ID>
+    <ID>TrailingCommaOnCallSite:AISettingsScreen.kt$( settings.copy( ollama = ollama, openai = openai, anthropic = anthropic, gemini = gemini, ) )</ID>
+    <ID>TrailingCommaOnCallSite:StudioPreviews.kt$( "users" to YamlValue.Array( listOf( YamlValue.Obj( mapOf( "id" to YamlValue.Int(1), "name" to YamlValue.Str("Moq"), ) ) ) ) )</ID>
+    <ID>TrailingCommaOnCallSite:StudioPreviews.kt$( AIProviderInfo( id = "ollama", displayName = "Ollama (local)", kind = ProviderKind.LOCAL, available = true, capabilities = setOf("ANALYZE_SPEC", "GENERATE_VARIANTS", "REFINE_PROJECT"), ) )</ID>
+    <ID>TrailingCommaOnCallSite:StudioPreviews.kt$( ParsedResponse( name = "default", statusCode = 200, headers = mapOf("Content-Type" to "application/json"), body = """{"pets":[]}""", ) )</ID>
+    <ID>TrailingCommaOnCallSite:StudioPreviews.kt$( ProjectVariant( name = "default", referenceName = "default", isDefault = true, status = 200, headers = mapOf("Content-Type" to "application/json"), body = YamlValue.Obj( mapOf( "users" to YamlValue.Array( listOf( YamlValue.Obj( mapOf( "id" to YamlValue.Int(1), "name" to YamlValue.Str("Moq"), ) ) ) ) ) ), ) )</ID>
+    <ID>TrailingCommaOnCallSite:StudioPreviews.kt$( ProjectVariant( name = "default", referenceName = "default", isDefault = true, status = 200, headers = mapOf("Content-Type" to "application/json"), body = YamlValue.Obj(mapOf("token" to YamlValue.Str("preview-token"))), ) )</ID>
+    <ID>TrailingCommaOnCallSite:StudioPreviews.kt$( SpecFinding( severity = FindingSeverity.WARNING, category = "schema", message = "Example preview finding", endpointKey = "GET /users", ) )</ID>
+    <ID>TrailingCommaOnCallSite:StudioPreviews.kt$( ValidationDiagnostic( severity = ValidationDiagnostic.Severity.WARNING, message = "Example warning for preview", endpointId = "get-users", ) )</ID>
+    <ID>TrailingCommaOnCallSite:StudioPreviews.kt$( YamlValue.Obj( mapOf( "id" to YamlValue.Int(1), "name" to YamlValue.Str("Moq"), ) ) )</ID>
+    <ID>TrailingCommaOnCallSite:StudioPreviews.kt$( findings = listOf( SpecFinding( severity = FindingSeverity.WARNING, category = "schema", message = "Example preview finding", endpointKey = "GET /users", ) ) )</ID>
+    <ID>TrailingCommaOnCallSite:StudioPreviews.kt$( listOf( YamlValue.Obj( mapOf( "id" to YamlValue.Int(1), "name" to YamlValue.Str("Moq"), ) ) ) )</ID>
+    <ID>TrailingCommaOnCallSite:StudioPreviews.kt$( mapOf( "id" to YamlValue.Int(1), "name" to YamlValue.Str("Moq"), ) )</ID>
+    <ID>TrailingCommaOnCallSite:StudioPreviews.kt$( mapOf( "users" to YamlValue.Array( listOf( YamlValue.Obj( mapOf( "id" to YamlValue.Int(1), "name" to YamlValue.Str("Moq"), ) ) ) ) ) )</ID>
+    <ID>UnusedPrivateMember:StudioPreviews.kt$@Preview @Composable private fun AIResultsPreview()</ID>
+    <ID>UnusedPrivateMember:StudioPreviews.kt$@Preview @Composable private fun ImportReviewPreview()</ID>
+    <ID>UnusedPrivateMember:StudioPreviews.kt$@Preview @Composable private fun LandingPreview()</ID>
+    <ID>UnusedPrivateMember:StudioPreviews.kt$@Preview @Composable private fun WorkspacePreview()</ID>
+    <ID>Wrapping:Main.kt$;</ID>
+  </CurrentIssues>
+</SmellBaseline>

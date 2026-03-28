@@ -12,7 +12,7 @@ class YamlProjectCodec {
 
     fun decodeManifest(yaml: String): ProjectManifest {
         val map = loader.loadFromString(yaml) as? Map<*, *>
-            ?: throw IllegalArgumentException("project.yml must be a YAML mapping")
+            ?: throw IllegalArgumentException("${MoqProjectFormat.MANIFEST_FILE} must be a YAML mapping")
         return parseManifest(map)
     }
 
@@ -25,10 +25,10 @@ class YamlProjectCodec {
     private fun parseManifest(map: Map<*, *>): ProjectManifest {
         return ProjectManifest(
             version = map.str("version") ?: "1",
-            name = map.str("name") ?: throw missing("name", "project.yml"),
+            name = map.str("name") ?: throw missing("name", MoqProjectFormat.MANIFEST_FILE),
             description = map.str("description"),
             defaults = (map["defaults"] as? Map<*, *>)?.let { parseDefaults(it) }
-                ?: throw missing("defaults", "project.yml"),
+                ?: throw missing("defaults", MoqProjectFormat.MANIFEST_FILE),
             globalRules = (map["global_rules"] as? Map<*, *>)?.let { parseGlobalRules(it) },
         )
     }

@@ -37,6 +37,22 @@ import com.moqserver.studio.domain.ParsedEndpoint
 import com.moqserver.studio.projectformat.AuthType
 import com.moqserver.studio.ui.MethodBadge
 
+private object ImportReviewStrings {
+    const val IMPORT_OPENAPI = "Import OpenAPI Spec"
+    const val IMPORT_HAR = "Import HAR File"
+    const val WARNINGS = "Warnings"
+    const val PROJECT_NAME = "Project Name"
+    const val SELECT_ALL = "Select All"
+    const val DESELECT_ALL = "Deselect All"
+    const val CANCEL = "Cancel"
+    const val IMPORT = "Import"
+    const val HIDE = "Hide"
+    const val DETAILS = "Details"
+    const val AUTH_PREFIX = "Auth: "
+    const val AND_MORE_PREFIX = "...and "
+    const val AND_MORE_SUFFIX = " more"
+}
+
 @Composable
 fun ImportReviewScreen(
     state: ImportState,
@@ -48,23 +64,23 @@ fun ImportReviewScreen(
     onCancel: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    Column(modifier = modifier.padding(24.dp)) {
+    Column(modifier = modifier.padding(StudioDimens.xxxl)) {
         // Header
         Text(
             text = when (state.source) {
-                ImportSourceType.OPENAPI -> "Import OpenAPI Spec"
-                ImportSourceType.HAR -> "Import HAR File"
+                ImportSourceType.OPENAPI -> ImportReviewStrings.IMPORT_OPENAPI
+                ImportSourceType.HAR -> ImportReviewStrings.IMPORT_HAR
             },
             style = MaterialTheme.typography.headlineSmall,
         )
-        Spacer(Modifier.height(4.dp))
+        Spacer(Modifier.height(StudioDimens.xs))
         Text(
             text = "${state.sourceFileName} — ${state.parsedSpec.title} v${state.parsedSpec.version}",
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
 
-        Spacer(Modifier.height(16.dp))
+        Spacer(Modifier.height(StudioDimens.xl))
 
         // Warnings
         if (state.warnings.isNotEmpty()) {
@@ -74,9 +90,9 @@ fun ImportReviewScreen(
                 ),
                 modifier = Modifier.fillMaxWidth(),
             ) {
-                Column(modifier = Modifier.padding(12.dp)) {
+                Column(modifier = Modifier.padding(StudioDimens.l)) {
                     Text(
-                        "Warnings",
+                        ImportReviewStrings.WARNINGS,
                         style = MaterialTheme.typography.labelLarge,
                         color = MaterialTheme.colorScheme.onErrorContainer,
                     )
@@ -89,26 +105,26 @@ fun ImportReviewScreen(
                     }
                     if (state.warnings.size > 5) {
                         Text(
-                            text = "...and ${state.warnings.size - 5} more",
+                            text = "${ImportReviewStrings.AND_MORE_PREFIX}${state.warnings.size - 5}${ImportReviewStrings.AND_MORE_SUFFIX}",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onErrorContainer,
                         )
                     }
                 }
             }
-            Spacer(Modifier.height(12.dp))
+            Spacer(Modifier.height(StudioDimens.l))
         }
 
         // Project name
         OutlinedTextField(
             value = state.projectName,
             onValueChange = onUpdateProjectName,
-            label = { Text("Project Name") },
+            label = { Text(ImportReviewStrings.PROJECT_NAME) },
             singleLine = true,
             modifier = Modifier.fillMaxWidth(0.5f),
         )
 
-        Spacer(Modifier.height(16.dp))
+        Spacer(Modifier.height(StudioDimens.xl))
 
         // Summary and select/deselect
         Row(
@@ -120,18 +136,18 @@ fun ImportReviewScreen(
                 "${state.acceptedCount} of ${state.totalCount} endpoints selected",
                 style = MaterialTheme.typography.titleSmall,
             )
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                TextButton(onClick = onSelectAll) { Text("Select All") }
-                TextButton(onClick = onDeselectAll) { Text("Deselect All") }
+                        Row(horizontalArrangement = Arrangement.spacedBy(StudioDimens.m)) {
+                TextButton(onClick = onSelectAll) { Text(ImportReviewStrings.SELECT_ALL) }
+                TextButton(onClick = onDeselectAll) { Text(ImportReviewStrings.DESELECT_ALL) }
             }
         }
 
-        Spacer(Modifier.height(8.dp))
+        Spacer(Modifier.height(StudioDimens.m))
 
         // Endpoint list
         LazyColumn(
             modifier = Modifier.weight(1f).fillMaxWidth(),
-            verticalArrangement = Arrangement.spacedBy(4.dp),
+            verticalArrangement = Arrangement.spacedBy(StudioDimens.xs),
         ) {
             itemsIndexed(state.entries) { index, entry ->
                 ImportEndpointRow(
@@ -142,9 +158,9 @@ fun ImportReviewScreen(
             }
         }
 
-        Spacer(Modifier.height(16.dp))
+        Spacer(Modifier.height(StudioDimens.xl))
         HorizontalDivider()
-        Spacer(Modifier.height(12.dp))
+        Spacer(Modifier.height(StudioDimens.l))
 
         // Action buttons
         Row(
@@ -153,14 +169,14 @@ fun ImportReviewScreen(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             OutlinedButton(onClick = onCancel) {
-                Text("Cancel")
+                Text(ImportReviewStrings.CANCEL)
             }
-            Spacer(Modifier.width(8.dp))
+            Spacer(Modifier.width(StudioDimens.m))
             Button(
                 onClick = onConfirm,
                 enabled = state.acceptedCount > 0 && state.projectName.isNotBlank(),
             ) {
-                Text("Import")
+                Text(ImportReviewStrings.IMPORT)
             }
         }
     }
@@ -184,7 +200,7 @@ private fun ImportEndpointRow(
             },
         ),
     ) {
-        Column(modifier = Modifier.padding(8.dp)) {
+        Column(modifier = Modifier.padding(StudioDimens.m)) {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier.fillMaxWidth(),
@@ -194,7 +210,7 @@ private fun ImportEndpointRow(
                     onCheckedChange = { onToggle() },
                 )
                 MethodBadge(endpoint.method)
-                Spacer(Modifier.width(8.dp))
+                Spacer(Modifier.width(StudioDimens.m))
                 Text(
                     text = endpoint.path,
                     style = MaterialTheme.typography.bodyMedium.copy(fontFamily = FontFamily.Monospace),
@@ -205,26 +221,26 @@ private fun ImportEndpointRow(
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
-                Spacer(Modifier.width(8.dp))
+                Spacer(Modifier.width(StudioDimens.m))
                 TextButton(onClick = { expanded = !expanded }) {
-                    Text(if (expanded) "Hide" else "Details")
+                    Text(if (expanded) ImportReviewStrings.HIDE else ImportReviewStrings.DETAILS)
                 }
             }
 
             if (expanded) {
                 Column(
-                    modifier = Modifier.padding(start = 48.dp, top = 4.dp),
-                    verticalArrangement = Arrangement.spacedBy(2.dp),
+                    modifier = Modifier.padding(start = 48.dp, top = StudioDimens.xs),
+                    verticalArrangement = Arrangement.spacedBy(StudioDimens.xxs),
                 ) {
                     if (endpoint.authType != AuthType.NONE) {
                         Text(
-                            "Auth: ${endpoint.authType.name.lowercase()}",
+                            "${ImportReviewStrings.AUTH_PREFIX}${endpoint.authType.name.lowercase()}",
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.tertiary,
                         )
                     }
                     for (resp in endpoint.responses) {
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(horizontalArrangement = Arrangement.spacedBy(StudioDimens.m)) {
                             Text(
                                 "${resp.statusCode}",
                                 style = MaterialTheme.typography.labelSmall,

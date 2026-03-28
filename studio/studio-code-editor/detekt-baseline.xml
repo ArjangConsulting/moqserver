@@ -1,0 +1,8 @@
+<?xml version="1.0" ?>
+<SmellBaseline>
+  <ManuallySuppressedIssues></ManuallySuppressedIssues>
+  <CurrentIssues>
+    <ID>ImportOrdering:JsonCodeEditor.kt$import androidx.compose.runtime.Composable import androidx.compose.ui.Modifier import androidx.compose.ui.awt.SwingPanel import java.awt.Color import java.awt.BorderLayout import javax.swing.JPanel import javax.swing.event.DocumentEvent import javax.swing.event.DocumentListener import org.fife.ui.rsyntaxtextarea.RSyntaxTextArea import org.fife.ui.rsyntaxtextarea.SyntaxConstants import org.fife.ui.rtextarea.RTextScrollPane</ID>
+    <ID>TrailingCommaOnCallSite:JsonCodeEditor.kt$( modifier = modifier, factory = { JsonEditorPanel(text, onTextChange, syntaxStyle, readOnly, backgroundColor, foregroundColor) }, update = { panel -&gt; panel.setTextIfDifferent(text) panel.setReadOnly(readOnly) panel.setColors(backgroundColor, foregroundColor) } )</ID>
+  </CurrentIssues>
+</SmellBaseline>

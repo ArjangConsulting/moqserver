@@ -17,7 +17,7 @@ fun defaultAliasForEndpoint(
         ?.let(::humanizeAliasSource)
         ?.let { return it }
 
-    if (path.equals("/graphql", ignoreCase = true)) {
+    if (path.equals(MoqProjectFormat.GRAPHQL_PATH, ignoreCase = true)) {
         val operationLabel = operation?.type
             ?.name
             ?.lowercase()

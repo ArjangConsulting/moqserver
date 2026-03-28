@@ -1,0 +1,58 @@
+<?xml version="1.0" ?>
+<SmellBaseline>
+  <ManuallySuppressedIssues></ManuallySuppressedIssues>
+  <CurrentIssues>
+    <ID>AnnotationOnSeparateLine:ProjectModels.kt$AuthType.API_KEY$@SerialName("api-key")</ID>
+    <ID>AnnotationOnSeparateLine:ProjectModels.kt$AuthType.BASIC$@SerialName("basic")</ID>
+    <ID>AnnotationOnSeparateLine:ProjectModels.kt$AuthType.BEARER$@SerialName("bearer")</ID>
+    <ID>AnnotationOnSeparateLine:ProjectModels.kt$AuthType.HEADER$@SerialName("header")</ID>
+    <ID>AnnotationOnSeparateLine:ProjectModels.kt$AuthType.NONE$@SerialName("none")</ID>
+    <ID>AnnotationOnSeparateLine:ProjectModels.kt$MatchType.BEGINS_WITH$@SerialName("begins_with")</ID>
+    <ID>AnnotationOnSeparateLine:ProjectModels.kt$MatchType.CONTAINS$@SerialName("contains")</ID>
+    <ID>AnnotationOnSeparateLine:ProjectModels.kt$MatchType.ENDS_WITH$@SerialName("ends_with")</ID>
+    <ID>AnnotationOnSeparateLine:ProjectModels.kt$MatchType.EQUAL_TO$@SerialName("equal_to")</ID>
+    <ID>AnnotationOnSeparateLine:ProjectModels.kt$MatchType.GT$@SerialName("gt")</ID>
+    <ID>AnnotationOnSeparateLine:ProjectModels.kt$MatchType.GTE$@SerialName("gte")</ID>
+    <ID>AnnotationOnSeparateLine:ProjectModels.kt$MatchType.IS_EMPTY$@SerialName("is_empty")</ID>
+    <ID>AnnotationOnSeparateLine:ProjectModels.kt$MatchType.LT$@SerialName("lt")</ID>
+    <ID>AnnotationOnSeparateLine:ProjectModels.kt$MatchType.LTE$@SerialName("lte")</ID>
+    <ID>AnnotationOnSeparateLine:ProjectModels.kt$MatchType.MATCHES_REGEX$@SerialName("matches_regex")</ID>
+    <ID>AnnotationOnSeparateLine:ProjectModels.kt$MatchType.NOT_CONTAINS$@SerialName("not_contains")</ID>
+    <ID>AnnotationOnSeparateLine:ProjectModels.kt$MatchType.NOT_EMPTY$@SerialName("not_empty")</ID>
+    <ID>AnnotationOnSeparateLine:ProjectModels.kt$MatchType.NOT_EQUAL_TO$@SerialName("not_equal_to")</ID>
+    <ID>AnnotationOnSeparateLine:ProjectModels.kt$MatchType.REQUIRE$@SerialName("require")</ID>
+    <ID>AnnotationOnSeparateLine:ProjectModels.kt$OperationType.MUTATION$@SerialName("mutation")</ID>
+    <ID>AnnotationOnSeparateLine:ProjectModels.kt$OperationType.QUERY$@SerialName("query")</ID>
+    <ID>AnnotationOnSeparateLine:ProjectModels.kt$OperationType.SUBSCRIPTION$@SerialName("subscription")</ID>
+    <ID>ArgumentListWrapping:YamlValue.kt$YamlValue.Companion$(value.toDouble())</ID>
+    <ID>ArgumentListWrapping:YamlValue.kt$YamlValue.Companion$(value.toInt())</ID>
+    <ID>CognitiveComplexMethod:ProjectValidator.kt$ProjectValidator$fun validate(project: MoqProject): List&lt;ValidationDiagnostic&gt;</ID>
+    <ID>CyclomaticComplexMethod:ProjectValidator.kt$ProjectValidator$fun validate(project: MoqProject): List&lt;ValidationDiagnostic&gt;</ID>
+    <ID>CyclomaticComplexMethod:YamlValue.kt$YamlValue.Companion$fun from(value: Any?): YamlValue</ID>
+    <ID>LongMethod:ProjectValidator.kt$ProjectValidator$fun validate(project: MoqProject): List&lt;ValidationDiagnostic&gt;</ID>
+    <ID>MaxLineLength:ProjectValidator.kt$ProjectValidator$message = "Endpoint reference_name \"${endpoint.referenceName}\" must start with a letter or underscore and contain only letters, numbers, or underscores."</ID>
+    <ID>MaxLineLength:ProjectValidator.kt$ProjectValidator$message = "Variant reference_name \"${variant.referenceName}\" must start with a letter or underscore and contain only letters, numbers, or underscores."</ID>
+    <ID>MaximumLineLength:ProjectValidator.kt$ProjectValidator$ </ID>
+    <ID>SpacingBetweenDeclarationsWithAnnotations:ProjectModels.kt$AuthType$API_KEY</ID>
+    <ID>SpacingBetweenDeclarationsWithAnnotations:ProjectModels.kt$AuthType$BASIC</ID>
+    <ID>SpacingBetweenDeclarationsWithAnnotations:ProjectModels.kt$AuthType$BEARER</ID>
+    <ID>SpacingBetweenDeclarationsWithAnnotations:ProjectModels.kt$AuthType$HEADER</ID>
+    <ID>SpacingBetweenDeclarationsWithAnnotations:ProjectModels.kt$MatchType$BEGINS_WITH</ID>
+    <ID>SpacingBetweenDeclarationsWithAnnotations:ProjectModels.kt$MatchType$CONTAINS</ID>
+    <ID>SpacingBetweenDeclarationsWithAnnotations:ProjectModels.kt$MatchType$ENDS_WITH</ID>
+    <ID>SpacingBetweenDeclarationsWithAnnotations:ProjectModels.kt$MatchType$EQUAL_TO</ID>
+    <ID>SpacingBetweenDeclarationsWithAnnotations:ProjectModels.kt$MatchType$GT</ID>
+    <ID>SpacingBetweenDeclarationsWithAnnotations:ProjectModels.kt$MatchType$GTE</ID>
+    <ID>SpacingBetweenDeclarationsWithAnnotations:ProjectModels.kt$MatchType$IS_EMPTY</ID>
+    <ID>SpacingBetweenDeclarationsWithAnnotations:ProjectModels.kt$MatchType$LT</ID>
+    <ID>SpacingBetweenDeclarationsWithAnnotations:ProjectModels.kt$MatchType$LTE</ID>
+    <ID>SpacingBetweenDeclarationsWithAnnotations:ProjectModels.kt$MatchType$MATCHES_REGEX</ID>
+    <ID>SpacingBetweenDeclarationsWithAnnotations:ProjectModels.kt$MatchType$NOT_CONTAINS</ID>
+    <ID>SpacingBetweenDeclarationsWithAnnotations:ProjectModels.kt$MatchType$NOT_EMPTY</ID>
+    <ID>SpacingBetweenDeclarationsWithAnnotations:ProjectModels.kt$MatchType$NOT_EQUAL_TO</ID>
+    <ID>SpacingBetweenDeclarationsWithAnnotations:ProjectModels.kt$OperationType$MUTATION</ID>
+    <ID>SpacingBetweenDeclarationsWithAnnotations:ProjectModels.kt$OperationType$SUBSCRIPTION</ID>
+    <ID>UseCheckOrError:YamlValue.kt$YamlValueSerializer$throw IllegalStateException("YamlValue can only be deserialized from JSON")</ID>
+    <ID>UseCheckOrError:YamlValue.kt$YamlValueSerializer$throw IllegalStateException("YamlValue can only be serialized with JSON")</ID>
+  </CurrentIssues>
+</SmellBaseline>

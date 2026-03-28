@@ -48,6 +48,33 @@ import com.moqserver.composeapp.generated.resources.GreatVibes_Regular
 import com.moqserver.composeapp.generated.resources.Res
 import org.jetbrains.compose.resources.Font
 
+private object AppStrings {
+    const val APP_TITLE = "moq studio"
+    const val TOGGLE_THEME = "Toggle theme"
+    const val CLOSE_AI_PANEL = "Close AI panel"
+    const val OPEN_AI_PANEL = "Open AI panel"
+    const val CONNECT_REFRESH_AI = "Connect or refresh AI companion"
+    const val CLEAR_PROJECT = "Clear Project"
+    const val SAVE_AS = "Save As"
+    const val SAVE = "Save"
+    const val WORKSPACE = "Workspace"
+    const val OPEN_OR_IMPORT = "Open or import a project"
+    const val OPEN_MOQPROJ = "Open .moqproj"
+    const val IMPORT_OPENAPI = "Import OpenAPI"
+    const val IMPORT_HAR = "Import HAR"
+    const val RECENT_PROJECTS = "Recent Projects"
+    const val AI_COMPANION = "AI Companion"
+    const val CLOSE = "Close"
+    const val UNSAVED_CHANGES = "Unsaved changes"
+    const val NO_UNSAVED_CHANGES = "No unsaved changes"
+    const val AI_CHECKING_PROVIDERS = "AI checking providers"
+    const val AI_READY = "AI ready"
+    const val AI_NOT_CONFIGURED = "AI not configured"
+    const val NO_AI_PROVIDER = "No AI provider available"
+    const val VERSION_PREFIX = "Version "
+    const val ENDPOINTS_SUFFIX = " endpoints"
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun App(
@@ -148,7 +175,7 @@ private fun StudioTopBar(
         TopAppBar(
             title = {
                 Text(
-                    text = "moq studio",
+                    text = AppStrings.APP_TITLE,
                     fontFamily = calligraphyFont,
                     style = MaterialTheme.typography.headlineMedium,
                 )
@@ -157,13 +184,13 @@ private fun StudioTopBar(
                 IconButton(onClick = onThemeModeToggle) {
                     Icon(
                         imageVector = if (darkTheme) Icons.Filled.LightMode else Icons.Filled.DarkMode,
-                        contentDescription = "Toggle theme",
+                        contentDescription = AppStrings.TOGGLE_THEME,
                     )
                 }
                 IconButton(onClick = onToggleAiPanel, enabled = state.project != null) {
                     Icon(
                         imageVector = Icons.Filled.AutoAwesome,
-                        contentDescription = if (showAiPanel) "Close AI panel" else "Open AI panel",
+                        contentDescription = if (showAiPanel) AppStrings.CLOSE_AI_PANEL else AppStrings.OPEN_AI_PANEL,
                     )
                 }
             },
@@ -174,7 +201,9 @@ private fun StudioTopBar(
         if (project != null) {
             HorizontalDivider()
             Row(
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = StudioDimens.xl, vertical = StudioDimens.xs),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
@@ -183,23 +212,23 @@ private fun StudioTopBar(
                     style = MaterialTheme.typography.titleMedium,
                 )
                 Row(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(StudioDimens.m),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     IconButton(onClick = onRefreshCompanion) {
-                        Icon(Icons.Filled.Refresh, contentDescription = "Connect or refresh AI companion")
+                        Icon(Icons.Filled.Refresh, contentDescription = AppStrings.CONNECT_REFRESH_AI)
                     }
                     OutlinedButton(onClick = onCloseProject) {
-                        Text("Clear Project")
+                        Text(AppStrings.CLEAR_PROJECT)
                     }
                     OutlinedButton(onClick = { onSaveProjectAs(project) }) {
-                        Text("Save As")
+                        Text(AppStrings.SAVE_AS)
                     }
                     Button(
                         onClick = { onSaveProject(project) },
                         enabled = state.isDirty && !state.hasErrors,
                     ) {
-                        Text("Save")
+                        Text(AppStrings.SAVE)
                     }
                 }
             }
@@ -215,10 +244,10 @@ internal fun StudioLandingScreen(
     onImportHAR: () -> Unit,
 ) {
     Column(
-        modifier = Modifier.fillMaxSize().padding(24.dp),
-        verticalArrangement = Arrangement.spacedBy(20.dp),
+        modifier = Modifier.fillMaxSize().padding(StudioDimens.xxxl),
+        verticalArrangement = Arrangement.spacedBy(StudioDimens.xxl),
     ) {
-        Text("Workspace", style = MaterialTheme.typography.headlineMedium)
+        Text(AppStrings.WORKSPACE, style = MaterialTheme.typography.headlineMedium)
         Text(
             text = state.statusLine,
             style = MaterialTheme.typography.bodyLarge,
@@ -226,18 +255,18 @@ internal fun StudioLandingScreen(
         )
 
         Card(modifier = Modifier.fillMaxWidth()) {
-            Column(modifier = Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-                Text("Open or import a project", style = MaterialTheme.typography.titleMedium)
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Column(modifier = Modifier.padding(StudioDimens.xxl), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                Text(AppStrings.OPEN_OR_IMPORT, style = MaterialTheme.typography.titleMedium)
+                Row(horizontalArrangement = Arrangement.spacedBy(StudioDimens.m)) {
                     FilledTonalButton(onClick = onOpenProject) {
                         Icon(Icons.Filled.FolderOpen, contentDescription = null)
-                        Text("Open .moqproj")
+                        Text(AppStrings.OPEN_MOQPROJ)
                     }
                     FilledTonalButton(onClick = onImportOpenAPI) {
-                        Text("Import OpenAPI")
+                        Text(AppStrings.IMPORT_OPENAPI)
                     }
                     FilledTonalButton(onClick = onImportHAR) {
-                        Text("Import HAR")
+                        Text(AppStrings.IMPORT_HAR)
                     }
                 }
             }
@@ -313,18 +342,18 @@ internal fun StudioWorkspaceScreen(
             Card(
                 modifier = Modifier
                     .align(Alignment.TopEnd)
-                    .padding(16.dp)
+                    .padding(StudioDimens.xl)
                     .width(380.dp),
             ) {
-                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Column(modifier = Modifier.padding(StudioDimens.xl), verticalArrangement = Arrangement.spacedBy(StudioDimens.l)) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        Text("AI Companion", style = MaterialTheme.typography.titleMedium)
+                        Text(AppStrings.AI_COMPANION, style = MaterialTheme.typography.titleMedium)
                         OutlinedButton(onClick = onCloseAiPanel) {
-                            Text("Close")
+                            Text(AppStrings.CLOSE)
                         }
                     }
                     ProviderSettingsPanel(
@@ -343,8 +372,8 @@ internal fun RecentProjectsCard(recentProjects: List<String>) {
     if (recentProjects.isEmpty()) return
 
     Card(modifier = Modifier.fillMaxWidth()) {
-        Column(modifier = Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            Text("Recent Projects", style = MaterialTheme.typography.titleMedium)
+        Column(modifier = Modifier.padding(StudioDimens.xxl), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Text(AppStrings.RECENT_PROJECTS, style = MaterialTheme.typography.titleMedium)
             recentProjects.forEach { path ->
                 Text(
                     text = path.substringAfterLast("/"),
@@ -359,8 +388,8 @@ internal fun RecentProjectsCard(recentProjects: List<String>) {
 @Composable
 internal fun WorkspaceStatusBar(state: StudioState) {
     val project = state.project ?: return
-    val dirtyText = if (state.isDirty) "Unsaved changes" else "No unsaved changes"
-    val dirtyColor = if (state.isDirty) MaterialTheme.colorScheme.error else Color(0xFF4CAF50)
+    val dirtyText = if (state.isDirty) AppStrings.UNSAVED_CHANGES else AppStrings.NO_UNSAVED_CHANGES
+    val dirtyColor = if (state.isDirty) MaterialTheme.colorScheme.error else StudioColors.success
     val aiStatus = aiStatusPresentation(state.ai)
 
     Column(modifier = Modifier.fillMaxWidth()) {
@@ -368,17 +397,23 @@ internal fun WorkspaceStatusBar(state: StudioState) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 8.dp),
+                .padding(horizontal = StudioDimens.xl, vertical = StudioDimens.m),
             horizontalArrangement = Arrangement.End,
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Row(
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                horizontalArrangement = Arrangement.spacedBy(StudioDimens.l),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Text("Version ${project.manifest.version}", style = MaterialTheme.typography.labelMedium)
+                Text(
+                    "${AppStrings.VERSION_PREFIX}${project.manifest.version}",
+                    style = MaterialTheme.typography.labelMedium,
+                )
                 StatusSeparator()
-                Text("${project.endpoints.size} endpoints", style = MaterialTheme.typography.labelMedium)
+                Text(
+                    "${project.endpoints.size}${AppStrings.ENDPOINTS_SUFFIX}",
+                    style = MaterialTheme.typography.labelMedium,
+                )
                 StatusSeparator()
                 Text(
                     dirtyText,
@@ -403,17 +438,20 @@ private data class StatusPresentation(
 
 @Composable
 private fun aiStatusPresentation(ai: AIState): StatusPresentation = when {
-    ai.loading -> StatusPresentation("AI checking providers", MaterialTheme.colorScheme.tertiary)
-    ai.isReady -> StatusPresentation("AI ready", Color(0xFF4CAF50))
-    ai.providers.isEmpty() && ai.error == null -> StatusPresentation("AI not configured", MaterialTheme.colorScheme.outline)
-    else -> StatusPresentation("No AI provider available", MaterialTheme.colorScheme.error)
+    ai.loading -> StatusPresentation(AppStrings.AI_CHECKING_PROVIDERS, MaterialTheme.colorScheme.tertiary)
+    ai.isReady -> StatusPresentation(AppStrings.AI_READY, StudioColors.success)
+    ai.providers.isEmpty() && ai.error == null -> StatusPresentation(
+        AppStrings.AI_NOT_CONFIGURED,
+        MaterialTheme.colorScheme.outline,
+    )
+    else -> StatusPresentation(AppStrings.NO_AI_PROVIDER, MaterialTheme.colorScheme.error)
 }
 
 @Composable
 private fun StatusSeparator() {
     Box(
         modifier = Modifier
-            .height(12.dp)
+            .height(StudioDimens.l)
             .width(1.dp)
             .background(MaterialTheme.colorScheme.outlineVariant),
     )
