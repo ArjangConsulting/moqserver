@@ -41,6 +41,20 @@ set DEFAULT_JVM_OPTS="-Xmx64m" "-Xms64m"
 @rem Find java.exe
 if defined JAVA_HOME goto findJavaFromJavaHome
 
+@rem Prefer JDK 21 for this project regardless of ambient JAVA_HOME.
+if exist "%ProgramFiles%\Eclipse Adoptium\jdk-21*\bin\java.exe" (
+    for /d %%d in ("%ProgramFiles%\Eclipse Adoptium\jdk-21*") do (
+        set "JAVA_HOME=%%~fd"
+        goto findJavaFromJavaHome
+    )
+)
+if exist "%ProgramFiles%\Microsoft\jdk-21*\bin\java.exe" (
+    for /d %%d in ("%ProgramFiles%\Microsoft\jdk-21*") do (
+        set "JAVA_HOME=%%~fd"
+        goto findJavaFromJavaHome
+    )
+)
+
 set JAVA_EXE=java.exe
 %JAVA_EXE% -version >NUL 2>&1
 if %ERRORLEVEL% equ 0 goto execute
