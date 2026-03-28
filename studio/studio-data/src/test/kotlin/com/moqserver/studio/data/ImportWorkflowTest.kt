@@ -7,6 +7,7 @@ import com.moqserver.studio.domain.ParsedSpec
 import com.moqserver.studio.projectformat.ProjectRepository
 import com.moqserver.studio.projectformat.YamlValue
 import java.io.File
+import java.util.Base64
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
@@ -159,9 +160,15 @@ class ImportWorkflowTest {
             val reloaded = repository.load(tempDir.absolutePath)
             val variant = reloaded.endpoints.single().variants.single()
             val headers = requireNotNull(variant.headers)
+            val bodyFile = requireNotNull(variant.bodyFile)
+            val fixture = File(tempDir, bodyFile)
 
             assertEquals("/vi/iONDebHX9qk/mqdefault.jpg", reloaded.endpoints.single().path)
-            assertEquals("/9j/4AAQSkZJRg==", (variant.body as YamlValue.Str).value)
+            assertEquals("fixtures/responses/get-vi-iondebhx9qk-mqdefaultjpg/mqdefault-jpg-default.jpg", bodyFile)
+            assertNotNull(variant.bodyFile)
+            assertEquals(null, variant.body)
+            assertTrue(fixture.isFile)
+            assertTrue(fixture.readBytes().contentEquals(Base64.getDecoder().decode("/9j/4AAQSkZJRg==")))
             assertEquals(
                 """{"group":"youtube","max_age":2592000,"endpoints":[{"url":"https://csp.withgoogle.com/csp/report-to/youtube"}]}""",
                 headers["report-to"],

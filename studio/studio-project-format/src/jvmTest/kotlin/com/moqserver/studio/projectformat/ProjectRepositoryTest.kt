@@ -1,6 +1,16 @@
 package com.moqserver.studio.projectformat
 
 import java.io.File
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonNull
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.booleanOrNull
+import kotlinx.serialization.json.doubleOrNull
+import kotlinx.serialization.json.intOrNull
+import kotlinx.serialization.json.longOrNull
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -10,6 +20,7 @@ import kotlin.test.assertTrue
 import kotlin.test.assertFailsWith
 
 class ProjectRepositoryTest {
+    private val json = Json { ignoreUnknownKeys = true }
 
     private val sampleProjectPath = findSampleProject()
     private val repo = ProjectRepository()
@@ -205,9 +216,12 @@ class ProjectRepositoryTest {
             repo.save(project.copy(endpoints = listOf(endpoint)), tempDir.absolutePath)
 
             val reloaded = repo.load(tempDir.absolutePath)
-            val reloadedBody = reloaded.endpoints.single().variants.single().body
+            val reloadedVariant = reloaded.endpoints.single().variants.single()
+            val fixturePath = requireNotNull(reloadedVariant.bodyFile)
+            val fixtureText = requireNotNull(repo.readFixture(tempDir.absolutePath, fixturePath))
 
-            assertEquals(nestedBody, reloadedBody)
+            assertNull(reloadedVariant.body)
+            assertEquals(nestedBody, jsonElementToYamlValue(json.parseToJsonElement(fixtureText)))
         } finally {
             tempDir.deleteRecursively()
         }
@@ -444,6 +458,7 @@ class ProjectRepositoryTest {
             repo.save(inlineOnlyProject, tempDir.absolutePath)
 
             assertFalse(File(tempDir, "fixtures/users-list.json").exists())
+            assertTrue(File(tempDir, "fixtures/responses").isDirectory)
             assertFalse(staleFile.exists())
             assertFalse(File(tempDir, "fixtures/unused/nested").exists())
             assertFalse(File(tempDir, "fixtures/unused").exists())
@@ -476,5 +491,119 @@ class ProjectRepositoryTest {
     fun `readFixture returns contents for existing fixtures and null for missing ones`() {
         assertNotNull(repo.readFixture(sampleProjectPath, "fixtures/users-list.json"))
         assertNull(repo.readFixture(sampleProjectPath, "fixtures/does-not-exist.json"))
+    }
+
+    @Test
+    fun `save externalizes inline response bodies into fixture files`() {
+        val endpoint = EndpointDocument(
+            id = "get-notes",
+            method = "GET",
+            path = "/api/v1/notes",
+            variants = listOf(
+                ProjectVariant(
+                    name = "default",
+                    isDefault = true,
+                    status = 200,
+                    headers = mapOf("Content-Type" to "application/json"),
+                    body = YamlValue.Obj(
+                        mapOf(
+                            "notes" to YamlValue.Array(
+                                listOf(
+                                    YamlValue.Obj(mapOf("id" to YamlValue.Int(1), "title" to YamlValue.Str("Inbox")))
+                                )
+                            )
+                        )
+                    ),
+                )
+            ),
+        )
+        val project = MoqProject(
+            manifest = ProjectManifest(
+                name = "Fixtures",
+                defaults = ProjectDefaults(
+                    auth = ProjectAuthConfig(type = AuthType.NONE, verify = false),
+                    network = NetworkBehavior(),
+                ),
+            ),
+            endpoints = listOf(endpoint),
+            projectPath = "/tmp/fixtures",
+        )
+        val tempDir = kotlin.io.path.createTempDirectory("moqproj-inline-to-fixture").toFile()
+
+        try {
+            repo.save(project, tempDir.absolutePath)
+
+            val reloaded = repo.load(tempDir.absolutePath)
+            val variant = reloaded.endpoints.single().variants.single()
+            val bodyFile = requireNotNull(variant.bodyFile)
+            val fixture = File(tempDir, bodyFile)
+
+            assertNull(variant.body)
+            assertEquals("fixtures/responses/get-notes/notes-default.json", bodyFile)
+            assertTrue(fixture.isFile)
+            assertTrue(fixture.readText().contains("\"Inbox\""))
+        } finally {
+            tempDir.deleteRecursively()
+        }
+    }
+
+    @Test
+    fun `save externalizes binary response bodies into binary fixtures`() {
+        val endpoint = EndpointDocument(
+            id = "get-image",
+            method = "GET",
+            path = "/assets/image.jpg",
+            variants = listOf(
+                ProjectVariant(
+                    name = "default",
+                    isDefault = true,
+                    status = 200,
+                    headers = mapOf("Content-Type" to "image/jpeg"),
+                    body = YamlValue.Str("/9j/4AAQSkZJRg=="),
+                )
+            ),
+        )
+        val project = MoqProject(
+            manifest = ProjectManifest(
+                name = "Binary Fixtures",
+                defaults = ProjectDefaults(
+                    auth = ProjectAuthConfig(type = AuthType.NONE, verify = false),
+                    network = NetworkBehavior(),
+                ),
+            ),
+            endpoints = listOf(endpoint),
+            projectPath = "/tmp/binary-fixtures",
+        )
+        val tempDir = kotlin.io.path.createTempDirectory("moqproj-binary-fixture").toFile()
+
+        try {
+            repo.save(project, tempDir.absolutePath)
+
+            val reloaded = repo.load(tempDir.absolutePath)
+            val variant = reloaded.endpoints.single().variants.single()
+            val bodyFile = requireNotNull(variant.bodyFile)
+            val fixture = File(tempDir, bodyFile)
+
+            assertEquals("fixtures/responses/get-image/image-jpg-default.jpg", bodyFile)
+            assertNull(variant.body)
+            assertTrue(fixture.isFile)
+            assertTrue(fixture.readBytes().contentEquals(byteArrayOf(-1, -40, -1, -32, 0, 16, 74, 70, 73, 70)))
+        } finally {
+            tempDir.deleteRecursively()
+        }
+    }
+
+    private fun jsonElementToYamlValue(element: JsonElement): YamlValue = when (element) {
+        is JsonNull -> YamlValue.Null
+        is JsonPrimitive -> when {
+            element.isString -> YamlValue.Str(element.content)
+            element.booleanOrNull != null -> YamlValue.Bool(element.booleanOrNull!!)
+            element.intOrNull != null -> YamlValue.Int(element.intOrNull!!)
+            element.longOrNull != null -> YamlValue.Double(element.longOrNull!!.toDouble())
+            element.doubleOrNull != null -> YamlValue.Double(element.doubleOrNull!!)
+            else -> YamlValue.Str(element.content)
+        }
+        is JsonArray -> YamlValue.Array(element.map(::jsonElementToYamlValue))
+        is JsonObject -> YamlValue.Obj(element.mapValues { (_, value) -> jsonElementToYamlValue(value) })
     }
 }
