@@ -171,7 +171,10 @@ object ImportConverter {
     private fun buildRequestRules(parsed: ParsedEndpoint): RequestRules? {
         val headers = parsed.requiredHeaders.map { RuleMatcher(name = it, required = true) }
             .ifEmpty { null }
-        val queryParams = parsed.requiredQueryParameters.map { RuleMatcher(name = it, required = true) }
+        val queryParams = parsed.queryParameters
+            .ifEmpty {
+                parsed.requiredQueryParameters.map { RuleMatcher(name = it, required = true) }
+            }
             .ifEmpty { null }
         val cookies = parsed.cookies.ifEmpty { null }
 

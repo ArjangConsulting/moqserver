@@ -74,7 +74,8 @@ class OpenAPIImportParser {
                         responses = responses,
                         authType = authType,
                         authHeaderName = authHeaderName,
-                        requiredQueryParameters = reqQuery,
+                        queryParameters = reqQuery,
+                        requiredQueryParameters = reqQuery.filter { it.required == true }.map { it.name },
                         requiredHeaders = reqHeaders,
                         cookies = reqCookies,
                         requiresBody = requiresBody,
@@ -368,7 +369,7 @@ class OpenAPIImportParser {
     // -- Request rules --
 
     private data class RequestRules(
-        val requiredQuery: List<String>,
+        val query: List<RuleMatcher>,
         val requiredHeaders: List<String>,
         val cookies: List<RuleMatcher>,
         val requiresBody: Boolean,
@@ -380,13 +381,17 @@ class OpenAPIImportParser {
         pathParameters: List<Parameter>,
     ): RequestRules {
         val allParams = pathParameters + operation.parameters.orEmpty()
-        val requiredQuery = mutableListOf<String>()
+        val query = linkedMapOf<String, RuleMatcher>()
         val requiredHeaders = mutableListOf<String>()
         val cookies = mutableListOf<RuleMatcher>()
 
         for (param in allParams) {
             when (param.`in`) {
-                "query" -> if (param.required == true) requiredQuery.add(param.name)
+                "query" -> {
+                    val rule = parseQueryRule(param) ?: continue
+                    val existing = query[param.name]
+                    query[param.name] = mergeQueryRules(existing, rule)
+                }
                 "header" -> if (param.required == true) requiredHeaders.add(param.name)
                 "cookie" -> if (param.required == true) cookies.add(parseCookieRule(param))
             }
@@ -397,11 +402,40 @@ class OpenAPIImportParser {
         val acceptedContentTypes = requestBody?.content?.keys?.sorted().orEmpty()
 
         return RequestRules(
-            requiredQuery = requiredQuery.sorted(),
+            query = query.values.sortedBy { it.name },
             requiredHeaders = requiredHeaders.sorted(),
             cookies = cookies.sortedBy { it.name },
             requiresBody = requiresBody,
             acceptedContentTypes = acceptedContentTypes,
+        )
+    }
+
+    private fun parseQueryRule(param: Parameter): RuleMatcher? {
+        val isRequired = param.required == true
+        val matchValue = param.example?.toString()
+            ?: param.examples?.values?.firstOrNull()?.value?.toString()
+            ?: param.schema?.example?.toString()
+            ?: param.schema?.default?.toString()
+
+        if (!isRequired && matchValue == null) return null
+
+        return RuleMatcher(
+            name = param.name,
+            match = matchValue,
+            required = if (isRequired) true else null,
+            matchType = if (matchValue != null) MatchType.EQUAL_TO else null,
+        )
+    }
+
+    private fun mergeQueryRules(existing: RuleMatcher?, incoming: RuleMatcher): RuleMatcher {
+        if (existing == null) return incoming
+
+        val matchValue = existing.match ?: incoming.match
+        return RuleMatcher(
+            name = incoming.name,
+            match = matchValue,
+            required = if (existing.required == true || incoming.required == true) true else null,
+            matchType = if (matchValue != null) MatchType.EQUAL_TO else null,
         )
     }
 
