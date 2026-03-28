@@ -154,6 +154,57 @@ class HARImportParserTest {
     }
 
     @Test
+    fun `parses request query params from har queryString and url`() {
+        val har = """
+            {
+              "log": {
+                "version": "1.2",
+                "entries": [
+                  {
+                    "request": {
+                      "method": "GET",
+                      "url": "https://api.test/search?q=laptop&sort=popular",
+                      "headers": [],
+                      "queryString": [
+                        { "name": "q", "value": "laptop" },
+                        { "name": "sort", "value": "popular" }
+                      ]
+                    },
+                    "response": {
+                      "status": 200,
+                      "headers": [],
+                      "content": { "mimeType": "application/json", "text": "{}" }
+                    }
+                  },
+                  {
+                    "request": {
+                      "method": "GET",
+                      "url": "https://api.test/search?q=phone&page=2",
+                      "headers": []
+                    },
+                    "response": {
+                      "status": 200,
+                      "headers": [],
+                      "content": { "mimeType": "application/json", "text": "{}" }
+                    }
+                  }
+                ]
+              }
+            }
+        """.trimIndent()
+
+        val spec = parser.parse(har)
+
+        val endpoint = spec.endpoints.single()
+        assertEquals(3, endpoint.queryParameters.size)
+        assertEquals("popular", endpoint.queryParameters.first { it.name == "sort" }.match)
+        assertEquals("2", endpoint.queryParameters.first { it.name == "page" }.match)
+        assertEquals(null, endpoint.queryParameters.first { it.name == "q" }.match)
+        assertEquals(true, endpoint.queryParameters.first { it.name == "q" }.required)
+        assertEquals(MatchType.EQUAL_TO, endpoint.queryParameters.first { it.name == "sort" }.matchType)
+    }
+
+    @Test
     fun `skips malformed har entries and surfaces warnings instead of failing import`() {
         val har = """
             {

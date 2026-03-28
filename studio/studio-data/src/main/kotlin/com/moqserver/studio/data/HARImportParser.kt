@@ -71,12 +71,14 @@ class HARImportParser {
             val path = normalizedPath(uri)
             val key = GroupKey(method, path)
             val requestCookies = requestCookies(request)
+            val requestQueryParameters = requestQueryParameters(request, uri)
 
             val exchange = CapturedExchange(
                 statusCode = normalizedStatusCode(response.status),
                 headers = responseHeaders(response),
                 body = responseBody(response),
                 cookies = requestCookies,
+                queryParameters = requestQueryParameters,
             )
 
             val existing = grouped.getOrPut(key) { mutableListOf() }
@@ -95,6 +97,7 @@ class HARImportParser {
                     path = key.path,
                     alias = defaultAliasForEndpoint(method = key.method, path = key.path),
                     responses = responses,
+                    queryParameters = requestQueryParameters(exchanges),
                     cookies = requestCookies(exchanges),
                 )
             }
@@ -256,6 +259,50 @@ class HARImportParser {
         }
     }
 
+    private fun requestQueryParameters(request: HarRequest, uri: URI): Map<String, String> {
+        val queryItems = if (request.queryString.isNotEmpty()) {
+            request.queryString
+        } else {
+            uri.rawQuery
+                ?.split('&')
+                ?.mapNotNull { pair ->
+                    if (pair.isEmpty()) return@mapNotNull null
+                    val separatorIndex = pair.indexOf('=')
+                    val rawName = if (separatorIndex >= 0) pair.substring(0, separatorIndex) else pair
+                    val rawValue = if (separatorIndex >= 0) pair.substring(separatorIndex + 1) else ""
+                    val name = java.net.URLDecoder.decode(rawName, Charsets.UTF_8)
+                    val value = java.net.URLDecoder.decode(rawValue, Charsets.UTF_8)
+                    HarQuery(name = name, value = value)
+                }
+                .orEmpty()
+        }
+
+        return queryItems
+            .asSequence()
+            .map { it.name.orEmpty().trim() to it.value.orEmpty() }
+            .filter { (name, _) -> name.isNotEmpty() }
+            .associate { it }
+    }
+
+    private fun requestQueryParameters(exchanges: List<CapturedExchange>): List<RuleMatcher> {
+        val valuesByName = linkedMapOf<String, MutableSet<String>>()
+
+        for (exchange in exchanges) {
+            for ((name, value) in exchange.queryParameters) {
+                valuesByName.getOrPut(name) { linkedSetOf() }.add(value)
+            }
+        }
+
+        return valuesByName.entries.map { (name, values) ->
+            RuleMatcher(
+                name = name,
+                match = values.singleOrNull(),
+                required = true,
+                matchType = MatchType.EQUAL_TO,
+            )
+        }
+    }
+
     private fun baseVariantName(statusCode: Int, allowDefault: Boolean): String {
         return when {
             statusCode in 200..299 -> if (allowDefault) "default" else "success-$statusCode"
@@ -290,6 +337,7 @@ class HARImportParser {
         val headers: Map<String, String>,
         val body: String?,
         val cookies: Map<String, String>,
+        val queryParameters: Map<String, String>,
     )
 }
 

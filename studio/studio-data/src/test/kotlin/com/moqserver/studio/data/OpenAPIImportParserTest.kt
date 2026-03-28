@@ -183,4 +183,49 @@ class OpenAPIImportParserTest {
         assertEquals("dark", endpoint.cookies.first { it.name == "theme" }.match)
         assertEquals(MatchType.EQUAL_TO, endpoint.cookies.first { it.name == "theme" }.matchType)
     }
+
+    @Test
+    fun `parses query parameters with required flags and example values`() {
+        val spec = """
+            openapi: 3.0.3
+            info:
+              title: Search API
+              version: 1.0.0
+            paths:
+              /search:
+                get:
+                  parameters:
+                    - in: query
+                      name: q
+                      required: true
+                      schema:
+                        type: string
+                        example: laptop
+                    - in: query
+                      name: page
+                      schema:
+                        type: integer
+                        default: 1
+                    - in: query
+                      name: sort
+                      required: true
+                      example: popular
+                      schema:
+                        type: string
+                  responses:
+                    "200":
+                      description: OK
+        """.trimIndent()
+
+        val parsed = parser.parse(spec)
+
+        val endpoint = parsed.endpoints.single()
+        assertEquals(listOf("q", "sort"), endpoint.requiredQueryParameters)
+        assertEquals(3, endpoint.queryParameters.size)
+        assertEquals("laptop", endpoint.queryParameters.first { it.name == "q" }.match)
+        assertEquals(true, endpoint.queryParameters.first { it.name == "q" }.required)
+        assertEquals("1", endpoint.queryParameters.first { it.name == "page" }.match)
+        assertEquals(null, endpoint.queryParameters.first { it.name == "page" }.required)
+        assertEquals(MatchType.EQUAL_TO, endpoint.queryParameters.first { it.name == "sort" }.matchType)
+    }
 }

@@ -172,4 +172,44 @@ class ImportConverterTest {
         assertEquals("abc123", cookie?.match)
         assertEquals(MatchType.EQUAL_TO, cookie?.matchType)
     }
+
+    @Test
+    fun `converts parsed query parameters into request rules`() {
+        val parsed = ParsedSpec(
+            title = "Imported API",
+            version = "1.0.0",
+            endpoints = listOf(
+                ParsedEndpoint(
+                    method = "GET",
+                    path = "/search",
+                    queryParameters = listOf(
+                        RuleMatcher(
+                            name = "q",
+                            match = "laptop",
+                            required = true,
+                            matchType = MatchType.EQUAL_TO,
+                        ),
+                        RuleMatcher(name = "page", match = "1", matchType = MatchType.EQUAL_TO),
+                    ),
+                    responses = listOf(
+                        ParsedResponse(name = "default", statusCode = 200, body = "{}"),
+                    ),
+                ),
+            ),
+        )
+
+        val project = ImportConverter.convert(
+            spec = parsed,
+            acceptedEndpoints = parsed.endpoints,
+            projectName = "Imported API",
+            projectPath = "/tmp/imported-api",
+        )
+
+        val queryParams = project.endpoints.single().requestRules?.queryParams.orEmpty()
+        assertEquals(2, queryParams.size)
+        assertEquals("laptop", queryParams.first { it.name == "q" }.match)
+        assertEquals(true, queryParams.first { it.name == "q" }.required)
+        assertEquals("1", queryParams.first { it.name == "page" }.match)
+        assertEquals(MatchType.EQUAL_TO, queryParams.first { it.name == "page" }.matchType)
+    }
 }

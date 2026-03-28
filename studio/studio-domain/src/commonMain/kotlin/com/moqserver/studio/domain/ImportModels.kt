@@ -22,6 +22,7 @@ data class ParsedEndpoint(
     val responses: List<ParsedResponse>,
     val authType: AuthType = AuthType.NONE,
     val authHeaderName: String? = null,
+    val queryParameters: List<RuleMatcher> = emptyList(),
     val requiredQueryParameters: List<String> = emptyList(),
     val requiredHeaders: List<String> = emptyList(),
     val cookies: List<RuleMatcher> = emptyList(),
