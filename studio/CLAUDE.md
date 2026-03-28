@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Tech Stack
 
-- **Language**: Kotlin, JVM 17
+- **Language**: Kotlin, JVM 21
 - **UI Framework**: Compose Multiplatform (desktop target only — macOS, Windows, Linux)
 - **Architecture**: ViewModel + StateFlow (androidx.lifecycle)
 - **HTTP client**: Ktor (CIO engine)

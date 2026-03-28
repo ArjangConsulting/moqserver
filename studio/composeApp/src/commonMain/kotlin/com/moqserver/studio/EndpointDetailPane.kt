@@ -567,7 +567,7 @@ private fun StatusBadge(status: Int) {
 @Composable
 private fun InfoTooltip(text: String) {
     TooltipBox(
-        positionProvider = TooltipDefaults.rememberTooltipPositionProvider(),
+        positionProvider = TooltipDefaults.rememberTooltipPositionProvider(TooltipAnchorPosition.Above),
         tooltip = { PlainTooltip { Text(text) } },
         state = rememberTooltipState(),
     ) {
