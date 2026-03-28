@@ -70,9 +70,12 @@ public struct ProjectWriter: ProjectWriting {
 
         // Key ordering per FORMAT_IMPLEMENTATION.md
         lines.append("id: \(endpoint.id)")
-        if let alias = endpoint.alias {
-            lines.append("alias: \(yamlQuote(alias))")
-        }
+        let alias = endpoint.alias ?? EndpointAlias.defaultAlias(
+            method: endpoint.method,
+            path: endpoint.path,
+            operation: endpoint.operation
+        )
+        lines.append("alias: \(yamlQuote(alias))")
         lines.append("method: \(endpoint.method)")
         lines.append("path: \(endpoint.path)")
         if let tags = endpoint.tags, !tags.isEmpty {

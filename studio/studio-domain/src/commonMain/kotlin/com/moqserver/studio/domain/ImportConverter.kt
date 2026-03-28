@@ -11,6 +11,7 @@ import com.moqserver.studio.projectformat.ProjectVariant
 import com.moqserver.studio.projectformat.RequestRules
 import com.moqserver.studio.projectformat.RuleMatcher
 import com.moqserver.studio.projectformat.YamlValue
+import com.moqserver.studio.projectformat.defaultAliasForEndpoint
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
@@ -76,6 +77,8 @@ object ImportConverter {
 
         return EndpointDocument(
             id = id,
+            alias = parsed.alias?.takeIf { it.isNotBlank() }
+                ?: defaultAliasForEndpoint(method = parsed.method, path = parsed.path),
             method = parsed.method.uppercase(),
             path = parsed.path,
             auth = auth,
