@@ -44,6 +44,7 @@ class ProjectValidator(
         }
 
         val seenIds = mutableMapOf<String, String>()
+        val seenEndpointReferenceNames = mutableMapOf<String, String>()
 
         for (endpoint in project.endpoints) {
             val fileName = "endpoints/${endpoint.id}.yml"
@@ -69,6 +70,37 @@ class ProjectValidator(
                     field = "id",
                     endpointId = endpoint.id,
                 )
+            }
+
+            if (endpoint.referenceName.isBlank()) {
+                diagnostics += ValidationDiagnostic(
+                    severity = ValidationDiagnostic.Severity.ERROR,
+                    message = "Endpoint reference_name is required.",
+                    file = fileName,
+                    field = "reference_name",
+                    endpointId = endpoint.id,
+                )
+            } else if (!isValidReferenceName(endpoint.referenceName)) {
+                diagnostics += ValidationDiagnostic(
+                    severity = ValidationDiagnostic.Severity.ERROR,
+                    message = "Endpoint reference_name \"${endpoint.referenceName}\" must start with a letter or underscore and contain only letters, numbers, or underscores.",
+                    file = fileName,
+                    field = "reference_name",
+                    endpointId = endpoint.id,
+                )
+            } else {
+                val existingReferenceNameFile = seenEndpointReferenceNames[endpoint.referenceName]
+                if (existingReferenceNameFile != null) {
+                    diagnostics += ValidationDiagnostic(
+                        severity = ValidationDiagnostic.Severity.ERROR,
+                        message = "Duplicate endpoint reference_name \"${endpoint.referenceName}\" (also in $existingReferenceNameFile).",
+                        file = fileName,
+                        field = "reference_name",
+                        endpointId = endpoint.id,
+                    )
+                } else {
+                    seenEndpointReferenceNames[endpoint.referenceName] = fileName
+                }
             }
 
             if (endpoint.path in reservedPaths) {
@@ -123,6 +155,7 @@ class ProjectValidator(
             }
 
             val seenVariantNames = mutableSetOf<String>()
+            val seenVariantReferenceNames = mutableSetOf<String>()
             for ((index, variant) in endpoint.variants.withIndex()) {
                 val variantField = "variants[$index]"
 
@@ -132,6 +165,32 @@ class ProjectValidator(
                         message = "Duplicate variant name \"${variant.name}\".",
                         file = fileName,
                         field = "$variantField.name",
+                        endpointId = endpoint.id,
+                    )
+                }
+
+                if (variant.referenceName.isBlank()) {
+                    diagnostics += ValidationDiagnostic(
+                        severity = ValidationDiagnostic.Severity.ERROR,
+                        message = "Variant reference_name is required.",
+                        file = fileName,
+                        field = "$variantField.reference_name",
+                        endpointId = endpoint.id,
+                    )
+                } else if (!isValidReferenceName(variant.referenceName)) {
+                    diagnostics += ValidationDiagnostic(
+                        severity = ValidationDiagnostic.Severity.ERROR,
+                        message = "Variant reference_name \"${variant.referenceName}\" must start with a letter or underscore and contain only letters, numbers, or underscores.",
+                        file = fileName,
+                        field = "$variantField.reference_name",
+                        endpointId = endpoint.id,
+                    )
+                } else if (!seenVariantReferenceNames.add(variant.referenceName)) {
+                    diagnostics += ValidationDiagnostic(
+                        severity = ValidationDiagnostic.Severity.ERROR,
+                        message = "Duplicate variant reference_name \"${variant.referenceName}\".",
+                        file = fileName,
+                        field = "$variantField.reference_name",
                         endpointId = endpoint.id,
                     )
                 }

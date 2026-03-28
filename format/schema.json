@@ -163,6 +163,10 @@
           "type": "string",
           "minLength": 1
         },
+        "reference_name": {
+          "type": "string",
+          "pattern": "^[A-Za-z_][A-Za-z0-9_]*$"
+        },
         "default": {
           "type": "boolean"
         },
@@ -184,7 +188,7 @@
           "minimum": 0
         }
       },
-      "required": ["name", "status"],
+      "required": ["name", "reference_name", "status"],
       "allOf": [
         {
           "not": {
@@ -204,6 +208,13 @@
         },
         "alias": {
           "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "reference_name": {
+          "type": "string",
+          "pattern": "^[A-Za-z_][A-Za-z0-9_]*$"
         },
         "method": {
           "$ref": "#/$defs/httpMethod"
@@ -239,7 +250,7 @@
           }
         }
       },
-      "required": ["id", "method", "path", "variants"]
+      "required": ["id", "reference_name", "method", "path", "variants"]
     },
     "projectManifest": {
       "type": "object",

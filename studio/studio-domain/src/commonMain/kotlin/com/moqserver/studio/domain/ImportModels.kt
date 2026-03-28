@@ -17,6 +17,8 @@ data class ParsedEndpoint(
     val method: String,
     val path: String,
     val alias: String? = null,
+    val description: String? = null,
+    val referenceName: String? = null,
     val responses: List<ParsedResponse>,
     val authType: AuthType = AuthType.NONE,
     val authHeaderName: String? = null,

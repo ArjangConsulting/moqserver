@@ -46,6 +46,8 @@ private fun previewProject(): MoqProject {
             EndpointDocument(
                 id = "get-users",
                 alias = "Users",
+                description = "Returns the current preview users list",
+                referenceName = "usersApi",
                 method = "GET",
                 path = "/users",
                 tags = listOf("public", "preview"),
@@ -53,6 +55,7 @@ private fun previewProject(): MoqProject {
                 variants = listOf(
                     ProjectVariant(
                         name = "default",
+                        referenceName = "default",
                         isDefault = true,
                         status = 200,
                         headers = mapOf("Content-Type" to "application/json"),
@@ -76,11 +79,13 @@ private fun previewProject(): MoqProject {
             EndpointDocument(
                 id = "post-login",
                 alias = "Login",
+                referenceName = "loginApi",
                 method = "POST",
                 path = "/login",
                 variants = listOf(
                     ProjectVariant(
                         name = "default",
+                        referenceName = "default",
                         isDefault = true,
                         status = 200,
                         headers = mapOf("Content-Type" to "application/json"),
@@ -125,6 +130,7 @@ private fun previewImportState(): ImportState {
     val endpoint = ParsedEndpoint(
         method = "GET",
         path = "/pets",
+        referenceName = "petsApi",
         responses = listOf(
             ParsedResponse(
                 name = "default",

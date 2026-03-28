@@ -73,6 +73,9 @@ data class GlobalRules(
 data class EndpointDocument(
     val id: String,
     val alias: String? = null,
+    val description: String? = null,
+    @SerialName("reference_name")
+    val referenceName: String = defaultReferenceNameForEndpointId(id),
     val method: String,
     val path: String,
     val tags: List<String>? = null,
@@ -88,6 +91,8 @@ data class EndpointDocument(
 @Serializable
 data class ProjectVariant(
     val name: String,
+    @SerialName("reference_name")
+    val referenceName: String = defaultReferenceNameForVariantName(name),
     @SerialName("default")
     val isDefault: Boolean? = null,
     val status: Int,

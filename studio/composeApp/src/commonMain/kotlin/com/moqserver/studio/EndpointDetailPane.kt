@@ -1,26 +1,30 @@
 package com.moqserver.studio
 
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.Delete
-import androidx.compose.foundation.*
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Close
+import androidx.compose.material.icons.outlined.Delete
+import androidx.compose.material.icons.outlined.Edit
+import androidx.compose.material.icons.outlined.Save
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.moqserver.studio.editor.JsonCodeEditor
 import com.moqserver.studio.projectformat.*
-import com.moqserver.studio.ui.InfoTooltip
-import com.moqserver.studio.ui.MatchConditionEditor
-import com.moqserver.studio.ui.MethodBadge
-import com.moqserver.studio.ui.StatusBadge
-import com.moqserver.studio.ui.TabChip
-import com.moqserver.studio.ui.TabStrip
+import com.moqserver.studio.ui.*
+import kotlinx.serialization.json.*
+import java.awt.Color as AwtColor
 
 private val headerMatchTypes = listOf(
     MatchType.CONTAINS,
@@ -36,6 +40,17 @@ private val headerMatchTypes = listOf(
 private val headerNameColumnWidth = 160.dp
 private val headerConditionColumnWidth = 200.dp
 private val headerMatchValueColumnWidth = 180.dp
+private val bodyEditorJson = Json { ignoreUnknownKeys = true }
+private val bodyEditorPrettyJson = Json {
+    ignoreUnknownKeys = true
+    prettyPrint = true
+    prettyPrintIndent = "  "
+}
+private val bodyPanelColor = Color(0xFF161B22).copy(alpha = 0.97f)
+private val bodyPanelBorderColor = Color(0xFF30363D)
+private val bodyPanelContentColor = Color(0xFFE6EDF3)
+private val bodyEditorBackgroundColor = AwtColor(0x16, 0x1B, 0x22)
+private val bodyEditorForegroundColor = AwtColor(0xE6, 0xED, 0xF3)
 
 @Composable
 private fun placeholderTextFieldColors() = OutlinedTextFieldDefaults.colors().let { defaults ->
@@ -75,6 +90,7 @@ private fun ProjectVariant.isPristine(): Boolean =
 @Composable
 fun EndpointDetailPane(
     endpoint: EndpointDocument,
+    allEndpoints: List<EndpointDocument>,
     onUpdateEndpoint: (EndpointDocument) -> Unit,
     onDeleteEndpoint: () -> Unit = {},
     projectPath: String = "",
@@ -147,7 +163,7 @@ fun EndpointDetailPane(
         }
 
         HorizontalDivider()
-        EndpointMetadataForm(endpoint, onUpdateEndpoint)
+        EndpointMetadataForm(endpoint, allEndpoints, onUpdateEndpoint)
         HorizontalDivider()
         VariantSection(endpoint, onUpdateEndpoint, projectPath, companionConnected, onGenerateVariants)
     }
@@ -156,9 +172,18 @@ fun EndpointDetailPane(
 @Composable
 private fun EndpointMetadataForm(
     endpoint: EndpointDocument,
+    allEndpoints: List<EndpointDocument>,
     onUpdateEndpoint: (EndpointDocument) -> Unit,
 ) {
     Text("Metadata", style = MaterialTheme.typography.titleMedium)
+    val siblingReferenceNames = allEndpoints
+        .asSequence()
+        .filter { it.id != endpoint.id }
+        .map(EndpointDocument::referenceName)
+        .toSet()
+    val referenceNameBlank = endpoint.referenceName.isBlank()
+    val referenceNameInvalid = endpoint.referenceName.isNotBlank() && !isValidReferenceName(endpoint.referenceName)
+    val referenceNameConflict = endpoint.referenceName.isNotBlank() && endpoint.referenceName in siblingReferenceNames
 
     Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
         var methodExpanded by remember { mutableStateOf(false) }
@@ -202,6 +227,33 @@ private fun EndpointMetadataForm(
         label = { Text("Alias (display name)") },
         singleLine = true,
         trailingIcon = { InfoTooltip("Human-readable display name shown in the endpoint browser.") },
+        modifier = Modifier.fillMaxWidth(),
+    )
+
+    OutlinedTextField(
+        value = endpoint.referenceName,
+        onValueChange = { onUpdateEndpoint(endpoint.copy(referenceName = it)) },
+        label = { Text("Reference Name") },
+        singleLine = true,
+        isError = referenceNameBlank || referenceNameInvalid || referenceNameConflict,
+        supportingText = {
+            when {
+                referenceNameBlank -> Text("Reference name is required")
+                referenceNameInvalid -> Text("Use letters, numbers, and underscores only")
+                referenceNameConflict -> Text("Reference name must be unique across APIs")
+            }
+        },
+        trailingIcon = { InfoTooltip("Code-friendly unique name used by test cases to reference this API.") },
+        modifier = Modifier.fillMaxWidth(),
+    )
+
+    OutlinedTextField(
+        value = endpoint.description.orEmpty(),
+        onValueChange = { onUpdateEndpoint(endpoint.copy(description = it.ifBlank { null })) },
+        label = { Text("Description (optional)") },
+        minLines = 2,
+        maxLines = 4,
+        trailingIcon = { InfoTooltip("Optional notes that give more context about what this API does.") },
         modifier = Modifier.fillMaxWidth(),
     )
 
@@ -321,9 +373,13 @@ private fun NetworkSection(
                     val ms = it.toIntOrNull() ?: 0
                     onUpdate(network.copy(latencyMs = ms))
                 },
-                label = { Text("Latency (ms)") },
+                label = {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text("Latency (ms)")
+                        InfoTooltip("Fixed delay in milliseconds added to every response.")
+                    }
+                },
                 singleLine = true,
-                trailingIcon = { InfoTooltip("Fixed delay in milliseconds added to every response.") },
                 modifier = Modifier.weight(1f),
             )
             OutlinedTextField(
@@ -332,9 +388,13 @@ private fun NetworkSection(
                     val ms = it.toIntOrNull() ?: 0
                     onUpdate(network.copy(jitterMs = ms))
                 },
-                label = { Text("Jitter (ms)") },
+                label = {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text("Jitter (ms)")
+                        InfoTooltip("Random variation in milliseconds added to the latency to simulate an unstable connection.")
+                    }
+                },
                 singleLine = true,
-                trailingIcon = { InfoTooltip("Random variation in milliseconds added to the latency to simulate an unstable connection.") },
                 modifier = Modifier.weight(1f),
             )
             OutlinedTextField(
@@ -343,9 +403,13 @@ private fun NetworkSection(
                     val pct = it.toDoubleOrNull() ?: 0.0
                     onUpdate(network.copy(packetLossPercent = pct))
                 },
-                label = { Text("Packet Loss %") },
+                label = {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text("Packet Loss %")
+                        InfoTooltip("Percentage of requests that will be dropped to simulate packet loss (0-100).")
+                    }
+                },
                 singleLine = true,
-                trailingIcon = { InfoTooltip("Percentage of requests that will be dropped to simulate packet loss (0–100).") },
                 modifier = Modifier.weight(1f),
             )
         }
@@ -621,7 +685,14 @@ private fun VariantSummaryTab(
 
         // Variant editing controls
         val siblingNames = endpoint.variants.map { it.name }.filter { it != variant.name }.toSet()
+        val siblingReferenceNames = endpoint.variants
+            .filter { it != variant }
+            .map(ProjectVariant::referenceName)
+            .toSet()
         val nameConflict = variant.name.isNotBlank() && variant.name in siblingNames
+        val referenceNameBlank = variant.referenceName.isBlank()
+        val referenceNameInvalid = variant.referenceName.isNotBlank() && !isValidReferenceName(variant.referenceName)
+        val referenceNameConflict = variant.referenceName.isNotBlank() && variant.referenceName in siblingReferenceNames
         val statusError = variant.status !in 100..599
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             OutlinedTextField(
@@ -638,6 +709,26 @@ private fun VariantSummaryTab(
                 supportingText = if (nameConflict) {
                     { Text("Name must be unique within this endpoint") }
                 } else null,
+                modifier = Modifier.weight(1f),
+            )
+            OutlinedTextField(
+                value = variant.referenceName,
+                onValueChange = { onUpdate(variant.copy(referenceName = it)) },
+                label = {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text("Reference Name")
+                        InfoTooltip("Code-friendly name used in tests. Must be unique within this API.")
+                    }
+                },
+                singleLine = true,
+                isError = referenceNameBlank || referenceNameInvalid || referenceNameConflict,
+                supportingText = {
+                    when {
+                        referenceNameBlank -> Text("Reference name is required")
+                        referenceNameInvalid -> Text("Use letters, numbers, and underscores only")
+                        referenceNameConflict -> Text("Reference name must be unique within this API")
+                    }
+                },
                 modifier = Modifier.weight(1f),
             )
             OutlinedTextField(
@@ -743,158 +834,26 @@ private fun CookiesTab(
         )
     }
 
-    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Text("Request Cookies", style = MaterialTheme.typography.titleSmall)
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                if (cookies.isNotEmpty()) {
-                    androidx.compose.material3.TextButton(onClick = {
-                        onUpdate(requestRules.copy(cookies = null))
-                    }) {
-                        Text("Clear")
-                    }
-                }
-                androidx.compose.material3.TextButton(onClick = {
-                    onUpdate(requestRules.copy(cookies = cookies + RuleMatcher(name = "", required = true)))
-                }) {
-                    Text("Add")
-                }
-            }
-        }
-
-        if (cookies.isEmpty()) {
-            Text(
-                "No cookies configured. Add a cookie to set up cookie-based matching criteria.",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        } else {
-            Row(
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp),
-                horizontalArrangement = Arrangement.spacedBy(4.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text(
-                    "Cookie Name",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.width(headerNameColumnWidth),
-                )
-                Text(
-                    "Value",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.weight(2f),
-                )
-                Text(
-                    "Required",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    textAlign = TextAlign.Center,
-                    modifier = Modifier.width(80.dp),
-                )
-                Text(
-                    "Condition",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.width(headerConditionColumnWidth),
-                )
-                Text(
-                    "Match Value",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.width(headerMatchValueColumnWidth),
-                )
-                Spacer(Modifier.width(32.dp))
-            }
-
-            HorizontalDivider()
-
-            cookies.forEachIndexed { index, cookie ->
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp),
-                    horizontalArrangement = Arrangement.spacedBy(4.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    OutlinedTextField(
-                        value = cookie.name,
-                        onValueChange = { newName ->
-                            onUpdate(requestRules.copy(cookies = cookies.updated(index, normalizedCookie(cookie.copy(name = newName)))))
-                        },
-                        placeholder = { Text("Key") },
-                        singleLine = true,
-                        textStyle = MaterialTheme.typography.bodySmall,
-                        modifier = Modifier.width(headerNameColumnWidth),
-                    )
-                    OutlinedTextField(
-                        value = cookie.match.orEmpty(),
-                        onValueChange = { newValue ->
-                            onUpdate(
-                                requestRules.copy(
-                                    cookies = cookies.updated(
-                                        index,
-                                        normalizedCookie(cookie.copy(match = newValue)),
-                                    ),
-                                ),
-                            )
-                        },
-                        placeholder = { Text("Value") },
-                        singleLine = true,
-                        textStyle = MaterialTheme.typography.bodySmall,
-                        modifier = Modifier.weight(2f),
-                    )
-                    Box(modifier = Modifier.width(80.dp), contentAlignment = Alignment.Center) {
-                        Checkbox(
-                            checked = cookie.required == true,
-                            onCheckedChange = { checked ->
-                                val updated = if (checked) {
-                                    normalizedCookie(cookie.copy(required = true, matchType = cookie.matchType ?: MatchType.EQUAL_TO))
-                                } else {
-                                    cookie.copy(required = null, matchType = null)
-                                }
-                                onUpdate(requestRules.copy(cookies = cookies.updated(index, updated)))
-                            },
-                        )
-                    }
-                    MatchConditionEditor(
-                        ruleMatcher = cookie,
-                        onUpdate = { updated ->
-                            if (cookie.required != true) return@MatchConditionEditor
-                            onUpdate(requestRules.copy(cookies = cookies.updated(index, normalizedCookie(updated.copy(required = true)))))
-                        },
-                        availableMatchTypes = headerMatchTypes,
-                        fallbackMatchType = MatchType.EQUAL_TO,
-                        enabled = cookie.required == true,
-                        dropdownWidth = headerConditionColumnWidth,
-                        valueWidth = headerMatchValueColumnWidth,
-                        showValuePlaceholder = true,
-                    )
-                    IconButton(
-                        onClick = {
-                            val updated = cookies.toMutableList().also { it.removeAt(index) }
-                            onUpdate(
-                                requestRules.copy(
-                                    cookies = updated.ifEmpty { null },
-                                ),
-                            )
-                        },
-                        modifier = Modifier.size(32.dp),
-                    ) {
-                        Icon(
-                            imageVector = Icons.Outlined.Delete,
-                            contentDescription = "Delete cookie",
-                            tint = MaterialTheme.colorScheme.error,
-                        )
-                    }
-                }
-            }
-        }
-
-    }
+    RuleMatcherTableEditor(
+        title = "Request Cookies",
+        nameColumnLabel = "Cookie Name",
+        emptyText = "No cookies configured. Add a cookie to set up cookie-based matching criteria.",
+        items = cookies,
+        onUpdate = { updated ->
+            onUpdate(requestRules.copy(cookies = updated.ifEmpty { null }))
+        },
+        onAdd = {
+            onUpdate(requestRules.copy(cookies = cookies + RuleMatcher(name = "", required = true)))
+        },
+        onClear = {
+            onUpdate(requestRules.copy(cookies = null))
+        },
+        deleteContentDescription = "Delete cookie",
+        availableMatchTypes = headerMatchTypes,
+        fallbackMatchType = MatchType.EQUAL_TO,
+        showRequiredColumn = true,
+        normalizeItem = ::normalizedCookie,
+    )
 }
 
 @Composable
@@ -906,60 +865,101 @@ private fun BodyTab(
     val bodyFile = variant.bodyFile
     val body = variant.body
 
+    val fileContent = if (bodyFile != null) {
+        remember(projectPath, bodyFile) {
+            runCatching {
+                java.io.File(projectPath, bodyFile).takeIf { it.isFile }?.readText()
+            }.getOrNull()
+        }
+    } else {
+        null
+    }
+    var selectedFormat by remember(variant.name) { mutableStateOf(BodyFormat.RAW) }
+    val currentText = when {
+        fileContent != null -> fileContent
+        body != null -> when (selectedFormat) {
+            BodyFormat.JSON -> yamlValueToJsonString(body)
+            BodyFormat.PLAIN_TEXT -> yamlValueToPlainText(body)
+            BodyFormat.RAW -> yamlValueToDisplayString(body)
+        }
+        else -> null
+    }
+    val editableText = when {
+        fileContent != null -> fileContent
+        body != null -> editableBodyText(variant, body)
+        else -> null
+    }
+    val isJsonBody = variant.isJsonBody(editableText)
+    var isEditing by remember(variant.name, selectedFormat, bodyFile, body) { mutableStateOf(false) }
+    var draftText by remember(variant.name, bodyFile, body) { mutableStateOf(editableText.orEmpty()) }
+    var formatBeforeEdit by remember(variant.name) { mutableStateOf(BodyFormat.RAW) }
+    var validationError by remember(variant.name, selectedFormat, bodyFile, body) { mutableStateOf<String?>(null) }
+
+    fun startEditing() {
+        formatBeforeEdit = selectedFormat
+        selectedFormat = BodyFormat.RAW
+        draftText = editableText.orEmpty()
+        validationError = null
+        isEditing = true
+    }
+
+    fun cancelEditing() {
+        selectedFormat = formatBeforeEdit
+        draftText = editableText.orEmpty()
+        validationError = null
+        isEditing = false
+    }
+
+    fun validateJson() {
+        validationError = validateJsonBodyText(draftText)
+    }
+
+    fun formatJson() {
+        formatJsonBodyText(draftText)
+            .onSuccess { formatted ->
+                draftText = formatted
+                validationError = null
+            }
+            .onFailure { error ->
+                validationError = invalidJsonMessage(error)
+            }
+    }
+
+    fun saveEdits() {
+        when {
+            isJsonBody -> {
+                parseJsonBodyText(draftText)
+                    .onSuccess { parsedBody ->
+                        selectedFormat = formatBeforeEdit
+                        onUpdate(variant.copy(body = parsedBody, bodyFile = null))
+                        validationError = null
+                        isEditing = false
+                    }
+                    .onFailure { error ->
+                        validationError = invalidJsonMessage(error)
+                    }
+            }
+            else -> {
+                selectedFormat = formatBeforeEdit
+                val updatedBody = parseEditableText(draftText, body)
+                onUpdate(variant.copy(body = updatedBody, bodyFile = null))
+                validationError = null
+                isEditing = false
+            }
+        }
+    }
+
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         when {
-            bodyFile != null -> {
-                val fileContent = remember(projectPath, bodyFile) {
-                    runCatching {
-                        java.io.File(projectPath, bodyFile).takeIf { it.isFile }?.readText()
-                    }.getOrNull()
-                }
-
-                if (fileContent != null) {
-                    var selectedFormat by remember(variant.name) { mutableStateOf(BodyFormat.RAW) }
-
-                    TabStrip {
-                        BodyFormat.entries.forEach { format ->
-                            TabChip(
-                                label = format.label,
-                                selected = format == selectedFormat,
-                                onClick = { selectedFormat = format },
-                            )
-                        }
-                    }
-
-                    when (selectedFormat) {
-                        BodyFormat.JSON -> {
-                            JsonCodeEditor(
-                                text = fileContent,
-                                onTextChange = {},
-                                readOnly = true,
-                                modifier = Modifier.fillMaxWidth().height(280.dp),
-                            )
-                        }
-                        BodyFormat.PLAIN_TEXT, BodyFormat.RAW -> {
-                            OutlinedTextField(
-                                value = fileContent,
-                                onValueChange = {},
-                                readOnly = true,
-                                minLines = 6,
-                                maxLines = 16,
-                                modifier = Modifier.fillMaxWidth(),
-                            )
-                        }
-                    }
-                } else {
-                    Text(
-                        text = "File not found.",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.error,
-                    )
-                }
+            bodyFile != null && fileContent == null -> {
+                Text(
+                    text = "File not found.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.error,
+                )
             }
 
-            body != null -> {
-                var selectedFormat by remember(variant.name) { mutableStateOf(BodyFormat.RAW) }
-
+            currentText != null -> {
                 TabStrip {
                     BodyFormat.entries.forEach { format ->
                         TabChip(
@@ -970,35 +970,86 @@ private fun BodyTab(
                     }
                 }
 
-                when (selectedFormat) {
-                    BodyFormat.JSON -> {
-                        JsonCodeEditor(
-                            text = yamlValueToJsonString(body),
-                            onTextChange = {},
-                            readOnly = true,
-                            modifier = Modifier.fillMaxWidth().height(280.dp),
-                        )
-                    }
-                    BodyFormat.PLAIN_TEXT -> {
-                        OutlinedTextField(
-                            value = yamlValueToPlainText(body),
-                            onValueChange = {},
-                            readOnly = true,
-                            minLines = 6,
-                            maxLines = 16,
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(16.dp))
+                        .background(bodyPanelColor)
+                        .padding(12.dp),
+                ) {
+                    Surface(
+                        modifier = Modifier.matchParentSize(),
+                        shape = RoundedCornerShape(16.dp),
+                        color = Color.Transparent,
+                        border = androidx.compose.foundation.BorderStroke(1.dp, bodyPanelBorderColor),
+                    ) {}
+                    Column(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        Row(
                             modifier = Modifier.fillMaxWidth(),
-                        )
+                            horizontalArrangement = Arrangement.End,
+                        ) {
+                            BodyTabActions(
+                                isEditing = isEditing,
+                                canEdit = true,
+                                isJsonBody = isJsonBody,
+                                onEdit = ::startEditing,
+                                onCancel = ::cancelEditing,
+                                onSave = ::saveEdits,
+                                onValidateJson = ::validateJson,
+                                onFormatJson = ::formatJson,
+                            )
+                        }
+
+                        if (isEditing) {
+                            OutlinedTextField(
+                                value = draftText,
+                                onValueChange = { updated ->
+                                    draftText = updated
+                                    if (validationError != null && isJsonBody) {
+                                        validationError = validateJsonBodyText(updated)
+                                    }
+                                },
+                                readOnly = false,
+                                minLines = 8,
+                                maxLines = 18,
+                                colors = bodyEditorFieldColors(),
+                                modifier = Modifier.fillMaxWidth(),
+                            )
+                        } else when (selectedFormat) {
+                            BodyFormat.JSON -> {
+                                JsonCodeEditor(
+                                    text = currentText,
+                                    onTextChange = {},
+                                    readOnly = true,
+                                    modifier = Modifier.fillMaxWidth().height(280.dp),
+                                    backgroundColor = bodyEditorBackgroundColor,
+                                    foregroundColor = bodyEditorForegroundColor,
+                                )
+                            }
+                            BodyFormat.PLAIN_TEXT, BodyFormat.RAW -> {
+                                OutlinedTextField(
+                                    value = currentText,
+                                    onValueChange = {},
+                                    readOnly = true,
+                                    minLines = 8,
+                                    maxLines = 18,
+                                    colors = bodyEditorFieldColors(),
+                                    modifier = Modifier.fillMaxWidth(),
+                                )
+                            }
+                        }
                     }
-                    BodyFormat.RAW -> {
-                        OutlinedTextField(
-                            value = yamlValueToDisplayString(body),
-                            onValueChange = {},
-                            readOnly = true,
-                            minLines = 6,
-                            maxLines = 16,
-                            modifier = Modifier.fillMaxWidth(),
-                        )
-                    }
+                }
+
+                validationError?.let { error ->
+                    Text(
+                        text = error,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.error,
+                    )
                 }
             }
 
@@ -1008,6 +1059,62 @@ private fun BodyTab(
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
+            }
+        }
+    }
+}
+
+@Composable
+private fun bodyEditorFieldColors() = OutlinedTextFieldDefaults.colors(
+    focusedContainerColor = Color.Transparent,
+    unfocusedContainerColor = Color.Transparent,
+    disabledContainerColor = Color.Transparent,
+    focusedTextColor = bodyPanelContentColor,
+    unfocusedTextColor = bodyPanelContentColor,
+    disabledTextColor = bodyPanelContentColor,
+    cursorColor = bodyPanelContentColor,
+    focusedBorderColor = Color.Transparent,
+    unfocusedBorderColor = Color.Transparent,
+    disabledBorderColor = Color.Transparent,
+)
+
+@Composable
+private fun BodyTabActions(
+    isEditing: Boolean,
+    canEdit: Boolean,
+    isJsonBody: Boolean,
+    onEdit: () -> Unit,
+    onCancel: () -> Unit,
+    onSave: () -> Unit,
+    onValidateJson: () -> Unit,
+    onFormatJson: () -> Unit,
+) {
+    Row(
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        if (isEditing && isJsonBody) {
+            OutlinedButton(onClick = onValidateJson) {
+                Text("Validate JSON")
+            }
+            FilledTonalButton(onClick = onFormatJson) {
+                Text("Format JSON")
+            }
+        }
+
+        when {
+            isEditing -> {
+                IconButton(onClick = onCancel) {
+                    Icon(Icons.Outlined.Close, contentDescription = "Cancel body edit")
+                }
+                FilledTonalIconButton(onClick = onSave) {
+                    Icon(Icons.Outlined.Save, contentDescription = "Save body edit")
+                }
+            }
+            canEdit -> {
+                FilledTonalIconButton(onClick = onEdit) {
+                    Icon(Icons.Outlined.Edit, contentDescription = "Edit body")
+                }
             }
         }
     }
@@ -1251,69 +1358,22 @@ private fun QueryParamsEditor(
     items: List<RuleMatcher>,
     onUpdate: (List<RuleMatcher>) -> Unit,
 ) {
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Text("Query Parameters", style = MaterialTheme.typography.titleSmall)
-            androidx.compose.material3.TextButton(onClick = {
-                onUpdate(items + RuleMatcher(name = "", required = true))
-            }) {
-                Text("Add")
-            }
-        }
-
-        if (items.isEmpty()) {
-            Text(
-                "No query parameters configured.",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
-
-        items.forEachIndexed { index, item ->
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(8.dp))
-                    .background(MaterialTheme.colorScheme.surfaceVariant)
-                    .padding(10.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    OutlinedTextField(
-                        value = item.name,
-                        onValueChange = { newName ->
-                            onUpdate(items.updated(index, item.copy(name = newName)))
-                        },
-                        label = { Text("Parameter Name") },
-                        singleLine = true,
-                        modifier = Modifier.weight(1f),
-                    )
-                    androidx.compose.material3.IconButton(onClick = {
-                        onUpdate(items.toMutableList().also { it.removeAt(index) })
-                    }) {
-                        Text("x", color = MaterialTheme.colorScheme.error)
-                    }
-                }
-
-                MatchConditionEditor(
-                    ruleMatcher = item,
-                    onUpdate = { updated ->
-                        onUpdate(items.updated(index, updated))
-                    },
-                    dropdownWidth = 160.dp,
-                    valueWidth = null,
-                    modifier = Modifier.fillMaxWidth(),
-                )
-            }
-        }
-    }
+    RuleMatcherTableEditor(
+        title = "Query Parameters",
+        nameColumnLabel = "Parameter Name",
+        emptyText = "No query parameters configured.",
+        items = items,
+        onUpdate = onUpdate,
+        onAdd = {
+            onUpdate(items + RuleMatcher(name = "", required = true))
+        },
+        onClear = {
+            onUpdate(emptyList())
+        },
+        deleteContentDescription = "Delete query parameter",
+        availableMatchTypes = headerMatchTypes,
+        fallbackMatchType = MatchType.EQUAL_TO,
+    )
 }
 
 private fun EndpointDocument.updateVariant(index: Int, variant: ProjectVariant): EndpointDocument {
@@ -1396,4 +1456,89 @@ private fun yamlValueToPlainText(value: YamlValue): String = when (value) {
     is YamlValue.Str -> value.value
     is YamlValue.Array -> value.value.joinToString("\n") { yamlValueToPlainText(it) }
     is YamlValue.Obj -> value.value.entries.joinToString("\n") { (k, v) -> "$k: ${yamlValueToPlainText(v)}" }
+}
+
+private fun editableBodyText(variant: ProjectVariant, body: YamlValue): String {
+    return if (variant.isJsonBody()) {
+        yamlValueToJsonString(body)
+    } else {
+        when (body) {
+            is YamlValue.Null -> "null"
+            is YamlValue.Bool -> if (body.value) "true" else "false"
+            is YamlValue.Int -> "${body.value}"
+            is YamlValue.Double -> "${body.value}"
+            is YamlValue.Str -> body.value
+            is YamlValue.Array -> yamlValueToJsonString(body)
+            is YamlValue.Obj -> yamlValueToJsonString(body)
+        }
+    }
+}
+
+private fun parseEditableText(text: String, originalBody: YamlValue?): YamlValue {
+    return when (originalBody) {
+        null -> YamlValue.Str(text)
+        is YamlValue.Null -> if (text.trim() == "null") YamlValue.Null else YamlValue.Str(text)
+        is YamlValue.Bool -> text.toBooleanStrictOrNull()?.let(YamlValue::Bool) ?: YamlValue.Str(text)
+        is YamlValue.Int -> text.toIntOrNull()?.let(YamlValue::Int) ?: YamlValue.Str(text)
+        is YamlValue.Double -> text.toDoubleOrNull()?.let(YamlValue::Double) ?: YamlValue.Str(text)
+        is YamlValue.Str -> YamlValue.Str(text)
+        is YamlValue.Array,
+        is YamlValue.Obj,
+        -> YamlValue.Str(text)
+    }
+}
+
+internal fun validateJsonBodyText(text: String): String? {
+    return parseJsonBodyText(text).exceptionOrNull()?.let(::invalidJsonMessage)
+}
+
+internal fun parseJsonBodyText(text: String): Result<YamlValue> {
+    return runCatching {
+        jsonElementToYamlValue(bodyEditorJson.parseToJsonElement(text))
+    }
+}
+
+internal fun formatJsonBodyText(text: String): Result<String> {
+    return runCatching {
+        val element = bodyEditorJson.parseToJsonElement(text)
+        bodyEditorPrettyJson.encodeToString(JsonElement.serializer(), element)
+    }
+}
+
+private fun invalidJsonMessage(error: Throwable): String {
+    return error.message ?: error.toString()
+}
+
+private fun jsonElementToYamlValue(element: JsonElement): YamlValue = when (element) {
+    is JsonNull -> YamlValue.Null
+    is JsonPrimitive -> when {
+        element.isString -> YamlValue.Str(element.content)
+        element.booleanOrNull != null -> YamlValue.Bool(element.booleanOrNull!!)
+        element.intOrNull != null -> YamlValue.Int(element.intOrNull!!)
+        element.longOrNull != null -> YamlValue.Double(element.longOrNull!!.toDouble())
+        element.doubleOrNull != null -> YamlValue.Double(element.doubleOrNull!!)
+        else -> YamlValue.Str(element.content)
+    }
+    is JsonArray -> YamlValue.Array(element.map(::jsonElementToYamlValue))
+    is JsonObject -> YamlValue.Obj(element.mapValues { (_, value) -> jsonElementToYamlValue(value) })
+}
+
+private fun ProjectVariant.isJsonBody(text: String? = null): Boolean {
+    val contentType = headers
+        ?.entries
+        ?.firstOrNull { it.key.equals("Content-Type", ignoreCase = true) }
+        ?.value
+        ?.substringBefore(';')
+        ?.trim()
+        ?.lowercase()
+
+    if (contentType == "application/json" || contentType == "application/graphql-response+json" || contentType?.endsWith("+json") == true) {
+        return true
+    }
+
+    if (body is YamlValue.Array || body is YamlValue.Obj) {
+        return true
+    }
+
+    return text?.let { parseJsonBodyText(it).isSuccess } == true
 }

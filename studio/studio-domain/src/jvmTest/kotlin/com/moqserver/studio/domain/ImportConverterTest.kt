@@ -52,8 +52,12 @@ class ImportConverterTest {
         val endpoint = project.endpoints.single()
         assertEquals("get-items", endpoint.id)
         assertEquals("List Items", endpoint.alias)
+        assertEquals("listItems", endpoint.referenceName)
         assertEquals(3, endpoint.variants.size)
         assertTrue(endpoint.variants.any { it.isDefault == true && it.name == "Success" })
+        assertEquals("error", endpoint.variants.first { it.name == "Error" }.referenceName)
+        assertEquals("success", endpoint.variants.first { it.name == "Success" }.referenceName)
+        assertEquals("success2", endpoint.variants.first { it.name == "Success 2" }.referenceName)
 
         val fallbackBody = endpoint.variants.first { it.name == "Error" }.body
         assertIs<YamlValue.Str>(fallbackBody)
@@ -80,6 +84,8 @@ class ImportConverterTest {
                     method = "GET",
                     path = "/pets",
                     alias = "Browse Pets",
+                    description = "Returns all pets",
+                    referenceName = "browsePets",
                     responses = listOf(
                         ParsedResponse(name = "default", statusCode = 200, body = "[]"),
                     ),
@@ -95,6 +101,39 @@ class ImportConverterTest {
         )
 
         assertEquals("Browse Pets", project.endpoints.single().alias)
+        assertEquals("Returns all pets", project.endpoints.single().description)
+        assertEquals("browsePets", project.endpoints.single().referenceName)
+    }
+
+    @Test
+    fun `generates unique endpoint reference names from imported aliases`() {
+        val parsed = ParsedSpec(
+            title = "Imported API",
+            version = "1.0.0",
+            endpoints = listOf(
+                ParsedEndpoint(
+                    method = "GET",
+                    path = "/pets",
+                    alias = "Browse Pets",
+                    responses = listOf(ParsedResponse(name = "default", statusCode = 200, body = "[]")),
+                ),
+                ParsedEndpoint(
+                    method = "POST",
+                    path = "/pets",
+                    alias = "Browse Pets",
+                    responses = listOf(ParsedResponse(name = "created", statusCode = 201, body = "{}")),
+                ),
+            ),
+        )
+
+        val project = ImportConverter.convert(
+            spec = parsed,
+            acceptedEndpoints = parsed.endpoints,
+            projectName = "Imported API",
+            projectPath = "/tmp/imported-api",
+        )
+
+        assertEquals(listOf("browsePets", "browsePets2"), project.endpoints.map { it.referenceName })
     }
 
     @Test
