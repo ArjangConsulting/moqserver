@@ -28,6 +28,9 @@ private object ValidationPanelStrings {
     const val NO_ISSUES = "No issues"
     const val SEVERITY_ERROR = "E"
     const val SEVERITY_WARNING = "W"
+    const val NAVIGATE_ARROW = "→"
+    const val VARIANT_PREFIX = "Variant: "
+    const val FIELD_SEPARATOR = " · "
 }
 
 @Composable
@@ -119,8 +122,17 @@ private fun DiagnosticRow(
                 style = MaterialTheme.typography.bodySmall,
             )
             val location = buildString {
-                diagnostic.file?.let { append(it) }
-                diagnostic.field?.let { append(" > $it") }
+                diagnostic.endpointLabel?.let { append(it) }
+                    ?: diagnostic.file?.let { append(it) }
+                diagnostic.variantName?.let {
+                    append(ValidationPanelStrings.FIELD_SEPARATOR)
+                    append(ValidationPanelStrings.VARIANT_PREFIX)
+                    append(it)
+                }
+                diagnostic.field?.let {
+                    append(ValidationPanelStrings.FIELD_SEPARATOR)
+                    append(it)
+                }
             }
             if (location.isNotEmpty()) {
                 Text(
@@ -129,6 +141,13 @@ private fun DiagnosticRow(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
+        }
+        if (diagnostic.endpointId != null) {
+            Text(
+                text = ValidationPanelStrings.NAVIGATE_ARROW,
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.primary,
+            )
         }
     }
 }
