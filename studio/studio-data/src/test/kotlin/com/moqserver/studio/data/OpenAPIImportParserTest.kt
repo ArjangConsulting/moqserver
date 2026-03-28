@@ -83,4 +83,61 @@ class OpenAPIImportParserTest {
         val getPet = parsed.endpoints.first { it.path == "/pets/{petId}" }
         assertEquals("Get Pet By Id", getPet.alias)
     }
+
+    @Test
+    fun `uses response description as variant name`() {
+        val spec = """
+            openapi: 3.0.3
+            info:
+              title: Named Responses API
+              version: 1.0.0
+            paths:
+              /orders:
+                post:
+                  responses:
+                    "201":
+                      description: Order Created
+                    "422":
+                      description: Validation Failed
+                    "500":
+                      description: Internal Server Error
+        """.trimIndent()
+
+        val parsed = parser.parse(spec)
+        val responses = parsed.endpoints.single().responses
+
+        assertEquals("Order Created", responses.first { it.statusCode == 201 }.name)
+        assertEquals("Validation Failed", responses.first { it.statusCode == 422 }.name)
+        assertEquals("Internal Server Error", responses.first { it.statusCode == 500 }.name)
+    }
+
+    @Test
+    fun `falls back to status-based variant name when description is absent`() {
+        val spec = """
+            openapi: 3.0.3
+            info:
+              title: No Description API
+              version: 1.0.0
+            paths:
+              /items:
+                get:
+                  responses:
+                    "200":
+                      content:
+                        application/json:
+                          schema:
+                            type: object
+                    "404":
+                      content:
+                        application/json:
+                          schema:
+                            type: object
+        """.trimIndent()
+
+        val parsed = parser.parse(spec)
+        val responses = parsed.endpoints.single().responses
+
+        assertEquals("default", responses.first { it.statusCode == 200 }.name)
+        assertEquals("error-404", responses.first { it.statusCode == 404 }.name)
+    }
 }

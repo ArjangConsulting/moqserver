@@ -51,17 +51,17 @@ class ImportConverterTest {
         assertEquals("get-items", endpoint.id)
         assertEquals("List Items", endpoint.alias)
         assertEquals(3, endpoint.variants.size)
-        assertTrue(endpoint.variants.any { it.isDefault == true && it.name == "default" })
+        assertTrue(endpoint.variants.any { it.isDefault == true && it.name == "Success" })
 
-        val fallbackBody = endpoint.variants.first { it.name == "error-500" }.body
+        val fallbackBody = endpoint.variants.first { it.name == "Error" }.body
         assertIs<YamlValue.Str>(fallbackBody)
         assertEquals("{not json}", fallbackBody.value)
 
-        val booleanBody = endpoint.variants.first { it.name == "default" }.body
+        val booleanBody = endpoint.variants.first { it.name == "Success" }.body
         assertIs<YamlValue.Bool>(booleanBody)
         assertEquals(true, booleanBody.value)
 
-        val objectBody = endpoint.variants.first { it.name == "success-201" }.body
+        val objectBody = endpoint.variants.first { it.name == "Success 2" }.body
         assertTrue(objectBody is YamlValue.Obj)
         val idValue = objectBody.value["id"]
         assertIs<YamlValue.Int>(idValue)

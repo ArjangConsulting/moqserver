@@ -35,8 +35,8 @@ class ImportWorkflowTest {
         )
 
         val variants = project.endpoints.single().variants
-        assertEquals("success-200", variants.single { it.isDefault == true }.name)
-        assertIs<YamlValue.Str>(variants.single { it.name == "success-200" }.body)
+        assertEquals("Success", variants.single { it.isDefault == true }.name)
+        assertIs<YamlValue.Str>(variants.single { it.name == "Success" }.body)
     }
 
     @Test
@@ -164,7 +164,7 @@ class ImportWorkflowTest {
             val fixture = File(tempDir, bodyFile)
 
             assertEquals("/vi/iONDebHX9qk/mqdefault.jpg", reloaded.endpoints.single().path)
-            assertEquals("fixtures/responses/get-vi-iondebhx9qk-mqdefaultjpg/mqdefault-jpg-default.jpg", bodyFile)
+            assertEquals("fixtures/responses/get-vi-iondebhx9qk-mqdefaultjpg/mqdefault-jpg-success.jpg", bodyFile)
             assertNotNull(variant.bodyFile)
             assertEquals(null, variant.body)
             assertTrue(fixture.isFile)

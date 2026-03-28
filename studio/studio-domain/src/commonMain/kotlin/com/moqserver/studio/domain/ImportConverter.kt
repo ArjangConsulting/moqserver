@@ -12,6 +12,7 @@ import com.moqserver.studio.projectformat.RequestRules
 import com.moqserver.studio.projectformat.RuleMatcher
 import com.moqserver.studio.projectformat.YamlValue
 import com.moqserver.studio.projectformat.defaultAliasForEndpoint
+import com.moqserver.studio.projectformat.suggestedVariantName
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
@@ -59,8 +60,15 @@ object ImportConverter {
                 ?: parsed.responses.indexOfFirst { it.statusCode in 200..299 }.takeIf { it >= 0 }
                 ?: 0
         }
+        val assignedNames = mutableListOf<String>()
         val variants = parsed.responses.mapIndexed { index, resp ->
-            convertVariant(resp, isDefault = index == defaultIndex)
+            val name = suggestedVariantName(
+                status = resp.statusCode,
+                existingNames = assignedNames,
+                preferredName = resp.name,
+            )
+            assignedNames += name
+            convertVariant(resp = resp, name = name, isDefault = index == defaultIndex)
         }
 
         val auth = if (parsed.authType != AuthType.NONE) {
@@ -87,10 +95,10 @@ object ImportConverter {
         )
     }
 
-    private fun convertVariant(resp: ParsedResponse, isDefault: Boolean): ProjectVariant {
+    private fun convertVariant(resp: ParsedResponse, name: String, isDefault: Boolean): ProjectVariant {
         val body = resp.body?.let { parseBodyToYamlValue(it) }
         return ProjectVariant(
-            name = resp.name,
+            name = name,
             isDefault = if (isDefault) true else null,
             status = resp.statusCode,
             headers = resp.headers.ifEmpty { null },
