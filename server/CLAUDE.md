@@ -81,3 +81,10 @@ The `companion` subcommand starts a separate Vapor app (`CompanionBootstrap`) th
 | `MoqRuntimeTests` | Admin API, auth integration, content negotiation |
 | `MoqCompanionAITests` | Provider registry, redaction engine, companion handler |
 | `MoqIntegrationTests` | End-to-end: spec → serve → request → verify |
+
+## Test Expectations
+
+- New server code should usually ship with tests in the same change.
+- Add focused unit tests for domain, parsing, format, and validation logic.
+- Add integration or runtime tests when behavior crosses module boundaries, affects routing, auth, content negotiation, persistence, or end-to-end serving behavior.
+- If a server change reasonably does not need a test, note that explicitly in the change summary.
