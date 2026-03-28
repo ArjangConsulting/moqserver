@@ -50,7 +50,7 @@ import com.moqserver.studio.projectformat.ProjectVariant
 import com.moqserver.studio.projectformat.RequestRules
 import com.moqserver.studio.projectformat.RuleMatcher
 import com.moqserver.studio.projectformat.YamlValue
-import com.moqserver.studio.projectformat.displayAlias
+import com.moqserver.studio.projectformat.displayAlias\nimport com.moqserver.studio.projectformat.suggestedVariantName
 
 private enum class VariantDetailTab(val title: String) {
     SUMMARY("Summary"),
@@ -359,6 +359,7 @@ private fun VariantSection(
                         onUpdate = { updated ->
                             onUpdateEndpoint(endpoint.updateVariant(activeVariantIndex, updated))
                         },
+                        onUpdateEndpoint = onUpdateEndpoint,
                         onRemove = {
                             val updatedVariants = endpoint.variants.toMutableList().also { it.removeAt(activeVariantIndex) }
                             onUpdateEndpoint(endpoint.copy(variants = updatedVariants))
@@ -520,6 +521,7 @@ private fun VariantSummaryTab(
     endpoint: EndpointDocument,
     variant: ProjectVariant,
     onUpdate: (ProjectVariant) -> Unit,
+    onUpdateEndpoint: (EndpointDocument) -> Unit,
     onRemove: () -> Unit,
     canRemove: Boolean,
 ) {
@@ -637,6 +639,18 @@ private fun VariantSummaryTab(
             text = bodySource,
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+
+        HorizontalDivider()
+
+        AuthConfigSection(
+            auth = endpoint.auth,
+            onUpdate = { onUpdateEndpoint(endpoint.copy(auth = it)) },
+        )
+
+        NetworkSection(
+            network = endpoint.network,
+            onUpdate = { onUpdateEndpoint(endpoint.copy(network = it)) },
         )
 
         if (canRemove) {
