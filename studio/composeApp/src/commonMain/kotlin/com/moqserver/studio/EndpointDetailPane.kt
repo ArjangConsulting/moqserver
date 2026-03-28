@@ -13,6 +13,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.moqserver.studio.editor.JsonCodeEditor
 import com.moqserver.studio.projectformat.*
@@ -429,9 +430,13 @@ private fun VariantSection(
 
                     VariantDetailTab.CRITERIA -> CriteriaTab(
                         requestRules = requestRules,
+                        auth = endpoint.auth,
+                        network = endpoint.network,
                         onUpdate = { updatedRules ->
                             onUpdateEndpoint(endpoint.copy(requestRules = updatedRules.normalize()))
                         },
+                        onUpdateAuth = { onUpdateEndpoint(endpoint.copy(auth = it)) },
+                        onUpdateNetwork = { onUpdateEndpoint(endpoint.copy(network = it)) },
                     )
                 }
             }
@@ -718,18 +723,6 @@ private fun VariantSummaryTab(
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
 
-        HorizontalDivider()
-
-        AuthConfigSection(
-            auth = endpoint.auth,
-            onUpdate = { onUpdateEndpoint(endpoint.copy(auth = it)) },
-        )
-
-        NetworkSection(
-            network = endpoint.network,
-            onUpdate = { onUpdateEndpoint(endpoint.copy(network = it)) },
-        )
-
         if (canRemove) {
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
                 androidx.compose.material3.TextButton(
@@ -991,7 +984,11 @@ private fun BodyTab(
 @Composable
 private fun CriteriaTab(
     requestRules: RequestRules,
+    auth: ProjectAuthConfig?,
+    network: NetworkBehavior?,
     onUpdate: (RequestRules) -> Unit,
+    onUpdateAuth: (ProjectAuthConfig?) -> Unit,
+    onUpdateNetwork: (NetworkBehavior?) -> Unit,
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
         RuleMatcherEditor(
@@ -1001,6 +998,12 @@ private fun CriteriaTab(
                 onUpdate(requestRules.copy(queryParams = queryParams.ifEmpty { null }))
             },
         )
+
+        HorizontalDivider()
+
+        AuthConfigSection(auth = auth, onUpdate = onUpdateAuth)
+
+        NetworkSection(network = network, onUpdate = onUpdateNetwork)
     }
 }
 
@@ -1012,8 +1015,12 @@ private fun HeadersTab(
     onUpdateRules: (RequestRules) -> Unit,
 ) {
     val headerCriteria = requestRules.headers ?: emptyList()
+    val headersList = headers.entries.toList()
+    val hasAnyRequired = headersList.any { (key, _) ->
+        headerCriteria.any { it.name.equals(key, ignoreCase = true) }
+    }
 
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
@@ -1033,22 +1040,59 @@ private fun HeadersTab(
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
-        }
-
-        headers.entries.forEachIndexed { index, (key, value) ->
-            val ruleMatcher = headerCriteria.find { it.name.equals(key, ignoreCase = true) }
-            val isConditionable = ruleMatcher != null
-
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(8.dp))
-                    .background(MaterialTheme.colorScheme.surfaceVariant)
-                    .padding(10.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
+        } else {
+            // Table column headers
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp),
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                verticalAlignment = Alignment.CenterVertically,
             ) {
+                Text(
+                    "Header Name",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.weight(1f),
+                )
+                Text(
+                    "Header Value",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.weight(1f),
+                )
+                Text(
+                    "Required",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.width(80.dp),
+                )
+                if (hasAnyRequired) {
+                    Text(
+                        "Condition",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.width(140.dp),
+                    )
+                    Text(
+                        "Match Value",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.width(160.dp),
+                    )
+                }
+                Spacer(Modifier.width(40.dp))
+            }
+
+            HorizontalDivider()
+
+            // Table data rows
+            headersList.forEachIndexed { index, (key, value) ->
+                val ruleMatcher = headerCriteria.find { it.name.equals(key, ignoreCase = true) }
+                val isRequired = ruleMatcher != null
+
                 Row(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp),
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     OutlinedTextField(
@@ -1060,14 +1104,14 @@ private fun HeadersTab(
                                 override val value = value
                             }
                             onUpdateHeaders(entries.associate { it.key to it.value })
-                            if (isConditionable) {
+                            if (isRequired) {
                                 val updatedCriteria = headerCriteria.map {
                                     if (it.name.equals(key, ignoreCase = true)) it.copy(name = newKey) else it
                                 }
                                 onUpdateRules(requestRules.copy(headers = updatedCriteria))
                             }
                         },
-                        placeholder = { Text("Header") },
+                        placeholder = { Text("Name") },
                         singleLine = true,
                         modifier = Modifier.weight(1f),
                     )
@@ -1083,34 +1127,94 @@ private fun HeadersTab(
                         singleLine = true,
                         modifier = Modifier.weight(1f),
                     )
-                    androidx.compose.material3.IconButton(onClick = {
-                        val updatedHeaders = headers.toMutableMap().apply { remove(key) }
-                        onUpdateHeaders(updatedHeaders)
-                        if (isConditionable) {
-                            onUpdateRules(
-                                requestRules.copy(
-                                    headers = headerCriteria
-                                        .filter { !it.name.equals(key, ignoreCase = true) }
-                                        .ifEmpty { null },
-                                ),
-                            )
-                        }
-                    }) {
-                        Text("x", color = MaterialTheme.colorScheme.error)
+                    Box(modifier = Modifier.width(80.dp), contentAlignment = Alignment.Center) {
+                        Checkbox(
+                            checked = isRequired,
+                            onCheckedChange = { checked ->
+                                if (checked) {
+                                    onUpdateRules(
+                                        requestRules.copy(
+                                            headers = headerCriteria + RuleMatcher(name = key, required = true),
+                                        ),
+                                    )
+                                } else {
+                                    onUpdateRules(
+                                        requestRules.copy(
+                                            headers = headerCriteria
+                                                .filter { !it.name.equals(key, ignoreCase = true) }
+                                                .ifEmpty { null },
+                                        ),
+                                    )
+                                }
+                            },
+                        )
                     }
-                }
-
-                // Conditionable section
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(4.dp),
-                ) {
-                    Checkbox(
-                        checked = isConditionable,
-                        onCheckedChange = { checked ->
-                            if (checked) {
-                                onUpdateRules(requestRules.copy(headers = headerCriteria + RuleMatcher(name = key, required = true)))
+                    if (hasAnyRequired) {
+                        if (ruleMatcher != null) {
+                            val matchType = ruleMatcher.effectiveMatchType
+                            var criteriaExpanded by remember { mutableStateOf(false) }
+                            Box(modifier = Modifier.width(140.dp)) {
+                                OutlinedTextField(
+                                    value = matchType.displayName,
+                                    onValueChange = {},
+                                    readOnly = true,
+                                    singleLine = true,
+                                    modifier = Modifier.fillMaxWidth().clickable { criteriaExpanded = true },
+                                )
+                                DropdownMenu(
+                                    expanded = criteriaExpanded,
+                                    onDismissRequest = { criteriaExpanded = false },
+                                ) {
+                                    MatchType.entries.forEach { type ->
+                                        DropdownMenuItem(
+                                            text = { Text(type.displayName) },
+                                            onClick = {
+                                                val updated = ruleMatcher.copy(
+                                                    matchType = type,
+                                                    match = if (type == MatchType.REQUIRE) null else ruleMatcher.match,
+                                                )
+                                                onUpdateRules(
+                                                    requestRules.copy(
+                                                        headers = headerCriteria.map {
+                                                            if (it.name.equals(key, ignoreCase = true)) updated else it
+                                                        },
+                                                    ),
+                                                )
+                                                criteriaExpanded = false
+                                            },
+                                        )
+                                    }
+                                }
+                            }
+                            if (matchType.needsValue) {
+                                OutlinedTextField(
+                                    value = ruleMatcher.match ?: "",
+                                    onValueChange = { newMatch ->
+                                        val updated = ruleMatcher.copy(match = newMatch.ifBlank { null })
+                                        onUpdateRules(
+                                            requestRules.copy(
+                                                headers = headerCriteria.map {
+                                                    if (it.name.equals(key, ignoreCase = true)) updated else it
+                                                },
+                                            ),
+                                        )
+                                    },
+                                    placeholder = { Text("Match value") },
+                                    singleLine = true,
+                                    modifier = Modifier.width(160.dp),
+                                )
                             } else {
+                                Spacer(Modifier.width(160.dp))
+                            }
+                        } else {
+                            Spacer(Modifier.width(140.dp + 4.dp + 160.dp))
+                        }
+                    }
+                    androidx.compose.material3.IconButton(
+                        onClick = {
+                            val updatedHeaders = headers.toMutableMap().apply { remove(key) }
+                            onUpdateHeaders(updatedHeaders)
+                            if (isRequired) {
                                 onUpdateRules(
                                     requestRules.copy(
                                         headers = headerCriteria
@@ -1120,61 +1224,9 @@ private fun HeadersTab(
                                 )
                             }
                         },
-                    )
-                    Text("Condition", style = MaterialTheme.typography.bodySmall)
-
-                    if (ruleMatcher != null) {
-                        Spacer(Modifier.width(8.dp))
-                        val matchType = ruleMatcher.effectiveMatchType
-                        var criteriaExpanded by remember { mutableStateOf(false) }
-                        Box {
-                            OutlinedTextField(
-                                value = matchType.displayName,
-                                onValueChange = {},
-                                readOnly = true,
-                                modifier = Modifier.width(160.dp).clickable { criteriaExpanded = true },
-                            )
-                            DropdownMenu(expanded = criteriaExpanded, onDismissRequest = { criteriaExpanded = false }) {
-                                MatchType.entries.forEach { type ->
-                                    DropdownMenuItem(
-                                        text = { Text(type.displayName) },
-                                        onClick = {
-                                            val updated = ruleMatcher.copy(
-                                                matchType = type,
-                                                match = if (type == MatchType.REQUIRE) null else ruleMatcher.match,
-                                            )
-                                            onUpdateRules(
-                                                requestRules.copy(
-                                                    headers = headerCriteria.map {
-                                                        if (it.name.equals(key, ignoreCase = true)) updated else it
-                                                    },
-                                                ),
-                                            )
-                                            criteriaExpanded = false
-                                        },
-                                    )
-                                }
-                            }
-                        }
-
-                        if (matchType.needsValue) {
-                            OutlinedTextField(
-                                value = ruleMatcher.match ?: "",
-                                onValueChange = { newMatch ->
-                                    val updated = ruleMatcher.copy(match = newMatch.ifBlank { null })
-                                    onUpdateRules(
-                                        requestRules.copy(
-                                            headers = headerCriteria.map {
-                                                if (it.name.equals(key, ignoreCase = true)) updated else it
-                                            },
-                                        ),
-                                    )
-                                },
-                                placeholder = { Text("Match value") },
-                                singleLine = true,
-                                modifier = Modifier.width(180.dp),
-                            )
-                        }
+                        modifier = Modifier.size(40.dp),
+                    ) {
+                        Text("x", color = MaterialTheme.colorScheme.error)
                     }
                 }
             }
@@ -1289,13 +1341,17 @@ private fun defaultNewVariantStatus(variants: List<ProjectVariant>): Int {
 
 private val MatchType.displayName: String
     get() = when (this) {
-        MatchType.REQUIRE -> "Require"
-        MatchType.EQUAL_TO -> "Equal to"
-        MatchType.CONTAINS -> "Contains"
-        MatchType.BEGINS_WITH -> "Begins with"
-        MatchType.ENDS_WITH -> "Ends with"
-        MatchType.NOT_EQUAL_TO -> "Not equal to"
-        MatchType.NOT_CONTAINS -> "Not contains"
+        MatchType.REQUIRE -> "exists"
+        MatchType.EQUAL_TO -> "eq"
+        MatchType.NOT_EQUAL_TO -> "neq"
+        MatchType.CONTAINS -> "contains"
+        MatchType.NOT_CONTAINS -> "not contains"
+        MatchType.BEGINS_WITH -> "starts with"
+        MatchType.ENDS_WITH -> "ends with"
+        MatchType.GT -> "gt"
+        MatchType.GTE -> "gte"
+        MatchType.LT -> "lt"
+        MatchType.LTE -> "lte"
     }
 
 private val MatchType.needsValue: Boolean
