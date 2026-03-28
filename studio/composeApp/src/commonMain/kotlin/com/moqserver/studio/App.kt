@@ -33,6 +33,7 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontFamily
@@ -64,6 +65,7 @@ fun App(
 ) {
     val state by appViewModel.state.collectAsState()
     val showAiPanel = state.aiPanelVisible
+    val systemInDarkTheme = isSystemInDarkTheme()
 
     Scaffold(
         topBar = {
@@ -72,13 +74,13 @@ fun App(
                 themeMode = themeMode,
                 onThemeModeToggle = {
                     onThemeModeChange(
-                        when (themeMode) {
-                            StudioThemeMode.SYSTEM,
-                            StudioThemeMode.LIGHT -> StudioThemeMode.DARK
-                            StudioThemeMode.DARK -> StudioThemeMode.LIGHT
-                        }
+                        resolveNextThemeMode(
+                            themeMode = themeMode,
+                            systemInDarkTheme = systemInDarkTheme,
+                        )
                     )
                 },
+                systemInDarkTheme = systemInDarkTheme,
                 showAiPanel = showAiPanel,
                 onToggleAiPanel = onToggleAiPanel,
                 onCloseProject = onCloseProject,
@@ -130,6 +132,7 @@ fun App(
 private fun StudioTopBar(
     state: StudioState,
     themeMode: StudioThemeMode,
+    systemInDarkTheme: Boolean,
     onThemeModeToggle: () -> Unit,
     showAiPanel: Boolean,
     onToggleAiPanel: () -> Unit,
@@ -140,6 +143,7 @@ private fun StudioTopBar(
     onAIAction: (AIAction) -> Unit,
 ) {
     val calligraphyFont = FontFamily(Font(Res.font.GreatVibes_Regular))
+    val darkTheme = resolveDarkTheme(themeMode, systemInDarkTheme)
 
     Column {
         TopAppBar(
@@ -153,7 +157,7 @@ private fun StudioTopBar(
             actions = {
                 IconButton(onClick = onThemeModeToggle) {
                     Icon(
-                        imageVector = if (themeMode == StudioThemeMode.DARK) Icons.Filled.LightMode else Icons.Filled.DarkMode,
+                        imageVector = if (darkTheme) Icons.Filled.LightMode else Icons.Filled.DarkMode,
                         contentDescription = "Toggle theme",
                     )
                 }

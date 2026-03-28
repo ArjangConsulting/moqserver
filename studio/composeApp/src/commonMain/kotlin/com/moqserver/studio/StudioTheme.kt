@@ -14,16 +14,33 @@ enum class StudioThemeMode {
     DARK,
 }
 
+internal fun resolveDarkTheme(
+    themeMode: StudioThemeMode,
+    systemInDarkTheme: Boolean,
+): Boolean = when (themeMode) {
+    StudioThemeMode.SYSTEM -> systemInDarkTheme
+    StudioThemeMode.LIGHT -> false
+    StudioThemeMode.DARK -> true
+}
+
+internal fun resolveNextThemeMode(
+    themeMode: StudioThemeMode,
+    systemInDarkTheme: Boolean,
+): StudioThemeMode = if (resolveDarkTheme(themeMode, systemInDarkTheme)) {
+    StudioThemeMode.LIGHT
+} else {
+    StudioThemeMode.DARK
+}
+
 @Composable
 fun StudioTheme(
     themeMode: StudioThemeMode = StudioThemeMode.SYSTEM,
     content: @Composable () -> Unit,
 ) {
-    val darkTheme = when (themeMode) {
-        StudioThemeMode.SYSTEM -> isSystemInDarkTheme()
-        StudioThemeMode.LIGHT -> false
-        StudioThemeMode.DARK -> true
-    }
+    val darkTheme = resolveDarkTheme(
+        themeMode = themeMode,
+        systemInDarkTheme = isSystemInDarkTheme(),
+    )
 
     MaterialTheme(
         colorScheme = if (darkTheme) studioDarkColors() else studioLightColors(),
