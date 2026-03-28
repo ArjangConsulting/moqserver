@@ -674,9 +674,6 @@ private fun reportRecoverable(
     val message = throwable.message ?: context
     logger.error("{}: {}", context, message, throwable)
     appendCrashLog("$context: $message", throwable)
-    if (isFailFastEnabled()) {
-        throw propagateFailure("$context: $message", throwable)
-    }
     onUserMessage(message)
 }
 
