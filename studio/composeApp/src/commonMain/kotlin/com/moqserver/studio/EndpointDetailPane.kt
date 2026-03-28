@@ -46,6 +46,7 @@ private fun ProjectVariant.isPristine(): Boolean =
 fun EndpointDetailPane(
     endpoint: EndpointDocument,
     onUpdateEndpoint: (EndpointDocument) -> Unit,
+    projectPath: String = "",
     companionConnected: Boolean = false,
     onGenerateVariants: () -> Unit = {},
 ) {
@@ -89,7 +90,7 @@ fun EndpointDetailPane(
         HorizontalDivider()
         EndpointMetadataForm(endpoint, onUpdateEndpoint)
         HorizontalDivider()
-        VariantSection(endpoint, onUpdateEndpoint, companionConnected, onGenerateVariants)
+        VariantSection(endpoint, onUpdateEndpoint, projectPath, companionConnected, onGenerateVariants)
     }
 }
 
@@ -128,6 +129,7 @@ private fun EndpointMetadataForm(
             onValueChange = { onUpdateEndpoint(endpoint.copy(path = it)) },
             label = { Text("Path") },
             singleLine = true,
+            trailingIcon = { InfoTooltip("URL path this endpoint responds to (e.g. /users/{id}).") },
             modifier = Modifier.weight(1f),
         )
     }
@@ -139,6 +141,7 @@ private fun EndpointMetadataForm(
         },
         label = { Text("Alias (display name)") },
         singleLine = true,
+        trailingIcon = { InfoTooltip("Human-readable display name shown in the endpoint browser.") },
         modifier = Modifier.fillMaxWidth(),
     )
 
@@ -156,6 +159,7 @@ private fun AuthConfigSection(
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         Text("Override Auth Evaluation", style = MaterialTheme.typography.titleSmall)
+        InfoTooltip("When enabled, overrides the global auth settings for this specific endpoint.")
         Switch(
             checked = hasAuth,
             onCheckedChange = {
@@ -178,8 +182,11 @@ private fun AuthConfigSection(
                     onValueChange = {},
                     label = { Text("Type") },
                     readOnly = true,
-                    modifier = Modifier.width(160.dp).clickable { typeExpanded = true },
+                    modifier = Modifier.width(160.dp),
                 )
+                // Transparent overlay — readOnly TextFields still consume touch events,
+                // so the clickable must sit on top rather than on the field itself.
+                Box(modifier = Modifier.matchParentSize().clickable { typeExpanded = true })
                 DropdownMenu(expanded = typeExpanded, onDismissRequest = { typeExpanded = false }) {
                     AuthType.entries.forEach { type ->
                         DropdownMenuItem(
@@ -202,17 +209,6 @@ private fun AuthConfigSection(
                     modifier = Modifier.weight(1f),
                 )
             }
-        }
-
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            Text("Verify", style = MaterialTheme.typography.bodySmall)
-            Switch(
-                checked = auth.verify,
-                onCheckedChange = { onUpdate(auth.copy(verify = it)) },
-            )
         }
     }
 }
@@ -243,6 +239,7 @@ private fun NetworkSection(
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         Text("Network Simulation", style = MaterialTheme.typography.titleSmall)
+        InfoTooltip("Simulates network conditions such as latency and packet loss for this endpoint.")
         Switch(
             checked = hasNetwork,
             onCheckedChange = {
@@ -266,6 +263,7 @@ private fun NetworkSection(
                 },
                 label = { Text("Latency (ms)") },
                 singleLine = true,
+                trailingIcon = { InfoTooltip("Fixed delay in milliseconds added to every response.") },
                 modifier = Modifier.weight(1f),
             )
             OutlinedTextField(
@@ -276,6 +274,7 @@ private fun NetworkSection(
                 },
                 label = { Text("Jitter (ms)") },
                 singleLine = true,
+                trailingIcon = { InfoTooltip("Random variation in milliseconds added to the latency to simulate an unstable connection.") },
                 modifier = Modifier.weight(1f),
             )
             OutlinedTextField(
@@ -286,6 +285,7 @@ private fun NetworkSection(
                 },
                 label = { Text("Packet Loss %") },
                 singleLine = true,
+                trailingIcon = { InfoTooltip("Percentage of requests that will be dropped to simulate packet loss (0–100).") },
                 modifier = Modifier.weight(1f),
             )
         }
@@ -296,6 +296,7 @@ private fun NetworkSection(
 private fun VariantSection(
     endpoint: EndpointDocument,
     onUpdateEndpoint: (EndpointDocument) -> Unit,
+    projectPath: String = "",
     companionConnected: Boolean = false,
     onGenerateVariants: () -> Unit = {},
 ) {
@@ -420,6 +421,7 @@ private fun VariantSection(
 
                     VariantDetailTab.BODY -> BodyTab(
                         variant = variant,
+                        projectPath = projectPath,
                         onUpdate = { updated ->
                             onUpdateEndpoint(endpoint.updateVariant(activeVariantIndex, updated))
                         },
@@ -565,7 +567,7 @@ private fun StatusBadge(status: Int) {
 @Composable
 private fun InfoTooltip(text: String) {
     TooltipBox(
-        positionProvider = TooltipDefaults.rememberPlainTooltipPositionProvider(),
+        positionProvider = TooltipDefaults.rememberTooltipPositionProvider(),
         tooltip = { PlainTooltip { Text(text) } },
         state = rememberTooltipState(),
     ) {
@@ -651,6 +653,7 @@ private fun VariantSummaryTab(
         // Variant editing controls
         val siblingNames = endpoint.variants.map { it.name }.filter { it != variant.name }.toSet()
         val nameConflict = variant.name.isNotBlank() && variant.name in siblingNames
+        val statusError = variant.status !in 100..599
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             OutlinedTextField(
                 value = variant.name,
@@ -661,6 +664,7 @@ private fun VariantSummaryTab(
                 supportingText = if (nameConflict) {
                     { Text("Name must be unique within this endpoint") }
                 } else null,
+                trailingIcon = { InfoTooltip("Display name for this variant. Must be unique within the endpoint.") },
                 modifier = Modifier.weight(1f),
             )
             OutlinedTextField(
@@ -672,7 +676,10 @@ private fun VariantSummaryTab(
                 },
                 label = { Text("Status") },
                 singleLine = true,
-                modifier = Modifier.width(110.dp),
+                isError = statusError,
+                supportingText = if (statusError) { { Text("100–599") } } else null,
+                trailingIcon = { InfoTooltip("HTTP status code this variant returns (100–599).") },
+                modifier = Modifier.width(130.dp),
             )
         }
 
@@ -681,6 +688,7 @@ private fun VariantSummaryTab(
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             Text("Default", style = MaterialTheme.typography.bodySmall)
+            InfoTooltip("When enabled, this variant is returned by default when no matching criteria exist.")
             Switch(
                 checked = variant.isDefault == true,
                 onCheckedChange = { onUpdate(variant.copy(isDefault = if (it) true else null)) },
@@ -694,7 +702,8 @@ private fun VariantSummaryTab(
                 },
                 label = { Text("Delay (ms)") },
                 singleLine = true,
-                modifier = Modifier.width(140.dp),
+                trailingIcon = { InfoTooltip("Artificial delay in milliseconds before the response is sent.") },
+                modifier = Modifier.width(160.dp),
             )
         }
 
@@ -860,6 +869,7 @@ private fun CookiesTab(
 @Composable
 private fun BodyTab(
     variant: ProjectVariant,
+    projectPath: String = "",
     onUpdate: (ProjectVariant) -> Unit,
 ) {
     val bodyFile = variant.bodyFile
@@ -868,13 +878,58 @@ private fun BodyTab(
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         when {
             bodyFile != null -> {
-                OutlinedTextField(
-                    value = bodyFile,
-                    onValueChange = { onUpdate(variant.copy(bodyFile = it.ifBlank { null })) },
-                    label = { Text("Body File (relative path)") },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth(),
+                val fileContent = remember(projectPath, bodyFile) {
+                    runCatching {
+                        java.io.File(projectPath, bodyFile).takeIf { it.isFile }?.readText()
+                    }.getOrNull()
+                }
+
+                Text(
+                    text = bodyFile,
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
+
+                if (fileContent != null) {
+                    var selectedFormat by remember(variant.name) { mutableStateOf(BodyFormat.RAW) }
+
+                    TabStrip {
+                        BodyFormat.entries.forEach { format ->
+                            TabChip(
+                                label = format.label,
+                                selected = format == selectedFormat,
+                                onClick = { selectedFormat = format },
+                            )
+                        }
+                    }
+
+                    when (selectedFormat) {
+                        BodyFormat.JSON -> {
+                            JsonCodeEditor(
+                                text = fileContent,
+                                onTextChange = {},
+                                readOnly = true,
+                                modifier = Modifier.fillMaxWidth().height(280.dp),
+                            )
+                        }
+                        BodyFormat.PLAIN_TEXT, BodyFormat.RAW -> {
+                            OutlinedTextField(
+                                value = fileContent,
+                                onValueChange = {},
+                                readOnly = true,
+                                minLines = 6,
+                                maxLines = 16,
+                                modifier = Modifier.fillMaxWidth(),
+                            )
+                        }
+                    }
+                } else {
+                    Text(
+                        text = "File not found.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.error,
+                    )
+                }
             }
 
             body != null -> {
@@ -1068,7 +1123,7 @@ private fun HeadersTab(
                     )
                     Text("Condition", style = MaterialTheme.typography.bodySmall)
 
-                    if (isConditionable && ruleMatcher != null) {
+                    if (ruleMatcher != null) {
                         Spacer(Modifier.width(8.dp))
                         val matchType = ruleMatcher.effectiveMatchType
                         var criteriaExpanded by remember { mutableStateOf(false) }
