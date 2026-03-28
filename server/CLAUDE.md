@@ -82,6 +82,14 @@ The `companion` subcommand starts a separate Vapor app (`CompanionBootstrap`) th
 | `MoqCompanionAITests` | Provider registry, redaction engine, companion handler |
 | `MoqIntegrationTests` | End-to-end: spec → serve → request → verify |
 
+## Code Style
+
+### Imports
+- **Always sort imports** alphabetically when modifying a file.
+- **Remove unused imports** — do not leave stale imports after refactors.
+- Standard Swift grouping order: `Foundation`/system frameworks → third-party packages → internal targets.
+- Each group separated by a blank line; no blank lines within a group.
+
 ## Test Expectations
 
 - New server code should usually ship with tests in the same change.

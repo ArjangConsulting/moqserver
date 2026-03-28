@@ -85,6 +85,14 @@ Projects are stored as YAML directory bundles. `studio-project-format` handles s
 - Kotlin skill: `skills/kotlin/SKILL.md`
 - Compose Multiplatform skill: `skills/compose-multiplatform/SKILL.md`
 
+## Code Style
+
+### Imports
+- **Always sort imports** alphabetically within each group when modifying a file.
+- **Remove unused imports** — do not leave stale imports after refactors.
+- Standard Kotlin import grouping order: `java`/`javax` → `kotlin` stdlib → third-party (`androidx`, `org.*`, `io.*`, etc.) → internal project modules.
+- Each group separated by a blank line; no blank lines within a group.
+
 ## Test Expectations
 
 - New Studio code should usually include tests when the change adds meaningful behavior.
