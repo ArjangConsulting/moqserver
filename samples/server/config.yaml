@@ -1,0 +1,16 @@
+globalDelay: 0.0
+variantOverrides:
+  "GET /public/health": "default"
+auth:
+  oauth2Tokens:
+    - "sample-oauth-token"
+  oauth2Clients:
+    - clientId: "sample-client"
+      clientSecret: "sample-secret"
+  oauth2TokenScopes:
+    sample-oauth-token:
+      - "read:pets"
+mocksDirectory: "./samples/server/mocks"
+overridesPersistencePath: "./samples/server/runtime/overrides.json"
+admin:
+  bearerToken: "admin-token"

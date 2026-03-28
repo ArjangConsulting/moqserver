@@ -1,0 +1,299 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://moqserver.dev/schema/moqproj.schema.json",
+  "title": "moqserver project manifest",
+  "description": "Canonical schema for moqserver .moqproj YAML documents after YAML parsing.",
+  "$comment": "This schema validates individual parsed YAML documents (project.yml or endpoint file). Cross-file and filesystem checks must be implemented in moqserver validate and Studio export validation.",
+  "$defs": {
+    "httpMethod": {
+      "type": "string",
+      "enum": ["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"]
+    },
+    "authType": {
+      "type": "string",
+      "enum": ["none", "bearer", "basic", "api-key", "header"]
+    },
+    "graphqlOperationType": {
+      "type": "string",
+      "enum": ["query", "mutation", "subscription"]
+    },
+    "headersMap": {
+      "type": "object",
+      "propertyNames": {
+        "type": "string",
+        "minLength": 1
+      },
+      "additionalProperties": {
+        "type": ["string", "number", "boolean"]
+      }
+    },
+    "networkConfig": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "latency_ms": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "jitter_ms": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "packet_loss_percent": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 100
+        }
+      }
+    },
+    "authConfig": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "$ref": "#/$defs/authType"
+        },
+        "verify": {
+          "type": "boolean"
+        },
+        "header_name": {
+          "type": ["string", "null"],
+          "minLength": 1
+        }
+      },
+      "required": ["type", "verify"],
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "enum": ["api-key", "header"]
+              }
+            },
+            "required": ["type"]
+          },
+          "then": {
+            "required": ["header_name"],
+            "properties": {
+              "header_name": {
+                "type": "string",
+                "minLength": 1
+              }
+            }
+          }
+        }
+      ]
+    },
+    "ruleMatcher": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "match": {
+          "type": "string"
+        },
+        "required": {
+          "type": "boolean"
+        }
+      },
+      "required": ["name"]
+    },
+    "requestRules": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "headers": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ruleMatcher"
+          }
+        },
+        "verify_cookies": {
+          "type": "boolean"
+        },
+        "query_params": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ruleMatcher"
+          }
+        }
+      }
+    },
+    "graphqlOperation": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "$ref": "#/$defs/graphqlOperationType"
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "document": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": ["type"],
+      "anyOf": [
+        {
+          "required": ["name"]
+        },
+        {
+          "required": ["document"]
+        }
+      ]
+    },
+    "variant": {
+      "type": "object",
+      "$comment": "The schema enforces body/body_file mutual exclusion, but cannot verify that body_file exists on disk. Project-level validator must check fixture existence.",
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "default": {
+          "type": "boolean"
+        },
+        "status": {
+          "type": "integer",
+          "minimum": 100,
+          "maximum": 599
+        },
+        "headers": {
+          "$ref": "#/$defs/headersMap"
+        },
+        "body": {},
+        "body_file": {
+          "type": "string",
+          "pattern": "^fixtures/.+"
+        },
+        "delay_ms": {
+          "type": "integer",
+          "minimum": 0
+        }
+      },
+      "required": ["name", "status"],
+      "allOf": [
+        {
+          "not": {
+            "required": ["body", "body_file"]
+          }
+        }
+      ]
+    },
+    "endpoint": {
+      "type": "object",
+      "$comment": "Endpoint id format is validated here. Global uniqueness of endpoint ids across all endpoint files must be enforced by project-level validation.",
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9-]*$"
+        },
+        "alias": {
+          "type": "string"
+        },
+        "method": {
+          "$ref": "#/$defs/httpMethod"
+        },
+        "path": {
+          "type": "string",
+          "pattern": "^/"
+        },
+        "tags": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "uniqueItems": true
+        },
+        "auth": {
+          "$ref": "#/$defs/authConfig"
+        },
+        "request_rules": {
+          "$ref": "#/$defs/requestRules"
+        },
+        "operation": {
+          "$ref": "#/$defs/graphqlOperation"
+        },
+        "network": {
+          "$ref": "#/$defs/networkConfig"
+        },
+        "variants": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/variant"
+          }
+        }
+      },
+      "required": ["id", "method", "path", "variants"]
+    },
+    "projectManifest": {
+      "type": "object",
+      "$comment": "This validates project.yml shape only. Presence of endpoints directory/files, reserved-path collisions, and single-default-variant checks require project-level validation.",
+      "additionalProperties": false,
+      "properties": {
+        "version": {
+          "type": "string",
+          "const": "1"
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "description": {
+          "type": "string"
+        },
+        "defaults": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "delay_ms": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "auth": {
+              "$ref": "#/$defs/authConfig"
+            },
+            "network": {
+              "$ref": "#/$defs/networkConfig"
+            }
+          },
+          "required": ["delay_ms", "auth", "network"]
+        },
+        "global_rules": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "required_headers": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/ruleMatcher"
+              }
+            },
+            "verify_cookies": {
+              "type": "boolean"
+            }
+          }
+        }
+      },
+      "required": ["version", "name", "defaults"]
+    }
+  },
+  "$comment": "A single schema supports two document shapes: project manifest and endpoint file.",
+  "oneOf": [
+    {
+      "$ref": "#/$defs/projectManifest"
+    },
+    {
+      "$ref": "#/$defs/endpoint"
+    }
+  ]
+}
