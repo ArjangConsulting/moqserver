@@ -283,6 +283,7 @@ internal fun StudioWorkspaceScreen(
                             if (endpoint != null) {
                                 EndpointDetailPane(
                                     endpoint = endpoint,
+                                    originalEndpoint = state.originalProject?.endpoints?.find { it.id == endpoint.id },
                                     allEndpoints = state.project?.endpoints.orEmpty(),
                                     onUpdateEndpoint = { viewModel.updateEndpoint(it) },
                                     onDeleteEndpoint = { viewModel.removeEndpoint(endpoint.id) },
