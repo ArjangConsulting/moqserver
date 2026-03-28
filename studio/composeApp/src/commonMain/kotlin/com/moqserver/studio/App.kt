@@ -35,11 +35,15 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import com.moqserver.studio.domain.AIAction
 import com.moqserver.studio.domain.StudioRootViewModel
 import com.moqserver.studio.domain.StudioState
 import com.moqserver.studio.projectformat.MoqProject
+import com.moqserver.composeapp.generated.resources.GreatVibes_Regular
+import com.moqserver.composeapp.generated.resources.Res
+import org.jetbrains.compose.resources.Font
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -77,6 +81,7 @@ fun App(
                 },
                 showAiPanel = showAiPanel,
                 onToggleAiPanel = onToggleAiPanel,
+                onCloseProject = onCloseProject,
                 onSaveProject = onSaveProject,
                 onSaveProjectAs = onSaveProjectAs,
                 onRefreshCompanion = onRefreshCompanion,
@@ -128,58 +133,75 @@ private fun StudioTopBar(
     onThemeModeToggle: () -> Unit,
     showAiPanel: Boolean,
     onToggleAiPanel: () -> Unit,
+    onCloseProject: () -> Unit,
     onSaveProject: (MoqProject) -> Unit,
     onSaveProjectAs: (MoqProject) -> Unit,
     onRefreshCompanion: () -> Unit,
     onAIAction: (AIAction) -> Unit,
 ) {
-    val titleStatus = state.statusLine.takeUnless { state.project != null && it == "Project loaded" }
+    val calligraphyFont = FontFamily(Font(Res.font.GreatVibes_Regular))
 
-    TopAppBar(
-        title = {
-            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                Text(state.project?.manifest?.name ?: "Moq Studio")
-                titleStatus?.let {
-                    Text(
-                        text = it,
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+    Column {
+        TopAppBar(
+            title = {
+                Text(
+                    text = "moq studio",
+                    fontFamily = calligraphyFont,
+                    style = MaterialTheme.typography.headlineMedium,
+                )
+            },
+            actions = {
+                IconButton(onClick = onThemeModeToggle) {
+                    Icon(
+                        imageVector = if (themeMode == StudioThemeMode.DARK) Icons.Filled.LightMode else Icons.Filled.DarkMode,
+                        contentDescription = "Toggle theme",
                     )
                 }
-            }
-        },
-        actions = {
-            if (state.project != null) {
-                IconButton(onClick = onRefreshCompanion) {
-                    Icon(Icons.Filled.Refresh, contentDescription = "Connect or refresh AI companion")
+                IconButton(onClick = onToggleAiPanel, enabled = state.project != null) {
+                    Icon(
+                        imageVector = Icons.Filled.AutoAwesome,
+                        contentDescription = if (showAiPanel) "Close AI panel" else "Open AI panel",
+                    )
                 }
-                IconButton(onClick = { state.project?.let(onSaveProjectAs) }) {
-                    Icon(Icons.Filled.SaveAs, contentDescription = "Save project as")
-                }
-                IconButton(
-                    onClick = { state.project?.let(onSaveProject) },
-                    enabled = state.isDirty && !state.hasErrors,
+            },
+            colors = TopAppBarDefaults.topAppBarColors(),
+        )
+
+        val project = state.project
+        if (project != null) {
+            HorizontalDivider()
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = project.manifest.name,
+                    style = MaterialTheme.typography.titleMedium,
+                )
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Icon(Icons.Filled.Save, contentDescription = "Save project")
+                    IconButton(onClick = onRefreshCompanion) {
+                        Icon(Icons.Filled.Refresh, contentDescription = "Connect or refresh AI companion")
+                    }
+                    OutlinedButton(onClick = onCloseProject) {
+                        Text("Clear Project")
+                    }
+                    OutlinedButton(onClick = { onSaveProjectAs(project) }) {
+                        Text("Save As")
+                    }
+                    Button(
+                        onClick = { onSaveProject(project) },
+                        enabled = state.isDirty && !state.hasErrors,
+                    ) {
+                        Text("Save")
+                    }
                 }
             }
-
-            IconButton(onClick = onThemeModeToggle) {
-                Icon(
-                    imageVector = if (themeMode == StudioThemeMode.DARK) Icons.Filled.LightMode else Icons.Filled.DarkMode,
-                    contentDescription = "Toggle theme",
-                )
-            }
-
-            IconButton(onClick = onToggleAiPanel, enabled = state.project != null) {
-                Icon(
-                    imageVector = Icons.Filled.AutoAwesome,
-                    contentDescription = if (showAiPanel) "Close AI panel" else "Open AI panel",
-                )
-            }
-        },
-        colors = TopAppBarDefaults.topAppBarColors(),
-    )
+        }
+    }
 }
 
 @Composable
@@ -332,31 +354,8 @@ internal fun ProjectOverviewCard(
     onSaveProject: (MoqProject) -> Unit,
     onSaveProjectAs: (MoqProject) -> Unit,
 ) {
-    val project = state.project
-    Column(modifier = Modifier.fillMaxWidth().padding(24.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        if (project == null) return
-
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.End,
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedButton(onClick = onCloseProject) {
-                    Text("Close Project")
-                }
-                OutlinedButton(onClick = { onSaveProjectAs(project) }) {
-                    Text("Save As")
-                }
-                Button(
-                    onClick = { onSaveProject(project) },
-                    enabled = state.isDirty && !state.hasErrors,
-                ) {
-                    Text("Save")
-                }
-            }
-        }
-
+    if (state.project == null) return
+    Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 12.dp)) {
         ProjectInfoCard(state)
     }
 }
