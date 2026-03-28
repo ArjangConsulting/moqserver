@@ -84,3 +84,9 @@ Projects are stored as YAML directory bundles. `studio-project-format` handles s
 
 - Kotlin skill: `skills/kotlin/SKILL.md`
 - Compose Multiplatform skill: `skills/compose-multiplatform/SKILL.md`
+
+## Test Expectations
+
+- New Studio code should usually include tests when the change adds meaningful behavior.
+- Prefer module-local tests for project format, import conversion, parsing, repository I/O, and view model workflow behavior.
+- UI polish or thin wiring may not always justify automated tests, but that should be a deliberate exception rather than the default.

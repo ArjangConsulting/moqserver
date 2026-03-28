@@ -67,3 +67,9 @@ The `.moqproj` format is the interchange between Studio and the server runtime. 
 - `endpoints/<method>_<path>.yaml` — one file per endpoint with variants
 
 The JSON schema lives in `format/schema.json`.
+
+## Engineering Expectations
+
+- Prefer adding or updating tests alongside behavior changes.
+- When new code introduces meaningful logic, branching, serialization, persistence, or request/response behavior, include tests in the same change.
+- It is acceptable to skip new tests for trivial refactors, docs-only changes, or thin wiring with no practical behavior to verify, but call that out explicitly.
