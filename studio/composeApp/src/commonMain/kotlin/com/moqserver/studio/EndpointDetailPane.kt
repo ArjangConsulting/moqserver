@@ -26,7 +26,6 @@ import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
@@ -51,9 +50,7 @@ import com.moqserver.studio.projectformat.ProjectVariant
 import com.moqserver.studio.projectformat.RequestRules
 import com.moqserver.studio.projectformat.RuleMatcher
 import com.moqserver.studio.projectformat.YamlValue
-import com.moqserver.studio.projectformat.defaultVariantBaseName
 import com.moqserver.studio.projectformat.displayAlias
-import com.moqserver.studio.projectformat.suggestedVariantName
 
 private enum class VariantDetailTab(val title: String) {
     SUMMARY("Summary"),
@@ -169,15 +166,6 @@ private fun EndpointMetadataForm(
         modifier = Modifier.fillMaxWidth(),
     )
 
-    AuthConfigSection(
-        auth = endpoint.auth,
-        onUpdate = { onUpdateEndpoint(endpoint.copy(auth = it)) },
-    )
-
-    NetworkSection(
-        network = endpoint.network,
-        onUpdate = { onUpdateEndpoint(endpoint.copy(network = it)) },
-    )
 }
 
 @Composable
@@ -330,29 +318,9 @@ private fun VariantSection(
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text("Variants (${endpoint.variants.size})", style = MaterialTheme.typography.titleMedium)
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            if (companionConnected) {
-                androidx.compose.material3.FilledTonalButton(onClick = onGenerateVariants) {
-                    Text("AI Generate")
-                }
-            }
-            OutlinedButton(
-                onClick = {
-                    val newStatus = defaultNewVariantStatus(endpoint.variants)
-                    val newVariant = ProjectVariant(
-                        name = suggestedVariantName(
-                            status = newStatus,
-                            existingNames = endpoint.variants.map(ProjectVariant::name),
-                        ),
-                        status = newStatus,
-                    )
-                    val updated = endpoint.copy(variants = endpoint.variants + newVariant)
-                    onUpdateEndpoint(updated)
-                    selectedVariantIndex = updated.variants.lastIndex
-                    selectedTab = VariantDetailTab.SUMMARY
-                },
-            ) {
-                Text("Add Variant")
+        if (companionConnected) {
+            androidx.compose.material3.FilledTonalButton(onClick = onGenerateVariants) {
+                Text("AI Generate")
             }
         }
     }
@@ -361,6 +329,16 @@ private fun VariantSection(
         variants = endpoint.variants,
         selectedIndex = activeVariantIndex,
         onSelect = { selectedVariantIndex = it },
+        onAdd = {
+            val newVariant = ProjectVariant(
+                name = "",
+                status = defaultNewVariantStatus(endpoint.variants),
+            )
+            val updated = endpoint.copy(variants = endpoint.variants + newVariant)
+            onUpdateEndpoint(updated)
+            selectedVariantIndex = updated.variants.lastIndex
+            selectedTab = VariantDetailTab.SUMMARY
+        },
     )
 
     endpoint.variants.getOrNull(activeVariantIndex)?.let { variant ->
@@ -378,9 +356,6 @@ private fun VariantSection(
                     VariantDetailTab.SUMMARY -> VariantSummaryTab(
                         endpoint = endpoint,
                         variant = variant,
-                        siblingNames = endpoint.variants.mapIndexedNotNull { index, item ->
-                            item.name.takeUnless { index == activeVariantIndex }
-                        },
                         onUpdate = { updated ->
                             onUpdateEndpoint(endpoint.updateVariant(activeVariantIndex, updated))
                         },
@@ -439,6 +414,7 @@ private fun VariantTabs(
     variants: List<ProjectVariant>,
     selectedIndex: Int,
     onSelect: (Int) -> Unit,
+    onAdd: () -> Unit,
 ) {
     TabStrip {
         variants.forEachIndexed { index, variant ->
@@ -453,6 +429,11 @@ private fun VariantTabs(
                 onClick = { onSelect(index) },
             )
         }
+        TabChip(
+            label = "+",
+            selected = false,
+            onClick = onAdd,
+        )
     }
 }
 
@@ -538,7 +519,6 @@ private fun StatusBadge(status: Int) {
 private fun VariantSummaryTab(
     endpoint: EndpointDocument,
     variant: ProjectVariant,
-    siblingNames: List<String>,
     onUpdate: (ProjectVariant) -> Unit,
     onRemove: () -> Unit,
     canRemove: Boolean,
@@ -608,7 +588,7 @@ private fun VariantSummaryTab(
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             OutlinedTextField(
                 value = variant.name,
-                onValueChange = { onUpdate(variant.copy(name = it.ifBlank { defaultVariantBaseName(variant.status) })) },
+                onValueChange = { onUpdate(variant.copy(name = it)) },
                 label = { Text("Variant Name") },
                 singleLine = true,
                 modifier = Modifier.weight(1f),
@@ -617,15 +597,7 @@ private fun VariantSummaryTab(
                 value = variant.status.toString(),
                 onValueChange = { value ->
                     value.toIntOrNull()?.let { status ->
-                        val updatedName = if (variant.name.isGeneratedVariantName(variant.status)) {
-                            suggestedVariantName(
-                                status = status,
-                                existingNames = siblingNames,
-                            )
-                        } else {
-                            variant.name
-                        }
-                        onUpdate(variant.copy(name = updatedName, status = status))
+                        onUpdate(variant.copy(status = status))
                     }
                 },
                 label = { Text("Status") },
@@ -1176,11 +1148,6 @@ private fun defaultNewVariantStatus(variants: List<ProjectVariant>): Int {
         variants.none { it.status in 400..599 } -> 500
         else -> if (variants.last().status in 400..599) 200 else 500
     }
-}
-
-private fun String.isGeneratedVariantName(status: Int): Boolean {
-    val escapedBaseName = Regex.escape(defaultVariantBaseName(status))
-    return Regex("^$escapedBaseName(?: \\d+)?$").matches(this)
 }
 
 private val MatchType.displayName: String
