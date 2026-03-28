@@ -4,11 +4,13 @@ import com.moqserver.studio.domain.ImportConverter
 import com.moqserver.studio.domain.ParsedEndpoint
 import com.moqserver.studio.domain.ParsedResponse
 import com.moqserver.studio.domain.ParsedSpec
+import com.moqserver.studio.projectformat.ProjectRepository
 import com.moqserver.studio.projectformat.YamlValue
 import java.io.File
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
+import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 
 class ImportWorkflowTest {
@@ -104,6 +106,73 @@ class ImportWorkflowTest {
         val endpoint = parsed.endpoints.single()
         assertEquals("/image.jpg", endpoint.path)
         assertEquals("/9j/4AAQSkZJRg==", endpoint.responses.single().body)
+    }
+
+    @Test
+    fun `har import round trips through project save and load with special headers and binary bodies`() {
+        val parsed = HARImportParser().parse(
+            """
+            {
+              "log": {
+                "version": "1.2",
+                "creator": { "name": "Browser", "version": "1.0" },
+                "entries": [
+                  {
+                    "request": {
+                      "method": "GET",
+                      "url": "https://img.youtube.com/vi/iONDebHX9qk/mqdefault.jpg",
+                      "headers": [],
+                      "queryString": []
+                    },
+                    "response": {
+                      "status": 200,
+                      "headers": [
+                        { "name": "Alt-Svc", "value": "h3=\":443\"; ma=2592000,h3-29=\":443\"; ma=2592000" },
+                        { "name": "report-to", "value": "{\"group\":\"youtube\",\"max_age\":2592000,\"endpoints\":[{\"url\":\"https://csp.withgoogle.com/csp/report-to/youtube\"}]}" }
+                      ],
+                      "content": {
+                        "mimeType": "image/jpeg",
+                        "text": "/9j/4AAQSkZJRg==",
+                        "encoding": "base64"
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+            """.trimIndent()
+        )
+
+        val endpoint = parsed.endpoints.single()
+        val project = ImportConverter.convert(
+            spec = ParsedSpec(title = parsed.title, version = parsed.version, endpoints = parsed.endpoints),
+            acceptedEndpoints = listOf(endpoint),
+            projectName = "HAR Import Regression",
+            projectPath = "/tmp/har-import-regression",
+        )
+
+        val tempDir = kotlin.io.path.createTempDirectory("moqproj-har-roundtrip").toFile()
+        try {
+            val repository = ProjectRepository()
+            repository.save(project, tempDir.absolutePath)
+
+            val reloaded = repository.load(tempDir.absolutePath)
+            val variant = reloaded.endpoints.single().variants.single()
+            val headers = requireNotNull(variant.headers)
+
+            assertEquals("/vi/iONDebHX9qk/mqdefault.jpg", reloaded.endpoints.single().path)
+            assertEquals("/9j/4AAQSkZJRg==", (variant.body as YamlValue.Str).value)
+            assertEquals(
+                """{"group":"youtube","max_age":2592000,"endpoints":[{"url":"https://csp.withgoogle.com/csp/report-to/youtube"}]}""",
+                headers["report-to"],
+            )
+            assertEquals(
+                """h3=":443"; ma=2592000,h3-29=":443"; ma=2592000""",
+                headers["Alt-Svc"],
+            )
+        } finally {
+            tempDir.deleteRecursively()
+        }
     }
 
     @Test
