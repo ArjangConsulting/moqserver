@@ -3,20 +3,22 @@ package com.moqserver.studio
 import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.moqserver.studio.editor.JsonCodeEditor
 import com.moqserver.studio.projectformat.*
+import com.moqserver.studio.ui.InfoTooltip
+import com.moqserver.studio.ui.MatchConditionEditor
+import com.moqserver.studio.ui.MethodBadge
+import com.moqserver.studio.ui.StatusBadge
+import com.moqserver.studio.ui.TabChip
+import com.moqserver.studio.ui.TabStrip
 
 private enum class VariantDetailTab(val title: String) {
     SUMMARY("Summary"),
@@ -491,101 +493,6 @@ private fun DetailTabs(
 }
 
 @Composable
-private fun TabStrip(content: @Composable RowScope.() -> Unit) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .horizontalScroll(rememberScrollState()),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-        content = content,
-    )
-}
-
-@Composable
-private fun TabChip(
-    label: String,
-    selected: Boolean,
-    onClick: () -> Unit,
-    onClose: (() -> Unit)? = null,
-) {
-    val background = if (selected) {
-        MaterialTheme.colorScheme.primaryContainer
-    } else {
-        MaterialTheme.colorScheme.surfaceVariant
-    }
-    val contentColor = if (selected) {
-        MaterialTheme.colorScheme.onPrimaryContainer
-    } else {
-        MaterialTheme.colorScheme.onSurfaceVariant
-    }
-
-    Row(
-        modifier = Modifier
-            .clip(RoundedCornerShape(10.dp))
-            .background(background)
-            .clickable(onClick = onClick)
-            .padding(start = 14.dp, end = if (onClose != null) 6.dp else 14.dp, top = 8.dp, bottom = 8.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(4.dp),
-    ) {
-        Text(
-            text = label,
-            style = MaterialTheme.typography.labelLarge,
-            color = contentColor,
-            fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
-        )
-        if (onClose != null) {
-            Icon(
-                imageVector = Icons.Default.Close,
-                contentDescription = "Delete variant",
-                tint = contentColor,
-                modifier = Modifier
-                    .size(14.dp)
-                    .clickable(onClick = onClose),
-            )
-        }
-    }
-}
-
-@Composable
-private fun StatusBadge(status: Int) {
-    val color = when {
-        status in 200..299 -> Color(0xFF2E7D32) // green
-        status in 300..399 -> Color(0xFF7B5E00) // amber — orange closer to green
-        status in 400..499 -> Color(0xFFBF360C) // deep orange-red — orange closer to red
-        status >= 500 -> Color(0xFFC62828)       // red
-        else -> Color(0xFF616161)
-    }
-    Text(
-        text = "$status",
-        style = MaterialTheme.typography.labelMedium,
-        fontWeight = FontWeight.Bold,
-        color = color,
-        modifier = Modifier
-            .clip(RoundedCornerShape(4.dp))
-            .background(color.copy(alpha = 0.12f))
-            .padding(horizontal = 8.dp, vertical = 3.dp),
-    )
-}
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun InfoTooltip(text: String) {
-    TooltipBox(
-        positionProvider = TooltipDefaults.rememberTooltipPositionProvider(TooltipAnchorPosition.Above),
-        tooltip = { PlainTooltip { Text(text) } },
-        state = rememberTooltipState(),
-    ) {
-        Icon(
-            imageVector = Icons.Outlined.Info,
-            contentDescription = "Info",
-            tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
-            modifier = Modifier.size(16.dp),
-        )
-    }
-}
-
-@Composable
 private fun VariantSummaryTab(
     endpoint: EndpointDocument,
     variant: ProjectVariant,
@@ -797,49 +704,15 @@ private fun CookiesTab(
                     }
                 }
 
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    val matchType = cookie.effectiveMatchType
-                    var criteriaExpanded by remember { mutableStateOf(false) }
-                    Box {
-                        OutlinedTextField(
-                            value = matchType.displayName,
-                            onValueChange = {},
-                            label = { Text("Criteria") },
-                            readOnly = true,
-                            modifier = Modifier.width(160.dp).clickable { criteriaExpanded = true },
-                        )
-                        DropdownMenu(expanded = criteriaExpanded, onDismissRequest = { criteriaExpanded = false }) {
-                            MatchType.entries.forEach { type ->
-                                DropdownMenuItem(
-                                    text = { Text(type.displayName) },
-                                    onClick = {
-                                        val updated = cookie.copy(
-                                            matchType = type,
-                                            match = if (type == MatchType.REQUIRE) null else cookie.match,
-                                        )
-                                        onUpdate(requestRules.copy(cookies = cookies.updated(index, updated)))
-                                        criteriaExpanded = false
-                                    },
-                                )
-                            }
-                        }
-                    }
-
-                    if (matchType.needsValue) {
-                        OutlinedTextField(
-                            value = cookie.match ?: "",
-                            onValueChange = { newMatch ->
-                                onUpdate(requestRules.copy(cookies = cookies.updated(index, cookie.copy(match = newMatch.ifBlank { null }))))
-                            },
-                            label = { Text("Value") },
-                            singleLine = true,
-                            modifier = Modifier.weight(1f),
-                        )
-                    }
-                }
+                MatchConditionEditor(
+                    ruleMatcher = cookie,
+                    onUpdate = { updated ->
+                        onUpdate(requestRules.copy(cookies = cookies.updated(index, updated)))
+                    },
+                    dropdownWidth = 160.dp,
+                    valueWidth = null,
+                    modifier = Modifier.fillMaxWidth(),
+                )
             }
         }
 
@@ -1151,61 +1024,19 @@ private fun HeadersTab(
                     }
                     if (hasAnyRequired) {
                         if (ruleMatcher != null) {
-                            val matchType = ruleMatcher.effectiveMatchType
-                            var criteriaExpanded by remember { mutableStateOf(false) }
-                            Box(modifier = Modifier.width(140.dp)) {
-                                OutlinedTextField(
-                                    value = matchType.displayName,
-                                    onValueChange = {},
-                                    readOnly = true,
-                                    singleLine = true,
-                                    modifier = Modifier.fillMaxWidth().clickable { criteriaExpanded = true },
-                                )
-                                DropdownMenu(
-                                    expanded = criteriaExpanded,
-                                    onDismissRequest = { criteriaExpanded = false },
-                                ) {
-                                    MatchType.entries.forEach { type ->
-                                        DropdownMenuItem(
-                                            text = { Text(type.displayName) },
-                                            onClick = {
-                                                val updated = ruleMatcher.copy(
-                                                    matchType = type,
-                                                    match = if (type == MatchType.REQUIRE) null else ruleMatcher.match,
-                                                )
-                                                onUpdateRules(
-                                                    requestRules.copy(
-                                                        headers = headerCriteria.map {
-                                                            if (it.name.equals(key, ignoreCase = true)) updated else it
-                                                        },
-                                                    ),
-                                                )
-                                                criteriaExpanded = false
+                            MatchConditionEditor(
+                                ruleMatcher = ruleMatcher,
+                                onUpdate = { updated ->
+                                    onUpdateRules(
+                                        requestRules.copy(
+                                            headers = headerCriteria.map {
+                                                if (it.name.equals(key, ignoreCase = true)) updated else it
                                             },
-                                        )
-                                    }
-                                }
-                            }
-                            if (matchType.needsValue) {
-                                OutlinedTextField(
-                                    value = ruleMatcher.match ?: "",
-                                    onValueChange = { newMatch ->
-                                        val updated = ruleMatcher.copy(match = newMatch.ifBlank { null })
-                                        onUpdateRules(
-                                            requestRules.copy(
-                                                headers = headerCriteria.map {
-                                                    if (it.name.equals(key, ignoreCase = true)) updated else it
-                                                },
-                                            ),
-                                        )
-                                    },
-                                    placeholder = { Text("Match value") },
-                                    singleLine = true,
-                                    modifier = Modifier.width(160.dp),
-                                )
-                            } else {
-                                Spacer(Modifier.width(160.dp))
-                            }
+                                        ),
+                                    )
+                                },
+                                showValuePlaceholder = true,
+                            )
                         } else {
                             Spacer(Modifier.width(140.dp + 4.dp + 160.dp))
                         }
@@ -1338,27 +1169,6 @@ private fun defaultNewVariantStatus(variants: List<ProjectVariant>): Int {
         else -> if (variants.last().status in 400..599) 200 else 500
     }
 }
-
-private val MatchType.displayName: String
-    get() = when (this) {
-        MatchType.REQUIRE -> "exists"
-        MatchType.EQUAL_TO -> "eq"
-        MatchType.NOT_EQUAL_TO -> "neq"
-        MatchType.CONTAINS -> "contains"
-        MatchType.NOT_CONTAINS -> "not contains"
-        MatchType.BEGINS_WITH -> "starts with"
-        MatchType.ENDS_WITH -> "ends with"
-        MatchType.GT -> "gt"
-        MatchType.GTE -> "gte"
-        MatchType.LT -> "lt"
-        MatchType.LTE -> "lte"
-    }
-
-private val MatchType.needsValue: Boolean
-    get() = this != MatchType.REQUIRE
-
-private val RuleMatcher.effectiveMatchType: MatchType
-    get() = matchType ?: if (match != null) MatchType.EQUAL_TO else MatchType.REQUIRE
 
 private fun yamlValueToDisplayString(value: YamlValue, indent: Int = 0): String {
     val pad = " ".repeat(indent)
