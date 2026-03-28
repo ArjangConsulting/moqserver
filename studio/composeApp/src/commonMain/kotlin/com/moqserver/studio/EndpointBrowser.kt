@@ -35,6 +35,7 @@ import com.moqserver.studio.domain.StudioState
 import com.moqserver.studio.projectformat.EndpointDocument
 import com.moqserver.studio.projectformat.displayAlias
 import com.moqserver.studio.ui.MethodBadge
+import com.moqserver.studio.ui.VariantCountBadge
 
 @Composable
 fun EndpointBrowser(
@@ -175,11 +176,7 @@ private fun EndpointListItem(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
-            Text(
-                text = "${endpoint.variants.size}v",
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
+            VariantCountBadge(endpoint.variants.size)
         }
     }
 }

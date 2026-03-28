@@ -58,3 +58,21 @@ fun StatusBadge(status: Int) {
             .padding(horizontal = 8.dp, vertical = 3.dp),
     )
 }
+
+@Composable
+fun VariantCountBadge(count: Int) {
+    val color = MaterialTheme.colorScheme.secondary
+
+    Text(
+        text = count.toString(),
+        style = MaterialTheme.typography.labelSmall.copy(
+            fontSize = 10.sp,
+            fontWeight = FontWeight.SemiBold,
+        ),
+        color = color,
+        modifier = Modifier
+            .clip(RoundedCornerShape(999.dp))
+            .background(color.copy(alpha = 0.12f))
+            .padding(horizontal = 7.dp, vertical = 2.dp),
+    )
+}
