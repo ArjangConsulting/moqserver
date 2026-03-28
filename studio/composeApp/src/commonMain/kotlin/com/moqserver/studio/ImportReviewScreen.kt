@@ -35,6 +35,7 @@ import com.moqserver.studio.domain.ImportSourceType
 import com.moqserver.studio.domain.ImportState
 import com.moqserver.studio.domain.ParsedEndpoint
 import com.moqserver.studio.projectformat.AuthType
+import com.moqserver.studio.ui.MethodBadge
 
 @Composable
 fun ImportReviewScreen(

@@ -37,6 +37,7 @@ kotlin {
                 implementation(projects.studioProjectFormat)
                 implementation(projects.studioCodeEditor)
                 implementation(projects.studioLogging)
+                implementation(projects.studioUi)
                 implementation(compose.desktop.currentOs)
                 implementation("org.jetbrains.compose.ui:ui-tooling-preview-desktop:1.10.3")
                 implementation(libs.coroutines.swing)

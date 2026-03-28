@@ -29,13 +29,12 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.moqserver.studio.domain.StudioState
 import com.moqserver.studio.projectformat.EndpointDocument
 import com.moqserver.studio.projectformat.displayAlias
+import com.moqserver.studio.ui.MethodBadge
 
 @Composable
 fun EndpointBrowser(
@@ -183,31 +182,6 @@ private fun EndpointListItem(
             )
         }
     }
-}
-
-@Composable
-fun MethodBadge(method: String) {
-    val color = when (method.uppercase()) {
-        "GET" -> MaterialTheme.colorScheme.primary
-        "POST" -> MaterialTheme.colorScheme.tertiary
-        "PUT" -> MaterialTheme.colorScheme.secondary
-        "PATCH" -> MaterialTheme.colorScheme.secondary
-        "DELETE" -> MaterialTheme.colorScheme.error
-        else -> MaterialTheme.colorScheme.outline
-    }
-
-    Text(
-        text = method.uppercase(),
-        style = MaterialTheme.typography.labelSmall.copy(
-            fontSize = 10.sp,
-            fontWeight = FontWeight.Bold,
-        ),
-        color = color,
-        modifier = Modifier
-            .clip(RoundedCornerShape(4.dp))
-            .background(color.copy(alpha = 0.12f))
-            .padding(horizontal = 6.dp, vertical = 2.dp),
-    )
 }
 
 @Composable
