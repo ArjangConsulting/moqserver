@@ -4,12 +4,7 @@ import com.moqserver.studio.domain.ParsedEndpoint
 import com.moqserver.studio.domain.ParsedResponse
 import com.moqserver.studio.domain.ParsedSpec
 import com.moqserver.studio.logging.loggerFor
-import com.moqserver.studio.projectformat.AuthType
-import com.moqserver.studio.projectformat.MatchType
-import com.moqserver.studio.projectformat.RuleMatcher
-import com.moqserver.studio.projectformat.defaultAliasForEndpoint
-import com.moqserver.studio.projectformat.humanizeAliasSource
-import io.swagger.v3.oas.models.OpenAPI
+import com.moqserver.studio.projectformat.*
 import io.swagger.v3.oas.models.Operation
 import io.swagger.v3.oas.models.PathItem
 import io.swagger.v3.oas.models.media.Content
@@ -20,8 +15,7 @@ import io.swagger.v3.oas.models.security.SecurityRequirement
 import io.swagger.v3.oas.models.security.SecurityScheme
 import io.swagger.v3.parser.OpenAPIV3Parser
 import io.swagger.v3.parser.core.models.ParseOptions
-import java.util.Collections
-import java.util.IdentityHashMap
+import java.util.*
 
 /**
  * Parses OpenAPI 3.0.x and 3.1.x specs (YAML/JSON) into ParsedSpec.
@@ -144,7 +138,7 @@ class OpenAPIImportParser {
             val content = apiResponse.content
 
             if (content.isNullOrEmpty()) {
-                val name = uniqueName(baseName, usedNames)
+                val name = uniqueImportName(baseName, usedNames)
                 usedNames.add(name)
                 responses.add(
                     ParsedResponse(name = name, statusCode = code, headers = responseHeaders)
@@ -154,7 +148,7 @@ class OpenAPIImportParser {
                 for ((index, entry) in sorted.withIndex()) {
                     val (contentType, mediaType) = entry
                     val suffix = if (index == 0) "" else "-${contentTypeSuffix(contentType)}"
-                    val name = uniqueName(baseName + suffix, usedNames)
+                    val name = uniqueImportName(baseName + suffix, usedNames)
                     usedNames.add(name)
 
                     val headers = responseHeaders.toMutableMap()
@@ -275,7 +269,7 @@ class OpenAPIImportParser {
         schema: Schema<*>,
         depth: Int = 0,
         visited: MutableSet<Schema<*>> =
-            Collections.newSetFromMap(IdentityHashMap<Schema<*>, Boolean>()),
+            Collections.newSetFromMap(IdentityHashMap()),
     ): String {
         if (depth >= maxStubDepth) return "{}"
         if (!visited.add(schema)) return "{}"
@@ -460,22 +454,11 @@ class OpenAPIImportParser {
 
     private fun statusCodeToVariantName(statusStr: String, code: Int): String {
         if (statusStr == "default") return "default"
-        return when {
-            code in 200..299 -> "default"
-            code in 400..599 -> "error-$code"
-            else -> "$code"
-        }
-    }
-
-    private fun uniqueName(baseName: String, usedNames: Set<String>): String {
-        if (baseName !in usedNames) return baseName
-        var suffix = 2
-        var candidate = "$baseName-$suffix"
-        while (candidate in usedNames) {
-            suffix++
-            candidate = "$baseName-$suffix"
-        }
-        return candidate
+        return when (code) {
+			in 200..299 -> "default"
+			in 400..599 -> "error-$code"
+			else -> "$code"
+		}
     }
 
     private fun contentTypeSuffix(contentType: String): String {
@@ -511,4 +494,15 @@ class OpenAPIImportParser {
         val lower = type.lowercase()
         return lower == "text/html" || lower == "application/xhtml+xml"
     }
+}
+
+internal fun uniqueImportName(baseName: String, usedNames: Set<String>): String {
+    if (baseName !in usedNames) return baseName
+    var suffix = 2
+    var candidate = "$baseName-$suffix"
+    while (candidate in usedNames) {
+        suffix++
+        candidate = "$baseName-$suffix"
+    }
+    return candidate
 }

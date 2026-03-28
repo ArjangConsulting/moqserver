@@ -50,8 +50,8 @@ class ProjectRepositoryTest {
         assertNull(project.manifest.defaults.auth.headerName)
         assertEquals(0, project.manifest.defaults.network.latencyMs)
         assertNotNull(project.manifest.globalRules)
-        assertTrue(project.manifest.globalRules!!.requiredHeaders.isNullOrEmpty())
-        assertEquals(false, project.manifest.globalRules!!.verifyCookies)
+        assertTrue(project.manifest.globalRules.requiredHeaders.isNullOrEmpty())
+        assertEquals(false, project.manifest.globalRules.verifyCookies)
     }
 
     @Test
@@ -71,7 +71,7 @@ class ProjectRepositoryTest {
         assertEquals("/api/v1/users", ep.path)
         assertEquals(listOf("users", "core"), ep.tags)
         assertEquals(AuthType.BEARER, ep.auth!!.type)
-        assertEquals(true, ep.auth!!.verify)
+        assertEquals(true, ep.auth.verify)
         assertEquals(4, ep.variants.size)
 
         val success = ep.variants.first()
@@ -86,8 +86,8 @@ class ProjectRepositoryTest {
         assertNotNull(empty.body)
 
         assertNotNull(ep.network)
-        assertEquals(100, ep.network!!.latencyMs)
-        assertEquals(20, ep.network!!.jitterMs)
+        assertEquals(100, ep.network.latencyMs)
+        assertEquals(20, ep.network.jitterMs)
     }
 
     @Test
@@ -98,9 +98,9 @@ class ProjectRepositoryTest {
         assertEquals("POST", ep.method)
         assertEquals("/graphql", ep.path)
         assertNotNull(ep.operation)
-        assertEquals(OperationType.QUERY, ep.operation!!.type)
-        assertNotNull(ep.operation!!.document)
-        assertTrue(ep.operation!!.document!!.contains("currentUser"))
+        assertEquals(OperationType.QUERY, ep.operation.type)
+        assertNotNull(ep.operation.document)
+        assertTrue(ep.operation.document.contains("currentUser"))
     }
 
     @Test
@@ -109,9 +109,9 @@ class ProjectRepositoryTest {
         val ep = project.endpoints.find { it.id == "get-user-profile" }!!
 
         assertNotNull(ep.operation)
-        assertEquals(OperationType.QUERY, ep.operation!!.type)
-        assertEquals("GetUserProfile", ep.operation!!.name)
-        assertNull(ep.operation!!.document)
+        assertEquals(OperationType.QUERY, ep.operation.type)
+        assertEquals("GetUserProfile", ep.operation.name)
+        assertNull(ep.operation.document)
     }
 
     @Test
