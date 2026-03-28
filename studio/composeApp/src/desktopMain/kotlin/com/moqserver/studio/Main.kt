@@ -7,9 +7,13 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.MenuBar
 import androidx.compose.ui.window.Window
+import androidx.compose.ui.window.WindowPosition
 import androidx.compose.ui.window.application
+import androidx.compose.ui.window.rememberWindowState
 import com.moqserver.studio.data.HARImportParser
 import com.moqserver.studio.data.LocalCompanionClient
 import com.moqserver.studio.data.OpenAPIImportParser
@@ -30,9 +34,12 @@ import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
 import java.awt.Desktop
 import java.awt.FileDialog
+import java.awt.Image
+import java.awt.Taskbar
 import java.awt.Window as AwtWindow
 import java.io.File
 import java.io.FilenameFilter
+import javax.imageio.ImageIO
 import javax.swing.JOptionPane
 import javax.swing.JFileChooser
 import javax.swing.filechooser.FileFilter
@@ -43,6 +50,7 @@ private const val MOQ_PROJECT_EXTENSION = "moqproj"
 private const val MAC_FILE_DIALOG_PACKAGES_PROPERTY = "apple.awt.use-file-dialog-packages"
 private const val STUDIO_APP_DISPLAY_NAME = "Moq Studio"
 private const val STUDIO_APP_VERSION = "1.0.0"
+private const val STUDIO_APP_ICON_RESOURCE = "/icons/icon.png"
 
 private val logger = loggerFor<Any>() // package-level logger keyed to this file
 
@@ -69,6 +77,12 @@ fun main(args: Array<String>) {
         }
         val state by appViewModel.state.collectAsState()
 
+        val windowState = rememberWindowState(
+            width = 1400.dp,
+            height = 900.dp,
+            position = WindowPosition.Aligned(Alignment.Center),
+        )
+
         Window(
             onCloseRequest = {
                 logger.debug("Window close requested: isDirty={}", state.isDirty)
@@ -78,11 +92,13 @@ fun main(args: Array<String>) {
                 }
             },
             title = STUDIO_APP_DISPLAY_NAME,
+            state = windowState,
         ) {
             // Update window title dynamically
             window.title = state.windowTitle
 
             LaunchedEffect(window) {
+                installAppIcon(window)
                 installProjectOpenHandler { incomingPath ->
                     logger.info("OS file-open event: {}", incomingPath)
                     pendingProjectOpenPath.value = incomingPath
@@ -301,6 +317,30 @@ fun main(args: Array<String>) {
         }
     }
 }
+
+private fun installAppIcon(window: AwtWindow) {
+    val icon = loadAppIcon() ?: return
+    window.iconImages = listOf(icon)
+
+    runCatching {
+        if (Taskbar.isTaskbarSupported()) {
+            val taskbar = Taskbar.getTaskbar()
+            if (taskbar.isSupported(Taskbar.Feature.ICON_IMAGE)) {
+                taskbar.iconImage = icon
+            }
+        }
+    }.onFailure { throwable ->
+        logger.debug("Failed to install taskbar icon", throwable)
+    }
+}
+
+private fun loadAppIcon(): Image? = runCatching {
+    Thread.currentThread().contextClassLoader
+        .getResourceAsStream(STUDIO_APP_ICON_RESOURCE.removePrefix("/"))
+        ?.use(ImageIO::read)
+}.onFailure { throwable ->
+    logger.warn("Failed to load app icon from {}", STUDIO_APP_ICON_RESOURCE, throwable)
+}.getOrNull()
 
 private suspend fun openProject(
     rawPath: String,
