@@ -12,6 +12,10 @@ Package.pins
 *.xcodeproj
 *.xcworkspace
 DerivedData/
+!samples/ios/MoqServerShowcase.xcodeproj/
+!samples/ios/MoqServerShowcase.xcodeproj/**
+!samples/ios/MoqServerShowcase.xcodeproj/project.xcworkspace/
+!samples/ios/MoqServerShowcase.xcodeproj/project.xcworkspace/**
 
 # Gradle / Kotlin / Compose Desktop
 .gradle/
