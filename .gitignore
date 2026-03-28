@@ -1,0 +1,40 @@
+# macOS
+.DS_Store
+
+# Local agent/tooling state
+.claude/
+.codex-home/
+
+# Swift Package Manager / Xcode
+.build/
+.swiftpm/
+Package.pins
+*.xcodeproj
+*.xcworkspace
+DerivedData/
+
+# Gradle / Kotlin / Compose Desktop
+.gradle/
+.kotlin/
+build/
+*/build/
+out/
+
+# Logs and runtime files
+*.log
+*.pid
+*.pid.lock
+
+# Environment and secrets
+.env
+.env.*
+!.env.example
+*.local
+
+# Node
+node_modules/
+
+# Editors
+.idea/
+*.swp
+*.swo

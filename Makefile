@@ -1,0 +1,57 @@
+.PHONY: build test smoke run clean release docker-build studio-build studio-package studio-run
+
+# ── Server (Swift) ──────────────────────────────────────────────
+
+build:
+	cd server && swift build
+
+test:
+	cd server && swift test
+
+smoke:
+	cd server && swift test --filter SmokeTests
+
+e2e:
+	cd server && swift test --filter MoqIntegrationTests
+
+run:
+	cd server && swift run moqserver serve --spec ../samples/server/openapi.yaml --port 8080
+
+companion:
+	cd server && swift run moqserver companion --port 8081
+
+clean:
+	cd server && swift package clean
+	cd studio && ./gradlew clean
+
+release:
+	cd server && swift build -c release
+
+docker-build:
+	docker build -t moqserver ./server
+
+docker-run:
+	cd server && docker-compose up
+
+# ── Studio (Compose Multiplatform) ──────────────────────────────
+
+studio-build:
+	cd studio && ./gradlew :composeApp:compileKotlinDesktop
+
+studio-run:
+	cd studio && ./gradlew :composeApp:run
+
+studio-package:
+	cd studio && ./gradlew :composeApp:packageDistributionForCurrentOS
+
+studio-dmg:
+	cd studio && ./gradlew :composeApp:packageDmg
+
+studio-deb:
+	cd studio && ./gradlew :composeApp:packageDeb
+
+studio-msi:
+	cd studio && ./gradlew :composeApp:packageMsi
+
+studio-uber-jar:
+	cd studio && ./gradlew :composeApp:packageUberJarForCurrentOS
