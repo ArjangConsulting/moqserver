@@ -9,6 +9,9 @@ val moqProjectMimeType = "application/x-moqserver-project"
 val moqProjectTypeIdentifier = "com.moqserver.project"
 val moqProjectTypeDescription = "moqserver Project"
 val macBundleIconName = "moqserver-studio.icns"
+val macAppIconFile = "src/desktopMain/resources/icons/icon.icns"
+val linuxAppIconFile = "src/desktopMain/resources/icons/icon.png"
+val windowsAppIconFile = "src/desktopMain/resources/icons/icon.ico"
 
 kotlin {
     jvm("desktop")
@@ -75,7 +78,7 @@ compose.desktop {
             macOS {
                 bundleID = "com.moqserver.studio"
                 appCategory = "public.app-category.developer-tools"
-                iconFile.set(project.file("src/desktopMain/resources/icons/icon.icns"))
+                iconFile.set(project.file(macAppIconFile))
                 infoPlist {
                     extraKeysRawXml =
                         """
@@ -147,11 +150,12 @@ compose.desktop {
             }
 
             linux {
-                iconFile.set(project.file("src/desktopMain/resources/icons/icon.png"))
+                iconFile.set(project.file(linuxAppIconFile))
                 fileAssociation(
                     mimeType = moqProjectMimeType,
                     extension = moqProjectExtension,
                     description = moqProjectTypeDescription,
+                    iconFile = project.file(linuxAppIconFile),
                 )
                 debMaintainer = "moqserver contributors"
                 menuGroup = "Development"
@@ -160,11 +164,12 @@ compose.desktop {
             }
 
             windows {
-                iconFile.set(project.file("src/desktopMain/resources/icons/icon.ico"))
+                iconFile.set(project.file(windowsAppIconFile))
                 fileAssociation(
                     mimeType = moqProjectMimeType,
                     extension = moqProjectExtension,
                     description = moqProjectTypeDescription,
+                    iconFile = project.file(windowsAppIconFile),
                 )
                 menuGroup = "moqserver"
                 upgradeUuid = "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
