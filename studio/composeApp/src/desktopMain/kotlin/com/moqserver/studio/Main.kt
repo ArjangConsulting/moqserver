@@ -15,14 +15,24 @@ import androidx.compose.ui.window.WindowPlacement
 import androidx.compose.ui.window.WindowPosition
 import androidx.compose.ui.window.application
 import androidx.compose.ui.window.rememberWindowState
+import com.moqserver.studio.ai.AIProvider
+import com.moqserver.studio.ai.AIProviderKind
+import com.moqserver.studio.ai.AIProviderRegistry
+import com.moqserver.studio.ai.providers.AnthropicAIProvider
+import com.moqserver.studio.ai.providers.GeminiAIProvider
+import com.moqserver.studio.ai.providers.OllamaAIProvider
+import com.moqserver.studio.ai.providers.OpenAIAIProvider
+import com.moqserver.studio.data.AISettings
+import com.moqserver.studio.data.AISettingsRepository
 import com.moqserver.studio.data.HARImportParser
-import com.moqserver.studio.data.LocalCompanionClient
 import com.moqserver.studio.data.OpenAPIImportParser
 import com.moqserver.studio.domain.AIAction
+import com.moqserver.studio.domain.AIProviderInfo
 import com.moqserver.studio.domain.CompanionRequest
 import com.moqserver.studio.domain.EndpointSummary
 import com.moqserver.studio.domain.ImportSourceType
 import com.moqserver.studio.domain.ProjectContext
+import com.moqserver.studio.domain.ProviderKind
 import com.moqserver.studio.domain.SelectionContext
 import com.moqserver.studio.domain.StudioRootViewModel
 import com.moqserver.studio.projectformat.MoqProject
@@ -62,7 +72,10 @@ fun main(args: Array<String>) {
         val repo = remember { ProjectRepository() }
         val openApiParser = remember { OpenAPIImportParser() }
         val harParser = remember { HARImportParser() }
-        val companionClient = remember { LocalCompanionClient() }
+        val settingsRepo = remember { AISettingsRepository() }
+        val aiSettings = remember { mutableStateOf(settingsRepo.load()) }
+        val aiRegistry = remember(aiSettings.value) { buildAIRegistry(aiSettings.value) }
+        val showSettings = remember { mutableStateOf(false) }
         val appViewModel = remember { StudioRootViewModel() }
         val scope = rememberCoroutineScope()
         val themeMode = rememberSaveable { mutableStateOf(StudioThemeMode.SYSTEM) }
@@ -77,6 +90,10 @@ fun main(args: Array<String>) {
             }
         }
         val state by appViewModel.state.collectAsState()
+
+        LaunchedEffect(aiSettings.value.selectedProviderId) {
+            aiSettings.value.selectedProviderId?.let(appViewModel::selectProvider)
+        }
 
         val windowState = rememberWindowState(
             width = 1400.dp,
@@ -211,6 +228,8 @@ fun main(args: Array<String>) {
                     Separator()
                     Item("Import OpenAPI", onClick = ::requestImportOpenAPI)
                     Item("Import HAR", onClick = ::requestImportHAR)
+                    Separator()
+                    Item("AI Settings…", onClick = { showSettings.value = true })
                 }
                 Menu("Help") {
                     Item("About $STUDIO_APP_DISPLAY_NAME", onClick = { showAboutDialog(window) })
@@ -228,9 +247,9 @@ fun main(args: Array<String>) {
                     onToggleAiPanel = {
                         val nextVisible = !state.aiPanelVisible
                         appViewModel.setAiPanelVisible(nextVisible)
-                        if (nextVisible && !state.companion.connected && !state.companion.hasChecked) {
+                        if (nextVisible && state.ai.providers.isEmpty()) {
                             scope.launch(exceptionHandler) {
-                                refreshCompanion(companionClient, appViewModel)
+                                refreshAIProviders(aiRegistry, appViewModel)
                             }
                         }
                     },
@@ -312,14 +331,52 @@ fun main(args: Array<String>) {
                         }
                     },
                     onRefreshCompanion = {
-                        scope.launch(exceptionHandler) { refreshCompanion(companionClient, appViewModel) }
+                        scope.launch(exceptionHandler) { refreshAIProviders(aiRegistry, appViewModel) }
                     },
                     onAIAction = { action ->
                         scope.launch(exceptionHandler) {
-                            executeAIAction(action, companionClient, appViewModel)
+                            executeAIAction(action, aiRegistry, appViewModel)
                         }
                     },
                 )
+            }
+        }
+
+        if (showSettings.value) {
+            Window(
+                onCloseRequest = { showSettings.value = false },
+                title = "AI Settings",
+                state = rememberWindowState(width = 600.dp, height = 700.dp),
+            ) {
+                StudioTheme(themeMode = themeMode.value) {
+                    AISettingsScreen(
+                        settings = aiSettings.value,
+                        onSave = { updated ->
+                            scope.launch(exceptionHandler) {
+                                val settingsToSave = updated.copy(
+                                    selectedProviderId = appViewModel.state.value.ai.selectedProviderId,
+                                )
+                                val updatedRegistry = buildAIRegistry(settingsToSave)
+                                try {
+                                    withContext(Dispatchers.IO) { settingsRepo.save(settingsToSave) }
+                                } catch (e: Exception) {
+                                    logger.error("Failed to save AI settings: {}", e.message)
+                                    JOptionPane.showMessageDialog(
+                                        window,
+                                        e.message ?: "Failed to save AI settings.",
+                                        "AI Settings",
+                                        JOptionPane.ERROR_MESSAGE,
+                                    )
+                                    return@launch
+                                }
+                                logger.info("AI settings saved")
+                                aiSettings.value = settingsToSave
+                                showSettings.value = false
+                                refreshAIProviders(updatedRegistry, appViewModel)
+                            }
+                        },
+                    )
+                }
             }
         }
     }
@@ -378,43 +435,76 @@ private suspend fun openProject(
     }
 }
 
-private suspend fun refreshCompanion(
-    client: LocalCompanionClient,
-    viewModel: StudioRootViewModel,
-): Boolean {
-    logger.debug("Refreshing companion connection: {}", client.endpoint)
-    viewModel.companionChecking()
-    try {
-        withContext(Dispatchers.IO) { client.health() }
-        val response = withContext(Dispatchers.IO) { client.providers() }
-        val available = response.providers.count { it.available }
-        logger.info("Companion connected: {} provider(s), {} available", response.providers.size, available)
-        viewModel.companionConnected(response.providers)
-        return true
-    } catch (e: Exception) {
-        logger.warn("AI companion not reachable at {}: {}", client.endpoint, e.message)
-        logger.debug("AI companion connection failure", e)
-        viewModel.companionDisconnected(
-            buildCompanionUnavailableMessage(client, e),
+private fun buildAIRegistry(settings: AISettings): AIProviderRegistry {
+    val providers = mutableListOf<AIProvider>()
+    providers += OllamaAIProvider(baseUrl = settings.ollama.baseUrl, defaultModel = settings.ollama.defaultModel)
+    if (settings.openai.apiKey.isNotBlank()) {
+        providers += OpenAIAIProvider(
+            apiKey = settings.openai.apiKey,
+            baseUrl = settings.openai.baseUrl,
+            defaultModel = settings.openai.defaultModel,
         )
-        return false
+    }
+    if (settings.anthropic.apiKey.isNotBlank()) {
+        providers += AnthropicAIProvider(
+            apiKey = settings.anthropic.apiKey,
+            baseUrl = settings.anthropic.baseUrl,
+            defaultModel = settings.anthropic.defaultModel,
+        )
+    }
+    if (settings.gemini.apiKey.isNotBlank()) {
+        providers += GeminiAIProvider(
+            apiKey = settings.gemini.apiKey,
+            baseUrl = settings.gemini.baseUrl,
+            defaultModel = settings.gemini.defaultModel,
+        )
+    }
+    return AIProviderRegistry(providers)
+}
+
+private suspend fun refreshAIProviders(
+    registry: AIProviderRegistry,
+    viewModel: StudioRootViewModel,
+) {
+    logger.debug("Checking AI provider availability")
+    viewModel.aiProvidersLoading()
+    try {
+        val infos = withContext(Dispatchers.IO) {
+            registry.allProviders().map { provider ->
+                AIProviderInfo(
+                    id = provider.id,
+                    displayName = provider.displayName,
+                    kind = if (provider.kind == AIProviderKind.LOCAL) ProviderKind.LOCAL else ProviderKind.HOSTED,
+                    available = provider.checkAvailability(),
+                    capabilities = provider.capabilities.map { it.name }.toSet(),
+                )
+            }
+        }
+        val available = infos.count { it.available }
+        logger.info("AI providers refreshed: {}/{} available", available, infos.size)
+        viewModel.aiProvidersLoaded(infos)
+    } catch (e: Exception) {
+        logger.warn("Failed to check AI provider availability: {}", e.message)
+        viewModel.aiProvidersLoadFailed(e.message ?: "Unknown error")
     }
 }
 
 private suspend fun executeAIAction(
     action: AIAction,
-    client: LocalCompanionClient,
+    registry: AIProviderRegistry,
     viewModel: StudioRootViewModel,
 ) {
     viewModel.aiActionStarted(action)
-    if (!refreshCompanionIfNeeded(client, viewModel, action)) return
 
     val state = viewModel.state.value
-    val providerId = state.companion.selectedProviderId ?: run {
+    val providerId = state.ai.selectedProviderId ?: run {
         logger.warn("AI action {} requested but no provider selected", action)
-        viewModel.aiActionFailed(
-            "The AI companion is connected, but no provider is available. Start or configure a provider in the Swift companion server.",
-        )
+        viewModel.aiActionFailed("No AI provider selected. Open Settings to configure one.")
+        return
+    }
+    val provider = registry.find(providerId) ?: run {
+        logger.warn("AI action {} requested but provider '{}' not found in registry", action, providerId)
+        viewModel.aiActionFailed("Provider '$providerId' not found. Open Settings to reconfigure.")
         return
     }
     val project = state.project
@@ -428,17 +518,13 @@ private suspend fun executeAIAction(
                     providerId = providerId,
                     projectContext = project?.let { buildProjectContext(it) },
                 )
-                val result = withContext(Dispatchers.IO) { client.analyzeSpec(request) }
+                val result = withContext(Dispatchers.IO) { registry.analyzeSpec(provider, request) }
                 logger.info("AI analyze-spec succeeded (provider={})", providerId)
                 viewModel.analyzeSpecCompleted(result)
             }
             AIAction.GENERATE_VARIANTS -> {
                 val selectedEndpoint = state.selectedEndpoint
-                logger.debug(
-                    "generate-variants for endpoint: {} {}",
-                    selectedEndpoint?.method,
-                    selectedEndpoint?.path,
-                )
+                logger.debug("generate-variants for endpoint: {} {}", selectedEndpoint?.method, selectedEndpoint?.path)
                 val request = CompanionRequest(
                     providerId = providerId,
                     projectContext = project?.let { buildProjectContext(it) },
@@ -446,7 +532,7 @@ private suspend fun executeAIAction(
                         SelectionContext(endpointKeys = listOf("${it.method} ${it.path}"))
                     },
                 )
-                val result = withContext(Dispatchers.IO) { client.generateVariants(request) }
+                val result = withContext(Dispatchers.IO) { registry.generateVariants(provider, request) }
                 logger.info("AI generate-variants succeeded (provider={})", providerId)
                 viewModel.generateVariantsCompleted(result)
             }
@@ -455,7 +541,7 @@ private suspend fun executeAIAction(
                     providerId = providerId,
                     projectContext = project?.let { buildProjectContext(it) },
                 )
-                val result = withContext(Dispatchers.IO) { client.refineProject(request) }
+                val result = withContext(Dispatchers.IO) { registry.refineProject(provider, request) }
                 logger.info("AI refine-project succeeded (provider={})", providerId)
                 viewModel.refineProjectCompleted(result)
             }
@@ -468,47 +554,6 @@ private suspend fun executeAIAction(
         )
     }
 }
-
-private suspend fun refreshCompanionIfNeeded(
-    client: LocalCompanionClient,
-    viewModel: StudioRootViewModel,
-    action: AIAction,
-): Boolean {
-    val companion = viewModel.state.value.companion
-    if (companion.connected && companion.hasAvailableProvider) return true
-
-    val connected = refreshCompanion(client, viewModel)
-    if (!connected) {
-        viewModel.aiActionFailed(
-            "Cannot run ${action.displayName} because the optional AI companion is offline.\n\n${viewModel.state.value.companion.error.orEmpty()}",
-        )
-        return false
-    }
-
-    if (!viewModel.state.value.companion.hasAvailableProvider) {
-        viewModel.aiActionFailed(
-            "The AI companion is running, but it did not report any available providers.",
-        )
-        return false
-    }
-
-    return true
-}
-
-private fun buildCompanionUnavailableMessage(
-    client: LocalCompanionClient,
-    throwable: Throwable,
-): String {
-    val detail = throwable.message?.takeIf { it.isNotBlank() } ?: "Unknown error"
-    return "Cannot reach the optional local AI companion at ${client.endpoint} ($detail). Start it with: swift run moqserver companion --port 8081"
-}
-
-private val AIAction.displayName: String
-    get() = when (this) {
-        AIAction.ANALYZE_SPEC -> "Analyze Spec"
-        AIAction.GENERATE_VARIANTS -> "Generate Variants"
-        AIAction.REFINE_PROJECT -> "Refine Project"
-    }
 
 private fun confirmExit(
     owner: AwtWindow?,

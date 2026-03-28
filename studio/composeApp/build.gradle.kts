@@ -33,6 +33,7 @@ kotlin {
 
         val desktopMain by getting {
             dependencies {
+                implementation(projects.studioAi)
                 implementation(projects.studioData)
                 implementation(projects.studioProjectFormat)
                 implementation(projects.studioCodeEditor)

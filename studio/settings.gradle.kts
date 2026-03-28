@@ -19,6 +19,7 @@ dependencyResolutionManagement {
 }
 
 include(":composeApp")
+include(":studio-ai")
 include(":studio-domain")
 include(":studio-data")
 include(":studio-code-editor")

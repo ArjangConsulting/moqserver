@@ -101,7 +101,7 @@ class StudioRootViewModel(
             StudioState(
                 statusLine = "Project closed. Open a .moqproj directory to get started.",
                 recentProjects = it.recentProjects,
-                companion = it.companion,
+                ai = it.ai,
             )
         }
     }
@@ -121,55 +121,36 @@ class StudioRootViewModel(
         _state.update { it.copy(statusLine = message) }
     }
 
-    // -- Companion / AI --
+    // -- AI --
 
-    fun companionChecking() {
-        _state.update {
-            it.copy(
-                companion = it.companion.copy(
-                    checking = true,
-                    hasChecked = true,
-                    error = null,
-                ),
-            )
-        }
+    fun aiProvidersLoading() {
+        _state.update { it.copy(ai = it.ai.copy(loading = true, error = null)) }
     }
 
-    fun companionConnected(providers: List<CompanionProvider>) {
+    fun aiProvidersLoaded(providers: List<AIProviderInfo>) {
         val firstAvailable = providers.firstOrNull { it.available }?.id
         _state.update {
+            val selectedProviderId = it.ai.selectedProviderId
+            val preservedSelection = providers.firstOrNull { provider ->
+                provider.id == selectedProviderId && provider.available
+            }?.id
             it.copy(
-                companion = it.companion.copy(
-                    connected = true,
-                    checking = false,
-                    hasChecked = true,
+                ai = it.ai.copy(
+                    loading = false,
                     providers = providers,
-                    selectedProviderId = it.companion.selectedProviderId ?: firstAvailable,
+                    selectedProviderId = preservedSelection ?: firstAvailable ?: providers.firstOrNull()?.id,
                     error = null,
                 ),
             )
         }
     }
 
-    fun companionDisconnected(error: String) {
-        _state.update {
-            it.copy(
-                companion = it.companion.copy(
-                    connected = false,
-                    checking = false,
-                    hasChecked = true,
-                    providers = emptyList(),
-                    selectedProviderId = null,
-                    error = error,
-                ),
-            )
-        }
+    fun aiProvidersLoadFailed(error: String) {
+        _state.update { it.copy(ai = it.ai.copy(loading = false, error = error)) }
     }
 
     fun selectProvider(providerId: String) {
-        _state.update {
-            it.copy(companion = it.companion.copy(selectedProviderId = providerId))
-        }
+        _state.update { it.copy(ai = it.ai.copy(selectedProviderId = providerId)) }
     }
 
     fun aiActionStarted(action: AIAction) {
@@ -307,7 +288,7 @@ data class StudioState(
     val recentProjects: List<String> = emptyList(),
     val diagnostics: List<ValidationDiagnostic> = emptyList(),
     val importState: ImportState? = null,
-    val companion: CompanionState = CompanionState(),
+    val ai: AIState = AIState(),
     val aiAction: AIActionState = AIActionState(),
     val aiPanelVisible: Boolean = false,
 ) {

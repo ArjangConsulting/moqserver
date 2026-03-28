@@ -9,55 +9,102 @@ import kotlin.test.assertTrue
 class StudioRootViewModelTest {
 
     @Test
-    fun `companion starts idle until explicitly checked`() {
-        val state = StudioRootViewModel().state.value.companion
+    fun `ai state starts empty and not loading`() {
+        val state = StudioRootViewModel().state.value.ai
 
-        assertTrue(state.isIdle)
-        assertFalse(state.hasChecked)
-        assertFalse(state.connected)
+        assertFalse(state.loading)
+        assertTrue(state.providers.isEmpty())
+        assertNull(state.error)
+        assertFalse(state.isReady)
     }
 
     @Test
-    fun `companionConnected marks state checked and selects first available provider`() {
+    fun `aiProvidersLoaded selects first available provider`() {
         val viewModel = StudioRootViewModel()
         val providers = listOf(
-            CompanionProvider(
+            AIProviderInfo(
                 id = "offline",
                 displayName = "Offline",
                 kind = ProviderKind.LOCAL,
                 available = false,
-                capabilities = emptyList(),
+                capabilities = emptySet(),
             ),
-            CompanionProvider(
+            AIProviderInfo(
                 id = "ollama",
                 displayName = "Ollama",
                 kind = ProviderKind.LOCAL,
                 available = true,
-                capabilities = listOf(AICapability.GENERATE_VARIANTS),
+                capabilities = setOf("GENERATE_VARIANTS"),
             ),
         )
 
-        viewModel.companionConnected(providers)
+        viewModel.aiProvidersLoaded(providers)
 
-        val state = viewModel.state.value.companion
-        assertTrue(state.hasChecked)
-        assertTrue(state.connected)
+        val state = viewModel.state.value.ai
+        assertFalse(state.loading)
+        assertNull(state.error)
         assertEquals("ollama", state.selectedProviderId)
-        assertFalse(state.isIdle)
+        assertTrue(state.isReady)
     }
 
     @Test
-    fun `companionDisconnected preserves non-fatal offline state`() {
+    fun `aiProvidersLoadFailed records error`() {
         val viewModel = StudioRootViewModel()
 
-        viewModel.companionDisconnected("Connection refused")
+        viewModel.aiProvidersLoadFailed("Connection refused")
 
-        val state = viewModel.state.value.companion
-        assertTrue(state.hasChecked)
-        assertFalse(state.connected)
+        val state = viewModel.state.value.ai
+        assertFalse(state.loading)
         assertEquals("Connection refused", state.error)
         assertNull(state.selectedProviderId)
-        assertFalse(state.isIdle)
+        assertFalse(state.isReady)
+    }
+
+    @Test
+    fun `aiProvidersLoaded preserves an existing available selection`() {
+        val viewModel = StudioRootViewModel()
+        val providers = listOf(
+            AIProviderInfo(
+                id = "openai",
+                displayName = "OpenAI",
+                kind = ProviderKind.HOSTED,
+                available = true,
+                capabilities = emptySet(),
+            ),
+            AIProviderInfo(
+                id = "ollama",
+                displayName = "Ollama",
+                kind = ProviderKind.LOCAL,
+                available = true,
+                capabilities = emptySet(),
+            ),
+        )
+
+        viewModel.selectProvider("openai")
+        viewModel.aiProvidersLoaded(providers)
+
+        assertEquals("openai", viewModel.state.value.ai.selectedProviderId)
+        assertTrue(viewModel.state.value.ai.isReady)
+    }
+
+    @Test
+    fun `aiProvidersLoaded falls back when existing selection disappears`() {
+        val viewModel = StudioRootViewModel()
+        val providers = listOf(
+            AIProviderInfo(
+                id = "ollama",
+                displayName = "Ollama",
+                kind = ProviderKind.LOCAL,
+                available = true,
+                capabilities = emptySet(),
+            ),
+        )
+
+        viewModel.selectProvider("openai")
+        viewModel.aiProvidersLoaded(providers)
+
+        assertEquals("ollama", viewModel.state.value.ai.selectedProviderId)
+        assertTrue(viewModel.state.value.ai.isReady)
     }
 
     @Test

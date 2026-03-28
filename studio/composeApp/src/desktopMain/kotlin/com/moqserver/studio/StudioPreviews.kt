@@ -3,12 +3,11 @@ package com.moqserver.studio
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.tooling.preview.Preview
 import com.moqserver.studio.domain.AIActionState
+import com.moqserver.studio.domain.AIProviderInfo
+import com.moqserver.studio.domain.AIState
 import com.moqserver.studio.domain.AnalyzeSpecResult
-import com.moqserver.studio.domain.CompanionProvider
 import com.moqserver.studio.domain.CompanionResponse
-import com.moqserver.studio.domain.CompanionState
 import com.moqserver.studio.domain.FindingSeverity
-import com.moqserver.studio.domain.GeneratedVariant
 import com.moqserver.studio.domain.ImportEndpointEntry
 import com.moqserver.studio.domain.ImportSourceType
 import com.moqserver.studio.domain.ImportState
@@ -100,18 +99,17 @@ private fun previewState(): StudioState {
         project = project,
         originalProject = project,
         selectedEndpointId = "get-users",
-        companion = CompanionState(
-            connected = true,
+        ai = AIState(
             providers = listOf(
-                CompanionProvider(
-                    id = "local",
-                    displayName = "Local Companion",
+                AIProviderInfo(
+                    id = "ollama",
+                    displayName = "Ollama (local)",
                     kind = ProviderKind.LOCAL,
                     available = true,
-                    capabilities = emptyList(),
+                    capabilities = setOf("ANALYZE_SPEC", "GENERATE_VARIANTS", "REFINE_PROJECT"),
                 )
             ),
-            selectedProviderId = "local",
+            selectedProviderId = "ollama",
         ),
         diagnostics = listOf(
             ValidationDiagnostic(
