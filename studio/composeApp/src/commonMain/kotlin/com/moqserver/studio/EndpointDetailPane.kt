@@ -975,7 +975,7 @@ private fun BodyTab(
                         .fillMaxWidth()
                         .clip(RoundedCornerShape(16.dp))
                         .background(bodyPanelColor)
-                        .padding(12.dp),
+                        .padding(start = 12.dp, top = 8.dp, end = 8.dp, bottom = 12.dp),
                 ) {
                     Surface(
                         modifier = Modifier.matchParentSize(),
@@ -985,10 +985,12 @@ private fun BodyTab(
                     ) {}
                     Column(
                         modifier = Modifier.fillMaxWidth(),
-                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalArrangement = Arrangement.spacedBy(4.dp),
                     ) {
                         Row(
-                            modifier = Modifier.fillMaxWidth(),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(top = 2.dp, end = 2.dp),
                             horizontalArrangement = Arrangement.End,
                         ) {
                             BodyTabActions(
@@ -1016,7 +1018,9 @@ private fun BodyTab(
                                 minLines = 8,
                                 maxLines = 18,
                                 colors = bodyEditorFieldColors(),
-                                modifier = Modifier.fillMaxWidth(),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(top = 2.dp, start = 6.dp, end = 4.dp, bottom = 4.dp),
                             )
                         } else when (selectedFormat) {
                             BodyFormat.JSON -> {
@@ -1024,7 +1028,10 @@ private fun BodyTab(
                                     text = currentText,
                                     onTextChange = {},
                                     readOnly = true,
-                                    modifier = Modifier.fillMaxWidth().height(280.dp),
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .height(280.dp)
+                                        .padding(top = 2.dp, start = 6.dp, end = 4.dp, bottom = 4.dp),
                                     backgroundColor = bodyEditorBackgroundColor,
                                     foregroundColor = bodyEditorForegroundColor,
                                 )
@@ -1037,7 +1044,9 @@ private fun BodyTab(
                                     minLines = 8,
                                     maxLines = 18,
                                     colors = bodyEditorFieldColors(),
-                                    modifier = Modifier.fillMaxWidth(),
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(top = 2.dp, start = 6.dp, end = 4.dp, bottom = 4.dp),
                                 )
                             }
                         }
@@ -1094,10 +1103,10 @@ private fun BodyTabActions(
         verticalAlignment = Alignment.CenterVertically,
     ) {
         if (isEditing && isJsonBody) {
-            OutlinedButton(onClick = onValidateJson) {
+            OutlinedButton(onClick = onValidateJson, contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp)) {
                 Text("Validate JSON")
             }
-            FilledTonalButton(onClick = onFormatJson) {
+            FilledTonalButton(onClick = onFormatJson, contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp)) {
                 Text("Format JSON")
             }
         }

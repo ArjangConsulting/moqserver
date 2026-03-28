@@ -28,6 +28,7 @@ kotlin {
                 implementation(libs.navigation.compose)
                 implementation(libs.lifecycle.viewmodel.compose)
                 implementation(libs.coroutines.core)
+                implementation(libs.kotlinx.serialization.json)
             }
         }
 
