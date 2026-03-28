@@ -6,12 +6,16 @@ data class ValidationDiagnostic(
     val file: String? = null,
     val field: String? = null,
     val endpointId: String? = null,
+    val endpointLabel: String? = null,
+    val variantName: String? = null,
 ) {
     enum class Severity { ERROR, WARNING }
 
     override fun toString(): String = buildString {
         append("[${severity.name.lowercase()}]")
-        file?.let { append(" $it") }
+        endpointLabel?.let { append(" $it") }
+        variantName?.let { append(" ($it)") }
+        file?.let { if (endpointLabel == null) append(" $it") }
         field?.let { append(" ($it)") }
         append(" $message")
     }
@@ -48,6 +52,7 @@ class ProjectValidator(
 
         for (endpoint in project.endpoints) {
             val fileName = "${MoqProjectFormat.ENDPOINTS_DIR}/${endpoint.id}.yml"
+            val endpointLabel = "${endpoint.method} ${endpoint.path}"
 
             val existing = seenIds[endpoint.id]
             if (existing != null) {
@@ -57,6 +62,7 @@ class ProjectValidator(
                     file = fileName,
                     field = "id",
                     endpointId = endpoint.id,
+                    endpointLabel = endpointLabel,
                 )
             } else {
                 seenIds[endpoint.id] = fileName
@@ -69,6 +75,7 @@ class ProjectValidator(
                     file = fileName,
                     field = "id",
                     endpointId = endpoint.id,
+                    endpointLabel = endpointLabel,
                 )
             }
 
@@ -79,6 +86,7 @@ class ProjectValidator(
                     file = fileName,
                     field = "reference_name",
                     endpointId = endpoint.id,
+                    endpointLabel = endpointLabel,
                 )
             } else if (!isValidReferenceName(endpoint.referenceName)) {
                 diagnostics += ValidationDiagnostic(
@@ -87,6 +95,7 @@ class ProjectValidator(
                     file = fileName,
                     field = "reference_name",
                     endpointId = endpoint.id,
+                    endpointLabel = endpointLabel,
                 )
             } else {
                 val existingReferenceNameFile = seenEndpointReferenceNames[endpoint.referenceName]
@@ -97,6 +106,7 @@ class ProjectValidator(
                         file = fileName,
                         field = "reference_name",
                         endpointId = endpoint.id,
+                        endpointLabel = endpointLabel,
                     )
                 } else {
                     seenEndpointReferenceNames[endpoint.referenceName] = fileName
@@ -110,6 +120,7 @@ class ProjectValidator(
                     file = fileName,
                     field = "path",
                     endpointId = endpoint.id,
+                    endpointLabel = endpointLabel,
                 )
             }
 
@@ -120,6 +131,7 @@ class ProjectValidator(
                     file = fileName,
                     field = "path",
                     endpointId = endpoint.id,
+                    endpointLabel = endpointLabel,
                 )
             }
 
@@ -130,6 +142,7 @@ class ProjectValidator(
                     file = fileName,
                     field = "method",
                     endpointId = endpoint.id,
+                    endpointLabel = endpointLabel,
                 )
             }
 
@@ -140,6 +153,7 @@ class ProjectValidator(
                     file = fileName,
                     field = "variants",
                     endpointId = endpoint.id,
+                    endpointLabel = endpointLabel,
                 )
             }
 
@@ -151,6 +165,7 @@ class ProjectValidator(
                     file = fileName,
                     field = "variants",
                     endpointId = endpoint.id,
+                    endpointLabel = endpointLabel,
                 )
             }
 
@@ -166,6 +181,8 @@ class ProjectValidator(
                         file = fileName,
                         field = "$variantField.name",
                         endpointId = endpoint.id,
+                        endpointLabel = endpointLabel,
+                        variantName = variant.name,
                     )
                 }
 
@@ -176,6 +193,8 @@ class ProjectValidator(
                         file = fileName,
                         field = "$variantField.reference_name",
                         endpointId = endpoint.id,
+                        endpointLabel = endpointLabel,
+                        variantName = variant.name,
                     )
                 } else if (!isValidReferenceName(variant.referenceName)) {
                     diagnostics += ValidationDiagnostic(
@@ -184,6 +203,8 @@ class ProjectValidator(
                         file = fileName,
                         field = "$variantField.reference_name",
                         endpointId = endpoint.id,
+                        endpointLabel = endpointLabel,
+                        variantName = variant.name,
                     )
                 } else if (!seenVariantReferenceNames.add(variant.referenceName)) {
                     diagnostics += ValidationDiagnostic(
@@ -192,6 +213,8 @@ class ProjectValidator(
                         file = fileName,
                         field = "$variantField.reference_name",
                         endpointId = endpoint.id,
+                        endpointLabel = endpointLabel,
+                        variantName = variant.name,
                     )
                 }
 
@@ -202,6 +225,8 @@ class ProjectValidator(
                         file = fileName,
                         field = variantField,
                         endpointId = endpoint.id,
+                        endpointLabel = endpointLabel,
+                        variantName = variant.name,
                     )
                 }
 
@@ -213,6 +238,8 @@ class ProjectValidator(
                             file = fileName,
                             field = "$variantField.body_file",
                             endpointId = endpoint.id,
+                            endpointLabel = endpointLabel,
+                            variantName = variant.name,
                         )
                     } else if (!fixtureExists(project.projectPath, bodyFile)) {
                         diagnostics += ValidationDiagnostic(
@@ -221,6 +248,8 @@ class ProjectValidator(
                             file = fileName,
                             field = "$variantField.body_file",
                             endpointId = endpoint.id,
+                            endpointLabel = endpointLabel,
+                            variantName = variant.name,
                         )
                     }
 
@@ -231,17 +260,19 @@ class ProjectValidator(
                             file = fileName,
                             field = "$variantField.body_file",
                             endpointId = endpoint.id,
+                            endpointLabel = endpointLabel,
+                            variantName = variant.name,
                         )
                     }
                 }
             }
 
             endpoint.auth?.let { auth ->
-                diagnostics += validateAuth(auth, fileName, "auth", endpoint.id)
+                diagnostics += validateAuth(auth, fileName, "auth", endpoint.id, endpointLabel)
             }
 
             if (endpoint.path == MoqProjectFormat.GRAPHQL_PATH || endpoint.operation != null) {
-                diagnostics += validateGraphQL(endpoint, fileName)
+                diagnostics += validateGraphQL(endpoint, fileName, endpointLabel)
             }
         }
 
@@ -255,6 +286,7 @@ class ProjectValidator(
         file: String,
         field: String,
         endpointId: String?,
+        endpointLabel: String? = null,
     ): List<ValidationDiagnostic> {
         val diagnostics = mutableListOf<ValidationDiagnostic>()
         if (auth.type in listOf(AuthType.API_KEY, AuthType.HEADER)) {
@@ -265,6 +297,7 @@ class ProjectValidator(
                     file = file,
                     field = "$field.header_name",
                     endpointId = endpointId,
+                    endpointLabel = endpointLabel,
                 )
             }
         }
@@ -274,6 +307,7 @@ class ProjectValidator(
     private fun validateGraphQL(
         endpoint: EndpointDocument,
         fileName: String,
+        endpointLabel: String,
     ): List<ValidationDiagnostic> {
         val diagnostics = mutableListOf<ValidationDiagnostic>()
 
@@ -284,6 +318,7 @@ class ProjectValidator(
                 file = fileName,
                 field = "operation",
                 endpointId = endpoint.id,
+                endpointLabel = endpointLabel,
             )
         }
 
@@ -295,6 +330,7 @@ class ProjectValidator(
                     file = fileName,
                     field = "path",
                     endpointId = endpoint.id,
+                    endpointLabel = endpointLabel,
                 )
             }
 
@@ -305,6 +341,7 @@ class ProjectValidator(
                     file = fileName,
                     field = "operation",
                     endpointId = endpoint.id,
+                    endpointLabel = endpointLabel,
                 )
             }
 
@@ -316,6 +353,7 @@ class ProjectValidator(
                         file = fileName,
                         field = "operation.document",
                         endpointId = endpoint.id,
+                        endpointLabel = endpointLabel,
                     )
                 }
             }

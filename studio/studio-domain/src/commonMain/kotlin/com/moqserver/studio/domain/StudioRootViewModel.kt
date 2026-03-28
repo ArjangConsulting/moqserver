@@ -82,8 +82,8 @@ class StudioRootViewModel(
         }
     }
 
-    fun selectEndpoint(endpointId: String?) {
-        _state.update { it.copy(selectedEndpointId = endpointId) }
+    fun selectEndpoint(endpointId: String?, variantName: String? = null) {
+        _state.update { it.copy(selectedEndpointId = endpointId, pendingVariantName = variantName) }
     }
 
     fun projectSaved(path: String) {
@@ -297,6 +297,7 @@ data class StudioState(
     val isDirty: Boolean = false,
     val statusLine: String = "No project loaded. Open a .moqproj directory to get started.",
     val selectedEndpointId: String? = null,
+    val pendingVariantName: String? = null,
     val recentProjects: List<String> = emptyList(),
     val diagnostics: List<ValidationDiagnostic> = emptyList(),
     val importState: ImportState? = null,

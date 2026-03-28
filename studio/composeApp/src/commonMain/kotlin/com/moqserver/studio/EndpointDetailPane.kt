@@ -59,6 +59,7 @@ fun EndpointDetailPane(
     projectPath: String = "",
     companionConnected: Boolean = false,
     onGenerateVariants: () -> Unit = {},
+    initialVariantName: String? = null,
 ) {
     var showDeleteConfirm by remember { mutableStateOf(false) }
 
@@ -103,6 +104,7 @@ fun EndpointDetailPane(
             projectPath = projectPath,
             companionConnected = companionConnected,
             onGenerateVariants = onGenerateVariants,
+            initialVariantName = initialVariantName,
         )
     }
 }
@@ -261,8 +263,16 @@ private fun VariantSection(
     projectPath: String = "",
     companionConnected: Boolean = false,
     onGenerateVariants: () -> Unit = {},
+    initialVariantName: String? = null,
 ) {
-    var selectedVariantIndex by remember(endpoint.id) { mutableStateOf(0) }
+    var selectedVariantIndex by remember(endpoint.id, initialVariantName) {
+        val index = if (initialVariantName != null) {
+            endpoint.variants.indexOfFirst { it.name == initialVariantName }.coerceAtLeast(0)
+        } else {
+            0
+        }
+        mutableStateOf(index)
+    }
     var selectedTab by remember(endpoint.id) { mutableStateOf(VariantDetailTab.SUMMARY) }
     val activeVariantIndex = selectedVariantIndex.coerceIn(0, endpoint.variants.lastIndex.coerceAtLeast(0))
     val requestRules = endpoint.requestRules ?: RequestRules()

@@ -319,6 +319,7 @@ internal fun StudioWorkspaceScreen(
                                     projectPath = state.project?.projectPath.orEmpty(),
                                     companionConnected = state.ai.isReady,
                                     onGenerateVariants = { onAIAction(AIAction.GENERATE_VARIANTS) },
+                                    initialVariantName = state.pendingVariantName,
                                 )
                             }
                         },
@@ -330,7 +331,7 @@ internal fun StudioWorkspaceScreen(
                 ValidationPanel(
                     diagnostics = state.diagnostics,
                     onDiagnosticClick = { diagnostic ->
-                        diagnostic.endpointId?.let { viewModel.selectEndpoint(it) }
+                        diagnostic.endpointId?.let { viewModel.selectEndpoint(it, diagnostic.variantName) }
                     },
                 )
             }
