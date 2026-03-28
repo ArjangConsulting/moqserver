@@ -369,6 +369,42 @@ class ProjectRepositoryTest {
     }
 
     @Test
+    fun `save and reload preserves cookies request rules`() {
+        val project = repo.load(sampleProjectPath)
+        val endpoint = project.endpoints.first().copy(
+            id = "cookie-request-rules-regression",
+            requestRules = RequestRules(
+                cookies = listOf(
+                    RuleMatcher(
+                        name = "session_id",
+                        match = "abc123",
+                        required = true,
+                        matchType = MatchType.EQUAL_TO,
+                    )
+                ),
+            ),
+            variants = listOf(project.endpoints.first().variants.first().copy(body = YamlValue.Str("ok"), bodyFile = null)),
+        )
+        val tempDir = kotlin.io.path.createTempDirectory("moqproj-cookie-rules").toFile()
+
+        try {
+            repo.save(project.copy(endpoints = listOf(endpoint)), tempDir.absolutePath)
+
+            val yaml = File(tempDir, "endpoints/cookie-request-rules-regression.yml").readText()
+            assertTrue(yaml.contains("cookies:"))
+            assertTrue(yaml.contains("match_type: equal_to"))
+
+            val reloaded = repo.load(tempDir.absolutePath)
+            val cookie = reloaded.endpoints.single().requestRules?.cookies?.single()
+            assertEquals("session_id", cookie?.name)
+            assertEquals("abc123", cookie?.match)
+            assertEquals(MatchType.EQUAL_TO, cookie?.matchType)
+        } finally {
+            tempDir.deleteRecursively()
+        }
+    }
+
+    @Test
     fun `load fails when project manifest is missing`() {
         val tempDir = kotlin.io.path.createTempDirectory("moqproj-missing-manifest").toFile()
 

@@ -722,6 +722,27 @@ private fun CookiesTab(
 ) {
     val cookies = requestRules.cookies ?: emptyList()
 
+    fun normalizedCookie(cookie: RuleMatcher): RuleMatcher {
+        val value = cookie.match?.takeUnless { it.isBlank() }
+        val isRequired = cookie.required == true
+        val currentMatchType = cookie.matchType
+        val currentNeedsValue = currentMatchType != null && currentMatchType !in setOf(
+            MatchType.REQUIRE,
+            MatchType.IS_EMPTY,
+            MatchType.NOT_EMPTY,
+        )
+        return cookie.copy(
+            match = value,
+            required = if (isRequired) true else null,
+            matchType = when {
+                !isRequired -> null
+                value != null -> currentMatchType ?: MatchType.EQUAL_TO
+                currentNeedsValue -> MatchType.EQUAL_TO
+                else -> currentMatchType ?: MatchType.EQUAL_TO
+            },
+        )
+    }
+
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -732,7 +753,7 @@ private fun CookiesTab(
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                 if (cookies.isNotEmpty()) {
                     androidx.compose.material3.TextButton(onClick = {
-                        onUpdate(requestRules.copy(cookies = null, verifyCookies = null))
+                        onUpdate(requestRules.copy(cookies = null))
                     }) {
                         Text("Clear")
                     }
@@ -764,6 +785,19 @@ private fun CookiesTab(
                     modifier = Modifier.width(headerNameColumnWidth),
                 )
                 Text(
+                    "Value",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.weight(2f),
+                )
+                Text(
+                    "Required",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.width(80.dp),
+                )
+                Text(
                     "Condition",
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -789,18 +823,52 @@ private fun CookiesTab(
                     OutlinedTextField(
                         value = cookie.name,
                         onValueChange = { newName ->
-                            onUpdate(requestRules.copy(cookies = cookies.updated(index, cookie.copy(name = newName))))
+                            onUpdate(requestRules.copy(cookies = cookies.updated(index, normalizedCookie(cookie.copy(name = newName)))))
                         },
-                        placeholder = { Text("Name") },
+                        placeholder = { Text("Key") },
                         singleLine = true,
                         textStyle = MaterialTheme.typography.bodySmall,
                         modifier = Modifier.width(headerNameColumnWidth),
                     )
+                    OutlinedTextField(
+                        value = cookie.match.orEmpty(),
+                        onValueChange = { newValue ->
+                            onUpdate(
+                                requestRules.copy(
+                                    cookies = cookies.updated(
+                                        index,
+                                        normalizedCookie(cookie.copy(match = newValue)),
+                                    ),
+                                ),
+                            )
+                        },
+                        placeholder = { Text("Value") },
+                        singleLine = true,
+                        textStyle = MaterialTheme.typography.bodySmall,
+                        modifier = Modifier.weight(2f),
+                    )
+                    Box(modifier = Modifier.width(80.dp), contentAlignment = Alignment.Center) {
+                        Checkbox(
+                            checked = cookie.required == true,
+                            onCheckedChange = { checked ->
+                                val updated = if (checked) {
+                                    normalizedCookie(cookie.copy(required = true, matchType = cookie.matchType ?: MatchType.EQUAL_TO))
+                                } else {
+                                    cookie.copy(required = null, matchType = null)
+                                }
+                                onUpdate(requestRules.copy(cookies = cookies.updated(index, updated)))
+                            },
+                        )
+                    }
                     MatchConditionEditor(
                         ruleMatcher = cookie,
                         onUpdate = { updated ->
-                            onUpdate(requestRules.copy(cookies = cookies.updated(index, updated)))
+                            if (cookie.required != true) return@MatchConditionEditor
+                            onUpdate(requestRules.copy(cookies = cookies.updated(index, normalizedCookie(updated.copy(required = true)))))
                         },
+                        availableMatchTypes = headerMatchTypes,
+                        fallbackMatchType = MatchType.EQUAL_TO,
+                        enabled = cookie.required == true,
                         dropdownWidth = headerConditionColumnWidth,
                         valueWidth = headerMatchValueColumnWidth,
                         showValuePlaceholder = true,
@@ -811,7 +879,6 @@ private fun CookiesTab(
                             onUpdate(
                                 requestRules.copy(
                                     cookies = updated.ifEmpty { null },
-                                    verifyCookies = if (updated.isEmpty()) null else requestRules.verifyCookies,
                                 ),
                             )
                         },
@@ -827,19 +894,6 @@ private fun CookiesTab(
             }
         }
 
-        if (cookies.isNotEmpty()) {
-            HorizontalDivider()
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                Text("Verify Cookies", style = MaterialTheme.typography.titleSmall)
-                Switch(
-                    checked = requestRules.verifyCookies == true,
-                    onCheckedChange = { onUpdate(requestRules.copy(verifyCookies = if (it) true else null)) },
-                )
-            }
-        }
     }
 }
 
@@ -1272,7 +1326,6 @@ private fun RequestRules.normalize(): RequestRules? {
     return takeIf {
         !it.headers.isNullOrEmpty() ||
             !it.queryParams.isNullOrEmpty() ||
-            it.verifyCookies == true ||
             !it.cookies.isNullOrEmpty()
     }
 }

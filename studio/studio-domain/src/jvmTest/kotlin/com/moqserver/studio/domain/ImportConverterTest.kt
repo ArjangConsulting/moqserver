@@ -1,5 +1,7 @@
 package com.moqserver.studio.domain
 
+import com.moqserver.studio.projectformat.MatchType
+import com.moqserver.studio.projectformat.RuleMatcher
 import com.moqserver.studio.projectformat.YamlValue
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -93,5 +95,42 @@ class ImportConverterTest {
         )
 
         assertEquals("Browse Pets", project.endpoints.single().alias)
+    }
+
+    @Test
+    fun `converts parsed cookies into request rules`() {
+        val parsed = ParsedSpec(
+            title = "Imported API",
+            version = "1.0.0",
+            endpoints = listOf(
+                ParsedEndpoint(
+                    method = "GET",
+                    path = "/profile",
+                    cookies = listOf(
+                        RuleMatcher(
+                            name = "session_id",
+                            match = "abc123",
+                            required = true,
+                            matchType = MatchType.EQUAL_TO,
+                        )
+                    ),
+                    responses = listOf(
+                        ParsedResponse(name = "default", statusCode = 200, body = "{}"),
+                    ),
+                ),
+            ),
+        )
+
+        val project = ImportConverter.convert(
+            spec = parsed,
+            acceptedEndpoints = parsed.endpoints,
+            projectName = "Imported API",
+            projectPath = "/tmp/imported-api",
+        )
+
+        val cookie = project.endpoints.single().requestRules?.cookies?.single()
+        assertEquals("session_id", cookie?.name)
+        assertEquals("abc123", cookie?.match)
+        assertEquals(MatchType.EQUAL_TO, cookie?.matchType)
     }
 }

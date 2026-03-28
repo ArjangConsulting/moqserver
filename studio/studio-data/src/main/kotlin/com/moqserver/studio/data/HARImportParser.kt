@@ -4,6 +4,8 @@ import com.moqserver.studio.domain.ParsedEndpoint
 import com.moqserver.studio.domain.ParsedResponse
 import com.moqserver.studio.domain.ParsedSpec
 import com.moqserver.studio.logging.loggerFor
+import com.moqserver.studio.projectformat.MatchType
+import com.moqserver.studio.projectformat.RuleMatcher
 import com.moqserver.studio.projectformat.defaultAliasForEndpoint
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
@@ -39,11 +41,13 @@ class HARImportParser {
             if (method.isBlank()) continue
             val path = normalizedPath(uri)
             val key = GroupKey(method, path)
+            val requestCookies = requestCookies(entry.request)
 
             val exchange = CapturedExchange(
                 statusCode = normalizedStatusCode(entry.response.status),
                 headers = responseHeaders(entry.response),
                 body = responseBody(entry.response),
+                cookies = requestCookies,
             )
 
             val existing = grouped.getOrPut(key) { mutableListOf() }
@@ -62,6 +66,7 @@ class HARImportParser {
                     path = key.path,
                     alias = defaultAliasForEndpoint(method = key.method, path = key.path),
                     responses = responses,
+                    cookies = requestCookies(exchanges),
                 )
             }
 
@@ -153,6 +158,31 @@ class HARImportParser {
         return text
     }
 
+    private fun requestCookies(request: HarRequest): Map<String, String> {
+        if (request.cookies.isNotEmpty()) {
+            return request.cookies
+                .asSequence()
+                .map { it.name.trim() to it.value.orEmpty() }
+                .filter { (name, _) -> name.isNotEmpty() }
+                .associate { it }
+        }
+
+        val headerValue = request.headers.firstOrNull { it.name.equals("Cookie", ignoreCase = true) }?.value
+            ?: return emptyMap()
+
+        return headerValue
+            .split(';')
+            .mapNotNull { pair ->
+                val separatorIndex = pair.indexOf('=')
+                if (separatorIndex <= 0) return@mapNotNull null
+                val name = pair.substring(0, separatorIndex).trim()
+                if (name.isEmpty()) return@mapNotNull null
+                val value = pair.substring(separatorIndex + 1).trim()
+                name to value
+            }
+            .toMap()
+    }
+
     private fun makeResponses(exchanges: List<CapturedExchange>): List<ParsedResponse> {
         val usedNames = mutableSetOf<String>()
         var didAssignDefault = false
@@ -168,6 +198,25 @@ class HARImportParser {
                 statusCode = exchange.statusCode,
                 headers = exchange.headers,
                 body = exchange.body,
+            )
+        }
+    }
+
+    private fun requestCookies(exchanges: List<CapturedExchange>): List<RuleMatcher> {
+        val valuesByName = linkedMapOf<String, MutableSet<String>>()
+
+        for (exchange in exchanges) {
+            for ((name, value) in exchange.cookies) {
+                valuesByName.getOrPut(name) { linkedSetOf() }.add(value)
+            }
+        }
+
+        return valuesByName.entries.map { (name, values) ->
+            RuleMatcher(
+                name = name,
+                match = values.singleOrNull(),
+                required = true,
+                matchType = MatchType.EQUAL_TO,
             )
         }
     }
@@ -199,6 +248,7 @@ class HARImportParser {
         val statusCode: Int,
         val headers: Map<String, String>,
         val body: String?,
+        val cookies: Map<String, String>,
     )
 }
 
@@ -243,6 +293,7 @@ internal data class HarRequest(
     val method: String,
     val url: String,
     val headers: List<HarHeader> = emptyList(),
+    val cookies: List<HarCookie> = emptyList(),
     val queryString: List<HarQuery> = emptyList(),
     val postData: HarPostData? = null,
 )
@@ -262,6 +313,12 @@ internal data class HarHeader(
 
 @Serializable
 internal data class HarQuery(
+    val name: String,
+    val value: String? = null,
+)
+
+@Serializable
+internal data class HarCookie(
     val name: String,
     val value: String? = null,
 )

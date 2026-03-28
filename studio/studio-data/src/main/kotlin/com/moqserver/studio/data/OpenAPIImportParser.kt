@@ -5,6 +5,8 @@ import com.moqserver.studio.domain.ParsedResponse
 import com.moqserver.studio.domain.ParsedSpec
 import com.moqserver.studio.logging.loggerFor
 import com.moqserver.studio.projectformat.AuthType
+import com.moqserver.studio.projectformat.MatchType
+import com.moqserver.studio.projectformat.RuleMatcher
 import com.moqserver.studio.projectformat.defaultAliasForEndpoint
 import com.moqserver.studio.projectformat.humanizeAliasSource
 import io.swagger.v3.oas.models.OpenAPI
@@ -55,7 +57,7 @@ class OpenAPIImportParser {
                 val (authType, authHeaderName) = resolveAuth(
                     operation, openAPI.security.orEmpty(), securitySchemes
                 )
-                val (reqQuery, reqHeaders, requiresBody, acceptedContentTypes) =
+                val (reqQuery, reqHeaders, reqCookies, requiresBody, acceptedContentTypes) =
                     extractRequestRules(operation, pathItem.parameters.orEmpty())
 
                 logger.debug(
@@ -72,6 +74,7 @@ class OpenAPIImportParser {
                         authHeaderName = authHeaderName,
                         requiredQueryParameters = reqQuery,
                         requiredHeaders = reqHeaders,
+                        cookies = reqCookies,
                         requiresBody = requiresBody,
                         acceptedContentTypes = acceptedContentTypes,
                     )
@@ -365,6 +368,7 @@ class OpenAPIImportParser {
     private data class RequestRules(
         val requiredQuery: List<String>,
         val requiredHeaders: List<String>,
+        val cookies: List<RuleMatcher>,
         val requiresBody: Boolean,
         val acceptedContentTypes: List<String>,
     )
@@ -376,11 +380,13 @@ class OpenAPIImportParser {
         val allParams = pathParameters + operation.parameters.orEmpty()
         val requiredQuery = mutableListOf<String>()
         val requiredHeaders = mutableListOf<String>()
+        val cookies = mutableListOf<RuleMatcher>()
 
         for (param in allParams) {
             when (param.`in`) {
                 "query" -> if (param.required == true) requiredQuery.add(param.name)
                 "header" -> if (param.required == true) requiredHeaders.add(param.name)
+                "cookie" -> if (param.required == true) cookies.add(parseCookieRule(param))
             }
         }
 
@@ -391,8 +397,22 @@ class OpenAPIImportParser {
         return RequestRules(
             requiredQuery = requiredQuery.sorted(),
             requiredHeaders = requiredHeaders.sorted(),
+            cookies = cookies.sortedBy { it.name },
             requiresBody = requiresBody,
             acceptedContentTypes = acceptedContentTypes,
+        )
+    }
+
+    private fun parseCookieRule(param: Parameter): RuleMatcher {
+        val matchValue = param.example?.toString()
+            ?: param.examples?.values?.firstOrNull()?.value?.toString()
+            ?: param.schema?.example?.toString()
+
+        return RuleMatcher(
+            name = param.name,
+            match = matchValue,
+            required = true,
+            matchType = if (matchValue != null) MatchType.EQUAL_TO else null,
         )
     }
 

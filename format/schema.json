@@ -119,6 +119,12 @@
           "items": {
             "$ref": "#/$defs/ruleMatcher"
           }
+        },
+        "cookies": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ruleMatcher"
+          }
         }
       }
     },

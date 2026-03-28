@@ -1,5 +1,6 @@
 package com.moqserver.studio.data
 
+import com.moqserver.studio.projectformat.MatchType
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
@@ -139,5 +140,42 @@ class OpenAPIImportParserTest {
 
         assertEquals("default", responses.first { it.statusCode == 200 }.name)
         assertEquals("error-404", responses.first { it.statusCode == 404 }.name)
+    }
+
+    @Test
+    fun `parses required cookie parameters with example values`() {
+        val spec = """
+            openapi: 3.0.3
+            info:
+              title: Cookie API
+              version: 1.0.0
+            paths:
+              /profile:
+                get:
+                  parameters:
+                    - in: cookie
+                      name: session_id
+                      required: true
+                      schema:
+                        type: string
+                        example: abc123
+                    - in: cookie
+                      name: theme
+                      required: true
+                      example: dark
+                      schema:
+                        type: string
+                  responses:
+                    "200":
+                      description: OK
+        """.trimIndent()
+
+        val parsed = parser.parse(spec)
+
+        val endpoint = parsed.endpoints.single()
+        assertEquals(2, endpoint.cookies.size)
+        assertEquals("abc123", endpoint.cookies.first { it.name == "session_id" }.match)
+        assertEquals("dark", endpoint.cookies.first { it.name == "theme" }.match)
+        assertEquals(MatchType.EQUAL_TO, endpoint.cookies.first { it.name == "theme" }.matchType)
     }
 }
