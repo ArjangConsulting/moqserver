@@ -3,6 +3,7 @@ package com.moqserver.studio
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
@@ -12,6 +13,7 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -41,53 +43,59 @@ fun AISettingsScreen(
     var anthropic by remember(settings) { mutableStateOf(settings.anthropic) }
     var gemini by remember(settings) { mutableStateOf(settings.gemini) }
 
-    Column(
-        modifier = modifier
-            .verticalScroll(rememberScrollState())
-            .padding(24.dp),
-        verticalArrangement = Arrangement.spacedBy(20.dp),
+    Surface(
+        modifier = modifier.fillMaxSize(),
+        color = MaterialTheme.colorScheme.background,
     ) {
-        Text("AI Settings", style = MaterialTheme.typography.headlineSmall)
-
-        OllamaSettingsCard(
-            settings = ollama,
-            onChange = { ollama = it },
-        )
-
-        OpenAISettingsCard(
-            settings = openai,
-            onChange = { openai = it },
-        )
-
-        AnthropicSettingsCard(
-            settings = anthropic,
-            onChange = { anthropic = it },
-        )
-
-        GeminiSettingsCard(
-            settings = gemini,
-            onChange = { gemini = it },
-        )
-
-        HorizontalDivider()
-
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.End,
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState())
+                .padding(24.dp),
+            verticalArrangement = Arrangement.spacedBy(20.dp),
         ) {
-            Button(
-                onClick = {
-                    onSave(
-                        settings.copy(
-                            ollama = ollama,
-                            openai = openai,
-                            anthropic = anthropic,
-                            gemini = gemini,
-                        )
-                    )
-                }
+            Text("AI Settings", style = MaterialTheme.typography.headlineSmall)
+
+            OllamaSettingsCard(
+                settings = ollama,
+                onChange = { ollama = it },
+            )
+
+            OpenAISettingsCard(
+                settings = openai,
+                onChange = { openai = it },
+            )
+
+            AnthropicSettingsCard(
+                settings = anthropic,
+                onChange = { anthropic = it },
+            )
+
+            GeminiSettingsCard(
+                settings = gemini,
+                onChange = { gemini = it },
+            )
+
+            HorizontalDivider()
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.End,
             ) {
-                Text("Save")
+                Button(
+                    onClick = {
+                        onSave(
+                            settings.copy(
+                                ollama = ollama,
+                                openai = openai,
+                                anthropic = anthropic,
+                                gemini = gemini,
+                            )
+                        )
+                    }
+                ) {
+                    Text("Save")
+                }
             }
         }
     }
