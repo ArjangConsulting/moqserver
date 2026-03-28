@@ -69,6 +69,8 @@ class OpenAPIImportParser {
                         method = method,
                         path = pathStr,
                         alias = resolveAlias(operation, method, pathStr),
+                        description = operation.description?.trim()?.takeIf { it.isNotEmpty() },
+                        referenceName = operation.operationId?.trim()?.takeIf { it.isNotEmpty() },
                         responses = responses,
                         authType = authType,
                         authHeaderName = authHeaderName,

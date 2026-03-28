@@ -8,6 +8,8 @@ import com.moqserver.studio.projectformat.ProjectValidator
 import com.moqserver.studio.projectformat.ProjectVariant
 import com.moqserver.studio.projectformat.ValidationDiagnostic
 import com.moqserver.studio.projectformat.YamlValue
+import com.moqserver.studio.projectformat.suggestedVariantName
+import com.moqserver.studio.projectformat.suggestedVariantReferenceName
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -199,8 +201,18 @@ class StudioRootViewModel(
         val (method, path) = parts
 
         val endpoint = current.endpoints.find { it.method == method && it.path == path } ?: return
+        val variantName = suggestedVariantName(
+            status = variant.statusCode,
+            existingNames = endpoint.variants.map(ProjectVariant::name),
+            preferredName = variant.name,
+        )
         val newVariant = ProjectVariant(
-            name = variant.name,
+            name = variantName,
+            referenceName = suggestedVariantReferenceName(
+                preferredSource = variantName,
+                status = variant.statusCode,
+                existingNames = endpoint.variants.map(ProjectVariant::referenceName),
+            ),
             status = variant.statusCode,
             headers = mapOf("Content-Type" to variant.contentType),
             body = YamlValue.from(variant.body),

@@ -35,6 +35,8 @@ class ImportWorkflowTest {
         )
 
         val variants = project.endpoints.single().variants
+        assertEquals("listNotes", project.endpoints.single().referenceName)
+        assertEquals(listOf("error", "success"), variants.map { it.referenceName })
         assertEquals("Success", variants.single { it.isDefault == true }.name)
         assertIs<YamlValue.Str>(variants.single { it.name == "Success" }.body)
     }

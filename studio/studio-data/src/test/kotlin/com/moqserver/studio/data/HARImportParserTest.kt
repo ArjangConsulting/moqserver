@@ -84,6 +84,9 @@ class HARImportParserTest {
         val endpoint = spec.endpoints.single()
         assertEquals("GET", endpoint.method)
         assertEquals("/users", endpoint.path)
+        assertEquals("List Users", endpoint.alias)
+        assertEquals(null, endpoint.description)
+        assertEquals(null, endpoint.referenceName)
         assertEquals(2, endpoint.responses.size)
 
         val jsonResponse = endpoint.responses.first { it.statusCode == 200 }

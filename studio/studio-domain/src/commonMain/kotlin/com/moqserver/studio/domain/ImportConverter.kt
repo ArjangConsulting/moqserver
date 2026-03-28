@@ -12,7 +12,9 @@ import com.moqserver.studio.projectformat.RequestRules
 import com.moqserver.studio.projectformat.RuleMatcher
 import com.moqserver.studio.projectformat.YamlValue
 import com.moqserver.studio.projectformat.defaultAliasForEndpoint
+import com.moqserver.studio.projectformat.suggestedEndpointReferenceName
 import com.moqserver.studio.projectformat.suggestedVariantName
+import com.moqserver.studio.projectformat.suggestedVariantReferenceName
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
@@ -34,7 +36,8 @@ object ImportConverter {
         projectName: String,
         projectPath: String,
     ): MoqProject {
-        val endpoints = acceptedEndpoints.map { convertEndpoint(it) }
+        val assignedEndpointReferenceNames = mutableListOf<String>()
+        val endpoints = acceptedEndpoints.map { convertEndpoint(it, assignedEndpointReferenceNames) }
         val manifest = ProjectManifest(
             version = "1",
             name = projectName,
@@ -52,8 +55,19 @@ object ImportConverter {
         )
     }
 
-    private fun convertEndpoint(parsed: ParsedEndpoint): EndpointDocument {
+    private fun convertEndpoint(
+        parsed: ParsedEndpoint,
+        assignedEndpointReferenceNames: MutableList<String>,
+    ): EndpointDocument {
         val id = endpointId(parsed.method, parsed.path)
+        val alias = parsed.alias?.takeIf { it.isNotBlank() }
+            ?: defaultAliasForEndpoint(method = parsed.method, path = parsed.path)
+        val referenceName = suggestedEndpointReferenceName(
+            preferredSource = parsed.referenceName ?: alias,
+            fallbackId = id,
+            existingNames = assignedEndpointReferenceNames,
+        )
+        assignedEndpointReferenceNames += referenceName
         val defaultIndex = when {
             parsed.responses.isEmpty() -> -1
             else -> parsed.responses.indexOfFirst { it.name == "default" }.takeIf { it >= 0 }
@@ -61,6 +75,7 @@ object ImportConverter {
                 ?: 0
         }
         val assignedNames = mutableListOf<String>()
+        val assignedReferenceNames = mutableListOf<String>()
         val variants = parsed.responses.mapIndexed { index, resp ->
             val name = suggestedVariantName(
                 status = resp.statusCode,
@@ -68,7 +83,18 @@ object ImportConverter {
                 preferredName = resp.name,
             )
             assignedNames += name
-            convertVariant(resp = resp, name = name, isDefault = index == defaultIndex)
+            val variantReferenceName = suggestedVariantReferenceName(
+                preferredSource = name,
+                status = resp.statusCode,
+                existingNames = assignedReferenceNames,
+            )
+            assignedReferenceNames += variantReferenceName
+            convertVariant(
+                resp = resp,
+                name = name,
+                referenceName = variantReferenceName,
+                isDefault = index == defaultIndex,
+            )
         }
 
         val auth = if (parsed.authType != AuthType.NONE) {
@@ -85,8 +111,9 @@ object ImportConverter {
 
         return EndpointDocument(
             id = id,
-            alias = parsed.alias?.takeIf { it.isNotBlank() }
-                ?: defaultAliasForEndpoint(method = parsed.method, path = parsed.path),
+            alias = alias,
+            description = parsed.description?.takeIf { it.isNotBlank() },
+            referenceName = referenceName,
             method = parsed.method.uppercase(),
             path = parsed.path,
             auth = auth,
@@ -95,10 +122,16 @@ object ImportConverter {
         )
     }
 
-    private fun convertVariant(resp: ParsedResponse, name: String, isDefault: Boolean): ProjectVariant {
+    private fun convertVariant(
+        resp: ParsedResponse,
+        name: String,
+        referenceName: String,
+        isDefault: Boolean,
+    ): ProjectVariant {
         val body = resp.body?.let { parseBodyToYamlValue(it) }
         return ProjectVariant(
             name = name,
+            referenceName = referenceName,
             isDefault = if (isDefault) true else null,
             status = resp.statusCode,
             headers = resp.headers.ifEmpty { null },

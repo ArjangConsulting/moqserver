@@ -133,6 +133,9 @@ class YamlProjectCodec {
             id = id,
             alias = map.str("alias")?.takeIf { it.isNotBlank() }
                 ?: defaultAliasForEndpoint(method = method, path = path, operation = operation),
+            description = map.str("description")?.takeIf { it.isNotBlank() },
+            referenceName = map.str("reference_name")?.takeIf { it.isNotBlank() }
+                ?: defaultReferenceNameForEndpointId(id),
             method = method,
             path = path,
             tags = (map["tags"] as? List<*>)?.map { it.toString() },
@@ -170,8 +173,11 @@ class YamlProjectCodec {
     }
 
     private fun parseVariant(map: Map<*, *>): ProjectVariant {
+        val name = map.str("name") ?: throw missing("name", "variant")
         return ProjectVariant(
-            name = map.str("name") ?: throw missing("name", "variant"),
+            name = name,
+            referenceName = map.str("reference_name")?.takeIf { it.isNotBlank() }
+                ?: defaultReferenceNameForVariantName(name),
             isDefault = map.bool("default"),
             status = map.int("status") ?: throw missing("status", "variant"),
             headers = (map["headers"] as? Map<*, *>)?.entries?.associate { (k, v) -> k.toString() to v.toString() },
@@ -215,6 +221,8 @@ class YamlProjectCodec {
 
         lines += "id: ${yamlQuote(endpoint.id)}"
         lines += "alias: ${yamlQuote(endpoint.displayAlias)}"
+        endpoint.description?.let { lines += "description: ${yamlQuote(it)}" }
+        lines += "reference_name: ${yamlQuote(endpoint.referenceName)}"
         lines += "method: ${yamlQuote(endpoint.method)}"
         lines += "path: ${yamlQuote(endpoint.path)}"
         endpoint.tags?.takeIf { it.isNotEmpty() }?.let {
@@ -282,6 +290,7 @@ class YamlProjectCodec {
         val lines = mutableListOf<String>()
 
         lines += "${pad}- name: ${yamlQuote(variant.name)}"
+        lines += "${pad}  reference_name: ${yamlQuote(variant.referenceName)}"
         if (variant.isDefault == true) {
             lines += "${pad}  default: true"
         }

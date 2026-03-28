@@ -65,6 +65,8 @@ class OpenAPIImportParserTest {
               /pets:
                 get:
                   summary: Browse Pets
+                  description: Browse all pets
+                  operationId: listPets
                   responses:
                     "200":
                       description: OK
@@ -80,9 +82,12 @@ class OpenAPIImportParserTest {
 
         val listPets = parsed.endpoints.first { it.path == "/pets" }
         assertEquals("Browse Pets", listPets.alias)
+        assertEquals("Browse all pets", listPets.description)
+        assertEquals("listPets", listPets.referenceName)
 
         val getPet = parsed.endpoints.first { it.path == "/pets/{petId}" }
         assertEquals("Get Pet By Id", getPet.alias)
+        assertEquals("getPetById", getPet.referenceName)
     }
 
     @Test

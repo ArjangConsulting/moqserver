@@ -66,6 +66,7 @@ class ProjectRepositoryTest {
         val ep = project.endpoints.find { it.id == "list-users" }!!
 
         assertEquals("List Users", ep.alias)
+        assertEquals("listUsers", ep.referenceName)
         assertEquals("GET", ep.method)
         assertEquals("/api/v1/users", ep.path)
         assertEquals(listOf("users", "core"), ep.tags)
@@ -75,6 +76,7 @@ class ProjectRepositoryTest {
 
         val success = ep.variants.first()
         assertEquals("success", success.name)
+        assertEquals("success", success.referenceName)
         assertEquals(true, success.isDefault)
         assertEquals(200, success.status)
         assertEquals("fixtures/users-list.json", success.bodyFile)
@@ -176,11 +178,14 @@ class ProjectRepositoryTest {
                 assertEquals(ep.method, reloadedEp.method)
                 assertEquals(ep.path, reloadedEp.path)
                 assertEquals(ep.alias, reloadedEp.alias)
+                assertEquals(ep.description, reloadedEp.description)
+                assertEquals(ep.referenceName, reloadedEp.referenceName)
                 assertEquals(ep.tags, reloadedEp.tags)
                 assertEquals(ep.auth, reloadedEp.auth)
                 assertEquals(ep.operation?.type, reloadedEp.operation?.type)
                 assertEquals(ep.operation?.name, reloadedEp.operation?.name)
                 assertEquals(ep.variants.size, reloadedEp.variants.size)
+                assertEquals(ep.variants.map(ProjectVariant::referenceName), reloadedEp.variants.map(ProjectVariant::referenceName))
                 assertEquals(ep.network?.latencyMs, reloadedEp.network?.latencyMs)
                 assertEquals(ep.network?.jitterMs, reloadedEp.network?.jitterMs)
             }
@@ -222,6 +227,7 @@ class ProjectRepositoryTest {
                     id = "delete-pets",
                     method = "DELETE",
                     path = "/pets/{petId}",
+                    description = "Deletes the selected pet",
                     variants = listOf(ProjectVariant(name = "default", status = 204)),
                 )
             ),
@@ -234,9 +240,13 @@ class ProjectRepositoryTest {
 
             val yaml = File(tempDir, "endpoints/delete-pets.yml").readText()
             assertTrue(yaml.contains("alias: \"Delete Pets By Pet Id\""))
+            assertTrue(yaml.contains("description: \"Deletes the selected pet\""))
+            assertTrue(yaml.contains("reference_name: \"deletePets\""))
+            assertTrue(yaml.contains("reference_name: \"default\""))
 
             val reloaded = repo.load(tempDir.absolutePath)
             assertEquals("Delete Pets By Pet Id", reloaded.endpoints.single().alias)
+            assertEquals("deletePets", reloaded.endpoints.single().referenceName)
         } finally {
             tempDir.deleteRecursively()
         }
