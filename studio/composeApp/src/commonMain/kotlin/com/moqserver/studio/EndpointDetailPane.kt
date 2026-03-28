@@ -1,5 +1,7 @@
 package com.moqserver.studio
 
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -19,6 +21,31 @@ import com.moqserver.studio.ui.MethodBadge
 import com.moqserver.studio.ui.StatusBadge
 import com.moqserver.studio.ui.TabChip
 import com.moqserver.studio.ui.TabStrip
+
+private val headerMatchTypes = listOf(
+    MatchType.CONTAINS,
+    MatchType.NOT_CONTAINS,
+    MatchType.BEGINS_WITH,
+    MatchType.ENDS_WITH,
+    MatchType.MATCHES_REGEX,
+    MatchType.IS_EMPTY,
+    MatchType.NOT_EMPTY,
+    MatchType.EQUAL_TO,
+)
+
+private val headerNameColumnWidth = 160.dp
+private val headerConditionColumnWidth = 200.dp
+private val headerMatchValueColumnWidth = 180.dp
+
+@Composable
+private fun placeholderTextFieldColors() = OutlinedTextFieldDefaults.colors().let { defaults ->
+    OutlinedTextFieldDefaults.colors(
+        focusedPlaceholderColor = defaults.disabledPlaceholderColor,
+        unfocusedPlaceholderColor = defaults.disabledPlaceholderColor,
+        disabledPlaceholderColor = defaults.disabledPlaceholderColor,
+        errorPlaceholderColor = defaults.disabledPlaceholderColor,
+    )
+}
 
 private enum class VariantDetailTab(val title: String) {
     SUMMARY("Summary"),
@@ -695,17 +722,26 @@ private fun CookiesTab(
 ) {
     val cookies = requestRules.cookies ?: emptyList()
 
-    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text("Request Cookies", style = MaterialTheme.typography.titleSmall)
-            androidx.compose.material3.TextButton(onClick = {
-                onUpdate(requestRules.copy(cookies = cookies + RuleMatcher(name = "", required = true)))
-            }) {
-                Text("Add")
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                if (cookies.isNotEmpty()) {
+                    androidx.compose.material3.TextButton(onClick = {
+                        onUpdate(requestRules.copy(cookies = null, verifyCookies = null))
+                    }) {
+                        Text("Clear")
+                    }
+                }
+                androidx.compose.material3.TextButton(onClick = {
+                    onUpdate(requestRules.copy(cookies = cookies + RuleMatcher(name = "", required = true)))
+                }) {
+                    Text("Add")
+                }
             }
         }
 
@@ -715,19 +751,39 @@ private fun CookiesTab(
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
-        }
-
-        cookies.forEachIndexed { index, cookie ->
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(8.dp))
-                    .background(MaterialTheme.colorScheme.surfaceVariant)
-                    .padding(10.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
+        } else {
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp),
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                verticalAlignment = Alignment.CenterVertically,
             ) {
+                Text(
+                    "Cookie Name",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.width(headerNameColumnWidth),
+                )
+                Text(
+                    "Condition",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.width(headerConditionColumnWidth),
+                )
+                Text(
+                    "Match Value",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.width(headerMatchValueColumnWidth),
+                )
+                Spacer(Modifier.width(32.dp))
+            }
+
+            HorizontalDivider()
+
+            cookies.forEachIndexed { index, cookie ->
                 Row(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp),
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     OutlinedTextField(
@@ -735,27 +791,39 @@ private fun CookiesTab(
                         onValueChange = { newName ->
                             onUpdate(requestRules.copy(cookies = cookies.updated(index, cookie.copy(name = newName))))
                         },
-                        label = { Text("Cookie Name") },
+                        placeholder = { Text("Name") },
                         singleLine = true,
-                        modifier = Modifier.weight(1f),
+                        textStyle = MaterialTheme.typography.bodySmall,
+                        modifier = Modifier.width(headerNameColumnWidth),
                     )
-                    androidx.compose.material3.IconButton(onClick = {
-                        val updated = cookies.toMutableList().also { it.removeAt(index) }
-                        onUpdate(requestRules.copy(cookies = updated.ifEmpty { null }))
-                    }) {
-                        Text("x", color = MaterialTheme.colorScheme.error)
+                    MatchConditionEditor(
+                        ruleMatcher = cookie,
+                        onUpdate = { updated ->
+                            onUpdate(requestRules.copy(cookies = cookies.updated(index, updated)))
+                        },
+                        dropdownWidth = headerConditionColumnWidth,
+                        valueWidth = headerMatchValueColumnWidth,
+                        showValuePlaceholder = true,
+                    )
+                    IconButton(
+                        onClick = {
+                            val updated = cookies.toMutableList().also { it.removeAt(index) }
+                            onUpdate(
+                                requestRules.copy(
+                                    cookies = updated.ifEmpty { null },
+                                    verifyCookies = if (updated.isEmpty()) null else requestRules.verifyCookies,
+                                ),
+                            )
+                        },
+                        modifier = Modifier.size(32.dp),
+                    ) {
+                        Icon(
+                            imageVector = Icons.Outlined.Delete,
+                            contentDescription = "Delete cookie",
+                            tint = MaterialTheme.colorScheme.error,
+                        )
                     }
                 }
-
-                MatchConditionEditor(
-                    ruleMatcher = cookie,
-                    onUpdate = { updated ->
-                        onUpdate(requestRules.copy(cookies = cookies.updated(index, updated)))
-                    },
-                    dropdownWidth = 160.dp,
-                    valueWidth = null,
-                    modifier = Modifier.fillMaxWidth(),
-                )
             }
         }
 
@@ -925,8 +993,19 @@ private fun HeadersTab(
 ) {
     val headerCriteria = requestRules.headers ?: emptyList()
     val headersList = headers.entries.toList()
-    val hasAnyRequired = headersList.any { (key, _) ->
-        headerCriteria.any { it.name.equals(key, ignoreCase = true) }
+    val placeholderColors = placeholderTextFieldColors()
+
+    fun removeHeader(name: String, wasRequired: Boolean) {
+        onUpdateHeaders(headers.filterKeys { !it.equals(name, ignoreCase = true) })
+        if (wasRequired) {
+            onUpdateRules(
+                requestRules.copy(
+                    headers = headerCriteria
+                        .filter { !it.name.equals(name, ignoreCase = true) }
+                        .ifEmpty { null },
+                ),
+            )
+        }
     }
 
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -936,10 +1015,20 @@ private fun HeadersTab(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text("Response Headers", style = MaterialTheme.typography.titleSmall)
-            androidx.compose.material3.TextButton(onClick = {
-                onUpdateHeaders(headers + ("" to ""))
-            }) {
-                Text("Add")
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                if (headers.isNotEmpty()) {
+                    androidx.compose.material3.TextButton(onClick = {
+                        onUpdateHeaders(emptyMap())
+                        onUpdateRules(requestRules.copy(headers = null))
+                    }) {
+                        Text("Clear")
+                    }
+                }
+                androidx.compose.material3.TextButton(onClick = {
+                    onUpdateHeaders(headers + ("" to ""))
+                }) {
+                    Text("Add")
+                }
             }
         }
 
@@ -960,13 +1049,13 @@ private fun HeadersTab(
                     "Header Name",
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.weight(1f),
+                    modifier = Modifier.width(headerNameColumnWidth),
                 )
                 Text(
                     "Header Value",
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.weight(1f),
+                    modifier = Modifier.weight(2f),
                 )
                 Text(
                     "Required",
@@ -975,21 +1064,19 @@ private fun HeadersTab(
                     textAlign = TextAlign.Center,
                     modifier = Modifier.width(80.dp),
                 )
-                if (hasAnyRequired) {
-                    Text(
-                        "Condition",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.width(140.dp),
-                    )
-                    Text(
-                        "Match Value",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.width(160.dp),
-                    )
-                }
-                Spacer(Modifier.width(40.dp))
+                Text(
+                    "Condition",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.width(headerConditionColumnWidth),
+                )
+                Text(
+                    "Match Value",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.width(headerMatchValueColumnWidth),
+                )
+                Spacer(Modifier.width(32.dp))
             }
 
             HorizontalDivider()
@@ -1020,9 +1107,11 @@ private fun HeadersTab(
                                 onUpdateRules(requestRules.copy(headers = updatedCriteria))
                             }
                         },
-                        placeholder = { Text("Name") },
+                        placeholder = { Text("Name", color = placeholderColors.disabledPlaceholderColor) },
                         singleLine = true,
-                        modifier = Modifier.weight(1f),
+                        textStyle = MaterialTheme.typography.bodySmall,
+                        colors = placeholderColors,
+                        modifier = Modifier.width(headerNameColumnWidth),
                     )
                     OutlinedTextField(
                         value = value,
@@ -1032,9 +1121,11 @@ private fun HeadersTab(
                             }
                             onUpdateHeaders(headers.keys.zip(updated).associate { it.first to it.second })
                         },
-                        placeholder = { Text("Value") },
+                        placeholder = { Text("Value", color = placeholderColors.disabledPlaceholderColor) },
                         singleLine = true,
-                        modifier = Modifier.weight(1f),
+                        textStyle = MaterialTheme.typography.bodySmall,
+                        colors = placeholderColors,
+                        modifier = Modifier.weight(2f),
                     )
                     Box(modifier = Modifier.width(80.dp), contentAlignment = Alignment.Center) {
                         Checkbox(
@@ -1043,7 +1134,11 @@ private fun HeadersTab(
                                 if (checked) {
                                     onUpdateRules(
                                         requestRules.copy(
-                                            headers = headerCriteria + RuleMatcher(name = key, required = true),
+                                            headers = headerCriteria + RuleMatcher(
+                                                name = key,
+                                                required = true,
+                                                matchType = MatchType.EQUAL_TO,
+                                            ),
                                         ),
                                     )
                                 } else {
@@ -1058,42 +1153,38 @@ private fun HeadersTab(
                             },
                         )
                     }
-                    if (hasAnyRequired) {
-                        if (ruleMatcher != null) {
-                            MatchConditionEditor(
-                                ruleMatcher = ruleMatcher,
-                                onUpdate = { updated ->
-                                    onUpdateRules(
-                                        requestRules.copy(
-                                            headers = headerCriteria.map {
-                                                if (it.name.equals(key, ignoreCase = true)) updated else it
-                                            },
-                                        ),
-                                    )
-                                },
-                                showValuePlaceholder = true,
+                    MatchConditionEditor(
+                        ruleMatcher = ruleMatcher ?: RuleMatcher(
+                            name = key,
+                            required = false,
+                            matchType = MatchType.EQUAL_TO,
+                        ),
+                        onUpdate = { updated ->
+                            if (!isRequired) return@MatchConditionEditor
+                            onUpdateRules(
+                                requestRules.copy(
+                                    headers = headerCriteria.map {
+                                        if (it.name.equals(key, ignoreCase = true)) updated else it
+                                    },
+                                ),
                             )
-                        } else {
-                            Spacer(Modifier.width(140.dp + 4.dp + 160.dp))
-                        }
-                    }
-                    androidx.compose.material3.IconButton(
-                        onClick = {
-                            val updatedHeaders = headers.toMutableMap().apply { remove(key) }
-                            onUpdateHeaders(updatedHeaders)
-                            if (isRequired) {
-                                onUpdateRules(
-                                    requestRules.copy(
-                                        headers = headerCriteria
-                                            .filter { !it.name.equals(key, ignoreCase = true) }
-                                            .ifEmpty { null },
-                                    ),
-                                )
-                            }
                         },
-                        modifier = Modifier.size(40.dp),
+                        availableMatchTypes = headerMatchTypes,
+                        fallbackMatchType = MatchType.EQUAL_TO,
+                        enabled = isRequired,
+                        dropdownWidth = headerConditionColumnWidth,
+                        valueWidth = headerMatchValueColumnWidth,
+                        showValuePlaceholder = true,
+                    )
+                    IconButton(
+                        onClick = { removeHeader(key, isRequired) },
+                        modifier = Modifier.size(32.dp),
                     ) {
-                        Text("x", color = MaterialTheme.colorScheme.error)
+                        Icon(
+                            imageVector = Icons.Outlined.Delete,
+                            contentDescription = "Delete header",
+                            tint = MaterialTheme.colorScheme.error,
+                        )
                     }
                 }
             }

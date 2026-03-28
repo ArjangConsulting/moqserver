@@ -80,7 +80,47 @@ class YamlProjectCodec {
             name = map.str("name") ?: throw missing("name", "rule_matcher"),
             match = map.str("match"),
             required = map.bool("required"),
+            matchType = map.str("match_type")?.let(::parseMatchType),
         )
+    }
+
+    private fun parseMatchType(value: String): MatchType? {
+        return when (value) {
+            "require" -> MatchType.REQUIRE
+            "equal_to" -> MatchType.EQUAL_TO
+            "not_equal_to" -> MatchType.NOT_EQUAL_TO
+            "contains" -> MatchType.CONTAINS
+            "not_contains" -> MatchType.NOT_CONTAINS
+            "begins_with" -> MatchType.BEGINS_WITH
+            "ends_with" -> MatchType.ENDS_WITH
+            "matches_regex" -> MatchType.MATCHES_REGEX
+            "is_empty" -> MatchType.IS_EMPTY
+            "not_empty" -> MatchType.NOT_EMPTY
+            "gt" -> MatchType.GT
+            "gte" -> MatchType.GTE
+            "lt" -> MatchType.LT
+            "lte" -> MatchType.LTE
+            else -> null
+        }
+    }
+
+    private fun encodeMatchType(matchType: MatchType): String {
+        return when (matchType) {
+            MatchType.REQUIRE -> "require"
+            MatchType.EQUAL_TO -> "equal_to"
+            MatchType.NOT_EQUAL_TO -> "not_equal_to"
+            MatchType.CONTAINS -> "contains"
+            MatchType.NOT_CONTAINS -> "not_contains"
+            MatchType.BEGINS_WITH -> "begins_with"
+            MatchType.ENDS_WITH -> "ends_with"
+            MatchType.MATCHES_REGEX -> "matches_regex"
+            MatchType.IS_EMPTY -> "is_empty"
+            MatchType.NOT_EMPTY -> "not_empty"
+            MatchType.GT -> "gt"
+            MatchType.GTE -> "gte"
+            MatchType.LT -> "lt"
+            MatchType.LTE -> "lte"
+        }
     }
 
     private fun parseEndpoint(map: Map<*, *>): EndpointDocument {
@@ -314,6 +354,7 @@ class YamlProjectCodec {
         val pad = " ".repeat(indent)
         val lines = mutableListOf<String>()
         lines += "${pad}- name: ${yamlQuote(matcher.name)}"
+        matcher.matchType?.let { lines += "${pad}  match_type: ${encodeMatchType(it)}" }
         matcher.match?.let { lines += "${pad}  match: ${yamlQuote(it)}" }
         matcher.required?.let { lines += "${pad}  required: $it" }
         return lines

@@ -337,6 +337,38 @@ class ProjectRepositoryTest {
     }
 
     @Test
+    fun `save and reload preserves header match type`() {
+        val project = repo.load(sampleProjectPath)
+        val endpoint = project.endpoints.first().copy(
+            id = "header-match-type-regression",
+            requestRules = RequestRules(
+                headers = listOf(
+                    RuleMatcher(
+                        name = "X-Request-ID",
+                        match = "^req-.*",
+                        required = true,
+                        matchType = MatchType.MATCHES_REGEX,
+                    )
+                )
+            ),
+            variants = listOf(project.endpoints.first().variants.first().copy(body = YamlValue.Str("ok"), bodyFile = null)),
+        )
+        val tempDir = kotlin.io.path.createTempDirectory("moqproj-header-match-type").toFile()
+
+        try {
+            repo.save(project.copy(endpoints = listOf(endpoint)), tempDir.absolutePath)
+
+            val yaml = File(tempDir, "endpoints/header-match-type-regression.yml").readText()
+            assertTrue(yaml.contains("match_type: matches_regex"))
+
+            val reloaded = repo.load(tempDir.absolutePath)
+            assertEquals(MatchType.MATCHES_REGEX, reloaded.endpoints.single().requestRules?.headers?.single()?.matchType)
+        } finally {
+            tempDir.deleteRecursively()
+        }
+    }
+
+    @Test
     fun `load fails when project manifest is missing`() {
         val tempDir = kotlin.io.path.createTempDirectory("moqproj-missing-manifest").toFile()
 
