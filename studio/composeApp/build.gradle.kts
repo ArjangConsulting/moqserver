@@ -12,7 +12,7 @@ val macBundleIconName = "moqserver-studio.icns"
 
 kotlin {
     jvm("desktop")
-    jvmToolchain(17)
+    jvmToolchain(21)
 
     sourceSets {
         val commonMain by getting {
