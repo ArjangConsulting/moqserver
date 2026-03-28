@@ -7,6 +7,7 @@ import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
+import kotlin.test.assertFailsWith
 
 class ProjectRepositoryTest {
 
@@ -240,5 +241,240 @@ class ProjectRepositoryTest {
         } finally {
             tempDir.deleteRecursively()
         }
+    }
+
+    @Test
+    fun `load fails when project manifest is missing`() {
+        val tempDir = kotlin.io.path.createTempDirectory("moqproj-missing-manifest").toFile()
+
+        try {
+            File(tempDir, "endpoints").mkdirs()
+
+            val error = assertFailsWith<IllegalArgumentException> {
+                repo.load(tempDir.absolutePath)
+            }
+
+            assertTrue(error.message!!.contains("Missing project.yml"))
+        } finally {
+            tempDir.deleteRecursively()
+        }
+    }
+
+    @Test
+    fun `load fails when endpoints directory is missing`() {
+        val tempDir = kotlin.io.path.createTempDirectory("moqproj-missing-endpoints").toFile()
+
+        try {
+            File(tempDir, "project.yml").writeText(
+                """
+                version: "1"
+                name: "Missing Endpoints"
+                defaults:
+                  delay_ms: 0
+                  auth:
+                    type: none
+                    verify: false
+                    header_name: null
+                  network:
+                    latency_ms: 0
+                    jitter_ms: 0
+                    packet_loss_percent: 0
+                """.trimIndent() + "\n"
+            )
+
+            val error = assertFailsWith<IllegalArgumentException> {
+                repo.load(tempDir.absolutePath)
+            }
+
+            assertTrue(error.message!!.contains("Missing endpoints/ directory"))
+        } finally {
+            tempDir.deleteRecursively()
+        }
+    }
+
+    @Test
+    fun `load fails when endpoints directory has no yaml files`() {
+        val tempDir = kotlin.io.path.createTempDirectory("moqproj-no-endpoints").toFile()
+
+        try {
+            File(tempDir, "project.yml").writeText(
+                """
+                version: "1"
+                name: "No Endpoints"
+                defaults:
+                  delay_ms: 0
+                  auth:
+                    type: none
+                    verify: false
+                    header_name: null
+                  network:
+                    latency_ms: 0
+                    jitter_ms: 0
+                    packet_loss_percent: 0
+                """.trimIndent() + "\n"
+            )
+            File(tempDir, "endpoints").mkdirs()
+            File(tempDir, "endpoints/readme.txt").writeText("not an endpoint")
+
+            val error = assertFailsWith<IllegalArgumentException> {
+                repo.load(tempDir.absolutePath)
+            }
+
+            assertTrue(error.message!!.contains("No endpoint files found"))
+        } finally {
+            tempDir.deleteRecursively()
+        }
+    }
+
+    @Test
+    fun `load wraps invalid endpoint yaml with file path context`() {
+        val tempDir = kotlin.io.path.createTempDirectory("moqproj-invalid-endpoint").toFile()
+
+        try {
+            File(tempDir, "project.yml").writeText(
+                """
+                version: "1"
+                name: "Invalid Endpoint"
+                defaults:
+                  delay_ms: 0
+                  auth:
+                    type: none
+                    verify: false
+                    header_name: null
+                  network:
+                    latency_ms: 0
+                    jitter_ms: 0
+                    packet_loss_percent: 0
+                """.trimIndent() + "\n"
+            )
+
+            val endpointsDir = File(tempDir, "endpoints").apply { mkdirs() }
+            File(endpointsDir, "broken.yml").writeText(
+                """
+                id: "broken"
+                method: "GET"
+                path: "/broken"
+                """.trimIndent() + "\n"
+            )
+
+            val error = assertFailsWith<IllegalStateException> {
+                repo.load(tempDir.absolutePath)
+            }
+
+            assertTrue(error.message!!.contains("Invalid endpoint file"))
+            assertTrue(error.message!!.contains("broken.yml"))
+            assertTrue(error.message!!.contains("Missing required field 'variants'"))
+        } finally {
+            tempDir.deleteRecursively()
+        }
+    }
+
+    @Test
+    fun `load accepts yaml endpoint extension`() {
+        val tempDir = kotlin.io.path.createTempDirectory("moqproj-yaml-extension").toFile()
+
+        try {
+            File(tempDir, "project.yml").writeText(
+                """
+                version: "1"
+                name: "Yaml Extension"
+                defaults:
+                  delay_ms: 0
+                  auth:
+                    type: none
+                    verify: false
+                    header_name: null
+                  network:
+                    latency_ms: 0
+                    jitter_ms: 0
+                    packet_loss_percent: 0
+                """.trimIndent() + "\n"
+            )
+
+            val endpointsDir = File(tempDir, "endpoints").apply { mkdirs() }
+            File(endpointsDir, "ping.yaml").writeText(
+                """
+                id: "ping"
+                method: "GET"
+                path: "/ping"
+                variants:
+                  - name: "ok"
+                    default: true
+                    status: 200
+                    body:
+                      healthy: true
+                """.trimIndent() + "\n"
+            )
+
+            val project = repo.load(tempDir.absolutePath)
+
+            assertEquals(1, project.endpoints.size)
+            assertEquals("ping", project.endpoints.single().id)
+        } finally {
+            tempDir.deleteRecursively()
+        }
+    }
+
+    @Test
+    fun `save removes stale fixtures and nested fixture directories`() {
+        val project = repo.load(sampleProjectPath)
+        val tempDir = kotlin.io.path.createTempDirectory("moqproj-stale-fixtures").toFile()
+
+        try {
+            repo.save(project, tempDir.absolutePath)
+
+            val inlineOnlyProject = project.copy(
+                endpoints = project.endpoints.map { endpoint ->
+                    endpoint.copy(
+                        variants = endpoint.variants.map { variant ->
+                            variant.copy(
+                                body = variant.body ?: YamlValue.Obj(emptyMap()),
+                                bodyFile = null,
+                            )
+                        }
+                    )
+                }
+            )
+
+            val staleFile = File(tempDir, "fixtures/unused/nested/old.json").apply {
+                parentFile.mkdirs()
+                writeText("""{"stale":true}""")
+            }
+
+            repo.save(inlineOnlyProject, tempDir.absolutePath)
+
+            assertFalse(File(tempDir, "fixtures/users-list.json").exists())
+            assertFalse(staleFile.exists())
+            assertFalse(File(tempDir, "fixtures/unused/nested").exists())
+            assertFalse(File(tempDir, "fixtures/unused").exists())
+        } finally {
+            tempDir.deleteRecursively()
+        }
+    }
+
+    @Test
+    fun `save in place keeps referenced fixtures intact`() {
+        val sourceDir = kotlin.io.path.createTempDirectory("moqproj-save-in-place").toFile()
+
+        try {
+            File(sampleProjectPath).copyRecursively(sourceDir, overwrite = true)
+
+            val project = repo.load(sourceDir.absolutePath)
+            val fixtureFile = File(sourceDir, "fixtures/users-list.json")
+            val before = fixtureFile.readText()
+
+            repo.save(project, sourceDir.absolutePath)
+
+            assertTrue(fixtureFile.isFile)
+            assertEquals(before, fixtureFile.readText())
+        } finally {
+            sourceDir.deleteRecursively()
+        }
+    }
+
+    @Test
+    fun `readFixture returns contents for existing fixtures and null for missing ones`() {
+        assertNotNull(repo.readFixture(sampleProjectPath, "fixtures/users-list.json"))
+        assertNull(repo.readFixture(sampleProjectPath, "fixtures/does-not-exist.json"))
     }
 }
