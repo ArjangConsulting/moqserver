@@ -139,6 +139,9 @@ class HARImportParser {
         val text = response.content.text ?: return null
 
         if (response.content.encoding?.lowercase() == "base64") {
+            if (!response.content.mimeType.isLikelyTextualMimeType()) {
+                return text
+            }
             return try {
                 String(Base64.getDecoder().decode(text), Charsets.UTF_8)
             } catch (_: Exception) {
@@ -195,6 +198,18 @@ class HARImportParser {
         val headers: Map<String, String>,
         val body: String?,
     )
+}
+
+private fun String?.isLikelyTextualMimeType(): Boolean {
+    val mime = this?.lowercase().orEmpty()
+    if (mime.isEmpty()) return true
+    return mime.startsWith("text/") ||
+        "json" in mime ||
+        "xml" in mime ||
+        "javascript" in mime ||
+        "graphql" in mime ||
+        "x-www-form-urlencoded" in mime ||
+        "svg" in mime
 }
 
 // -- HAR JSON model (kotlinx.serialization) --

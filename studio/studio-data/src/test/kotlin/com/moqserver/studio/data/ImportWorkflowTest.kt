@@ -72,6 +72,41 @@ class ImportWorkflowTest {
     }
 
     @Test
+    fun `har parser preserves base64 text for binary mime types`() {
+        val parsed = HARImportParser().parse(
+            """
+            {
+              "log": {
+                "version": "1.2",
+                "entries": [
+                  {
+                    "request": {
+                      "method": "GET",
+                      "url": "https://example.com/image.jpg",
+                      "headers": []
+                    },
+                    "response": {
+                      "status": 200,
+                      "headers": [],
+                      "content": {
+                        "mimeType": "image/jpeg",
+                        "text": "/9j/4AAQSkZJRg==",
+                        "encoding": "base64"
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+            """.trimIndent()
+        )
+
+        val endpoint = parsed.endpoints.single()
+        assertEquals("/image.jpg", endpoint.path)
+        assertEquals("/9j/4AAQSkZJRg==", endpoint.responses.single().body)
+    }
+
+    @Test
     fun `har parser can parse bundled sample fixture`() {
         val parser = HARImportParser()
         val fixture = File(findProjectRoot(), "server/Tests/MoqParsingTests/Fixtures/sample.har")
