@@ -7,7 +7,6 @@ import com.moqserver.studio.logging.loggerFor
 import com.moqserver.studio.projectformat.MatchType
 import com.moqserver.studio.projectformat.RuleMatcher
 import com.moqserver.studio.projectformat.defaultAliasForEndpoint
-import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import java.net.URI
@@ -29,24 +28,54 @@ class HARImportParser {
             .getOrElse { error ->
                 throw IllegalArgumentException("Unable to parse HAR file: ${error.message}", error)
             }
-        val entries = har.log.entries
-        logger.debug("HAR: creator={}, version={}, entries={}", har.log.creator?.name, har.log.version, entries.size)
+        val log = har.log
+        val entries = log?.entries.orEmpty()
+        logger.debug("HAR: creator={}, version={}, entries={}", log?.creator?.name, log?.version, entries.size)
         require(entries.isNotEmpty()) { "HAR file does not contain any importable HTTP entries." }
 
         val grouped = mutableMapOf<GroupKey, MutableList<CapturedExchange>>()
+        val warnings = mutableListOf<String>()
 
-        for (entry in entries) {
-            val uri = try { URI(entry.request.url) } catch (_: Exception) { continue }
-            val method = entry.request.method.trim().uppercase()
-            if (method.isBlank()) continue
+        for ((index, entry) in entries.withIndex()) {
+            val request = entry.request
+            if (request == null) {
+                warnings += "Skipped HAR entry ${index + 1}: missing request payload."
+                continue
+            }
+
+            val response = entry.response
+            if (response == null) {
+                warnings += "Skipped HAR entry ${index + 1}: missing response payload."
+                continue
+            }
+
+            val method = request.method.orEmpty().trim().uppercase()
+            if (method.isBlank()) {
+                warnings += "Skipped HAR entry ${index + 1}: missing request method."
+                continue
+            }
+
+            val rawUrl = request.url.orEmpty().trim()
+            if (rawUrl.isBlank()) {
+                warnings += "Skipped HAR entry ${index + 1}: missing request URL."
+                continue
+            }
+
+            val uri = try {
+                URI(rawUrl)
+            } catch (_: Exception) {
+                warnings += "Skipped HAR entry ${index + 1}: invalid request URL '$rawUrl'."
+                continue
+            }
+
             val path = normalizedPath(uri)
             val key = GroupKey(method, path)
-            val requestCookies = requestCookies(entry.request)
+            val requestCookies = requestCookies(request)
 
             val exchange = CapturedExchange(
-                statusCode = normalizedStatusCode(entry.response.status),
-                headers = responseHeaders(entry.response),
-                body = responseBody(entry.response),
+                statusCode = normalizedStatusCode(response.status),
+                headers = responseHeaders(response),
+                body = responseBody(response),
                 cookies = requestCookies,
             )
 
@@ -70,17 +99,20 @@ class HARImportParser {
                 )
             }
 
-        require(endpoints.isNotEmpty()) {
-            "HAR file does not contain any importable HTTP entries."
+        require(endpoints.isNotEmpty()) { noImportableEntriesMessage(warnings) }
+
+        if (warnings.isNotEmpty()) {
+            logger.warn("HAR parser skipped {} malformed entries", warnings.size)
         }
 
-        val title = har.log.creator?.name?.let { "$it HAR Import" } ?: "HAR Import"
-        val version = har.log.creator?.version ?: har.log.version
+        val title = log?.creator?.name?.let { "$it HAR Import" } ?: "HAR Import"
+        val version = log?.creator?.version ?: log?.version ?: "1.0"
 
         return ParsedSpec(
             title = title,
             version = version,
             endpoints = endpoints,
+            warnings = warnings,
         ).also {
             logger.info(
                 "HAR parse complete: '{}' — {} endpoint(s) from {} raw entries",
@@ -99,15 +131,17 @@ class HARImportParser {
             "x-api-key", "x-auth-token", "x-csrf-token",
         )
         val found = mutableSetOf<String>()
-        for (entry in har.log.entries) {
-            for (header in entry.request.headers) {
-                if (sensitivePatterns.any { header.name.lowercase().contains(it) }) {
-                    found.add(header.name)
+        for (entry in har.log?.entries.orEmpty()) {
+            for (header in entry.request?.headers.orEmpty()) {
+                val name = header.name.orEmpty()
+                if (sensitivePatterns.any { name.lowercase().contains(it) }) {
+                    found.add(name)
                 }
             }
-            for (header in entry.response.headers) {
-                if (sensitivePatterns.any { header.name.lowercase().contains(it) }) {
-                    found.add(header.name)
+            for (header in entry.response?.headers.orEmpty()) {
+                val name = header.name.orEmpty()
+                if (sensitivePatterns.any { name.lowercase().contains(it) }) {
+                    found.add(name)
                 }
             }
         }
@@ -122,15 +156,16 @@ class HARImportParser {
         return if (path.isEmpty()) "/" else if (path.startsWith("/")) path else "/$path"
     }
 
-    private fun normalizedStatusCode(status: Int): Int {
-        return if (status in 100..599) status else 200
+    private fun normalizedStatusCode(status: Int?): Int {
+        return status?.takeIf { it in 100..599 } ?: 200
     }
 
     private fun responseHeaders(response: HarResponse): Map<String, String> {
         val headers = mutableMapOf<String, String>()
         for (header in response.headers) {
-            if (header.name.isNotEmpty()) {
-                headers[header.name] = header.value.orEmpty()
+            val name = header.name.orEmpty()
+            if (name.isNotEmpty()) {
+                headers[name] = header.value.orEmpty()
             }
         }
         val mimeType = response.content.mimeType
@@ -162,12 +197,12 @@ class HARImportParser {
         if (request.cookies.isNotEmpty()) {
             return request.cookies
                 .asSequence()
-                .map { it.name.trim() to it.value.orEmpty() }
+                .map { it.name.orEmpty().trim() to it.value.orEmpty() }
                 .filter { (name, _) -> name.isNotEmpty() }
                 .associate { it }
         }
 
-        val headerValue = request.headers.firstOrNull { it.name.equals("Cookie", ignoreCase = true) }?.value
+        val headerValue = request.headers.firstOrNull { it.name.orEmpty().equals("Cookie", ignoreCase = true) }?.value
             ?: return emptyMap()
 
         return headerValue
@@ -240,6 +275,12 @@ class HARImportParser {
         return candidate
     }
 
+    private fun noImportableEntriesMessage(warnings: List<String>): String {
+        val prefix = "HAR file does not contain any importable HTTP entries."
+        val firstWarning = warnings.firstOrNull() ?: return prefix
+        return "$prefix $firstWarning"
+    }
+
     // -- HAR data model --
 
     private data class GroupKey(val method: String, val path: String)
@@ -267,11 +308,11 @@ private fun String?.isLikelyTextualMimeType(): Boolean {
 // -- HAR JSON model (kotlinx.serialization) --
 
 @Serializable
-internal data class HarFile(val log: HarLog)
+internal data class HarFile(val log: HarLog? = null)
 
 @Serializable
 internal data class HarLog(
-    val version: String,
+    val version: String? = null,
     val creator: HarCreator? = null,
     val entries: List<HarEntry> = emptyList(),
 )
@@ -284,14 +325,14 @@ internal data class HarCreator(
 
 @Serializable
 internal data class HarEntry(
-    val request: HarRequest,
-    val response: HarResponse,
+    val request: HarRequest? = null,
+    val response: HarResponse? = null,
 )
 
 @Serializable
 internal data class HarRequest(
-    val method: String,
-    val url: String,
+    val method: String? = null,
+    val url: String? = null,
     val headers: List<HarHeader> = emptyList(),
     val cookies: List<HarCookie> = emptyList(),
     val queryString: List<HarQuery> = emptyList(),
@@ -300,26 +341,26 @@ internal data class HarRequest(
 
 @Serializable
 internal data class HarResponse(
-    val status: Int,
+    val status: Int? = null,
     val headers: List<HarHeader> = emptyList(),
     val content: HarContent = HarContent(),
 )
 
 @Serializable
 internal data class HarHeader(
-    val name: String,
+    val name: String? = null,
     val value: String? = null,
 )
 
 @Serializable
 internal data class HarQuery(
-    val name: String,
+    val name: String? = null,
     val value: String? = null,
 )
 
 @Serializable
 internal data class HarCookie(
-    val name: String,
+    val name: String? = null,
     val value: String? = null,
 )
 

@@ -3,6 +3,7 @@ package com.moqserver.studio.data
 import com.moqserver.studio.projectformat.MatchType
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
 import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 
@@ -150,5 +151,84 @@ class HARImportParserTest {
         assertEquals("dark", profile.cookies.first { it.name == "theme" }.match)
         assertEquals("en-US", profile.cookies.first { it.name == "locale" }.match)
         assertEquals(MatchType.EQUAL_TO, profile.cookies.first { it.name == "theme" }.matchType)
+    }
+
+    @Test
+    fun `skips malformed har entries and surfaces warnings instead of failing import`() {
+        val har = """
+            {
+              "log": {
+                "version": "1.2",
+                "creator": { "name": "Proxy" },
+                "entries": [
+                  {
+                    "request": {
+                      "method": null,
+                      "url": "https://api.test/ignored",
+                      "headers": []
+                    },
+                    "response": {
+                      "status": 200,
+                      "headers": [],
+                      "content": { "mimeType": "application/json", "text": "{}" }
+                    }
+                  },
+                  {
+                    "request": {
+                      "method": "GET",
+                      "url": "https://api.test/users",
+                      "headers": []
+                    },
+                    "response": {
+                      "status": 200,
+                      "headers": [],
+                      "content": { "mimeType": "application/json", "text": "{}" }
+                    }
+                  }
+                ]
+              }
+            }
+        """.trimIndent()
+
+        val spec = parser.parse(har)
+
+        assertEquals(1, spec.endpoints.size)
+        assertEquals(1, spec.warnings.size)
+        assertEquals("Skipped HAR entry 1: missing request method.", spec.warnings.single())
+        assertEquals("/users", spec.endpoints.single().path)
+    }
+
+    @Test
+    fun `reports useful error when har contains no importable entries`() {
+        val har = """
+            {
+              "log": {
+                "version": "1.2",
+                "entries": [
+                  {
+                    "request": {
+                      "method": null,
+                      "url": "https://api.test/ignored",
+                      "headers": []
+                    },
+                    "response": {
+                      "status": 200,
+                      "headers": [],
+                      "content": { "mimeType": "application/json", "text": "{}" }
+                    }
+                  }
+                ]
+              }
+            }
+        """.trimIndent()
+
+        val error = assertFailsWith<IllegalArgumentException> {
+            parser.parse(har)
+        }
+
+        assertEquals(
+            "HAR file does not contain any importable HTTP entries. Skipped HAR entry 1: missing request method.",
+            error.message,
+        )
     }
 }
