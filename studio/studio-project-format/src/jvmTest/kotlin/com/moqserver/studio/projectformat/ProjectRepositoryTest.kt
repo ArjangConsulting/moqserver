@@ -211,4 +211,34 @@ class ProjectRepositoryTest {
             tempDir.deleteRecursively()
         }
     }
+
+    @Test
+    fun `save and reload preserves quoted header values with yaml special characters`() {
+        val project = repo.load(sampleProjectPath)
+        val endpoint = project.endpoints.first().copy(
+            id = "header-quoting-regression",
+            variants = listOf(
+                project.endpoints.first().variants.first().copy(
+                    headers = mapOf(
+                        "report-to" to """{"group":"youtube","max_age":2592000,"endpoints":[{"url":"https://csp.withgoogle.com/csp/report-to/youtube"}]}""",
+                        "Alt-Svc" to """h3=":443"; ma=2592000,h3-29=":443"; ma=2592000""",
+                    ),
+                    body = YamlValue.Str("ok"),
+                    bodyFile = null,
+                )
+            ),
+        )
+        val tempDir = kotlin.io.path.createTempDirectory("moqproj-header-quoting").toFile()
+
+        try {
+            repo.save(project.copy(endpoints = listOf(endpoint)), tempDir.absolutePath)
+
+            val reloaded = repo.load(tempDir.absolutePath)
+            val reloadedHeaders = reloaded.endpoints.single().variants.single().headers
+
+            assertEquals(endpoint.variants.single().headers, reloadedHeaders)
+        } finally {
+            tempDir.deleteRecursively()
+        }
+    }
 }
