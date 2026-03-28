@@ -68,6 +68,12 @@ The `.moqproj` format is the interchange between Studio and the server runtime. 
 
 The JSON schema lives in `format/schema.json`.
 
+## Multi-Product Rule
+
+This repo contains two separate products: the **server** (`server/`) and **Studio** (`studio/`). They are implemented in different languages and have entirely separate codebases.
+
+**Never start implementing a task unless the user has explicitly stated which product the change belongs to.** If a request is ambiguous (e.g. "add AI integration", "add a setting", "fix the bug"), ask which product before planning or writing any code.
+
 ## Engineering Expectations
 
 - Prefer adding or updating tests alongside behavior changes.
