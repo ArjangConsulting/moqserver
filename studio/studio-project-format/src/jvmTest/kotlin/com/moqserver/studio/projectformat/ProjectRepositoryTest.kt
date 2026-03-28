@@ -113,6 +113,48 @@ class ProjectRepositoryTest {
     }
 
     @Test
+    fun `load assigns fallback alias when endpoint yaml omits it`() {
+        val tempDir = kotlin.io.path.createTempDirectory("moqproj-fallback-alias").toFile()
+        try {
+            File(tempDir, "project.yml").writeText(
+                """
+                version: "1"
+                name: "Alias Test"
+
+                defaults:
+                  delay_ms: 0
+                  auth:
+                    type: none
+                    verify: false
+                    header_name: null
+                  network:
+                    latency_ms: 0
+                    jitter_ms: 0
+                    packet_loss_percent: 0
+                """.trimIndent() + "\n"
+            )
+            val endpointsDir = File(tempDir, "endpoints").apply { mkdirs() }
+            File(tempDir, "fixtures").mkdirs()
+            File(endpointsDir, "get-pets.yml").writeText(
+                """
+                id: "get-pets"
+                method: "GET"
+                path: "/pets"
+
+                variants:
+                  - name: "default"
+                    status: 200
+                """.trimIndent() + "\n"
+            )
+
+            val project = repo.load(tempDir.absolutePath)
+            assertEquals("List Pets", project.endpoints.single().alias)
+        } finally {
+            tempDir.deleteRecursively()
+        }
+    }
+
+    @Test
     fun `round-trip - save and reload produces same data`() {
         val project = repo.load(sampleProjectPath)
 
@@ -158,6 +200,43 @@ class ProjectRepositoryTest {
             repo.save(trimmed, tempDir.absolutePath)
 
             assertFalse(File(tempDir, "endpoints/current-user.yml").exists())
+        } finally {
+            tempDir.deleteRecursively()
+        }
+    }
+
+    @Test
+    fun `save persists fallback alias for endpoints without explicit alias`() {
+        val project = MoqProject(
+            manifest = ProjectManifest(
+                version = "1",
+                name = "Alias Test",
+                defaults = ProjectDefaults(
+                    delayMs = 0,
+                    auth = ProjectAuthConfig(type = AuthType.NONE, verify = false),
+                    network = NetworkBehavior(),
+                ),
+            ),
+            endpoints = listOf(
+                EndpointDocument(
+                    id = "delete-pets",
+                    method = "DELETE",
+                    path = "/pets/{petId}",
+                    variants = listOf(ProjectVariant(name = "default", status = 204)),
+                )
+            ),
+            projectPath = sampleProjectPath,
+        )
+        val tempDir = kotlin.io.path.createTempDirectory("moqproj-save-alias").toFile()
+
+        try {
+            repo.save(project, tempDir.absolutePath)
+
+            val yaml = File(tempDir, "endpoints/delete-pets.yml").readText()
+            assertTrue(yaml.contains("alias: \"Delete Pets By Pet Id\""))
+
+            val reloaded = repo.load(tempDir.absolutePath)
+            assertEquals("Delete Pets By Pet Id", reloaded.endpoints.single().alias)
         } finally {
             tempDir.deleteRecursively()
         }

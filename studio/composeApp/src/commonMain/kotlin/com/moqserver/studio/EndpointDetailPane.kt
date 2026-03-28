@@ -42,6 +42,7 @@ import com.moqserver.studio.projectformat.NetworkBehavior
 import com.moqserver.studio.projectformat.ProjectAuthConfig
 import com.moqserver.studio.projectformat.ProjectVariant
 import com.moqserver.studio.projectformat.YamlValue
+import com.moqserver.studio.projectformat.displayAlias
 
 @Composable
 fun EndpointDetailPane(
@@ -66,9 +67,11 @@ fun EndpointDetailPane(
             Text(endpoint.path, style = MaterialTheme.typography.titleLarge)
         }
 
-        endpoint.alias?.let {
-            Text(it, style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        }
+        Text(
+            endpoint.displayAlias,
+            style = MaterialTheme.typography.bodyLarge,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
 
         @OptIn(ExperimentalLayoutApi::class)
         endpoint.tags?.takeIf { it.isNotEmpty() }?.let { tags ->
@@ -141,7 +144,7 @@ private fun EndpointMetadataForm(
 
     // Alias
     OutlinedTextField(
-        value = endpoint.alias ?: "",
+        value = endpoint.alias ?: endpoint.displayAlias,
         onValueChange = {
             onUpdateEndpoint(endpoint.copy(alias = it.ifBlank { null }))
         },

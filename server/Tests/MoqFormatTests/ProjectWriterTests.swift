@@ -89,4 +89,44 @@ struct ProjectWriterTests {
             #expect(content1 == content2)
         }
     }
+
+    @Test("Writes a fallback alias when an endpoint omits one")
+    func writesFallbackAlias() throws {
+        let writer = ProjectWriter()
+        let project = MoqProject(
+            manifest: ProjectManifest(
+                version: "1",
+                name: "Alias Test",
+                defaults: ProjectDefaults(
+                    delayMs: 0,
+                    auth: ProjectAuthConfig(type: .none, verify: false),
+                    network: NetworkBehavior()
+                )
+            ),
+            endpoints: [
+                EndpointDocument(
+                    id: "delete-pets",
+                    alias: nil,
+                    method: "DELETE",
+                    path: "/pets/{petId}",
+                    variants: [ProjectVariant(name: "default", status: 204)]
+                )
+            ],
+            projectPath: "/tmp/alias-test.moqproj"
+        )
+
+        let tempDir = NSTemporaryDirectory()
+        let outputPath = (tempDir as NSString).appendingPathComponent("alias-save-\(UUID().uuidString).moqproj")
+        defer { try? FileManager.default.removeItem(atPath: outputPath) }
+
+        try writer.write(project, to: outputPath)
+
+        let endpointPath = (outputPath as NSString).appendingPathComponent("endpoints/delete-pets.yml")
+        let yaml = try String(contentsOfFile: endpointPath, encoding: .utf8)
+        #expect(yaml.contains(#"alias: "Delete Pets By Pet Id""#))
+
+        let reloaded = try ProjectLoader().load(from: outputPath)
+        #expect(reloaded.endpoints.count == 1)
+        #expect(reloaded.endpoints.first?.alias == "Delete Pets By Pet Id")
+    }
 }

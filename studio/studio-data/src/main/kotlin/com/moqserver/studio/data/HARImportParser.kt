@@ -4,6 +4,7 @@ import com.moqserver.studio.domain.ParsedEndpoint
 import com.moqserver.studio.domain.ParsedResponse
 import com.moqserver.studio.domain.ParsedSpec
 import com.moqserver.studio.logging.loggerFor
+import com.moqserver.studio.projectformat.defaultAliasForEndpoint
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
@@ -59,6 +60,7 @@ class HARImportParser {
                 ParsedEndpoint(
                     method = key.method,
                     path = key.path,
+                    alias = defaultAliasForEndpoint(method = key.method, path = key.path),
                     responses = responses,
                 )
             }

@@ -52,4 +52,35 @@ class OpenAPIImportParserTest {
         assertNotNull(body)
         assertTrue(body.contains("\"children\""))
     }
+
+    @Test
+    fun `uses summary or operation id for aliases`() {
+        val spec = """
+            openapi: 3.0.3
+            info:
+              title: Alias API
+              version: 1.0.0
+            paths:
+              /pets:
+                get:
+                  summary: Browse Pets
+                  responses:
+                    "200":
+                      description: OK
+              /pets/{petId}:
+                get:
+                  operationId: getPetById
+                  responses:
+                    "200":
+                      description: OK
+        """.trimIndent()
+
+        val parsed = parser.parse(spec)
+
+        val listPets = parsed.endpoints.first { it.path == "/pets" }
+        assertEquals("Browse Pets", listPets.alias)
+
+        val getPet = parsed.endpoints.first { it.path == "/pets/{petId}" }
+        assertEquals("Get Pet By Id", getPet.alias)
+    }
 }

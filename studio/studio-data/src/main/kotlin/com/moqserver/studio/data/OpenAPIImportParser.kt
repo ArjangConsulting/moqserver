@@ -5,6 +5,8 @@ import com.moqserver.studio.domain.ParsedResponse
 import com.moqserver.studio.domain.ParsedSpec
 import com.moqserver.studio.logging.loggerFor
 import com.moqserver.studio.projectformat.AuthType
+import com.moqserver.studio.projectformat.defaultAliasForEndpoint
+import com.moqserver.studio.projectformat.humanizeAliasSource
 import io.swagger.v3.oas.models.OpenAPI
 import io.swagger.v3.oas.models.Operation
 import io.swagger.v3.oas.models.PathItem
@@ -64,6 +66,7 @@ class OpenAPIImportParser {
                     ParsedEndpoint(
                         method = method,
                         path = pathStr,
+                        alias = resolveAlias(operation, method, pathStr),
                         responses = responses,
                         authType = authType,
                         authHeaderName = authHeaderName,
@@ -90,6 +93,21 @@ class OpenAPIImportParser {
                 warnings.size,
             )
         }
+    }
+
+    private fun resolveAlias(operation: Operation, method: String, path: String): String {
+        operation.summary
+            ?.trim()
+            ?.takeIf { it.isNotEmpty() }
+            ?.let { return it }
+
+        operation.operationId
+            ?.trim()
+            ?.takeIf { it.isNotEmpty() }
+            ?.let(::humanizeAliasSource)
+            ?.let { return it }
+
+        return defaultAliasForEndpoint(method = method, path = path)
     }
 
     private fun operationsOf(pathItem: PathItem): List<Pair<String, Operation>> {

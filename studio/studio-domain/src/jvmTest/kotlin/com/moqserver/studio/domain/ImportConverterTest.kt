@@ -49,6 +49,7 @@ class ImportConverterTest {
 
         val endpoint = project.endpoints.single()
         assertEquals("get-items", endpoint.id)
+        assertEquals("List Items", endpoint.alias)
         assertEquals(3, endpoint.variants.size)
         assertTrue(endpoint.variants.any { it.isDefault == true && it.name == "default" })
 
@@ -65,5 +66,32 @@ class ImportConverterTest {
         val idValue = objectBody.value["id"]
         assertIs<YamlValue.Int>(idValue)
         assertEquals(1, idValue.value)
+    }
+
+    @Test
+    fun `preserves parsed aliases when importing`() {
+        val parsed = ParsedSpec(
+            title = "Imported API",
+            version = "1.0.0",
+            endpoints = listOf(
+                ParsedEndpoint(
+                    method = "GET",
+                    path = "/pets",
+                    alias = "Browse Pets",
+                    responses = listOf(
+                        ParsedResponse(name = "default", statusCode = 200, body = "[]"),
+                    ),
+                ),
+            ),
+        )
+
+        val project = ImportConverter.convert(
+            spec = parsed,
+            acceptedEndpoints = parsed.endpoints,
+            projectName = "Imported API",
+            projectPath = "/tmp/imported-api",
+        )
+
+        assertEquals("Browse Pets", project.endpoints.single().alias)
     }
 }

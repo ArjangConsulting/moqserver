@@ -35,6 +35,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.moqserver.studio.domain.StudioState
 import com.moqserver.studio.projectformat.EndpointDocument
+import com.moqserver.studio.projectformat.displayAlias
 
 @Composable
 fun EndpointBrowser(
@@ -58,7 +59,7 @@ fun EndpointBrowser(
                 ep.id.lowercase().contains(q) ||
                     ep.path.lowercase().contains(q) ||
                     ep.method.lowercase().contains(q) ||
-                    ep.alias?.lowercase()?.contains(q) == true ||
+                    ep.displayAlias.lowercase().contains(q) ||
                     ep.tags?.any { it.lowercase().contains(q) } == true
             }
         }
@@ -165,7 +166,7 @@ private fun EndpointListItem(
             MethodBadge(endpoint.method)
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = endpoint.alias ?: endpoint.id,
+                    text = endpoint.displayAlias,
                     style = MaterialTheme.typography.bodyMedium,
                     fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
                 )

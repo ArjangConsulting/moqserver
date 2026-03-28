@@ -84,15 +84,21 @@ class YamlProjectCodec {
     }
 
     private fun parseEndpoint(map: Map<*, *>): EndpointDocument {
+        val id = map.str("id") ?: throw missing("id", "endpoint")
+        val method = map.str("method") ?: throw missing("method", "endpoint")
+        val path = map.str("path") ?: throw missing("path", "endpoint")
+        val operation = (map["operation"] as? Map<*, *>)?.let { parseOperation(it) }
+
         return EndpointDocument(
-            id = map.str("id") ?: throw missing("id", "endpoint"),
-            alias = map.str("alias"),
-            method = map.str("method") ?: throw missing("method", "endpoint"),
-            path = map.str("path") ?: throw missing("path", "endpoint"),
+            id = id,
+            alias = map.str("alias")?.takeIf { it.isNotBlank() }
+                ?: defaultAliasForEndpoint(method = method, path = path, operation = operation),
+            method = method,
+            path = path,
             tags = (map["tags"] as? List<*>)?.map { it.toString() },
             auth = (map["auth"] as? Map<*, *>)?.let { parseAuth(it) },
             requestRules = (map["request_rules"] as? Map<*, *>)?.let { parseRequestRules(it) },
-            operation = (map["operation"] as? Map<*, *>)?.let { parseOperation(it) },
+            operation = operation,
             network = (map["network"] as? Map<*, *>)?.let { parseNetwork(it) },
             variants = (map["variants"] as? List<*>)?.map { parseVariant(it as Map<*, *>) }
                 ?: throw missing("variants", "endpoint"),
@@ -167,7 +173,7 @@ class YamlProjectCodec {
         val lines = mutableListOf<String>()
 
         lines += "id: ${yamlQuote(endpoint.id)}"
-        endpoint.alias?.let { lines += "alias: ${yamlQuote(it)}" }
+        lines += "alias: ${yamlQuote(endpoint.displayAlias)}"
         lines += "method: ${yamlQuote(endpoint.method)}"
         lines += "path: ${yamlQuote(endpoint.path)}"
         endpoint.tags?.takeIf { it.isNotEmpty() }?.let {

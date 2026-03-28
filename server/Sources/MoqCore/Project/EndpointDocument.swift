@@ -34,7 +34,8 @@ public struct EndpointDocument: Codable, Sendable, Equatable {
         variants: [ProjectVariant]
     ) {
         self.id = id
-        self.alias = alias
+        self.alias = EndpointAlias.normalized(alias: alias)
+            ?? EndpointAlias.defaultAlias(method: method, path: path, operation: operation)
         self.method = method
         self.path = path
         self.tags = tags
@@ -49,5 +50,26 @@ public struct EndpointDocument: Codable, Sendable, Equatable {
         case id, alias, method, path, tags, auth
         case requestRules = "request_rules"
         case operation, network, variants
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        let id = try container.decode(String.self, forKey: .id)
+        let method = try container.decode(String.self, forKey: .method)
+        let path = try container.decode(String.self, forKey: .path)
+        let operation = try container.decodeIfPresent(EndpointOperation.self, forKey: .operation)
+
+        self.init(
+            id: id,
+            alias: try container.decodeIfPresent(String.self, forKey: .alias),
+            method: method,
+            path: path,
+            tags: try container.decodeIfPresent([String].self, forKey: .tags),
+            auth: try container.decodeIfPresent(ProjectAuthConfig.self, forKey: .auth),
+            requestRules: try container.decodeIfPresent(RequestRules.self, forKey: .requestRules),
+            operation: operation,
+            network: try container.decodeIfPresent(NetworkBehavior.self, forKey: .network),
+            variants: try container.decode([ProjectVariant].self, forKey: .variants)
+        )
     }
 }
