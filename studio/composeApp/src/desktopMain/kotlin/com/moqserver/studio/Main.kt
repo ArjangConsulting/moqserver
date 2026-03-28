@@ -11,6 +11,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.MenuBar
 import androidx.compose.ui.window.Window
+import androidx.compose.ui.window.WindowPlacement
 import androidx.compose.ui.window.WindowPosition
 import androidx.compose.ui.window.application
 import androidx.compose.ui.window.rememberWindowState
@@ -102,6 +103,12 @@ fun main(args: Array<String>) {
                 installProjectOpenHandler { incomingPath ->
                     logger.info("OS file-open event: {}", incomingPath)
                     pendingProjectOpenPath.value = incomingPath
+                }
+            }
+
+            LaunchedEffect(state.project) {
+                if (state.project != null) {
+                    windowState.placement = WindowPlacement.Maximized
                 }
             }
 
