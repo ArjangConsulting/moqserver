@@ -27,11 +27,11 @@ class ProjectValidator(
     fun validate(project: MoqProject): List<ValidationDiagnostic> {
         val diagnostics = mutableListOf<ValidationDiagnostic>()
 
-        if (project.manifest.version != "1") {
+        if (project.manifest.version != MoqProjectFormat.FORMAT_VERSION) {
             diagnostics += ValidationDiagnostic(
                 severity = ValidationDiagnostic.Severity.ERROR,
-                message = "Unsupported format version: \"${project.manifest.version}\". Expected \"1\".",
-                file = "project.yml",
+                message = "Unsupported format version: \"${project.manifest.version}\". Expected \"${MoqProjectFormat.FORMAT_VERSION}\".",
+                file = MoqProjectFormat.MANIFEST_FILE,
                 field = "version",
             )
         }
@@ -39,7 +39,7 @@ class ProjectValidator(
         if (project.endpoints.isEmpty()) {
             diagnostics += ValidationDiagnostic(
                 severity = ValidationDiagnostic.Severity.ERROR,
-                message = "No endpoint files found in endpoints/.",
+                message = "No endpoint files found in ${MoqProjectFormat.ENDPOINTS_DIR}/.",
             )
         }
 
@@ -47,7 +47,7 @@ class ProjectValidator(
         val seenEndpointReferenceNames = mutableMapOf<String, String>()
 
         for (endpoint in project.endpoints) {
-            val fileName = "endpoints/${endpoint.id}.yml"
+            val fileName = "${MoqProjectFormat.ENDPOINTS_DIR}/${endpoint.id}.yml"
 
             val existing = seenIds[endpoint.id]
             if (existing != null) {
@@ -206,10 +206,10 @@ class ProjectValidator(
                 }
 
                 variant.bodyFile?.let { bodyFile ->
-                    if (!bodyFile.startsWith("fixtures/")) {
+                    if (!bodyFile.startsWith("${MoqProjectFormat.FIXTURES_DIR}/")) {
                         diagnostics += ValidationDiagnostic(
                             severity = ValidationDiagnostic.Severity.ERROR,
-                            message = "body_file \"$bodyFile\" must start with \"fixtures/\".",
+                            message = "body_file \"$bodyFile\" must start with \"${MoqProjectFormat.FIXTURES_DIR}/\".",
                             file = fileName,
                             field = "$variantField.body_file",
                             endpointId = endpoint.id,
@@ -240,12 +240,12 @@ class ProjectValidator(
                 diagnostics += validateAuth(auth, fileName, "auth", endpoint.id)
             }
 
-            if (endpoint.path == "/graphql" || endpoint.operation != null) {
+            if (endpoint.path == MoqProjectFormat.GRAPHQL_PATH || endpoint.operation != null) {
                 diagnostics += validateGraphQL(endpoint, fileName)
             }
         }
 
-        diagnostics += validateAuth(project.manifest.defaults.auth, "project.yml", "defaults.auth", null)
+        diagnostics += validateAuth(project.manifest.defaults.auth, MoqProjectFormat.MANIFEST_FILE, "defaults.auth", null)
 
         return diagnostics
     }
@@ -277,10 +277,10 @@ class ProjectValidator(
     ): List<ValidationDiagnostic> {
         val diagnostics = mutableListOf<ValidationDiagnostic>()
 
-        if (endpoint.path == "/graphql" && endpoint.operation == null) {
+        if (endpoint.path == MoqProjectFormat.GRAPHQL_PATH && endpoint.operation == null) {
             diagnostics += ValidationDiagnostic(
                 severity = ValidationDiagnostic.Severity.ERROR,
-                message = "GraphQL endpoints (path=/graphql) must define an operation.",
+                message = "GraphQL endpoints (path=${MoqProjectFormat.GRAPHQL_PATH}) must define an operation.",
                 file = fileName,
                 field = "operation",
                 endpointId = endpoint.id,
@@ -288,10 +288,10 @@ class ProjectValidator(
         }
 
         endpoint.operation?.let { operation ->
-            if (endpoint.path != "/graphql") {
+            if (endpoint.path != MoqProjectFormat.GRAPHQL_PATH) {
                 diagnostics += ValidationDiagnostic(
                     severity = ValidationDiagnostic.Severity.WARNING,
-                    message = "Endpoint has an operation but path is not /graphql.",
+                    message = "Endpoint has an operation but path is not ${MoqProjectFormat.GRAPHQL_PATH}.",
                     file = fileName,
                     field = "path",
                     endpointId = endpoint.id,

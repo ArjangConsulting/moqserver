@@ -1,0 +1,13 @@
+<?xml version="1.0" ?>
+<SmellBaseline>
+  <ManuallySuppressedIssues></ManuallySuppressedIssues>
+  <CurrentIssues>
+    <ID>CognitiveComplexMethod:MatchConditionEditor.kt$@OptIn(ExperimentalMaterial3Api::class) @Composable fun MatchConditionEditor( ruleMatcher: RuleMatcher, onUpdate: (RuleMatcher) -&gt; Unit, availableMatchTypes: List&lt;MatchType&gt; = MatchType.entries, fallbackMatchType: MatchType = MatchType.EQUAL_TO, enabled: Boolean = true, dropdownWidth: Dp = 140.dp, valueWidth: Dp? = 160.dp, showValuePlaceholder: Boolean = false, modifier: Modifier = Modifier, )</ID>
+    <ID>CognitiveComplexMethod:RuleMatcherTableEditor.kt$@Composable fun RuleMatcherTableEditor( title: String, nameColumnLabel: String, emptyText: String, items: List&lt;RuleMatcher&gt;, onUpdate: (List&lt;RuleMatcher&gt;) -&gt; Unit, onAdd: () -&gt; Unit, onClear: (() -&gt; Unit)? = null, deleteContentDescription: String, availableMatchTypes: List&lt;MatchType&gt; = MatchType.entries, fallbackMatchType: MatchType = MatchType.EQUAL_TO, showRequiredColumn: Boolean = false, normalizeItem: (RuleMatcher) -&gt; RuleMatcher = { it }, )</ID>
+    <ID>ImportOrdering:InfoTooltip.kt$import androidx.compose.foundation.layout.size import androidx.compose.material.icons.Icons import androidx.compose.material.icons.outlined.Info import androidx.compose.material3.ExperimentalMaterial3Api import androidx.compose.material3.Icon import androidx.compose.material3.MaterialTheme import androidx.compose.material3.PlainTooltip import androidx.compose.material3.Text import androidx.compose.material3.TooltipBox import androidx.compose.material3.TooltipAnchorPosition import androidx.compose.material3.TooltipDefaults import androidx.compose.material3.rememberTooltipState import androidx.compose.runtime.Composable import androidx.compose.ui.Modifier import androidx.compose.ui.unit.dp</ID>
+    <ID>LongMethod:RuleMatcherTableEditor.kt$@Composable fun RuleMatcherTableEditor( title: String, nameColumnLabel: String, emptyText: String, items: List&lt;RuleMatcher&gt;, onUpdate: (List&lt;RuleMatcher&gt;) -&gt; Unit, onAdd: () -&gt; Unit, onClear: (() -&gt; Unit)? = null, deleteContentDescription: String, availableMatchTypes: List&lt;MatchType&gt; = MatchType.entries, fallbackMatchType: MatchType = MatchType.EQUAL_TO, showRequiredColumn: Boolean = false, normalizeItem: (RuleMatcher) -&gt; RuleMatcher = { it }, )</ID>
+    <ID>NoMultipleSpaces:Badges.kt$ </ID>
+    <ID>UnsafeCallOnNullableType:MatchConditionEditor.kt$ruleMatcher.matchType!!</ID>
+    <ID>UseOrEmpty:MatchConditionEditor.kt$ruleMatcher.match ?: ""</ID>
+  </CurrentIssues>
+</SmellBaseline>

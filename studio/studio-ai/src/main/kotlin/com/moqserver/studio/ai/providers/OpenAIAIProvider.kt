@@ -24,13 +24,13 @@ import kotlinx.serialization.json.Json
 
 class OpenAIAIProvider(
     val apiKey: String,
-    val baseUrl: String = "https://api.openai.com/v1",
-    val defaultModel: String = "gpt-4o",
+    val baseUrl: String = DEFAULT_BASE_URL,
+    val defaultModel: String = DEFAULT_MODEL,
     private val httpClient: HttpClient = defaultClient(),
 ) : AIProvider {
 
-    override val id = "openai"
-    override val displayName = "OpenAI"
+    override val id = PROVIDER_ID
+    override val displayName = DISPLAY_NAME
     override val kind = AIProviderKind.HOSTED
     override val capabilities = setOf(
         AIProviderCapability.ANALYZE_SPEC,
@@ -41,7 +41,7 @@ class OpenAIAIProvider(
     override suspend fun checkAvailability(): Boolean {
         if (apiKey.isBlank()) return false
         return try {
-            val response = httpClient.get("$baseUrl/models") {
+            val response = httpClient.get("$baseUrl$MODELS_PATH") {
                 header(HttpHeaders.Authorization, "Bearer $apiKey")
             }
             response.status.isSuccess()
@@ -53,11 +53,11 @@ class OpenAIAIProvider(
     override suspend fun validateConfig(): List<String> {
         val issues = mutableListOf<String>()
         if (apiKey.isBlank()) {
-            issues += "OpenAI API key is not configured."
+            issues += "$DISPLAY_NAME API key is not configured."
             return issues
         }
         if (!checkAvailability()) {
-            issues += "Could not reach OpenAI API. Check your API key and network."
+            issues += "Could not reach $DISPLAY_NAME API. Check your API key and network."
         }
         return issues
     }
@@ -73,20 +73,20 @@ class OpenAIAIProvider(
         }
 
         val response = try {
-            httpClient.post("$baseUrl/chat/completions") {
+            httpClient.post("$baseUrl$CHAT_COMPLETIONS_PATH") {
                 contentType(ContentType.Application.Json)
                 header(HttpHeaders.Authorization, "Bearer $apiKey")
                 setBody(bodyMap)
             }
         } catch (e: Exception) {
-            throw AIProviderException.Unavailable("OpenAI", e.message ?: "network error", retryable = true)
+            throw AIProviderException.Unavailable(DISPLAY_NAME, e.message ?: "network error", retryable = true)
         }
 
         when (response.status.value) {
-            401 -> throw AIProviderException.AuthInvalid("OpenAI")
-            429 -> throw AIProviderException.Unavailable("OpenAI", "rate limit exceeded", retryable = true)
+            401 -> throw AIProviderException.AuthInvalid(DISPLAY_NAME)
+            429 -> throw AIProviderException.Unavailable(DISPLAY_NAME, "rate limit exceeded", retryable = true)
             !in 200..299 -> throw AIProviderException.Unavailable(
-                "OpenAI",
+                DISPLAY_NAME,
                 "HTTP ${response.status.value}",
                 retryable = response.status.value >= 500,
             )
@@ -94,7 +94,7 @@ class OpenAIAIProvider(
 
         val result = response.body<OpenAIChatResponse>()
         val text = result.choices.firstOrNull()?.message?.content
-            ?: throw AIProviderException.ParseFailure("OpenAI")
+            ?: throw AIProviderException.ParseFailure(DISPLAY_NAME)
 
         return AICompletionResult(
             text = text,
@@ -125,6 +125,15 @@ class OpenAIAIProvider(
         @SerialName("completion_tokens") val completionTokens: Int? = null,
         @SerialName("total_tokens") val totalTokens: Int? = null,
     )
+
+    companion object {
+        const val PROVIDER_ID = "openai"
+        const val DISPLAY_NAME = "OpenAI"
+        const val DEFAULT_BASE_URL = "https://api.openai.com/v1"
+        const val DEFAULT_MODEL = "gpt-4o"
+        private const val MODELS_PATH = "/models"
+        private const val CHAT_COMPLETIONS_PATH = "/chat/completions"
+    }
 }
 
 private fun defaultClient() = HttpClient(CIO) {

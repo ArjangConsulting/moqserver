@@ -1,5 +1,8 @@
 package com.moqserver.studio
 
+import com.moqserver.studio.endpointdetail.formatJsonBodyText
+import com.moqserver.studio.endpointdetail.parseJsonBodyText
+import com.moqserver.studio.endpointdetail.validateJsonBodyText
 import com.moqserver.studio.projectformat.YamlValue
 import kotlin.test.Test
 import kotlin.test.assertEquals

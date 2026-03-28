@@ -36,8 +36,8 @@ private class UnsupportedSecureCredentialStore(
 }
 
 private class MacOSKeychainCredentialStore(
-    private val securityTool: File = File("/usr/bin/security"),
-    private val accountName: String = "moqserver.studio",
+    private val securityTool: File = File(SECURITY_TOOL_PATH),
+    private val accountName: String = KEYCHAIN_ACCOUNT_NAME,
 ) : SecureCredentialStore {
     private val logger = loggerFor<MacOSKeychainCredentialStore>()
 
@@ -110,7 +110,13 @@ private class MacOSKeychainCredentialStore(
         )
     }
 
-    private fun serviceName(key: String): String = "com.moqserver.studio.$key"
+    private fun serviceName(key: String): String = "$SERVICE_NAME_PREFIX$key"
+
+    companion object {
+        private const val SECURITY_TOOL_PATH = "/usr/bin/security"
+        private const val KEYCHAIN_ACCOUNT_NAME = "moqserver.studio"
+        private const val SERVICE_NAME_PREFIX = "com.moqserver.studio."
+    }
 }
 
 private data class CommandResult(

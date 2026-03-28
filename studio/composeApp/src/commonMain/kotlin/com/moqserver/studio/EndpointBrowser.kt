@@ -77,7 +77,7 @@ fun EndpointBrowser(
         // Left sidebar
         Column(
             modifier = Modifier
-                .width(300.dp)
+                .width(StudioDimens.endpointBrowserWidth)
                 .fillMaxHeight()
                 .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f))
         ) {
@@ -88,7 +88,7 @@ fun EndpointBrowser(
                 singleLine = true,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(8.dp),
+                    .padding(StudioDimens.m),
             )
 
             LazyColumn(
@@ -100,7 +100,7 @@ fun EndpointBrowser(
                             text = group,
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.padding(start = 12.dp, top = 12.dp, bottom = 4.dp),
+                            modifier = Modifier.padding(start = StudioDimens.l, top = StudioDimens.l, bottom = StudioDimens.xs),
                         )
                     }
 
@@ -154,14 +154,14 @@ private fun EndpointListItem(
         modifier = Modifier
             .fillMaxWidth()
             .clickable(onClick = onClick)
-            .padding(horizontal = 4.dp, vertical = 1.dp),
+            .padding(horizontal = StudioDimens.xs, vertical = 1.dp),
         color = bgColor,
-        shape = RoundedCornerShape(6.dp),
+        shape = RoundedCornerShape(StudioDimens.s),
     ) {
         Row(
-            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+            modifier = Modifier.padding(horizontal = StudioDimens.l, vertical = StudioDimens.m),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            horizontalArrangement = Arrangement.spacedBy(StudioDimens.m),
         ) {
             MethodBadge(endpoint.method)
             Column(modifier = Modifier.weight(1f)) {
@@ -193,7 +193,7 @@ private fun EmptyProjectState() {
             style = MaterialTheme.typography.headlineSmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
-        Spacer(Modifier.height(8.dp))
+        Spacer(Modifier.height(StudioDimens.m))
         Text(
             "Open a .moqproj directory from the Dashboard",
             style = MaterialTheme.typography.bodyMedium,

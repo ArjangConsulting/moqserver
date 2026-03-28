@@ -21,15 +21,17 @@ class ProjectRepository(
         val dir = File(projectPath)
         require(dir.isDirectory) { "Not a directory: $projectPath" }
 
-        val manifestFile = File(dir, "project.yml")
-        require(manifestFile.isFile) { "Missing project.yml at: ${manifestFile.absolutePath}" }
+        val manifestFile = File(dir, MoqProjectFormat.MANIFEST_FILE)
+        require(manifestFile.isFile) { "Missing ${MoqProjectFormat.MANIFEST_FILE} at: ${manifestFile.absolutePath}" }
         val manifest = codec.decodeManifest(manifestFile.readText())
 
-        val endpointsDir = File(dir, "endpoints")
-        require(endpointsDir.isDirectory) { "Missing endpoints/ directory at: ${endpointsDir.absolutePath}" }
+        val endpointsDir = File(dir, MoqProjectFormat.ENDPOINTS_DIR)
+        require(endpointsDir.isDirectory) {
+            "Missing ${MoqProjectFormat.ENDPOINTS_DIR}/ directory at: ${endpointsDir.absolutePath}"
+        }
 
         val endpointFiles = endpointsDir.listFiles { f ->
-            f.extension == "yml" || f.extension == "yaml"
+            f.extension in MoqProjectFormat.YAML_EXTENSIONS
         }?.sortedBy { it.name } ?: emptyList()
 
         require(endpointFiles.isNotEmpty()) { "No endpoint files found in: ${endpointsDir.absolutePath}" }
@@ -51,15 +53,15 @@ class ProjectRepository(
 
     fun save(project: MoqProject, path: String) {
         val dir = File(path)
-        val endpointsDir = File(dir, "endpoints")
-        val fixturesDir = File(dir, "fixtures")
+        val endpointsDir = File(dir, MoqProjectFormat.ENDPOINTS_DIR)
+        val fixturesDir = File(dir, MoqProjectFormat.FIXTURES_DIR)
 
         dir.mkdirs()
         endpointsDir.mkdirs()
         fixturesDir.mkdirs()
 
         val manifestYaml = codec.encodeManifest(project.manifest)
-        File(dir, "project.yml").writeText(manifestYaml)
+        File(dir, MoqProjectFormat.MANIFEST_FILE).writeText(manifestYaml)
 
         val referencedFixtures = mutableSetOf<String>()
         val sourceRoot = File(project.projectPath)
@@ -76,7 +78,7 @@ class ProjectRepository(
 
         val expectedEndpointFiles = persistedEndpoints.map { "${it.id}.yml" }.toSet()
         endpointsDir.listFiles { file ->
-            file.isFile && (file.extension == "yml" || file.extension == "yaml")
+            file.isFile && file.extension in MoqProjectFormat.YAML_EXTENSIONS
         }?.forEach { file ->
             if (file.name !in expectedEndpointFiles) {
                 file.delete()
@@ -166,7 +168,7 @@ class ProjectRepository(
             ?: "response"
         val variantHint = sanitizeFixtureSegment(variant.name)
         val extension = fixtureExtension(endpoint, variant)
-        return "fixtures/responses/${endpoint.id}/$pathHint-$variantHint.$extension"
+        return "${MoqProjectFormat.FIXTURE_RESPONSES_PREFIX}${endpoint.id}/$pathHint-$variantHint.$extension"
     }
 
     private fun fixtureExtension(endpoint: EndpointDocument, variant: ProjectVariant): String {
@@ -177,7 +179,7 @@ class ProjectRepository(
 
         val contentType = variant.headers
             ?.entries
-            ?.firstOrNull { it.key.equals("Content-Type", ignoreCase = true) }
+            ?.firstOrNull { it.key.equals(MoqProjectFormat.CONTENT_TYPE_HEADER, ignoreCase = true) }
             ?.value
             ?.substringBefore(';')
             ?.trim()
@@ -214,7 +216,7 @@ class ProjectRepository(
     private fun serializeVariantBody(variant: ProjectVariant, body: YamlValue): ByteArray {
         val contentType = variant.headers
             ?.entries
-            ?.firstOrNull { it.key.equals("Content-Type", ignoreCase = true) }
+            ?.firstOrNull { it.key.equals(MoqProjectFormat.CONTENT_TYPE_HEADER, ignoreCase = true) }
             ?.value
             ?.substringBefore(';')
             ?.trim()

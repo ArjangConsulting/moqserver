@@ -1,0 +1,21 @@
+<?xml version="1.0" ?>
+<SmellBaseline>
+  <ManuallySuppressedIssues></ManuallySuppressedIssues>
+  <CurrentIssues>
+    <ID>CognitiveComplexMethod:YamlProjectCodec.kt$YamlProjectCodec$private fun encodeBlockBodyLines(value: YamlValue, indent: Int): List&lt;String&gt;</ID>
+    <ID>CognitiveComplexMethod:YamlProjectCodec.kt$YamlProjectCodec$private fun encodeVariant(variant: ProjectVariant, indent: Int): List&lt;String&gt;</ID>
+    <ID>CyclomaticComplexMethod:ProjectRepository.kt$ProjectRepository$private fun fixtureExtension(endpoint: EndpointDocument, variant: ProjectVariant): String</ID>
+    <ID>CyclomaticComplexMethod:YamlProjectCodec.kt$YamlProjectCodec$fun encodeEndpoint(endpoint: EndpointDocument): String</ID>
+    <ID>CyclomaticComplexMethod:YamlProjectCodec.kt$YamlProjectCodec$private fun encodeMatchType(matchType: MatchType): String</ID>
+    <ID>CyclomaticComplexMethod:YamlProjectCodec.kt$YamlProjectCodec$private fun parseMatchType(value: String): MatchType?</ID>
+    <ID>ImportOrdering:ProjectRepository.kt$import java.io.File import java.util.Base64 import kotlinx.serialization.json.Json import kotlinx.serialization.json.JsonArray import kotlinx.serialization.json.JsonElement import kotlinx.serialization.json.JsonNull import kotlinx.serialization.json.JsonObject import kotlinx.serialization.json.JsonPrimitive</ID>
+    <ID>LargeClass:YamlProjectCodec.kt$YamlProjectCodec</ID>
+    <ID>LongMethod:YamlProjectCodec.kt$YamlProjectCodec$fun encodeEndpoint(endpoint: EndpointDocument): String</ID>
+    <ID>StringTemplate:YamlProjectCodec.kt$YamlProjectCodec$${pad}</ID>
+    <ID>ThrowsCount:YamlProjectCodec.kt$YamlProjectCodec$private fun parseEndpoint(map: Map&lt;*, *&gt;): EndpointDocument</ID>
+    <ID>TopLevelPropertyNaming:YamlProjectCodec.kt$private val SAFE_YAML_KEY = Regex("^[A-Za-z0-9_-]+$")</ID>
+    <ID>TrailingCommaOnDeclarationSite:YamlProjectCodec.kt$YamlProjectCodec$is YamlValue.Null, is YamlValue.Bool, is YamlValue.Int, is YamlValue.Double, is YamlValue.Str -&gt; { if (body is YamlValue.Str &amp;&amp; body.value.contains('\n')) { lines += "${pad} body: |-" lines += encodeMultilineStringLines(body.value, indent + 4) } else { lines += "${pad} body: ${encodeInlineBodyValue(body)}" } }</ID>
+    <ID>UnreachableCode:YamlProjectCodec.kt$YamlProjectCodec$return EndpointDocument( id = id, alias = map.str("alias")?.takeIf { it.isNotBlank() } ?: defaultAliasForEndpoint(method = method, path = path, operation = operation), description = map.str("description")?.takeIf { it.isNotBlank() }, referenceName = map.str("reference_name")?.takeIf { it.isNotBlank() } ?: defaultReferenceNameForEndpointId(id), method = method, path = path, tags = (map["tags"] as? List&lt;*&gt;)?.map { it.toString() }, auth = (map["auth"] as? Map&lt;*, *&gt;)?.let { parseAuth(it) }, requestRules = (map["request_rules"] as? Map&lt;*, *&gt;)?.let { parseRequestRules(it) }, operation = operation, network = (map["network"] as? Map&lt;*, *&gt;)?.let { parseNetwork(it) }, variants = (map["variants"] as? List&lt;*&gt;)?.map { parseVariant(it as Map&lt;*, *&gt;) } ?: throw missing("variants", "endpoint"), )</ID>
+    <ID>UnreachableCode:YamlProjectCodec.kt$YamlProjectCodec$return ProjectManifest( version = map.str("version") ?: "1", name = map.str("name") ?: throw missing("name", MoqProjectFormat.MANIFEST_FILE), description = map.str("description"), defaults = (map["defaults"] as? Map&lt;*, *&gt;)?.let { parseDefaults(it) } ?: throw missing("defaults", MoqProjectFormat.MANIFEST_FILE), globalRules = (map["global_rules"] as? Map&lt;*, *&gt;)?.let { parseGlobalRules(it) }, )</ID>
+  </CurrentIssues>
+</SmellBaseline>

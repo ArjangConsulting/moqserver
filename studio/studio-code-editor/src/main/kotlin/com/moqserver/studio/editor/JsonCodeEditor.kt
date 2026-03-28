@@ -12,6 +12,12 @@ import org.fife.ui.rsyntaxtextarea.RSyntaxTextArea
 import org.fife.ui.rsyntaxtextarea.SyntaxConstants
 import org.fife.ui.rtextarea.RTextScrollPane
 
+/** Default colors for the code editor. Keep in sync with BodyTab.kt editor colors. */
+private object EditorDefaults {
+    val backgroundColor = Color(0x1E, 0x1E, 0x1E)
+    val foregroundColor = Color(0xE6, 0xED, 0xF3)
+}
+
 @Composable
 fun JsonCodeEditor(
     text: String,
@@ -19,8 +25,8 @@ fun JsonCodeEditor(
     modifier: Modifier = Modifier,
     readOnly: Boolean = false,
     syntaxStyle: String = SyntaxConstants.SYNTAX_STYLE_JSON,
-    backgroundColor: Color = Color(0x1E, 0x1E, 0x1E),
-    foregroundColor: Color = Color(0xE6, 0xED, 0xF3),
+    backgroundColor: Color = EditorDefaults.backgroundColor,
+    foregroundColor: Color = EditorDefaults.foregroundColor,
 ) {
     SwingPanel(
         modifier = modifier,

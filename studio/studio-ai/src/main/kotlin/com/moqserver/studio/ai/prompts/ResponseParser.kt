@@ -42,10 +42,10 @@ object ResponseParser {
 
     private fun stripMarkdownFences(text: String): String {
         var result = text.trim()
-        if (result.startsWith("```")) {
+        if (result.startsWith(MARKDOWN_FENCE)) {
             val firstNewline = result.indexOf('\n')
             if (firstNewline != -1) result = result.substring(firstNewline + 1)
-            if (result.endsWith("```")) result = result.dropLast(3)
+            if (result.endsWith(MARKDOWN_FENCE)) result = result.dropLast(MARKDOWN_FENCE.length)
             result = result.trim()
         }
         return result
@@ -53,9 +53,12 @@ object ResponseParser {
 
     private fun fallbackFinding(rawText: String) = SpecFinding(
         severity = FindingSeverity.INFO,
-        category = "general",
+        category = FALLBACK_CATEGORY,
         message = rawText,
         endpointKey = null,
         suggestion = null,
     )
+
+    private const val MARKDOWN_FENCE = "```"
+    private const val FALLBACK_CATEGORY = "general"
 }

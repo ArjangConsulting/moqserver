@@ -1,0 +1,136 @@
+<?xml version="1.0" ?>
+<SmellBaseline>
+  <ManuallySuppressedIssues></ManuallySuppressedIssues>
+  <CurrentIssues>
+    <ID>ArgumentListWrapping:AIResultsPanel.kt$(StudioDimens.l)</ID>
+    <ID>ArgumentListWrapping:AIResultsPanel.kt$(StudioDimens.m)</ID>
+    <ID>ArgumentListWrapping:AIResultsPanel.kt$(StudioDimens.s)</ID>
+    <ID>ArgumentListWrapping:AIResultsPanel.kt$(modifier = Modifier.padding(StudioDimens.l), verticalArrangement = Arrangement.spacedBy(StudioDimens.m))</ID>
+    <ID>ArgumentListWrapping:AIResultsPanel.kt$(modifier = Modifier.padding(StudioDimens.l), verticalArrangement = Arrangement.spacedBy(StudioDimens.s))</ID>
+    <ID>ArgumentListWrapping:App.kt$(StudioDimens.l)</ID>
+    <ID>ArgumentListWrapping:App.kt$(StudioDimens.xl)</ID>
+    <ID>ArgumentListWrapping:App.kt$(modifier = Modifier.padding(StudioDimens.xl), verticalArrangement = Arrangement.spacedBy(StudioDimens.l))</ID>
+    <ID>ArgumentListWrapping:BodyTab.kt$(horizontal = StudioDimens.l, vertical = StudioDimens.m)</ID>
+    <ID>ArgumentListWrapping:BodyTab.kt$(onClick = onFormatJson, contentPadding = PaddingValues(horizontal = StudioDimens.l, vertical = StudioDimens.m))</ID>
+    <ID>ArgumentListWrapping:BodyTab.kt$(onClick = onValidateJson, contentPadding = PaddingValues(horizontal = StudioDimens.l, vertical = StudioDimens.m))</ID>
+    <ID>ArgumentListWrapping:CompanionPanel.kt$(StudioDimens.m)</ID>
+    <ID>ArgumentListWrapping:CompanionPanel.kt$(StudioDimens.xl)</ID>
+    <ID>ArgumentListWrapping:CompanionPanel.kt$(modifier = Modifier.padding(StudioDimens.xl), verticalArrangement = Arrangement.spacedBy(StudioDimens.m))</ID>
+    <ID>ArgumentListWrapping:EndpointBrowser.kt$(start = StudioDimens.l, top = StudioDimens.l, bottom = StudioDimens.xs)</ID>
+    <ID>ArgumentListWrapping:EndpointDetailPane.kt$("Delete \"${endpoint.displayAlias}\" (${endpoint.method} ${endpoint.path})? This cannot be undone.")</ID>
+    <ID>ArgumentListWrapping:Res.kt$Res$("composeResources/com.moqserver.composeapp.generated.resources/" + path)</ID>
+    <ID>CognitiveComplexMethod:App.kt$@Composable internal fun StudioWorkspaceScreen( state: StudioState, onRefreshCompanion: () -&gt; Unit, onAIAction: (AIAction) -&gt; Unit, showAiPanel: Boolean, onCloseAiPanel: () -&gt; Unit, viewModel: StudioRootViewModel, )</ID>
+    <ID>CognitiveComplexMethod:BodyEditorUtils.kt$internal fun yamlValueToDisplayString(value: YamlValue, indent: Int = 0): String</ID>
+    <ID>CognitiveComplexMethod:BodyTab.kt$@Composable internal fun BodyTab( variant: ProjectVariant, projectPath: String = "", onUpdate: (ProjectVariant) -&gt; Unit, )</ID>
+    <ID>CognitiveComplexMethod:CompanionPanel.kt$@Composable fun CompanionStatusBar( ai: AIState, onRefresh: () -&gt; Unit, onSelectProvider: (String) -&gt; Unit, modifier: Modifier = Modifier, )</ID>
+    <ID>CognitiveComplexMethod:CompanionPanel.kt$@OptIn(ExperimentalLayoutApi::class) @Composable private fun ProviderCard( provider: AIProviderInfo, isSelected: Boolean, onSelect: () -&gt; Unit, )</ID>
+    <ID>CognitiveComplexMethod:HeadersTab.kt$@Composable private fun HeaderRow( key: String, value: String, index: Int, headers: Map&lt;String, String&gt;, headerCriteria: List&lt;RuleMatcher&gt;, requestRules: RequestRules, isRequired: Boolean, ruleMatcher: RuleMatcher?, placeholderColors: TextFieldColors, onUpdate: (Map&lt;String, String&gt;, RequestRules) -&gt; Unit, onRemove: () -&gt; Unit, )</ID>
+    <ID>CognitiveComplexMethod:ImportReviewScreen.kt$@Composable fun ImportReviewScreen( state: ImportState, onToggleEndpoint: (Int) -&gt; Unit, onSelectAll: () -&gt; Unit, onDeselectAll: () -&gt; Unit, onUpdateProjectName: (String) -&gt; Unit, onConfirm: () -&gt; Unit, onCancel: () -&gt; Unit, modifier: Modifier = Modifier, )</ID>
+    <ID>CognitiveComplexMethod:ImportReviewScreen.kt$@Composable private fun ImportEndpointRow( endpoint: ParsedEndpoint, accepted: Boolean, onToggle: () -&gt; Unit, )</ID>
+    <ID>CognitiveComplexMethod:ValidationPanel.kt$@Composable fun ValidationPanel( diagnostics: List&lt;ValidationDiagnostic&gt;, onDiagnosticClick: (ValidationDiagnostic) -&gt; Unit, modifier: Modifier = Modifier, )</ID>
+    <ID>CyclomaticComplexMethod:AIResultsPanel.kt$@Composable fun AIResultsPanel( aiAction: AIActionState, onDismiss: () -&gt; Unit, onAcceptVariant: (GeneratedVariant) -&gt; Unit, onNavigateToEndpoint: (String) -&gt; Unit, modifier: Modifier = Modifier, )</ID>
+    <ID>CyclomaticComplexMethod:BodyTab.kt$@Composable internal fun BodyTab( variant: ProjectVariant, projectPath: String = "", onUpdate: (ProjectVariant) -&gt; Unit, )</ID>
+    <ID>CyclomaticComplexMethod:CompanionPanel.kt$@Composable fun CompanionStatusBar( ai: AIState, onRefresh: () -&gt; Unit, onSelectProvider: (String) -&gt; Unit, modifier: Modifier = Modifier, )</ID>
+    <ID>FunctionNaming:Font0.commonMain.kt$@InternalResourceApi internal fun _collectCommonMainFont0Resources(map: MutableMap&lt;String, FontResource&gt;)</ID>
+    <ID>ImportOrdering:App.kt$import androidx.compose.foundation.isSystemInDarkTheme import androidx.compose.foundation.background import androidx.compose.foundation.layout.Arrangement import androidx.compose.foundation.layout.Box import androidx.compose.foundation.layout.Column import androidx.compose.foundation.layout.Row import androidx.compose.foundation.layout.fillMaxSize import androidx.compose.foundation.layout.fillMaxWidth import androidx.compose.foundation.layout.height import androidx.compose.foundation.layout.padding import androidx.compose.foundation.layout.width import androidx.compose.material.icons.Icons import androidx.compose.material.icons.filled.AutoAwesome import androidx.compose.material.icons.filled.DarkMode import androidx.compose.material.icons.filled.FolderOpen import androidx.compose.material.icons.filled.LightMode import androidx.compose.material.icons.filled.Refresh import androidx.compose.material3.Button import androidx.compose.material3.Card import androidx.compose.material3.ExperimentalMaterial3Api import androidx.compose.material3.FilledTonalButton import androidx.compose.material3.HorizontalDivider import androidx.compose.material3.Icon import androidx.compose.material3.IconButton import androidx.compose.material3.MaterialTheme import androidx.compose.material3.OutlinedButton import androidx.compose.material3.Scaffold import androidx.compose.material3.Surface import androidx.compose.material3.Text import androidx.compose.material3.TopAppBar import androidx.compose.material3.TopAppBarDefaults import androidx.compose.runtime.Composable import androidx.compose.runtime.collectAsState import androidx.compose.runtime.getValue import androidx.compose.ui.Alignment import androidx.compose.ui.Modifier import androidx.compose.ui.graphics.Color import androidx.compose.ui.text.font.FontFamily import androidx.compose.ui.unit.dp import com.moqserver.studio.domain.AIAction import com.moqserver.studio.domain.AIState import com.moqserver.studio.domain.StudioRootViewModel import com.moqserver.studio.domain.StudioState import com.moqserver.studio.projectformat.MoqProject import com.moqserver.composeapp.generated.resources.GreatVibes_Regular import com.moqserver.composeapp.generated.resources.Res import org.jetbrains.compose.resources.Font</ID>
+    <ID>ImportOrdering:BodyTab.kt$import androidx.compose.foundation.background import androidx.compose.foundation.layout.* import androidx.compose.foundation.relocation.BringIntoViewRequester import androidx.compose.foundation.relocation.bringIntoViewRequester import androidx.compose.foundation.shape.RoundedCornerShape import androidx.compose.material.icons.Icons import androidx.compose.material.icons.outlined.Close import androidx.compose.material.icons.outlined.Edit import androidx.compose.material.icons.outlined.Save import androidx.compose.material3.* import androidx.compose.runtime.* import androidx.compose.ui.Alignment import androidx.compose.ui.Modifier import androidx.compose.ui.draw.clip import androidx.compose.ui.graphics.Color import androidx.compose.ui.unit.dp import com.moqserver.studio.StudioColors import com.moqserver.studio.StudioDimens import com.moqserver.studio.editor.JsonCodeEditor import com.moqserver.studio.projectformat.ProjectVariant import com.moqserver.studio.projectformat.YamlValue import com.moqserver.studio.ui.* import java.awt.Color as AwtColor</ID>
+    <ID>ImportOrdering:CookiesTab.kt$import androidx.compose.foundation.layout.* import androidx.compose.material.icons.Icons import androidx.compose.material.icons.outlined.Delete import androidx.compose.material3.* import androidx.compose.runtime.* import androidx.compose.ui.Alignment import androidx.compose.ui.Modifier import androidx.compose.ui.text.style.TextAlign import com.moqserver.studio.StudioDimens import com.moqserver.studio.projectformat.MatchType import com.moqserver.studio.projectformat.RequestRules import com.moqserver.studio.projectformat.RuleMatcher import com.moqserver.studio.ui.*</ID>
+    <ID>ImportOrdering:CriteriaTab.kt$import androidx.compose.foundation.clickable import androidx.compose.foundation.layout.* import androidx.compose.material3.* import androidx.compose.runtime.* import androidx.compose.ui.Alignment import androidx.compose.ui.Modifier import com.moqserver.studio.StudioDimens import com.moqserver.studio.projectformat.* import com.moqserver.studio.ui.*</ID>
+    <ID>ImportOrdering:EndpointDetailPane.kt$import androidx.compose.foundation.background import androidx.compose.foundation.clickable import androidx.compose.foundation.layout.* import androidx.compose.foundation.rememberScrollState import androidx.compose.foundation.shape.RoundedCornerShape import androidx.compose.foundation.verticalScroll import androidx.compose.material3.* import androidx.compose.runtime.* import androidx.compose.ui.Alignment import androidx.compose.ui.Modifier import androidx.compose.ui.draw.clip import androidx.compose.ui.unit.dp import com.moqserver.studio.endpointdetail.* import com.moqserver.studio.projectformat.* import com.moqserver.studio.ui.*</ID>
+    <ID>ImportOrdering:ExpectResourceCollectors.kt$import kotlin.String import kotlin.collections.Map import org.jetbrains.compose.resources.DrawableResource import org.jetbrains.compose.resources.FontResource import org.jetbrains.compose.resources.PluralStringResource import org.jetbrains.compose.resources.StringArrayResource import org.jetbrains.compose.resources.StringResource</ID>
+    <ID>ImportOrdering:Font0.commonMain.kt$import kotlin.OptIn import kotlin.String import kotlin.collections.MutableMap import org.jetbrains.compose.resources.FontResource import org.jetbrains.compose.resources.InternalResourceApi import org.jetbrains.compose.resources.ResourceContentHash import org.jetbrains.compose.resources.ResourceItem</ID>
+    <ID>ImportOrdering:HeadersTab.kt$import androidx.compose.foundation.layout.* import androidx.compose.material.icons.Icons import androidx.compose.material.icons.outlined.Delete import androidx.compose.material3.* import androidx.compose.runtime.* import androidx.compose.ui.Alignment import androidx.compose.ui.Modifier import androidx.compose.ui.text.style.TextAlign import com.moqserver.studio.StudioDimens import com.moqserver.studio.projectformat.MatchType import com.moqserver.studio.projectformat.RequestRules import com.moqserver.studio.projectformat.RuleMatcher import com.moqserver.studio.ui.*</ID>
+    <ID>ImportOrdering:Res.kt$import kotlin.ByteArray import kotlin.OptIn import kotlin.String import kotlin.Suppress import org.jetbrains.compose.resources.InternalResourceApi import org.jetbrains.compose.resources.getResourceUri import org.jetbrains.compose.resources.readResourceBytes</ID>
+    <ID>ImportOrdering:VariantSummaryTab.kt$import androidx.compose.foundation.background import androidx.compose.foundation.layout.* import androidx.compose.foundation.shape.RoundedCornerShape import androidx.compose.material3.* import androidx.compose.runtime.* import androidx.compose.ui.Alignment import androidx.compose.ui.Modifier import androidx.compose.ui.draw.clip import androidx.compose.ui.text.font.FontWeight import androidx.compose.ui.unit.dp import com.moqserver.studio.StudioDimens import com.moqserver.studio.projectformat.EndpointDocument import com.moqserver.studio.projectformat.ProjectVariant import com.moqserver.studio.projectformat.isValidReferenceName import com.moqserver.studio.ui.*</ID>
+    <ID>Indentation:AIResultsPanel.kt$ </ID>
+    <ID>Indentation:BodyEditorUtils.kt$ </ID>
+    <ID>Indentation:BodyTab.kt$ </ID>
+    <ID>Indentation:CompanionPanel.kt$CompanionPanelStrings$ </ID>
+    <ID>Indentation:CookiesTab.kt$ </ID>
+    <ID>Indentation:CriteriaTab.kt$ </ID>
+    <ID>Indentation:EndpointDetailModels.kt$ </ID>
+    <ID>Indentation:EndpointDetailModels.kt$BodyFormat$ </ID>
+    <ID>Indentation:EndpointDetailModels.kt$VariantDetailTab$ </ID>
+    <ID>Indentation:Font0.commonMain.kt$ </ID>
+    <ID>Indentation:HeadersTab.kt$ </ID>
+    <ID>Indentation:HeadersTab.kt$&lt;no name provided&gt;$ </ID>
+    <ID>Indentation:ImportReviewScreen.kt$ </ID>
+    <ID>Indentation:Res.kt$ </ID>
+    <ID>Indentation:Res.kt$Res$ </ID>
+    <ID>Indentation:VariantSummaryTab.kt$ </ID>
+    <ID>LongMethod:AIResultsPanel.kt$@Composable fun AIResultsPanel( aiAction: AIActionState, onDismiss: () -&gt; Unit, onAcceptVariant: (GeneratedVariant) -&gt; Unit, onNavigateToEndpoint: (String) -&gt; Unit, modifier: Modifier = Modifier, )</ID>
+    <ID>LongMethod:App.kt$@Composable internal fun StudioWorkspaceScreen( state: StudioState, onRefreshCompanion: () -&gt; Unit, onAIAction: (AIAction) -&gt; Unit, showAiPanel: Boolean, onCloseAiPanel: () -&gt; Unit, viewModel: StudioRootViewModel, )</ID>
+    <ID>LongMethod:App.kt$@OptIn(ExperimentalMaterial3Api::class) @Composable private fun StudioTopBar( state: StudioState, themeMode: StudioThemeMode, systemInDarkTheme: Boolean, onThemeModeToggle: () -&gt; Unit, showAiPanel: Boolean, onToggleAiPanel: () -&gt; Unit, onCloseProject: () -&gt; Unit, onSaveProject: (MoqProject) -&gt; Unit, onSaveProjectAs: (MoqProject) -&gt; Unit, onRefreshCompanion: () -&gt; Unit, onAIAction: (AIAction) -&gt; Unit, )</ID>
+    <ID>LongMethod:BodyTab.kt$@Composable internal fun BodyTab( variant: ProjectVariant, projectPath: String = "", onUpdate: (ProjectVariant) -&gt; Unit, )</ID>
+    <ID>LongMethod:BodyTab.kt$@Composable private fun BodyEditorPanel( currentText: String, isEditing: Boolean, isJsonBody: Boolean, draftText: String, onDraftTextChange: (String) -&gt; Unit, selectedFormat: BodyFormat, onEdit: () -&gt; Unit, onCancel: () -&gt; Unit, onSave: () -&gt; Unit, onValidateJson: () -&gt; Unit, onFormatJson: () -&gt; Unit, )</ID>
+    <ID>LongMethod:CompanionPanel.kt$@OptIn(ExperimentalLayoutApi::class) @Composable private fun ProviderCard( provider: AIProviderInfo, isSelected: Boolean, onSelect: () -&gt; Unit, )</ID>
+    <ID>LongMethod:CookiesTab.kt$@Composable private fun CookieRow( cookie: RuleMatcher, index: Int, cookies: List&lt;RuleMatcher&gt;, requestRules: RequestRules, placeholderColors: TextFieldColors, onUpdate: (RequestRules) -&gt; Unit, )</ID>
+    <ID>LongMethod:CriteriaTab.kt$@Composable private fun NetworkSection( network: NetworkBehavior?, onUpdate: (NetworkBehavior?) -&gt; Unit, )</ID>
+    <ID>LongMethod:EndpointBrowser.kt$@Composable fun EndpointBrowser( state: StudioState, onSelectEndpoint: (String) -&gt; Unit, detailContent: @Composable () -&gt; Unit, )</ID>
+    <ID>LongMethod:HeadersTab.kt$@Composable private fun HeaderRow( key: String, value: String, index: Int, headers: Map&lt;String, String&gt;, headerCriteria: List&lt;RuleMatcher&gt;, requestRules: RequestRules, isRequired: Boolean, ruleMatcher: RuleMatcher?, placeholderColors: TextFieldColors, onUpdate: (Map&lt;String, String&gt;, RequestRules) -&gt; Unit, onRemove: () -&gt; Unit, )</ID>
+    <ID>LongMethod:ImportReviewScreen.kt$@Composable fun ImportReviewScreen( state: ImportState, onToggleEndpoint: (Int) -&gt; Unit, onSelectAll: () -&gt; Unit, onDeselectAll: () -&gt; Unit, onUpdateProjectName: (String) -&gt; Unit, onConfirm: () -&gt; Unit, onCancel: () -&gt; Unit, modifier: Modifier = Modifier, )</ID>
+    <ID>LongMethod:ImportReviewScreen.kt$@Composable private fun ImportEndpointRow( endpoint: ParsedEndpoint, accepted: Boolean, onToggle: () -&gt; Unit, )</ID>
+    <ID>LongMethod:VariantSummaryTab.kt$@Composable private fun VariantEditingControls( endpoint: EndpointDocument, variant: ProjectVariant, onUpdate: (ProjectVariant) -&gt; Unit, onRemove: () -&gt; Unit, canRemove: Boolean, )</ID>
+    <ID>LongParameterList:App.kt$( state: StudioState, themeMode: StudioThemeMode, systemInDarkTheme: Boolean, onThemeModeToggle: () -&gt; Unit, showAiPanel: Boolean, onToggleAiPanel: () -&gt; Unit, onCloseProject: () -&gt; Unit, onSaveProject: (MoqProject) -&gt; Unit, onSaveProjectAs: (MoqProject) -&gt; Unit, onRefreshCompanion: () -&gt; Unit, onAIAction: (AIAction) -&gt; Unit, )</ID>
+    <ID>LongParameterList:BodyTab.kt$( currentText: String, isEditing: Boolean, isJsonBody: Boolean, draftText: String, onDraftTextChange: (String) -&gt; Unit, selectedFormat: BodyFormat, onEdit: () -&gt; Unit, onCancel: () -&gt; Unit, onSave: () -&gt; Unit, onValidateJson: () -&gt; Unit, onFormatJson: () -&gt; Unit, )</ID>
+    <ID>LongParameterList:BodyTab.kt$( isEditing: Boolean, canEdit: Boolean, isJsonBody: Boolean, onEdit: () -&gt; Unit, onCancel: () -&gt; Unit, onSave: () -&gt; Unit, onValidateJson: () -&gt; Unit, onFormatJson: () -&gt; Unit, )</ID>
+    <ID>LongParameterList:EndpointDetailPane.kt$( endpoint: EndpointDocument, variant: ProjectVariant, activeVariantIndex: Int, requestRules: RequestRules, projectPath: String, selectedTab: VariantDetailTab, onSelectTab: (VariantDetailTab) -&gt; Unit, onUpdateEndpoint: (EndpointDocument) -&gt; Unit, onRequestRemove: () -&gt; Unit, )</ID>
+    <ID>LongParameterList:HeadersTab.kt$( key: String, value: String, index: Int, headers: Map&lt;String, String&gt;, headerCriteria: List&lt;RuleMatcher&gt;, requestRules: RequestRules, isRequired: Boolean, ruleMatcher: RuleMatcher?, placeholderColors: TextFieldColors, onUpdate: (Map&lt;String, String&gt;, RequestRules) -&gt; Unit, onRemove: () -&gt; Unit, )</ID>
+    <ID>MaxLineLength:Res.kt$Res$public suspend</ID>
+    <ID>MaximumLineLength:Res.kt$Res$ </ID>
+    <ID>MultiLineIfElse:BodyEditorUtils.kt$"[${value.value.joinToString(", ") { yamlValueToDisplayString(it) }}]"</ID>
+    <ID>MultiLineIfElse:BodyEditorUtils.kt$"[\n${value.value.joinToString(",\n") { "$childPad${yamlValueToJsonString(it, indent + 2)}" }}\n$pad]"</ID>
+    <ID>MultiLineIfElse:BodyEditorUtils.kt$"[]"</ID>
+    <ID>MultiLineIfElse:BodyEditorUtils.kt$"{\n${value.value.entries.joinToString(",\n") { (k, v) -&gt; "$childPad\"${k.replace("\"", "\\\"")}\": ${yamlValueToJsonString(v, indent + 2)}" }}\n$pad}"</ID>
+    <ID>MultiLineIfElse:BodyEditorUtils.kt$"{}"</ID>
+    <ID>MultiLineIfElse:BodyEditorUtils.kt$value.value.entries.joinToString("\n") { (key, itemValue) -&gt; when (itemValue) { is YamlValue.Obj -&gt; "$pad$key:\n${yamlValueToDisplayString(itemValue, indent + 2)}" else -&gt; "$pad$key: ${yamlValueToDisplayString(itemValue)}" } }</ID>
+    <ID>NoUnusedImports:AIResultsPanel.kt$com.moqserver.studio.AIResultsPanel.kt</ID>
+    <ID>NoUnusedImports:BodyTab.kt$com.moqserver.studio.endpointdetail.BodyTab.kt</ID>
+    <ID>NoUnusedImports:EndpointBrowser.kt$com.moqserver.studio.EndpointBrowser.kt</ID>
+    <ID>NoUnusedImports:EndpointDetailModels.kt$com.moqserver.studio.endpointdetail.EndpointDetailModels.kt</ID>
+    <ID>NoWildcardImports:BodyEditorUtils.kt$import kotlinx.serialization.json.*</ID>
+    <ID>NoWildcardImports:BodyTab.kt$import androidx.compose.foundation.layout.*</ID>
+    <ID>NoWildcardImports:BodyTab.kt$import androidx.compose.material3.*</ID>
+    <ID>NoWildcardImports:BodyTab.kt$import androidx.compose.runtime.*</ID>
+    <ID>NoWildcardImports:BodyTab.kt$import com.moqserver.studio.ui.*</ID>
+    <ID>NoWildcardImports:CookiesTab.kt$import androidx.compose.foundation.layout.*</ID>
+    <ID>NoWildcardImports:CookiesTab.kt$import androidx.compose.material3.*</ID>
+    <ID>NoWildcardImports:CookiesTab.kt$import androidx.compose.runtime.*</ID>
+    <ID>NoWildcardImports:CookiesTab.kt$import com.moqserver.studio.ui.*</ID>
+    <ID>NoWildcardImports:CriteriaTab.kt$import androidx.compose.foundation.layout.*</ID>
+    <ID>NoWildcardImports:CriteriaTab.kt$import androidx.compose.material3.*</ID>
+    <ID>NoWildcardImports:CriteriaTab.kt$import androidx.compose.runtime.*</ID>
+    <ID>NoWildcardImports:CriteriaTab.kt$import com.moqserver.studio.projectformat.*</ID>
+    <ID>NoWildcardImports:CriteriaTab.kt$import com.moqserver.studio.ui.*</ID>
+    <ID>NoWildcardImports:EndpointDetailModels.kt$import kotlinx.serialization.json.*</ID>
+    <ID>NoWildcardImports:EndpointDetailPane.kt$import androidx.compose.foundation.layout.*</ID>
+    <ID>NoWildcardImports:EndpointDetailPane.kt$import androidx.compose.material3.*</ID>
+    <ID>NoWildcardImports:EndpointDetailPane.kt$import androidx.compose.runtime.*</ID>
+    <ID>NoWildcardImports:EndpointDetailPane.kt$import com.moqserver.studio.endpointdetail.*</ID>
+    <ID>NoWildcardImports:EndpointDetailPane.kt$import com.moqserver.studio.projectformat.*</ID>
+    <ID>NoWildcardImports:EndpointDetailPane.kt$import com.moqserver.studio.ui.*</ID>
+    <ID>NoWildcardImports:HeadersTab.kt$import androidx.compose.foundation.layout.*</ID>
+    <ID>NoWildcardImports:HeadersTab.kt$import androidx.compose.material3.*</ID>
+    <ID>NoWildcardImports:HeadersTab.kt$import androidx.compose.runtime.*</ID>
+    <ID>NoWildcardImports:HeadersTab.kt$import com.moqserver.studio.ui.*</ID>
+    <ID>NoWildcardImports:SharedUiHelpers.kt$import androidx.compose.material3.*</ID>
+    <ID>NoWildcardImports:VariantSummaryTab.kt$import androidx.compose.foundation.layout.*</ID>
+    <ID>NoWildcardImports:VariantSummaryTab.kt$import androidx.compose.material3.*</ID>
+    <ID>NoWildcardImports:VariantSummaryTab.kt$import androidx.compose.runtime.*</ID>
+    <ID>NoWildcardImports:VariantSummaryTab.kt$import com.moqserver.studio.ui.*</ID>
+    <ID>ParameterListWrapping:Res.kt$Res$(path: String)</ID>
+    <ID>SpacingBetweenDeclarationsWithComments:BodyTab.kt$/** Keep in sync with [StudioColors.editorPanelBackground] — AWT equivalent (0x161B22). */</ID>
+    <ID>SpacingBetweenDeclarationsWithComments:BodyTab.kt$/** Keep in sync with [StudioColors.editorPanelContent] — AWT equivalent (0xE6EDF3). */</ID>
+    <ID>TrailingCommaOnCallSite:App.kt$( resolveNextThemeMode( themeMode = themeMode, systemInDarkTheme = systemInDarkTheme, ) )</ID>
+    <ID>TrailingCommaOnCallSite:App.kt$( topBar = { StudioTopBar( state = state, themeMode = themeMode, onThemeModeToggle = { onThemeModeChange( resolveNextThemeMode( themeMode = themeMode, systemInDarkTheme = systemInDarkTheme, ) ) }, systemInDarkTheme = systemInDarkTheme, showAiPanel = showAiPanel, onToggleAiPanel = onToggleAiPanel, onCloseProject = onCloseProject, onSaveProject = onSaveProject, onSaveProjectAs = onSaveProjectAs, onRefreshCompanion = onRefreshCompanion, onAIAction = onAIAction, ) } )</ID>
+    <ID>TrailingCommaOnCallSite:CompanionPanel.kt$( when { ai.loading -&gt; MaterialTheme.colorScheme.tertiary ai.isReady -&gt; StudioColors.success ai.providers.isEmpty() &amp;&amp; ai.error == null -&gt; MaterialTheme.colorScheme.outline else -&gt; MaterialTheme.colorScheme.error } )</ID>
+    <ID>TrailingCommaOnCallSite:EndpointBrowser.kt$( modifier = Modifier .width(StudioDimens.endpointBrowserWidth) .fillMaxHeight() .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)) )</ID>
+    <ID>UnusedParameter:AIResultsPanel.kt$onNavigateToEndpoint: (String) -&gt; Unit</ID>
+    <ID>UnusedParameter:App.kt$onAIAction: (AIAction) -&gt; Unit</ID>
+    <ID>UnusedParameter:VariantSummaryTab.kt$onUpdateEndpoint: (EndpointDocument) -&gt; Unit</ID>
+    <ID>WildcardImport:EndpointDetailPane.kt$import com.moqserver.studio.endpointdetail.*</ID>
+    <ID>Wrapping:Font0.commonMain.kt$(</ID>
+    <ID>Wrapping:Font0.commonMain.kt$("font:GreatVibes_Regular", setOf( ResourceItem(setOf(), "${MD}font/GreatVibes-Regular.ttf", -1, -1), ))</ID>
+    <ID>Wrapping:HeadersTab.kt$(</ID>
+  </CurrentIssues>
+</SmellBaseline>

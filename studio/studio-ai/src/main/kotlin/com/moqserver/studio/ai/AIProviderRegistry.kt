@@ -70,7 +70,7 @@ class AIProviderRegistry(private val providers: List<AIProvider>) {
         completion: AICompletionResult,
         result: T,
     ): CompanionResponse<T> = CompanionResponse(
-        requestId = "req_${UUID.randomUUID().toString().replace("-", "").take(12)}",
+        requestId = "$REQUEST_ID_PREFIX${UUID.randomUUID().toString().replace("-", "").take(REQUEST_ID_LENGTH)}",
         provider = ProviderUsage(id = provider.id, model = completion.model),
         result = result,
         usage = UsageInfo(
@@ -80,4 +80,9 @@ class AIProviderRegistry(private val providers: List<AIProvider>) {
             latencyMs = completion.latencyMs?.toInt(),
         ),
     )
+
+    companion object {
+        private const val REQUEST_ID_PREFIX = "req_"
+        private const val REQUEST_ID_LENGTH = 12
+    }
 }

@@ -1,5 +1,6 @@
 package com.moqserver.studio
 
+import com.moqserver.studio.endpointdetail.hasSessionEdits
 import com.moqserver.studio.projectformat.ProjectVariant
 import kotlin.test.Test
 import kotlin.test.assertFalse

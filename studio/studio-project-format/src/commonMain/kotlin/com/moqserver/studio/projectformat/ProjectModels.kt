@@ -3,6 +3,33 @@ package com.moqserver.studio.projectformat
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
+/** Canonical constants for the .moqproj file format. */
+object MoqProjectFormat {
+    /** Current format version supported by this codec/validator. */
+    const val FORMAT_VERSION = "1"
+
+    /** Manifest filename within a .moqproj bundle. */
+    const val MANIFEST_FILE = "project.yml"
+
+    /** Directory containing endpoint YAML files. */
+    const val ENDPOINTS_DIR = "endpoints"
+
+    /** Directory containing body fixture files. */
+    const val FIXTURES_DIR = "fixtures"
+
+    /** Prefix for fixture response files inside the fixtures directory. */
+    const val FIXTURE_RESPONSES_PREFIX = "fixtures/responses/"
+
+    /** Accepted YAML file extensions. */
+    val YAML_EXTENSIONS = setOf("yml", "yaml")
+
+    /** The standard GraphQL endpoint path. */
+    const val GRAPHQL_PATH = "/graphql"
+
+    /** HTTP header for content type. */
+    const val CONTENT_TYPE_HEADER = "Content-Type"
+}
+
 /** A loaded .moqproj project — the aggregate root for the project format. */
 data class MoqProject(
     val manifest: ProjectManifest,

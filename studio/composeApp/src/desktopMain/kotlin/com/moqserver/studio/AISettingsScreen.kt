@@ -25,12 +25,29 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
-import androidx.compose.ui.unit.dp
 import com.moqserver.studio.data.AISettings
 import com.moqserver.studio.data.AnthropicSettings
 import com.moqserver.studio.data.GeminiSettings
 import com.moqserver.studio.data.OllamaSettings
 import com.moqserver.studio.data.OpenAISettings
+
+private object AISettingsStrings {
+    const val AI_SETTINGS = "AI Settings"
+    const val SAVE = "Save"
+    const val OLLAMA_TITLE = "Ollama"
+    const val OLLAMA_SUBTITLE = "Local — no API key required"
+    const val OPENAI_TITLE = "OpenAI"
+    const val OPENAI_SUBTITLE = "Hosted — requires API key"
+    const val ANTHROPIC_TITLE = "Anthropic (Claude)"
+    const val ANTHROPIC_SUBTITLE = "Hosted — requires API key"
+    const val GEMINI_TITLE = "Google Gemini"
+    const val GEMINI_SUBTITLE = "Hosted — requires API key"
+    const val BASE_URL = "Base URL"
+    const val DEFAULT_MODEL = "Default Model"
+    const val API_KEY = "API Key"
+    const val SHOW = "Show"
+    const val HIDE = "Hide"
+}
 
 @Composable
 fun AISettingsScreen(
@@ -51,10 +68,10 @@ fun AISettingsScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .verticalScroll(rememberScrollState())
-                .padding(24.dp),
-            verticalArrangement = Arrangement.spacedBy(20.dp),
+                .padding(StudioDimens.xxxl),
+            verticalArrangement = Arrangement.spacedBy(StudioDimens.xxl),
         ) {
-            Text("AI Settings", style = MaterialTheme.typography.headlineSmall)
+            Text(AISettingsStrings.AI_SETTINGS, style = MaterialTheme.typography.headlineSmall)
 
             OllamaSettingsCard(
                 settings = ollama,
@@ -94,7 +111,7 @@ fun AISettingsScreen(
                         )
                     }
                 ) {
-                    Text("Save")
+                    Text(AISettingsStrings.SAVE)
                 }
             }
         }
@@ -106,18 +123,18 @@ private fun OllamaSettingsCard(
     settings: OllamaSettings,
     onChange: (OllamaSettings) -> Unit,
 ) {
-    ProviderSettingsCard(title = "Ollama", subtitle = "Local — no API key required") {
+    ProviderSettingsCard(title = AISettingsStrings.OLLAMA_TITLE, subtitle = AISettingsStrings.OLLAMA_SUBTITLE) {
         OutlinedTextField(
             value = settings.baseUrl,
             onValueChange = { onChange(settings.copy(baseUrl = it)) },
-            label = { Text("Base URL") },
+            label = { Text(AISettingsStrings.BASE_URL) },
             modifier = Modifier.fillMaxWidth(),
             singleLine = true,
         )
         OutlinedTextField(
             value = settings.defaultModel,
             onValueChange = { onChange(settings.copy(defaultModel = it)) },
-            label = { Text("Default Model") },
+            label = { Text(AISettingsStrings.DEFAULT_MODEL) },
             modifier = Modifier.fillMaxWidth(),
             singleLine = true,
         )
@@ -129,7 +146,7 @@ private fun OpenAISettingsCard(
     settings: OpenAISettings,
     onChange: (OpenAISettings) -> Unit,
 ) {
-    ProviderSettingsCard(title = "OpenAI", subtitle = "Hosted — requires API key") {
+    ProviderSettingsCard(title = AISettingsStrings.OPENAI_TITLE, subtitle = AISettingsStrings.OPENAI_SUBTITLE) {
         ApiKeyField(
             value = settings.apiKey,
             onValueChange = { onChange(settings.copy(apiKey = it)) },
@@ -137,14 +154,14 @@ private fun OpenAISettingsCard(
         OutlinedTextField(
             value = settings.baseUrl,
             onValueChange = { onChange(settings.copy(baseUrl = it)) },
-            label = { Text("Base URL") },
+            label = { Text(AISettingsStrings.BASE_URL) },
             modifier = Modifier.fillMaxWidth(),
             singleLine = true,
         )
         OutlinedTextField(
             value = settings.defaultModel,
             onValueChange = { onChange(settings.copy(defaultModel = it)) },
-            label = { Text("Default Model") },
+            label = { Text(AISettingsStrings.DEFAULT_MODEL) },
             modifier = Modifier.fillMaxWidth(),
             singleLine = true,
         )
@@ -156,7 +173,7 @@ private fun AnthropicSettingsCard(
     settings: AnthropicSettings,
     onChange: (AnthropicSettings) -> Unit,
 ) {
-    ProviderSettingsCard(title = "Anthropic (Claude)", subtitle = "Hosted — requires API key") {
+    ProviderSettingsCard(title = AISettingsStrings.ANTHROPIC_TITLE, subtitle = AISettingsStrings.ANTHROPIC_SUBTITLE) {
         ApiKeyField(
             value = settings.apiKey,
             onValueChange = { onChange(settings.copy(apiKey = it)) },
@@ -164,14 +181,14 @@ private fun AnthropicSettingsCard(
         OutlinedTextField(
             value = settings.baseUrl,
             onValueChange = { onChange(settings.copy(baseUrl = it)) },
-            label = { Text("Base URL") },
+            label = { Text(AISettingsStrings.BASE_URL) },
             modifier = Modifier.fillMaxWidth(),
             singleLine = true,
         )
         OutlinedTextField(
             value = settings.defaultModel,
             onValueChange = { onChange(settings.copy(defaultModel = it)) },
-            label = { Text("Default Model") },
+            label = { Text(AISettingsStrings.DEFAULT_MODEL) },
             modifier = Modifier.fillMaxWidth(),
             singleLine = true,
         )
@@ -183,7 +200,7 @@ private fun GeminiSettingsCard(
     settings: GeminiSettings,
     onChange: (GeminiSettings) -> Unit,
 ) {
-    ProviderSettingsCard(title = "Google Gemini", subtitle = "Hosted — requires API key") {
+    ProviderSettingsCard(title = AISettingsStrings.GEMINI_TITLE, subtitle = AISettingsStrings.GEMINI_SUBTITLE) {
         ApiKeyField(
             value = settings.apiKey,
             onValueChange = { onChange(settings.copy(apiKey = it)) },
@@ -191,14 +208,14 @@ private fun GeminiSettingsCard(
         OutlinedTextField(
             value = settings.baseUrl,
             onValueChange = { onChange(settings.copy(baseUrl = it)) },
-            label = { Text("Base URL") },
+            label = { Text(AISettingsStrings.BASE_URL) },
             modifier = Modifier.fillMaxWidth(),
             singleLine = true,
         )
         OutlinedTextField(
             value = settings.defaultModel,
             onValueChange = { onChange(settings.copy(defaultModel = it)) },
-            label = { Text("Default Model") },
+            label = { Text(AISettingsStrings.DEFAULT_MODEL) },
             modifier = Modifier.fillMaxWidth(),
             singleLine = true,
         )
@@ -215,13 +232,13 @@ private fun ApiKeyField(
     OutlinedTextField(
         value = value,
         onValueChange = onValueChange,
-        label = { Text("API Key") },
+        label = { Text(AISettingsStrings.API_KEY) },
         modifier = Modifier.fillMaxWidth(),
         singleLine = true,
         visualTransformation = if (revealValue) VisualTransformation.None else PasswordVisualTransformation(),
         trailingIcon = {
             TextButton(onClick = { revealValue = !revealValue }) {
-                Text(if (revealValue) "Hide" else "Show")
+                Text(if (revealValue) AISettingsStrings.HIDE else AISettingsStrings.SHOW)
             }
         },
     )
@@ -235,8 +252,8 @@ private fun ProviderSettingsCard(
 ) {
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(
-            modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
+            modifier = Modifier.padding(StudioDimens.xl),
+            verticalArrangement = Arrangement.spacedBy(StudioDimens.l),
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),

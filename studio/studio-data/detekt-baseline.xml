@@ -1,0 +1,38 @@
+<?xml version="1.0" ?>
+<SmellBaseline>
+  <ManuallySuppressedIssues></ManuallySuppressedIssues>
+  <CurrentIssues>
+    <ID>ArgumentListWrapping:OpenAPIImportParser.kt$OpenAPIImportParser$( "OpenAPI endpoint: {} {} → {} variant(s), auth={}", method, pathStr, responses.size, authType, )</ID>
+    <ID>ArgumentListWrapping:OpenAPIImportParser.kt$OpenAPIImportParser$( operation, openAPI.security.orEmpty(), securitySchemes )</ID>
+    <ID>ArgumentListWrapping:OpenAPIImportParser.kt$OpenAPIImportParser$("image/svg")</ID>
+    <ID>ArgumentListWrapping:OpenAPIImportParser.kt$OpenAPIImportParser$(lower)</ID>
+    <ID>ArgumentListWrapping:SecureCredentialStore.kt$MacOSKeychainCredentialStore$("Keychain command failed for '{}': {}", args.firstOrNull().orEmpty(), stderr.ifBlank { exitCode.toString() })</ID>
+    <ID>CyclomaticComplexMethod:HARImportParser.kt$HARImportParser$fun parse(content: String): ParsedSpec</ID>
+    <ID>CyclomaticComplexMethod:OpenAPIImportParser.kt$OpenAPIImportParser$private fun resolveAuth( operation: Operation, globalSecurity: List&lt;SecurityRequirement&gt;, securitySchemes: Map&lt;String, SecurityScheme&gt;, ): Pair&lt;AuthType, String?&gt;</ID>
+    <ID>DestructuringDeclarationWithTooManyEntries:OpenAPIImportParser.kt$OpenAPIImportParser$val (reqQuery, reqHeaders, reqCookies, requiresBody, acceptedContentTypes) = extractRequestRules(operation, pathItem.parameters.orEmpty())</ID>
+    <ID>Indentation:AISettingsRepository.kt$AISettingsRepository$ </ID>
+    <ID>LargeClass:OpenAPIImportParser.kt$OpenAPIImportParser</ID>
+    <ID>LongMethod:HARImportParser.kt$HARImportParser$fun parse(content: String): ParsedSpec</ID>
+    <ID>LongMethod:HARImportParserTest.kt$HARImportParserTest$@Test fun `parses entries, skips malformed urls, and survives invalid base64 bodies`()</ID>
+    <ID>LongMethod:ImportWorkflowTest.kt$ImportWorkflowTest$@Test fun `har import round trips through project save and load with special headers and binary bodies`()</ID>
+    <ID>LongMethod:OpenAPIImportParser.kt$OpenAPIImportParser$fun parse(content: String): ParsedSpec</ID>
+    <ID>LoopWithTooManyJumpStatements:HARImportParser.kt$HARImportParser$for</ID>
+    <ID>MaxLineLength:OpenAPIImportParser.kt$OpenAPIImportParser$isHtmlMediaType(lower) -&gt; "&lt;!DOCTYPE html&gt;\n&lt;html&gt;&lt;head&gt;&lt;title&gt;Mock Response&lt;/title&gt;&lt;/head&gt;&lt;body&gt;&lt;p&gt;mock-response&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;"</ID>
+    <ID>MaxLineLength:OpenAPIImportParser.kt$OpenAPIImportParser$lower.startsWith("image/svg") -&gt; "&lt;svg xmlns=\"http://www.w3.org/2000/svg\" width=\"100\" height=\"100\"&gt;&lt;rect width=\"100\" height=\"100\" fill=\"#ccc\"/&gt;&lt;text x=\"10\" y=\"55\" font-size=\"12\"&gt;mock&lt;/text&gt;&lt;/svg&gt;"</ID>
+    <ID>MaximumLineLength:OpenAPIImportParser.kt$OpenAPIImportParser$ </ID>
+    <ID>NoWildcardImports:OpenAPIImportParser.kt$import com.moqserver.studio.projectformat.*</ID>
+    <ID>TrailingCommaOnCallSite:AISettingsRepositoryTest.kt$AISettingsRepositoryTest$( """ { "selectedProviderId": "openai", "openai": { "apiKey": "", "baseUrl": "https://example.com/openai", "defaultModel": "gpt-test" }, "anthropic": { "apiKey": "", "baseUrl": "https://example.com/anthropic", "defaultModel": "claude-test" }, "gemini": { "apiKey": "", "baseUrl": "https://example.com/gemini", "defaultModel": "gemini-test" } } """.trimIndent() )</ID>
+    <ID>TrailingCommaOnCallSite:AISettingsRepositoryTest.kt$AISettingsRepositoryTest$( AISettings( openai = OpenAISettings(apiKey = "openai-secret"), anthropic = AnthropicSettings(apiKey = "anthropic-secret"), gemini = GeminiSettings(apiKey = "gemini-secret"), ) )</ID>
+    <ID>TrailingCommaOnCallSite:ImportWorkflowTest.kt$ImportWorkflowTest$( """ { "log": { "version": "1.2", "creator": { "name": "Browser", "version": "1.0" }, "entries": [ { "request": { "method": "GET", "url": "https://img.youtube.com/vi/iONDebHX9qk/mqdefault.jpg", "headers": [], "queryString": [] }, "response": { "status": 200, "headers": [ { "name": "Alt-Svc", "value": "h3=\":443\"; ma=2592000,h3-29=\":443\"; ma=2592000" }, { "name": "report-to", "value": "{\"group\":\"youtube\",\"max_age\":2592000,\"endpoints\":[{\"url\":\"https://csp.withgoogle.com/csp/report-to/youtube\"}]}" } ], "content": { "mimeType": "image/jpeg", "text": "/9j/4AAQSkZJRg==", "encoding": "base64" } } } ] } } """.trimIndent() )</ID>
+    <ID>TrailingCommaOnCallSite:ImportWorkflowTest.kt$ImportWorkflowTest$( """ { "log": { "version": "1.2", "entries": [ { "request": { "method": "GET", "url": "https://example.com/api/users", "headers": [] }, "response": { "status": 200, "headers": [], "content": { "mimeType": "application/json", "text": "eyJvayI6dHJ1ZX0=", "encoding": "base64" } } } ] } } """.trimIndent() )</ID>
+    <ID>TrailingCommaOnCallSite:ImportWorkflowTest.kt$ImportWorkflowTest$( """ { "log": { "version": "1.2", "entries": [ { "request": { "method": "GET", "url": "https://example.com/image.jpg", "headers": [] }, "response": { "status": 200, "headers": [], "content": { "mimeType": "image/jpeg", "text": "/9j/4AAQSkZJRg==", "encoding": "base64" } } } ] } } """.trimIndent() )</ID>
+    <ID>TrailingCommaOnCallSite:OpenAPIImportParser.kt$OpenAPIImportParser$( "Unable to parse OpenAPI spec: ${result.messages.joinToString("; ")}" )</ID>
+    <ID>TrailingCommaOnCallSite:OpenAPIImportParser.kt$OpenAPIImportParser$( ParsedEndpoint( method = method, path = pathStr, alias = resolveAlias(operation, method, pathStr), description = operation.description?.trim()?.takeIf { it.isNotEmpty() }, referenceName = operation.operationId?.trim()?.takeIf { it.isNotEmpty() }, responses = responses, authType = authType, authHeaderName = authHeaderName, queryParameters = reqQuery, requiredQueryParameters = reqQuery.filter { it.required == true }.map { it.name }, requiredHeaders = reqHeaders, cookies = reqCookies, requiresBody = requiresBody, acceptedContentTypes = acceptedContentTypes, ) )</ID>
+    <ID>TrailingCommaOnCallSite:OpenAPIImportParser.kt$OpenAPIImportParser$( ParsedResponse( name = name, statusCode = code, headers = headers, body = body, ) )</ID>
+    <ID>TrailingCommaOnCallSite:OpenAPIImportParser.kt$OpenAPIImportParser$( ParsedResponse(name = name, statusCode = code, headers = responseHeaders) )</ID>
+    <ID>TrailingCommaOnCallSite:OpenAPIImportParser.kt$OpenAPIImportParser$( operation, openAPI.security.orEmpty(), securitySchemes )</ID>
+    <ID>TrailingCommaOnCallSite:OpenAPIImportParser.kt$OpenAPIImportParser$( value.entries.associate { (k, v) -&gt; k.toString() to anyToJsonElement(v) } )</ID>
+    <ID>UseCheckOrError:SecureCredentialStore.kt$UnsupportedSecureCredentialStore$throw IllegalStateException("Secure credential storage is not available on $osName.")</ID>
+    <ID>Wrapping:SecureCredentialStore.kt$MacOSKeychainCredentialStore$exitCode.toString()</ID>
+  </CurrentIssues>
+</SmellBaseline>

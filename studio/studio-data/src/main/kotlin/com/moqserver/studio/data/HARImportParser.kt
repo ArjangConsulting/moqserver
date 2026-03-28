@@ -22,6 +22,27 @@ class HARImportParser {
     private val json = Json { ignoreUnknownKeys = true }
     private val logger = loggerFor<HARImportParser>()
 
+    companion object {
+        private const val CONTENT_TYPE_HEADER = "Content-Type"
+        private const val COOKIE_HEADER = "Cookie"
+        private const val HAR_IMPORT_SUFFIX = "HAR Import"
+        private const val DEFAULT_VERSION = "1.0"
+        private const val DEFAULT_STATUS_CODE = 200
+        private val VALID_STATUS_RANGE = 100..599
+        private const val DEFAULT_VARIANT_NAME = "default"
+        private const val SUCCESS_VARIANT_PREFIX = "success"
+        private const val REDIRECT_VARIANT_PREFIX = "redirect"
+        private const val ERROR_VARIANT_PREFIX = "error"
+        private val SENSITIVE_HEADER_PATTERNS = listOf(
+            "authorization",
+            "cookie",
+            "set-cookie",
+            "x-api-key",
+            "x-auth-token",
+            "x-csrf-token",
+        )
+    }
+
     fun parse(content: String): ParsedSpec {
         logger.info("Parsing HAR file ({} bytes)", content.length)
         val har = runCatching { json.decodeFromString<HarFile>(content) }
@@ -108,8 +129,8 @@ class HARImportParser {
             logger.warn("HAR parser skipped {} malformed entries", warnings.size)
         }
 
-        val title = log?.creator?.name?.let { "$it HAR Import" } ?: "HAR Import"
-        val version = log?.creator?.version ?: log?.version ?: "1.0"
+        val title = log?.creator?.name?.let { "$it $HAR_IMPORT_SUFFIX" } ?: HAR_IMPORT_SUFFIX
+        val version = log?.creator?.version ?: log?.version ?: DEFAULT_VERSION
 
         return ParsedSpec(
             title = title,
@@ -129,21 +150,17 @@ class HARImportParser {
     /** Detect potentially sensitive headers in HAR entries. */
     fun detectSensitiveHeaders(content: String): List<String> {
         val har = json.decodeFromString<HarFile>(content)
-        val sensitivePatterns = listOf(
-            "authorization", "cookie", "set-cookie",
-            "x-api-key", "x-auth-token", "x-csrf-token",
-        )
         val found = mutableSetOf<String>()
         for (entry in har.log?.entries.orEmpty()) {
             for (header in entry.request?.headers.orEmpty()) {
                 val name = header.name.orEmpty()
-                if (sensitivePatterns.any { name.lowercase().contains(it) }) {
+                if (SENSITIVE_HEADER_PATTERNS.any { name.lowercase().contains(it) }) {
                     found.add(name)
                 }
             }
             for (header in entry.response?.headers.orEmpty()) {
                 val name = header.name.orEmpty()
-                if (sensitivePatterns.any { name.lowercase().contains(it) }) {
+                if (SENSITIVE_HEADER_PATTERNS.any { name.lowercase().contains(it) }) {
                     found.add(name)
                 }
             }
@@ -160,7 +177,7 @@ class HARImportParser {
     }
 
     private fun normalizedStatusCode(status: Int?): Int {
-        return status?.takeIf { it in 100..599 } ?: 200
+        return status?.takeIf { it in VALID_STATUS_RANGE } ?: DEFAULT_STATUS_CODE
     }
 
     private fun responseHeaders(response: HarResponse): Map<String, String> {
@@ -173,9 +190,9 @@ class HARImportParser {
         }
         val mimeType = response.content.mimeType
         if (!mimeType.isNullOrEmpty() &&
-            headers.keys.none { it.equals("Content-Type", ignoreCase = true) }
+            headers.keys.none { it.equals(CONTENT_TYPE_HEADER, ignoreCase = true) }
         ) {
-            headers["Content-Type"] = mimeType
+            headers[CONTENT_TYPE_HEADER] = mimeType
         }
         return headers
     }
@@ -205,7 +222,7 @@ class HARImportParser {
                 .associate { it }
         }
 
-        val headerValue = request.headers.firstOrNull { it.name.orEmpty().equals("Cookie", ignoreCase = true) }?.value
+        val headerValue = request.headers.firstOrNull { it.name.orEmpty().equals(COOKIE_HEADER, ignoreCase = true) }?.value
             ?: return emptyMap()
 
         return headerValue
@@ -229,7 +246,7 @@ class HARImportParser {
             val baseName = baseVariantName(exchange.statusCode, allowDefault = !didAssignDefault)
             val name = uniqueImportName(baseName, usedNames)
             usedNames.add(name)
-            if (name == "default") didAssignDefault = true
+            if (name == DEFAULT_VARIANT_NAME) didAssignDefault = true
 
             ParsedResponse(
                 name = name,
@@ -305,12 +322,11 @@ class HARImportParser {
 
     private fun baseVariantName(statusCode: Int, allowDefault: Boolean): String {
         return when {
-            statusCode in 200..299 -> if (allowDefault) "default" else "success-$statusCode"
-            statusCode in 300..399 -> "redirect-$statusCode"
-            else -> "error-$statusCode"
+            statusCode in 200..299 -> if (allowDefault) DEFAULT_VARIANT_NAME else "$SUCCESS_VARIANT_PREFIX-$statusCode"
+            statusCode in 300..399 -> "$REDIRECT_VARIANT_PREFIX-$statusCode"
+            else -> "$ERROR_VARIANT_PREFIX-$statusCode"
         }
     }
-
 
     private fun noImportableEntriesMessage(warnings: List<String>): String {
         val prefix = "HAR file does not contain any importable HTTP entries."

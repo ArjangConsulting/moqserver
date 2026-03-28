@@ -1,5 +1,9 @@
 package com.moqserver.studio
 
+import com.moqserver.studio.endpointdetail.deleteAllCookies
+import com.moqserver.studio.endpointdetail.deleteAllHeaders
+import com.moqserver.studio.endpointdetail.hasHeaderEntries
+import com.moqserver.studio.endpointdetail.updateHeadersState
 import com.moqserver.studio.projectformat.EndpointDocument
 import com.moqserver.studio.projectformat.MatchType
 import com.moqserver.studio.projectformat.ProjectVariant

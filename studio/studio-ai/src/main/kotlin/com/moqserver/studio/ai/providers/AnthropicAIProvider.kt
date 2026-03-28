@@ -23,13 +23,13 @@ import kotlinx.serialization.json.Json
 
 class AnthropicAIProvider(
     val apiKey: String,
-    val baseUrl: String = "https://api.anthropic.com",
-    val defaultModel: String = "claude-sonnet-4-6",
+    val baseUrl: String = DEFAULT_BASE_URL,
+    val defaultModel: String = DEFAULT_MODEL,
     private val httpClient: HttpClient = defaultClient(),
 ) : AIProvider {
 
-    override val id = "anthropic"
-    override val displayName = "Anthropic"
+    override val id = PROVIDER_ID
+    override val displayName = DISPLAY_NAME
     override val kind = AIProviderKind.HOSTED
     override val capabilities = setOf(
         AIProviderCapability.ANALYZE_SPEC,
@@ -40,9 +40,9 @@ class AnthropicAIProvider(
     override suspend fun checkAvailability(): Boolean {
         if (apiKey.isBlank()) return false
         return try {
-            val response = httpClient.get("$baseUrl/v1/models") {
-                header("x-api-key", apiKey)
-                header("anthropic-version", "2023-06-01")
+            val response = httpClient.get("$baseUrl$MODELS_PATH") {
+                header(API_KEY_HEADER, apiKey)
+                header(VERSION_HEADER, API_VERSION)
             }
             response.status.isSuccess()
         } catch (_: Exception) {
@@ -53,7 +53,7 @@ class AnthropicAIProvider(
     override suspend fun validateConfig(): List<String> {
         val issues = mutableListOf<String>()
         if (apiKey.isBlank()) {
-            issues += "Anthropic API key is not configured."
+            issues += "$DISPLAY_NAME API key is not configured."
         }
         return issues
     }
@@ -64,27 +64,27 @@ class AnthropicAIProvider(
 
         val bodyMap = buildMap<String, Any> {
             put("model", effectiveModel)
-            put("max_tokens", 4096)
+            put("max_tokens", DEFAULT_MAX_TOKENS)
             put("messages", listOf(mapOf("role" to "user", "content" to prompt)))
             if (temperature != null) put("temperature", temperature)
         }
 
         val response = try {
-            httpClient.post("$baseUrl/v1/messages") {
+            httpClient.post("$baseUrl$MESSAGES_PATH") {
                 contentType(ContentType.Application.Json)
-                header("x-api-key", apiKey)
-                header("anthropic-version", "2023-06-01")
+                header(API_KEY_HEADER, apiKey)
+                header(VERSION_HEADER, API_VERSION)
                 setBody(bodyMap)
             }
         } catch (e: Exception) {
-            throw AIProviderException.Unavailable("Anthropic", e.message ?: "network error", retryable = true)
+            throw AIProviderException.Unavailable(DISPLAY_NAME, e.message ?: "network error", retryable = true)
         }
 
         when (response.status.value) {
-            401 -> throw AIProviderException.AuthInvalid("Anthropic")
-            429 -> throw AIProviderException.Unavailable("Anthropic", "rate limit exceeded", retryable = true)
+            401 -> throw AIProviderException.AuthInvalid(DISPLAY_NAME)
+            429 -> throw AIProviderException.Unavailable(DISPLAY_NAME, "rate limit exceeded", retryable = true)
             !in 200..299 -> throw AIProviderException.Unavailable(
-                "Anthropic",
+                DISPLAY_NAME,
                 "HTTP ${response.status.value}",
                 retryable = response.status.value >= 500,
             )
@@ -92,7 +92,7 @@ class AnthropicAIProvider(
 
         val result = response.body<AnthropicMessagesResponse>()
         val text = result.content.firstOrNull { it.type == "text" }?.text
-            ?: throw AIProviderException.ParseFailure("Anthropic")
+            ?: throw AIProviderException.ParseFailure(DISPLAY_NAME)
 
         return AICompletionResult(
             text = text,
@@ -122,6 +122,19 @@ class AnthropicAIProvider(
         @SerialName("input_tokens") val inputTokens: Int? = null,
         @SerialName("output_tokens") val outputTokens: Int? = null,
     )
+
+    companion object {
+        const val PROVIDER_ID = "anthropic"
+        const val DISPLAY_NAME = "Anthropic"
+        const val DEFAULT_BASE_URL = "https://api.anthropic.com"
+        const val DEFAULT_MODEL = "claude-sonnet-4-6"
+        const val DEFAULT_MAX_TOKENS = 4096
+        const val API_KEY_HEADER = "x-api-key"
+        const val VERSION_HEADER = "anthropic-version"
+        const val API_VERSION = "2023-06-01"
+        private const val MODELS_PATH = "/v1/models"
+        private const val MESSAGES_PATH = "/v1/messages"
+    }
 }
 
 private fun defaultClient() = HttpClient(CIO) {

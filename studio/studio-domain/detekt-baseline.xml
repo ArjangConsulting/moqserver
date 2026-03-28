@@ -1,0 +1,23 @@
+<?xml version="1.0" ?>
+<SmellBaseline>
+  <ManuallySuppressedIssues></ManuallySuppressedIssues>
+  <CurrentIssues>
+    <ID>AnnotationOnSeparateLine:CompanionModels.kt$AICapability.ANALYZE_SPEC$@SerialName("analyze-spec")</ID>
+    <ID>AnnotationOnSeparateLine:CompanionModels.kt$AICapability.GENERATE_VARIANTS$@SerialName("generate-variants")</ID>
+    <ID>AnnotationOnSeparateLine:CompanionModels.kt$AICapability.REFINE_PROJECT$@SerialName("refine-project")</ID>
+    <ID>AnnotationOnSeparateLine:CompanionModels.kt$FindingSeverity.ERROR$@SerialName("error")</ID>
+    <ID>AnnotationOnSeparateLine:CompanionModels.kt$FindingSeverity.INFO$@SerialName("info")</ID>
+    <ID>AnnotationOnSeparateLine:CompanionModels.kt$FindingSeverity.WARNING$@SerialName("warning")</ID>
+    <ID>AnnotationOnSeparateLine:CompanionModels.kt$ProviderKind.HOSTED$@SerialName("hosted")</ID>
+    <ID>AnnotationOnSeparateLine:CompanionModels.kt$ProviderKind.LOCAL$@SerialName("local")</ID>
+    <ID>LongMethod:ImportConverter.kt$ImportConverter$private fun convertEndpoint( parsed: ParsedEndpoint, assignedEndpointReferenceNames: MutableList&lt;String&gt;, ): EndpointDocument</ID>
+    <ID>NoUnusedImports:ImportModels.kt$com.moqserver.studio.domain.ImportModels.kt</ID>
+    <ID>SpacingBetweenDeclarationsWithAnnotations:CompanionModels.kt$AICapability$GENERATE_VARIANTS</ID>
+    <ID>SpacingBetweenDeclarationsWithAnnotations:CompanionModels.kt$AICapability$REFINE_PROJECT</ID>
+    <ID>SpacingBetweenDeclarationsWithAnnotations:CompanionModels.kt$FindingSeverity$ERROR</ID>
+    <ID>SpacingBetweenDeclarationsWithAnnotations:CompanionModels.kt$FindingSeverity$WARNING</ID>
+    <ID>SpacingBetweenDeclarationsWithAnnotations:CompanionModels.kt$ProviderKind$HOSTED</ID>
+    <ID>TooManyFunctions:StudioRootViewModel.kt$StudioRootViewModel : ViewModel</ID>
+    <ID>TrailingCommaOnCallSite:StudioRootViewModel.kt$StudioRootViewModel$( endpoints = current.endpoints.map { if (it.id == endpoint.id) endpoint else it } )</ID>
+  </CurrentIssues>
+</SmellBaseline>
