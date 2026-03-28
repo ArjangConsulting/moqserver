@@ -1,0 +1,37 @@
+name: Studio
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/studio.yml"
+      - "studio/**"
+  push:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/studio.yml"
+      - "studio/**"
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: studio
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Temurin 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Run Studio tests
+        run: ./gradlew test :composeApp:compileKotlinDesktop
