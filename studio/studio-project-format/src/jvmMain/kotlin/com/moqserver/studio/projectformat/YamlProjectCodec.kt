@@ -166,19 +166,19 @@ class YamlProjectCodec {
     fun encodeEndpoint(endpoint: EndpointDocument): String {
         val lines = mutableListOf<String>()
 
-        lines += "id: ${endpoint.id}"
+        lines += "id: ${yamlQuote(endpoint.id)}"
         endpoint.alias?.let { lines += "alias: ${yamlQuote(it)}" }
-        lines += "method: ${endpoint.method}"
-        lines += "path: ${endpoint.path}"
+        lines += "method: ${yamlQuote(endpoint.method)}"
+        lines += "path: ${yamlQuote(endpoint.path)}"
         endpoint.tags?.takeIf { it.isNotEmpty() }?.let {
-            lines += "tags: [${it.joinToString(", ")}]"
+            lines += "tags: [${it.joinToString(", ") { tag -> yamlQuote(tag) }}]"
         }
 
         endpoint.operation?.let { op ->
             lines += ""
             lines += "operation:"
             lines += "  type: ${op.type.name.lowercase()}"
-            op.name?.let { lines += "  name: $it" }
+            op.name?.let { lines += "  name: ${yamlQuote(it)}" }
             op.document?.let { doc ->
                 lines += "  document: |"
                 doc.split("\n").forEach { docLine ->
@@ -227,7 +227,7 @@ class YamlProjectCodec {
         val pad = " ".repeat(indent)
         val lines = mutableListOf<String>()
 
-        lines += "${pad}- name: ${variant.name}"
+        lines += "${pad}- name: ${yamlQuote(variant.name)}"
         if (variant.isDefault == true) {
             lines += "${pad}  default: true"
         }
@@ -236,12 +236,12 @@ class YamlProjectCodec {
         variant.headers?.takeIf { it.isNotEmpty() }?.let { headers ->
             lines += "${pad}  headers:"
             headers.toSortedMap().forEach { (k, v) ->
-                lines += "${pad}    $k: $v"
+                lines += "${pad}    ${encodeYamlKey(k)}: ${yamlQuote(v)}"
             }
         }
 
         if (variant.bodyFile != null) {
-            lines += "${pad}  body_file: ${variant.bodyFile}"
+            lines += "${pad}  body_file: ${yamlQuote(variant.bodyFile)}"
         } else {
             val body = variant.body
             when (body) {
@@ -291,7 +291,7 @@ class YamlProjectCodec {
         return listOf(
             "${pad}type: $typeName",
             "${pad}verify: ${auth.verify}",
-            "${pad}header_name: ${auth.headerName ?: "null"}",
+            "${pad}header_name: ${auth.headerName?.let(::yamlQuote) ?: "null"}",
         )
     }
 
@@ -307,7 +307,7 @@ class YamlProjectCodec {
     private fun encodeRuleMatcher(matcher: RuleMatcher, indent: Int): List<String> {
         val pad = " ".repeat(indent)
         val lines = mutableListOf<String>()
-        lines += "${pad}- name: ${matcher.name}"
+        lines += "${pad}- name: ${yamlQuote(matcher.name)}"
         matcher.match?.let { lines += "${pad}  match: ${yamlQuote(it)}" }
         matcher.required?.let { lines += "${pad}  required: $it" }
         return lines
@@ -373,7 +373,25 @@ class YamlProjectCodec {
     }
 
     private fun yamlQuote(string: String): String {
-        val escaped = string.replace("\\", "\\\\").replace("\"", "\\\"")
+        val escaped = buildString(string.length) {
+            string.forEach { ch ->
+                when (ch) {
+                    '\\' -> append("\\\\")
+                    '"' -> append("\\\"")
+                    '\n' -> append("\\n")
+                    '\r' -> append("\\r")
+                    '\t' -> append("\\t")
+                    else -> {
+                        if (ch.code in 0x00..0x1F || ch == '\u007F') {
+                            append("\\u")
+                            append(ch.code.toString(16).padStart(4, '0'))
+                        } else {
+                            append(ch)
+                        }
+                    }
+                }
+            }
+        }
         return "\"$escaped\""
     }
 
