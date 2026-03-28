@@ -49,10 +49,33 @@ private fun ProjectVariant.isPristine(): Boolean =
 fun EndpointDetailPane(
     endpoint: EndpointDocument,
     onUpdateEndpoint: (EndpointDocument) -> Unit,
+    onDeleteEndpoint: () -> Unit = {},
     projectPath: String = "",
     companionConnected: Boolean = false,
     onGenerateVariants: () -> Unit = {},
 ) {
+    var showDeleteConfirm by remember { mutableStateOf(false) }
+
+    if (showDeleteConfirm) {
+        AlertDialog(
+            onDismissRequest = { showDeleteConfirm = false },
+            title = { Text("Delete endpoint?") },
+            text = { Text("Delete \"${endpoint.displayAlias}\" (${endpoint.method} ${endpoint.path})? This cannot be undone.") },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        showDeleteConfirm = false
+                        onDeleteEndpoint()
+                    },
+                    colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error),
+                ) { Text("Delete") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDeleteConfirm = false }) { Text("Cancel") }
+            },
+        )
+    }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -65,7 +88,13 @@ fun EndpointDetailPane(
             horizontalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             MethodBadge(endpoint.method)
-            Text(endpoint.path, style = MaterialTheme.typography.titleLarge)
+            Text(endpoint.path, style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f))
+            TextButton(
+                onClick = { showDeleteConfirm = true },
+                colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error),
+            ) {
+                Text("Delete")
+            }
         }
 
         Text(
@@ -112,8 +141,9 @@ private fun EndpointMetadataForm(
                 onValueChange = {},
                 label = { Text("Method") },
                 readOnly = true,
-                modifier = Modifier.width(120.dp).clickable { methodExpanded = true },
+                modifier = Modifier.width(120.dp),
             )
+            Box(modifier = Modifier.matchParentSize().clickable { methodExpanded = true })
             DropdownMenu(expanded = methodExpanded, onDismissRequest = { methodExpanded = false }) {
                 listOf("GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS").forEach { method ->
                     DropdownMenuItem(
@@ -570,13 +600,17 @@ private fun VariantSummaryTab(
             OutlinedTextField(
                 value = variant.name,
                 onValueChange = { onUpdate(variant.copy(name = it)) },
-                label = { Text("Variant Name") },
+                label = {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text("Variant Name")
+                        InfoTooltip("Display name for this variant. Must be unique within the endpoint.")
+                    }
+                },
                 singleLine = true,
                 isError = nameConflict,
                 supportingText = if (nameConflict) {
                     { Text("Name must be unique within this endpoint") }
                 } else null,
-                trailingIcon = { InfoTooltip("Display name for this variant. Must be unique within the endpoint.") },
                 modifier = Modifier.weight(1f),
             )
             OutlinedTextField(
@@ -586,11 +620,15 @@ private fun VariantSummaryTab(
                         onUpdate(variant.copy(status = status))
                     }
                 },
-                label = { Text("Status") },
+                label = {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text("Status")
+                        InfoTooltip("HTTP status code this variant returns (100–599).")
+                    }
+                },
                 singleLine = true,
                 isError = statusError,
                 supportingText = if (statusError) { { Text("100–599") } } else null,
-                trailingIcon = { InfoTooltip("HTTP status code this variant returns (100–599).") },
                 modifier = Modifier.width(130.dp),
             )
         }
@@ -601,10 +639,22 @@ private fun VariantSummaryTab(
         ) {
             Text("Default", style = MaterialTheme.typography.bodySmall)
             InfoTooltip("When enabled, this variant is returned by default when no matching criteria exist.")
-            Switch(
-                checked = variant.isDefault == true,
-                onCheckedChange = { onUpdate(variant.copy(isDefault = if (it) true else null)) },
-            )
+            if (canRemove) {
+                Switch(
+                    checked = variant.isDefault == true,
+                    onCheckedChange = { onUpdate(variant.copy(isDefault = if (it) true else null)) },
+                )
+            } else {
+                Text(
+                    text = "Only variant",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(4.dp))
+                        .background(MaterialTheme.colorScheme.surfaceVariant)
+                        .padding(horizontal = 8.dp, vertical = 4.dp),
+                )
+            }
             Spacer(Modifier.weight(1f))
             OutlinedTextField(
                 value = (variant.delayMs ?: 0).toString(),
@@ -612,23 +662,16 @@ private fun VariantSummaryTab(
                     val ms = it.toIntOrNull()
                     onUpdate(variant.copy(delayMs = if (ms != null && ms > 0) ms else null))
                 },
-                label = { Text("Delay (ms)") },
+                label = {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text("Delay (ms)")
+                        InfoTooltip("Artificial delay in milliseconds before the response is sent.")
+                    }
+                },
                 singleLine = true,
-                trailingIcon = { InfoTooltip("Artificial delay in milliseconds before the response is sent.") },
                 modifier = Modifier.width(160.dp),
             )
         }
-
-        val bodySource = when {
-            variant.bodyFile != null -> "Fixture file: ${variant.bodyFile}"
-            variant.body != null -> "Inline body"
-            else -> "Empty response"
-        }
-        Text(
-            text = bodySource,
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
 
         if (canRemove) {
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
@@ -858,19 +901,18 @@ private fun CriteriaTab(
     onUpdateNetwork: (NetworkBehavior?) -> Unit,
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-        RuleMatcherEditor(
-            title = "Query Parameters",
+        AuthConfigSection(auth = auth, onUpdate = onUpdateAuth)
+
+        NetworkSection(network = network, onUpdate = onUpdateNetwork)
+
+        HorizontalDivider()
+
+        QueryParamsEditor(
             items = requestRules.queryParams ?: emptyList(),
             onUpdate = { queryParams ->
                 onUpdate(requestRules.copy(queryParams = queryParams.ifEmpty { null }))
             },
         )
-
-        HorizontalDivider()
-
-        AuthConfigSection(auth = auth, onUpdate = onUpdateAuth)
-
-        NetworkSection(network = network, onUpdate = onUpdateNetwork)
     }
 }
 
@@ -1060,8 +1102,7 @@ private fun HeadersTab(
 }
 
 @Composable
-private fun RuleMatcherEditor(
-    title: String,
+private fun QueryParamsEditor(
     items: List<RuleMatcher>,
     onUpdate: (List<RuleMatcher>) -> Unit,
 ) {
@@ -1071,7 +1112,7 @@ private fun RuleMatcherEditor(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Text(title, style = MaterialTheme.typography.titleSmall)
+            Text("Query Parameters", style = MaterialTheme.typography.titleSmall)
             androidx.compose.material3.TextButton(onClick = {
                 onUpdate(items + RuleMatcher(name = "", required = true))
             }) {
@@ -1081,35 +1122,31 @@ private fun RuleMatcherEditor(
 
         if (items.isEmpty()) {
             Text(
-                "No criteria configured.",
+                "No query parameters configured.",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
 
         items.forEachIndexed { index, item ->
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(MaterialTheme.colorScheme.surfaceVariant)
+                    .padding(10.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
                     OutlinedTextField(
                         value = item.name,
                         onValueChange = { newName ->
                             onUpdate(items.updated(index, item.copy(name = newName)))
                         },
-                        label = { Text("Name") },
-                        singleLine = true,
-                        modifier = Modifier.weight(1f),
-                    )
-                    OutlinedTextField(
-                        value = item.match ?: "",
-                        onValueChange = { newMatch ->
-                            onUpdate(
-                                items.updated(
-                                    index,
-                                    item.copy(match = newMatch.ifBlank { null }),
-                                ),
-                            )
-                        },
-                        label = { Text("Match") },
+                        label = { Text("Parameter Name") },
                         singleLine = true,
                         modifier = Modifier.weight(1f),
                     )
@@ -1120,18 +1157,15 @@ private fun RuleMatcherEditor(
                     }
                 }
 
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    Text("Required", style = MaterialTheme.typography.bodySmall)
-                    Switch(
-                        checked = item.required != false,
-                        onCheckedChange = { required ->
-                            onUpdate(items.updated(index, item.copy(required = if (required) true else null)))
-                        },
-                    )
-                }
+                MatchConditionEditor(
+                    ruleMatcher = item,
+                    onUpdate = { updated ->
+                        onUpdate(items.updated(index, updated))
+                    },
+                    dropdownWidth = 160.dp,
+                    valueWidth = null,
+                    modifier = Modifier.fillMaxWidth(),
+                )
             }
         }
     }
