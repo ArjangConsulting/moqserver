@@ -1,0 +1,16 @@
+{
+  "statusCode": 503,
+  "headers": {
+    "Retry-After": "5"
+  },
+  "delay": 0.2,
+  "requestMatch": {
+    "query": {
+      "mode": "chaos"
+    },
+    "headers": {
+      "X-Test-Mode": "enabled"
+    },
+    "bodyContains": "simulate"
+  }
+}

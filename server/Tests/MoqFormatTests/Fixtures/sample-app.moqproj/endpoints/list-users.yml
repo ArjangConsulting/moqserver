@@ -1,0 +1,47 @@
+id: list-users
+alias: "List Users"
+method: GET
+path: /api/v1/users
+tags: [users, core]
+
+auth:
+  type: bearer
+  verify: true
+  header_name: Authorization
+
+request_rules:
+  headers:
+    - name: Accept
+      match: "application/json"
+      required: true
+  verify_cookies: true
+  query_params: []
+
+variants:
+  - name: success
+    default: true
+    status: 200
+    headers:
+      Content-Type: application/json
+    body_file: fixtures/users-list.json
+    delay_ms: 50
+
+  - name: empty
+    status: 200
+    body:
+      users: []
+      total: 0
+
+  - name: unauthorized
+    status: 401
+    body:
+      error: "Invalid token"
+
+  - name: server-error
+    status: 500
+    body:
+      error: "Internal server error"
+
+network:
+  latency_ms: 100
+  jitter_ms: 20

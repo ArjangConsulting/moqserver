@@ -1,0 +1,108 @@
+import Foundation
+import Testing
+@testable import MoqCore
+@testable import MoqFormat
+
+@Suite("ProjectToRuntimeConverter")
+struct ProjectConverterTests {
+    @Test("Converts sample project to runtime endpoints")
+    func convertsSampleProject() throws {
+        let loader = ProjectLoader()
+        let path = Bundle.module.url(
+            forResource: "sample-app.moqproj",
+            withExtension: nil,
+            subdirectory: "Fixtures"
+        )!.path
+        let project = try loader.load(from: path)
+
+        let endpoints = try ProjectToRuntimeConverter.convert(project)
+
+        #expect(endpoints.count == 3)
+
+        let listUsers = endpoints.first { $0.key.path == "/api/v1/users" }
+        #expect(listUsers != nil)
+        #expect(listUsers?.key.method == .get)
+        #expect(listUsers?.authRequirement == .bearer)
+        #expect(listUsers?.variants.count == 4)
+    }
+
+    @Test("Converts auth with verify=false to .none")
+    func authVerifyFalseIsNone() {
+        let auth = ProjectAuthConfig(type: .bearer, verify: false)
+        let result = ProjectToRuntimeConverter.convertAuth(auth)
+        #expect(result == .none)
+    }
+
+    @Test("Converts auth with verify=true to correct requirement")
+    func authVerifyTrueConverts() {
+        let bearer = ProjectToRuntimeConverter.convertAuth(
+            ProjectAuthConfig(type: .bearer, verify: true)
+        )
+        #expect(bearer == .bearer)
+
+        let basic = ProjectToRuntimeConverter.convertAuth(
+            ProjectAuthConfig(type: .basic, verify: true)
+        )
+        #expect(basic == .basic)
+
+        let apiKey = ProjectToRuntimeConverter.convertAuth(
+            ProjectAuthConfig(type: .apiKey, verify: true, headerName: "X-Key")
+        )
+        #expect(apiKey == .apiKey(headerName: "X-Key"))
+    }
+
+    @Test("Resolves body_file to Data")
+    func resolvesBodyFile() throws {
+        let loader = ProjectLoader()
+        let path = Bundle.module.url(
+            forResource: "sample-app.moqproj",
+            withExtension: nil,
+            subdirectory: "Fixtures"
+        )!.path
+        let project = try loader.load(from: path)
+
+        let endpoints = try ProjectToRuntimeConverter.convert(project)
+        let listUsers = endpoints.first { $0.key.path == "/api/v1/users" }
+        let success = listUsers?.variant(named: "success")
+        #expect(success?.body != nil)
+
+        // Should contain the fixture data
+        if let body = success?.body, let json = String(data: body, encoding: .utf8) {
+            #expect(json.contains("Test User"))
+        }
+    }
+
+    @Test("Converts inline body to JSON Data")
+    func convertsInlineBody() throws {
+        let loader = ProjectLoader()
+        let path = Bundle.module.url(
+            forResource: "sample-app.moqproj",
+            withExtension: nil,
+            subdirectory: "Fixtures"
+        )!.path
+        let project = try loader.load(from: path)
+
+        let endpoints = try ProjectToRuntimeConverter.convert(project)
+        let listUsers = endpoints.first { $0.key.path == "/api/v1/users" }
+        let empty = listUsers?.variant(named: "empty")
+        #expect(empty?.body != nil)
+    }
+
+    @Test("Calculates delay from variant + defaults")
+    func calculatesDelay() throws {
+        let defaults = ProjectDefaults(
+            delayMs: 100,
+            auth: ProjectAuthConfig(type: .none, verify: false),
+            network: NetworkBehavior()
+        )
+        let variant = ProjectVariant(name: "test", status: 200, delayMs: 50)
+
+        let result = try ProjectToRuntimeConverter.convertVariant(
+            variant,
+            defaults: defaults,
+            projectPath: "/tmp"
+        )
+        // 100 + 50 = 150ms = 0.15s
+        #expect(result.delay == 0.15)
+    }
+}
