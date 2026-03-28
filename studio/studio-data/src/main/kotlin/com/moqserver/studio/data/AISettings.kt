@@ -14,7 +14,7 @@ data class AISettings(
 @Serializable
 data class OllamaSettings(
     val baseUrl: String = "http://localhost:11434",
-    val defaultModel: String = "llama3.1",
+    val defaultModel: String = "Qwen3.5-coder",
 )
 
 @Serializable
