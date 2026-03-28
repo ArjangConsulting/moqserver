@@ -166,9 +166,6 @@ private fun WorkspacePreview() {
     StudioTheme(StudioThemeMode.DARK) {
         StudioWorkspaceScreen(
             state = previewState(),
-            onCloseProject = {},
-            onSaveProject = {},
-            onSaveProjectAs = {},
             onRefreshCompanion = {},
             onAIAction = {},
             showAiPanel = true,
