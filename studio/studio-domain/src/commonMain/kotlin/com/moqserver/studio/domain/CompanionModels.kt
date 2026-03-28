@@ -195,27 +195,33 @@ data class CompanionErrorDetail(
     val details: Map<String, String>? = null,
 )
 
-// ── Companion State (UI) ────────────────────────────────────────────────────
+// ── AI State (UI) ───────────────────────────────────────────────────────────
 
-data class CompanionState(
-    val connected: Boolean = false,
-    val checking: Boolean = false,
-    val hasChecked: Boolean = false,
-    val providers: List<CompanionProvider> = emptyList(),
+data class AIProviderInfo(
+    val id: String,
+    val displayName: String,
+    val kind: ProviderKind,
+    val available: Boolean,
+    val capabilities: Set<String>,
+)
+
+data class AIState(
+    val providers: List<AIProviderInfo> = emptyList(),
     val selectedProviderId: String? = null,
+    val loading: Boolean = false,
     val error: String? = null,
 ) {
-    val selectedProvider: CompanionProvider?
+    val selectedProvider: AIProviderInfo?
         get() = providers.find { it.id == selectedProviderId }
 
-    val availableProviders: List<CompanionProvider>
+    val availableProviders: List<AIProviderInfo>
         get() = providers.filter { it.available }
 
     val hasAvailableProvider: Boolean
         get() = availableProviders.isNotEmpty()
 
-    val isIdle: Boolean
-        get() = !hasChecked && !checking && !connected && error == null
+    val isReady: Boolean
+        get() = selectedProvider?.available == true
 }
 
 data class AIActionState(

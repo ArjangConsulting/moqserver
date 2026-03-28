@@ -8,19 +8,15 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
@@ -34,14 +30,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
-import com.moqserver.studio.domain.AICapability
-import com.moqserver.studio.domain.CompanionProvider
-import com.moqserver.studio.domain.CompanionState
+import com.moqserver.studio.domain.AIProviderInfo
+import com.moqserver.studio.domain.AIState
 import com.moqserver.studio.domain.ProviderKind
 
 @Composable
 fun CompanionStatusBar(
-    companion: CompanionState,
+    ai: AIState,
     onRefresh: () -> Unit,
     onSelectProvider: (String) -> Unit,
     modifier: Modifier = Modifier,
@@ -53,7 +48,7 @@ fun CompanionStatusBar(
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        // Connection status dot + label
+        // Status dot + label
         Row(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(6.dp),
@@ -64,42 +59,42 @@ fun CompanionStatusBar(
                     .clip(CircleShape)
                     .background(
                         when {
-                            companion.checking -> MaterialTheme.colorScheme.tertiary
-                            companion.connected -> Color(0xFF4CAF50)
-                            companion.isIdle -> MaterialTheme.colorScheme.outline
+                            ai.loading -> MaterialTheme.colorScheme.tertiary
+                            ai.isReady -> Color(0xFF4CAF50)
+                            ai.providers.isEmpty() && ai.error == null -> MaterialTheme.colorScheme.outline
                             else -> MaterialTheme.colorScheme.error
                         }
                     ),
             )
             Text(
                 text = when {
-                    companion.checking -> "Connecting..."
-                    companion.connected -> "AI companion"
-                    companion.isIdle -> "AI companion idle"
-                    else -> "AI companion offline"
+                    ai.loading -> "Checking providers..."
+                    ai.isReady -> "AI ready"
+                    ai.providers.isEmpty() && ai.error == null -> "AI not configured"
+                    else -> "No provider available"
                 },
                 style = MaterialTheme.typography.labelSmall,
             )
 
-            if (companion.checking) {
+            if (ai.loading) {
                 CircularProgressIndicator(modifier = Modifier.size(12.dp), strokeWidth = 1.5.dp)
             }
         }
 
         // Provider selector
-        if (companion.connected && companion.availableProviders.isNotEmpty()) {
+        if (ai.availableProviders.isNotEmpty()) {
             ProviderSelector(
-                providers = companion.availableProviders,
-                selectedId = companion.selectedProviderId,
+                providers = ai.availableProviders,
+                selectedId = ai.selectedProviderId,
                 onSelect = onSelectProvider,
             )
         }
 
         // Refresh button
-        if (!companion.checking) {
+        if (!ai.loading) {
             androidx.compose.material3.TextButton(onClick = onRefresh) {
                 Text(
-                    if (companion.isIdle) "Connect" else "Refresh",
+                    if (ai.providers.isEmpty() && ai.error == null) "Check" else "Refresh",
                     style = MaterialTheme.typography.labelSmall,
                 )
             }
@@ -109,7 +104,7 @@ fun CompanionStatusBar(
 
 @Composable
 private fun ProviderSelector(
-    providers: List<CompanionProvider>,
+    providers: List<AIProviderInfo>,
     selectedId: String?,
     onSelect: (String) -> Unit,
 ) {
@@ -155,7 +150,7 @@ private fun ProviderSelector(
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun ProviderSettingsPanel(
-    companion: CompanionState,
+    ai: AIState,
     onRefresh: () -> Unit,
     onSelectProvider: (String) -> Unit,
     modifier: Modifier = Modifier,
@@ -164,29 +159,29 @@ fun ProviderSettingsPanel(
         modifier = modifier.padding(24.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
-        Text("AI Companion", style = MaterialTheme.typography.titleLarge)
+        Text("AI Providers", style = MaterialTheme.typography.titleLarge)
 
-        if (companion.isIdle) {
+        if (ai.providers.isEmpty() && !ai.loading && ai.error == null) {
             Card(modifier = Modifier.fillMaxWidth()) {
                 Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("AI companion is optional", style = MaterialTheme.typography.titleSmall)
+                    Text("No providers configured", style = MaterialTheme.typography.titleSmall)
                     Text(
-                        "Studio does not contact the local Swift companion until you open AI features. When you want AI assistance, start it on 127.0.0.1:8081 with: swift run moqserver companion --port 8081",
+                        "Open Settings to add API keys for OpenAI, Anthropic, or Google Gemini. Ollama is available locally with no API key required.",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
-                    OutlinedButton(onClick = onRefresh) { Text("Connect") }
+                    OutlinedButton(onClick = onRefresh) { Text("Check Ollama") }
                 }
             }
             return
         }
 
-        if (!companion.connected && !companion.checking) {
+        if (ai.error != null && ai.providers.isEmpty()) {
             Card(modifier = Modifier.fillMaxWidth()) {
                 Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("Companion Not Connected", style = MaterialTheme.typography.titleSmall)
+                    Text("Error checking providers", style = MaterialTheme.typography.titleSmall)
                     Text(
-                        companion.error ?: "Start the local Swift companion: swift run moqserver companion --port 8081",
+                        ai.error.orEmpty(),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -196,31 +191,23 @@ fun ProviderSettingsPanel(
             return
         }
 
-        if (companion.checking) {
+        if (ai.loading) {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
-                Text("Connecting to companion...", style = MaterialTheme.typography.bodyMedium)
+                Text("Checking providers...", style = MaterialTheme.typography.bodyMedium)
             }
             return
         }
 
         // Provider list
-        companion.providers.forEach { provider ->
+        ai.providers.forEach { provider ->
             ProviderCard(
                 provider = provider,
-                isSelected = provider.id == companion.selectedProviderId,
+                isSelected = provider.id == ai.selectedProviderId,
                 onSelect = { onSelectProvider(provider.id) },
-            )
-        }
-
-        if (companion.providers.isEmpty()) {
-            Text(
-                "No providers configured. Check companion server logs.",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
     }
@@ -229,7 +216,7 @@ fun ProviderSettingsPanel(
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun ProviderCard(
-    provider: CompanionProvider,
+    provider: AIProviderInfo,
     isSelected: Boolean,
     onSelect: () -> Unit,
 ) {
@@ -297,8 +284,9 @@ private fun ProviderCard(
     }
 }
 
-private fun capabilityLabel(cap: AICapability): String = when (cap) {
-    AICapability.ANALYZE_SPEC -> "Analyze"
-    AICapability.GENERATE_VARIANTS -> "Generate"
-    AICapability.REFINE_PROJECT -> "Refine"
+private fun capabilityLabel(cap: String): String = when (cap) {
+    "ANALYZE_SPEC" -> "Analyze"
+    "GENERATE_VARIANTS" -> "Generate"
+    "REFINE_PROJECT" -> "Refine"
+    else -> cap.lowercase().replace("_", " ")
 }

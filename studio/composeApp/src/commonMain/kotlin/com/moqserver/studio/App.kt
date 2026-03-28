@@ -270,7 +270,7 @@ internal fun StudioWorkspaceScreen(
             )
 
             CompanionStatusBar(
-                companion = state.companion,
+                ai = state.ai,
                 onRefresh = onRefreshCompanion,
                 onSelectProvider = { viewModel.selectProvider(it) },
             )
@@ -305,7 +305,7 @@ internal fun StudioWorkspaceScreen(
                                     onUpdateEndpoint = { viewModel.updateEndpoint(it) },
                                     onDeleteEndpoint = { viewModel.removeEndpoint(endpoint.id) },
                                     projectPath = state.project?.projectPath.orEmpty(),
-                                    companionConnected = state.companion.connected && state.companion.hasAvailableProvider,
+                                    companionConnected = state.ai.isReady,
                                     onGenerateVariants = { onAIAction(AIAction.GENERATE_VARIANTS) },
                                 )
                             }
@@ -343,7 +343,7 @@ internal fun StudioWorkspaceScreen(
                         }
                     }
                     ProviderSettingsPanel(
-                        companion = state.companion,
+                        ai = state.ai,
                         onRefresh = onRefreshCompanion,
                         onSelectProvider = { viewModel.selectProvider(it) },
                     )
