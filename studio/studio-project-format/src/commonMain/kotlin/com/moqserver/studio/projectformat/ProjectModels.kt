@@ -115,11 +115,15 @@ data class RequestRules(
 enum class MatchType {
     @SerialName("require") REQUIRE,
     @SerialName("equal_to") EQUAL_TO,
+    @SerialName("not_equal_to") NOT_EQUAL_TO,
     @SerialName("contains") CONTAINS,
+    @SerialName("not_contains") NOT_CONTAINS,
     @SerialName("begins_with") BEGINS_WITH,
     @SerialName("ends_with") ENDS_WITH,
-    @SerialName("not_equal_to") NOT_EQUAL_TO,
-    @SerialName("not_contains") NOT_CONTAINS,
+    @SerialName("gt") GT,
+    @SerialName("gte") GTE,
+    @SerialName("lt") LT,
+    @SerialName("lte") LTE,
 }
 
 /** A request validation rule for matching headers, cookies, or query parameters. */
