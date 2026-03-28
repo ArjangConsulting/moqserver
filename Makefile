@@ -35,6 +35,9 @@ docker-run:
 
 # ── Studio (Compose Multiplatform) ──────────────────────────────
 
+override JAVA_HOME := $(shell /usr/libexec/java_home -v 21 2>/dev/null)
+export JAVA_HOME
+
 studio-build:
 	cd studio && ./gradlew :composeApp:compileKotlinDesktop
 
