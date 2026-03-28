@@ -65,6 +65,45 @@ private fun placeholderTextFieldColors() = OutlinedTextFieldDefaults.colors().le
     )
 }
 
+@Composable
+private fun DeleteAllConfirmDialog(
+    title: String,
+    message: String,
+    onConfirm: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(title) },
+        text = { Text(message) },
+        confirmButton = {
+            TextButton(
+                onClick = onConfirm,
+                colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error),
+            ) {
+                Text("Delete all")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancel")
+            }
+        },
+    )
+}
+
+fun hasHeaderEntries(headers: Map<String, String>, requestRules: RequestRules): Boolean {
+    return headers.isNotEmpty() || !requestRules.headers.isNullOrEmpty()
+}
+
+fun deleteAllHeaders(requestRules: RequestRules): RequestRules {
+    return requestRules.copy(headers = null)
+}
+
+fun deleteAllCookies(requestRules: RequestRules): RequestRules {
+    return requestRules.copy(cookies = null)
+}
+
 private enum class VariantDetailTab(val title: String) {
     SUMMARY("Summary"),
     HEADERS("Headers"),
@@ -535,16 +574,15 @@ private fun VariantSection(
                     VariantDetailTab.HEADERS -> HeadersTab(
                         headers = variant.headers ?: emptyMap(),
                         requestRules = requestRules,
-                        onUpdateHeaders = { headers ->
+                        onUpdate = { headers, updatedRules ->
                             onUpdateEndpoint(
-                                endpoint.updateVariant(
-                                    activeVariantIndex,
-                                    variant.copy(headers = headers.ifEmpty { null }),
+                                endpoint.updateHeadersState(
+                                    index = activeVariantIndex,
+                                    variant = variant,
+                                    headers = headers,
+                                    requestRules = updatedRules,
                                 ),
                             )
-                        },
-                        onUpdateRules = { updatedRules ->
-                            onUpdateEndpoint(endpoint.copy(requestRules = updatedRules.normalize()))
                         },
                     )
 
@@ -825,6 +863,19 @@ private fun CookiesTab(
 ) {
     val cookies = requestRules.cookies ?: emptyList()
     val placeholderColors = placeholderTextFieldColors()
+    var showDeleteAllConfirm by remember { mutableStateOf(false) }
+
+    if (showDeleteAllConfirm) {
+        DeleteAllConfirmDialog(
+            title = "Delete all cookies?",
+            message = "This removes every cookie rule from this endpoint. This cannot be undone.",
+            onConfirm = {
+                showDeleteAllConfirm = false
+                onUpdate(deleteAllCookies(requestRules))
+            },
+            onDismiss = { showDeleteAllConfirm = false },
+        )
+    }
 
     fun normalizedCookie(cookie: RuleMatcher): RuleMatcher {
         val value = cookie.match?.takeUnless { it.isBlank() }
@@ -856,10 +907,11 @@ private fun CookiesTab(
             Text("Request Cookies", style = MaterialTheme.typography.titleSmall)
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                 if (cookies.isNotEmpty()) {
-                    TextButton(onClick = {
-                        onUpdate(requestRules.copy(cookies = null))
-                    }) {
-                        Text("Clear")
+                    TextButton(
+                        onClick = { showDeleteAllConfirm = true },
+                        colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error),
+                    ) {
+                        Text("Delete all")
                     }
                 }
                 TextButton(onClick = {
@@ -1314,24 +1366,38 @@ private fun CriteriaTab(
 private fun HeadersTab(
     headers: Map<String, String>,
     requestRules: RequestRules,
-    onUpdateHeaders: (Map<String, String>) -> Unit,
-    onUpdateRules: (RequestRules) -> Unit,
+    onUpdate: (Map<String, String>, RequestRules) -> Unit,
 ) {
     val headerCriteria = requestRules.headers ?: emptyList()
     val headersList = headers.entries.toList()
     val placeholderColors = placeholderTextFieldColors()
+    val hasAnyHeaders = hasHeaderEntries(headers, requestRules)
+    var showDeleteAllConfirm by remember { mutableStateOf(false) }
+
+    if (showDeleteAllConfirm) {
+        DeleteAllConfirmDialog(
+            title = "Delete all headers?",
+            message = "This removes every response header and imported header rule from this variant. This cannot be undone.",
+            onConfirm = {
+                showDeleteAllConfirm = false
+                onUpdate(emptyMap(), deleteAllHeaders(requestRules))
+            },
+            onDismiss = { showDeleteAllConfirm = false },
+        )
+    }
 
     fun removeHeader(name: String, wasRequired: Boolean) {
-        onUpdateHeaders(headers.filterKeys { !it.equals(name, ignoreCase = true) })
-        if (wasRequired) {
-            onUpdateRules(
-                requestRules.copy(
-                    headers = headerCriteria
-                        .filter { !it.name.equals(name, ignoreCase = true) }
-                        .ifEmpty { null },
-                ),
+        val updatedHeaders = headers.filterKeys { !it.equals(name, ignoreCase = true) }
+        val updatedRules = if (wasRequired) {
+            requestRules.copy(
+                headers = headerCriteria
+                    .filter { !it.name.equals(name, ignoreCase = true) }
+                    .ifEmpty { null },
             )
+        } else {
+            requestRules
         }
+        onUpdate(updatedHeaders, updatedRules)
     }
 
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -1342,16 +1408,16 @@ private fun HeadersTab(
         ) {
             Text("Response Headers", style = MaterialTheme.typography.titleSmall)
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                if (headers.isNotEmpty()) {
-                    androidx.compose.material3.TextButton(onClick = {
-                        onUpdateHeaders(emptyMap())
-                        onUpdateRules(requestRules.copy(headers = null))
-                    }) {
-                        Text("Clear")
+                if (hasAnyHeaders) {
+                    androidx.compose.material3.TextButton(
+                        onClick = { showDeleteAllConfirm = true },
+                        colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error),
+                    ) {
+                        Text("Delete all")
                     }
                 }
                 androidx.compose.material3.TextButton(onClick = {
-                    onUpdateHeaders(headers + ("" to ""))
+                    onUpdate(headers + ("" to ""), requestRules)
                 }) {
                     Text("Add")
                 }
@@ -1425,13 +1491,15 @@ private fun HeadersTab(
                                 override val key = newKey
                                 override val value = value
                             }
-                            onUpdateHeaders(entries.associate { it.key to it.value })
-                            if (isRequired) {
-                                val updatedCriteria = headerCriteria.map {
+                            val updatedHeaders = entries.associate { it.key to it.value }
+                            val updatedRules = if (isRequired) {
+                                requestRules.copy(headers = headerCriteria.map {
                                     if (it.name.equals(key, ignoreCase = true)) it.copy(name = newKey) else it
-                                }
-                                onUpdateRules(requestRules.copy(headers = updatedCriteria))
+                                })
+                            } else {
+                                requestRules
                             }
+                            onUpdate(updatedHeaders, updatedRules)
                         },
                         placeholder = { Text("Name", color = placeholderColors.disabledPlaceholderColor) },
                         singleLine = true,
@@ -1445,7 +1513,7 @@ private fun HeadersTab(
                             val updated = headers.entries.mapIndexed { entryIndex, entry ->
                                 if (entryIndex == index) newValue else entry.value
                             }
-                            onUpdateHeaders(headers.keys.zip(updated).associate { it.first to it.second })
+                            onUpdate(headers.keys.zip(updated).associate { it.first to it.second }, requestRules)
                         },
                         placeholder = { Text("Value", color = placeholderColors.disabledPlaceholderColor) },
                         singleLine = true,
@@ -1457,25 +1525,22 @@ private fun HeadersTab(
                         Checkbox(
                             checked = isRequired,
                             onCheckedChange = { checked ->
-                                if (checked) {
-                                    onUpdateRules(
-                                        requestRules.copy(
-                                            headers = headerCriteria + RuleMatcher(
-                                                name = key,
-                                                required = true,
-                                                matchType = MatchType.EQUAL_TO,
-                                            ),
+                                val updatedRules = if (checked) {
+                                    requestRules.copy(
+                                        headers = headerCriteria + RuleMatcher(
+                                            name = key,
+                                            required = true,
+                                            matchType = MatchType.EQUAL_TO,
                                         ),
                                     )
                                 } else {
-                                    onUpdateRules(
-                                        requestRules.copy(
-                                            headers = headerCriteria
-                                                .filter { !it.name.equals(key, ignoreCase = true) }
-                                                .ifEmpty { null },
-                                        ),
+                                    requestRules.copy(
+                                        headers = headerCriteria
+                                            .filter { !it.name.equals(key, ignoreCase = true) }
+                                            .ifEmpty { null },
                                     )
                                 }
+                                onUpdate(headers, updatedRules)
                             },
                         )
                     }
@@ -1487,7 +1552,8 @@ private fun HeadersTab(
                         ),
                         onUpdate = { updated ->
                             if (!isRequired) return@MatchConditionEditor
-                            onUpdateRules(
+                            onUpdate(
+                                headers,
                                 requestRules.copy(
                                     headers = headerCriteria.map {
                                         if (it.name.equals(key, ignoreCase = true)) updated else it
@@ -1545,6 +1611,16 @@ private fun EndpointDocument.updateVariant(index: Int, variant: ProjectVariant):
     val updatedVariants = variants.toMutableList()
     updatedVariants[index] = variant
     return copy(variants = updatedVariants)
+}
+
+fun EndpointDocument.updateHeadersState(
+    index: Int,
+    variant: ProjectVariant,
+    headers: Map<String, String>,
+    requestRules: RequestRules,
+): EndpointDocument {
+    return updateVariant(index, variant.copy(headers = headers.ifEmpty { null }))
+        .copy(requestRules = requestRules.normalize())
 }
 
 private fun RequestRules.normalize(): RequestRules? {
