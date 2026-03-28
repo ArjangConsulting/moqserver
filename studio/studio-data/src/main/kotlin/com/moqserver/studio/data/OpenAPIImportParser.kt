@@ -130,7 +130,10 @@ class OpenAPIImportParser {
 
         for ((statusStr, apiResponse) in operation.responses.orEmpty()) {
             val code = parseStatusCode(statusStr)
-            val baseName = statusCodeToVariantName(statusStr, code)
+            val baseName = apiResponse.description
+                ?.trim()
+                ?.takeIf { it.isNotEmpty() }
+                ?: statusCodeToVariantName(statusStr, code)
             val responseHeaders = extractResponseHeaders(apiResponse)
             val content = apiResponse.content
 
