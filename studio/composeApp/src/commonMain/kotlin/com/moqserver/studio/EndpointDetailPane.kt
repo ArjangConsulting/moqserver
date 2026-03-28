@@ -750,12 +750,6 @@ private fun BodyTab(
                     }.getOrNull()
                 }
 
-                Text(
-                    text = bodyFile,
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-
                 if (fileContent != null) {
                     var selectedFormat by remember(variant.name) { mutableStateOf(BodyFormat.RAW) }
 
