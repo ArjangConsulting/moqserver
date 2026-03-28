@@ -3,6 +3,8 @@ package com.moqserver.studio
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.relocation.BringIntoViewRequester
+import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -20,6 +22,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+
 import com.moqserver.studio.editor.JsonCodeEditor
 import com.moqserver.studio.projectformat.*
 import com.moqserver.studio.ui.*
@@ -812,6 +815,7 @@ private fun CookiesTab(
     onUpdate: (RequestRules) -> Unit,
 ) {
     val cookies = requestRules.cookies ?: emptyList()
+    val placeholderColors = placeholderTextFieldColors()
 
     fun normalizedCookie(cookie: RuleMatcher): RuleMatcher {
         val value = cookie.match?.takeUnless { it.isBlank() }
@@ -1024,6 +1028,18 @@ private fun BodyTab(
     var draftText by remember(variant.name, bodyFile, body) { mutableStateOf(editableText.orEmpty()) }
     var formatBeforeEdit by remember(variant.name) { mutableStateOf(BodyFormat.RAW) }
     var validationError by remember(variant.name, selectedFormat, bodyFile, body) { mutableStateOf<String?>(null) }
+    val validationErrorRequester = remember { BringIntoViewRequester() }
+
+    fun setValidationError(message: String?) {
+        validationError = message
+    }
+
+    LaunchedEffect(validationError) {
+        if (validationError != null) {
+            withFrameNanos { }
+            validationErrorRequester.bringIntoView()
+        }
+    }
 
     fun startEditing() {
         formatBeforeEdit = selectedFormat
@@ -1041,17 +1057,17 @@ private fun BodyTab(
     }
 
     fun validateJson() {
-        validationError = validateJsonBodyText(draftText)
+        setValidationError(validateJsonBodyText(draftText))
     }
 
     fun formatJson() {
         formatJsonBodyText(draftText)
             .onSuccess { formatted ->
                 draftText = formatted
-                validationError = null
+                setValidationError(null)
             }
             .onFailure { error ->
-                validationError = invalidJsonMessage(error)
+                setValidationError(invalidJsonMessage(error))
             }
     }
 
@@ -1062,18 +1078,18 @@ private fun BodyTab(
                     .onSuccess { parsedBody ->
                         selectedFormat = formatBeforeEdit
                         onUpdate(variant.copy(body = parsedBody, bodyFile = null))
-                        validationError = null
+                        setValidationError(null)
                         isEditing = false
                     }
                     .onFailure { error ->
-                        validationError = invalidJsonMessage(error)
+                        setValidationError(invalidJsonMessage(error))
                     }
             }
             else -> {
                 selectedFormat = formatBeforeEdit
                 val updatedBody = parseEditableText(draftText, body)
                 onUpdate(variant.copy(body = updatedBody, bodyFile = null))
-                validationError = null
+                setValidationError(null)
                 isEditing = false
             }
         }
@@ -1188,6 +1204,7 @@ private fun BodyTab(
                         text = error,
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.error,
+                        modifier = Modifier.bringIntoViewRequester(validationErrorRequester),
                     )
                 }
             }
