@@ -1,0 +1,166 @@
+import Foundation
+import Testing
+@testable import MoqCore
+@testable import MoqRuntime
+
+@Suite("InMemoryMockStore")
+struct InMemoryMockStoreTests {
+    func makeEndpoint(method: HTTPMethodValue, path: String, statusCode: UInt = 200, body: String = "{}") -> Endpoint {
+        Endpoint(
+            key: EndpointKey(method: method, path: path),
+            authRequirement: .none,
+            variants: [
+                ResponseVariant(
+                    name: "default",
+                    statusCode: HTTPStatusCode(code: statusCode),
+                    body: Data(body.utf8)
+                )
+            ]
+        )
+    }
+
+    @Test("Exact path lookup")
+    func exactPathLookup() async {
+        let store = InMemoryMockStore()
+        let endpoint = makeEndpoint(method: .get, path: "/pets")
+        await store.register(endpoint)
+
+        let result = await store.lookup(method: .get, path: "/pets")
+        #expect(result != nil)
+        #expect(result?.key.path == "/pets")
+    }
+
+    @Test("Returns nil for unregistered path")
+    func missingPath() async {
+        let store = InMemoryMockStore()
+        let result = await store.lookup(method: .get, path: "/unknown")
+        #expect(result == nil)
+    }
+
+    @Test("Method must match")
+    func methodMismatch() async {
+        let store = InMemoryMockStore()
+        let endpoint = makeEndpoint(method: .get, path: "/pets")
+        await store.register(endpoint)
+
+        let result = await store.lookup(method: .post, path: "/pets")
+        #expect(result == nil)
+    }
+
+    @Test("Path parameter matching")
+    func pathParameterMatching() async {
+        let store = InMemoryMockStore()
+        let endpoint = makeEndpoint(method: .get, path: "/pets/{petId}")
+        await store.register(endpoint)
+
+        let result = await store.lookup(method: .get, path: "/pets/123")
+        #expect(result != nil)
+        #expect(result?.key.path == "/pets/{petId}")
+    }
+
+    @Test("Path parameter does not match extra segments")
+    func pathParameterNoExtraSegments() async {
+        let store = InMemoryMockStore()
+        let endpoint = makeEndpoint(method: .get, path: "/pets/{petId}")
+        await store.register(endpoint)
+
+        let result = await store.lookup(method: .get, path: "/pets/123/toys")
+        #expect(result == nil)
+    }
+
+    @Test("Multiple endpoints coexist")
+    func multipleEndpoints() async {
+        let store = InMemoryMockStore()
+        await store.register(makeEndpoint(method: .get, path: "/pets", body: "[\"list\"]"))
+        await store.register(makeEndpoint(method: .post, path: "/pets", body: "{\"created\":true}"))
+        await store.register(makeEndpoint(method: .get, path: "/pets/{petId}", body: "{\"id\":1}"))
+
+        let list = await store.lookup(method: .get, path: "/pets")
+        let create = await store.lookup(method: .post, path: "/pets")
+        let getOne = await store.lookup(method: .get, path: "/pets/42")
+
+        #expect(list != nil)
+        #expect(create != nil)
+        #expect(getOne != nil)
+
+        let allEndpoints = await store.allEndpoints()
+        #expect(allEndpoints.count == 3)
+    }
+
+    // MARK: - GraphQL Lookup
+
+    func makeGraphQLEndpoint(
+        operationName: String?,
+        operationType: EndpointOperation.OperationType = .query,
+        body: String = "{}"
+    ) -> Endpoint {
+        Endpoint(
+            key: EndpointKey(method: .post, path: "/graphql"),
+            authRequirement: .none,
+            variants: [
+                ResponseVariant(
+                    name: "default",
+                    statusCode: .ok,
+                    body: Data(body.utf8)
+                )
+            ],
+            operation: EndpointOperation(type: operationType, name: operationName)
+        )
+    }
+
+    @Test("GraphQL lookup by operation name")
+    func graphqlLookupByName() async {
+        let store = InMemoryMockStore()
+        await store.register(makeGraphQLEndpoint(operationName: "GetUser", body: #"{"data":{"user":{}}}"#))
+        await store.register(makeGraphQLEndpoint(operationName: "ListPets", body: #"{"data":{"pets":[]}}"#))
+
+        let user = await store.lookupGraphQL(method: .post, path: "/graphql", operationName: "GetUser", operationType: .query)
+        #expect(user != nil)
+        #expect(user?.operation?.name == "GetUser")
+
+        let pets = await store.lookupGraphQL(method: .post, path: "/graphql", operationName: "ListPets", operationType: .query)
+        #expect(pets != nil)
+        #expect(pets?.operation?.name == "ListPets")
+    }
+
+    @Test("GraphQL lookup returns nil for unknown operation")
+    func graphqlLookupUnknown() async {
+        let store = InMemoryMockStore()
+        await store.register(makeGraphQLEndpoint(operationName: "GetUser"))
+
+        let result = await store.lookupGraphQL(method: .post, path: "/graphql", operationName: "DeleteUser", operationType: nil)
+        // Falls back to first registered
+        #expect(result?.operation?.name == "GetUser")
+    }
+
+    @Test("GraphQL lookup by operation type when name is nil")
+    func graphqlLookupByType() async {
+        let store = InMemoryMockStore()
+        await store.register(makeGraphQLEndpoint(operationName: nil, operationType: .mutation, body: #"{"data":{}}"#))
+        await store.register(makeGraphQLEndpoint(operationName: "GetUser", operationType: .query, body: #"{"data":{"user":{}}}"#))
+
+        let mutation = await store.lookupGraphQL(method: .post, path: "/graphql", operationName: nil, operationType: .mutation)
+        #expect(mutation?.operation?.type == .mutation)
+    }
+
+    @Test("GraphQL endpoints included in allEndpoints")
+    func graphqlInAllEndpoints() async {
+        let store = InMemoryMockStore()
+        await store.register(makeEndpoint(method: .get, path: "/pets"))
+        await store.register(makeGraphQLEndpoint(operationName: "GetUser"))
+        await store.register(makeGraphQLEndpoint(operationName: "ListPets"))
+
+        let all = await store.allEndpoints()
+        #expect(all.count == 3)
+    }
+
+    @Test("GraphQL endpoints don't conflict with regular lookup")
+    func graphqlDoesNotConflictWithRegular() async {
+        let store = InMemoryMockStore()
+        await store.register(makeGraphQLEndpoint(operationName: "GetUser"))
+
+        // Regular lookup should not find GraphQL-only endpoints
+        let regular = await store.lookup(method: .post, path: "/graphql")
+        #expect(regular == nil)
+    }
+}

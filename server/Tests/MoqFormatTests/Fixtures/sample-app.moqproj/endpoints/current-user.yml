@@ -1,0 +1,23 @@
+id: current-user
+alias: "Current User Query"
+method: POST
+path: /graphql
+operation:
+  type: query
+  document: |
+    query {
+      currentUser {
+        id
+        name
+      }
+    }
+
+variants:
+  - name: success
+    default: true
+    status: 200
+    body:
+      data:
+        currentUser:
+          id: "123"
+          name: "Test User"

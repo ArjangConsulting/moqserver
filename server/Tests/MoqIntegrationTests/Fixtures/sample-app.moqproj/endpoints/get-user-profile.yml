@@ -1,0 +1,25 @@
+id: get-user-profile
+alias: "User Profile Query"
+method: POST
+path: /graphql
+operation:
+  type: query
+  name: GetUserProfile
+
+variants:
+  - name: success
+    default: true
+    status: 200
+    body:
+      data:
+        user:
+          id: "123"
+          name: "Test User"
+
+  - name: not-found
+    status: 200
+    body:
+      data: null
+      errors:
+        - message: "User not found"
+          path: ["user"]
