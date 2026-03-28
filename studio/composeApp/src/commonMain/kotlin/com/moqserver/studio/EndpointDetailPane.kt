@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -154,7 +155,7 @@ private fun AuthConfigSection(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        Text("Auth Override", style = MaterialTheme.typography.titleSmall)
+        Text("Override Auth Evaluation", style = MaterialTheme.typography.titleSmall)
         Switch(
             checked = hasAuth,
             onCheckedChange = {
@@ -173,18 +174,18 @@ private fun AuthConfigSection(
             var typeExpanded by remember { mutableStateOf(false) }
             Box {
                 OutlinedTextField(
-                    value = auth.type.name.lowercase().replace("_", "-"),
+                    value = auth.type.displayLabel(),
                     onValueChange = {},
                     label = { Text("Type") },
                     readOnly = true,
-                    modifier = Modifier.width(140.dp).clickable { typeExpanded = true },
+                    modifier = Modifier.width(160.dp).clickable { typeExpanded = true },
                 )
                 DropdownMenu(expanded = typeExpanded, onDismissRequest = { typeExpanded = false }) {
                     AuthType.entries.forEach { type ->
                         DropdownMenuItem(
-                            text = { Text(type.name.lowercase().replace("_", "-")) },
+                            text = { Text(type.displayLabel()) },
                             onClick = {
-                                onUpdate(auth.copy(type = type))
+                                onUpdate(auth.copy(type = type, headerName = type.defaultHeaderName()))
                                 typeExpanded = false
                             },
                         )
@@ -192,13 +193,15 @@ private fun AuthConfigSection(
                 }
             }
 
-            OutlinedTextField(
-                value = auth.headerName ?: "",
-                onValueChange = { onUpdate(auth.copy(headerName = it.ifBlank { null })) },
-                label = { Text("Header Name") },
-                singleLine = true,
-                modifier = Modifier.weight(1f),
-            )
+            if (auth.type == AuthType.API_KEY || auth.type == AuthType.HEADER) {
+                OutlinedTextField(
+                    value = auth.headerName ?: auth.type.defaultHeaderName() ?: "",
+                    onValueChange = { onUpdate(auth.copy(headerName = it.ifBlank { null })) },
+                    label = { Text("Header Name") },
+                    singleLine = true,
+                    modifier = Modifier.weight(1f),
+                )
+            }
         }
 
         Row(
@@ -212,6 +215,20 @@ private fun AuthConfigSection(
             )
         }
     }
+}
+
+private fun AuthType.displayLabel(): String = when (this) {
+    AuthType.NONE -> "None"
+    AuthType.BEARER -> "Bearer Token"
+    AuthType.BASIC -> "Basic Auth"
+    AuthType.API_KEY -> "API Key Header"
+    AuthType.HEADER -> "Custom Header"
+}
+
+private fun AuthType.defaultHeaderName(): String? = when (this) {
+    AuthType.API_KEY -> "X-API-Key"
+    AuthType.HEADER -> "X-Custom-Header"
+    else -> null
 }
 
 @Composable
@@ -526,10 +543,10 @@ private fun TabChip(
 @Composable
 private fun StatusBadge(status: Int) {
     val color = when {
-        status in 200..299 -> Color(0xFF2E7D32)
-        status in 300..399 -> Color(0xFF1565C0)
-        status in 400..499 -> Color(0xFFE65100)
-        status >= 500 -> Color(0xFFC62828)
+        status in 200..299 -> Color(0xFF2E7D32) // green
+        status in 300..399 -> Color(0xFF7B5E00) // amber — orange closer to green
+        status in 400..499 -> Color(0xFFBF360C) // deep orange-red — orange closer to red
+        status >= 500 -> Color(0xFFC62828)       // red
         else -> Color(0xFF616161)
     }
     Text(
@@ -542,6 +559,23 @@ private fun StatusBadge(status: Int) {
             .background(color.copy(alpha = 0.12f))
             .padding(horizontal = 8.dp, vertical = 3.dp),
     )
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun InfoTooltip(text: String) {
+    TooltipBox(
+        positionProvider = TooltipDefaults.rememberPlainTooltipPositionProvider(),
+        tooltip = { PlainTooltip { Text(text) } },
+        state = rememberTooltipState(),
+    ) {
+        Icon(
+            imageVector = Icons.Outlined.Info,
+            contentDescription = "Info",
+            tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+            modifier = Modifier.size(16.dp),
+        )
+    }
 }
 
 @Composable
