@@ -1,39 +1,12 @@
 package com.moqserver.studio
 
-import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.horizontalScroll
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.RowScope
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.*
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.Checkbox
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Switch
-import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -41,16 +14,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.moqserver.studio.editor.JsonCodeEditor
-import com.moqserver.studio.projectformat.AuthType
-import com.moqserver.studio.projectformat.EndpointDocument
-import com.moqserver.studio.projectformat.MatchType
-import com.moqserver.studio.projectformat.NetworkBehavior
-import com.moqserver.studio.projectformat.ProjectAuthConfig
-import com.moqserver.studio.projectformat.ProjectVariant
-import com.moqserver.studio.projectformat.RequestRules
-import com.moqserver.studio.projectformat.RuleMatcher
-import com.moqserver.studio.projectformat.YamlValue
-import com.moqserver.studio.projectformat.displayAlias\nimport com.moqserver.studio.projectformat.suggestedVariantName
+import com.moqserver.studio.projectformat.*
 
 private enum class VariantDetailTab(val title: String) {
     SUMMARY("Summary"),
@@ -65,6 +29,17 @@ private enum class BodyFormat(val label: String) {
     JSON("JSON"),
     PLAIN_TEXT("Plain Text"),
 }
+
+private val autoNameRegex = Regex("^(Variant|Success|Error)( \\d+)?$")
+
+/** True when the variant was just created and carries no meaningful user edits. */
+private fun ProjectVariant.isPristine(): Boolean =
+    name.matches(autoNameRegex) &&
+        body == null &&
+        bodyFile == null &&
+        (headers == null || headers!!.isEmpty()) &&
+        (delayMs == null || delayMs == 0) &&
+        isDefault != true
 
 @Composable
 fun EndpointDetailPane(
@@ -311,6 +286,18 @@ private fun VariantSection(
     var selectedTab by remember(endpoint.id) { mutableStateOf(VariantDetailTab.SUMMARY) }
     val activeVariantIndex = selectedVariantIndex.coerceIn(0, endpoint.variants.lastIndex.coerceAtLeast(0))
     val requestRules = endpoint.requestRules ?: RequestRules()
+    var variantIndexToDelete by remember { mutableStateOf<Int?>(null) }
+
+    fun removeVariant(index: Int) {
+        val updatedVariants = endpoint.variants.toMutableList().also { it.removeAt(index) }
+        onUpdateEndpoint(endpoint.copy(variants = updatedVariants))
+        selectedVariantIndex = (selectedVariantIndex.coerceAtMost(updatedVariants.lastIndex)).coerceAtLeast(0)
+    }
+
+    fun requestRemove(index: Int) {
+        val variant = endpoint.variants.getOrNull(index) ?: return
+        if (variant.isPristine()) removeVariant(index) else variantIndexToDelete = index
+    }
 
     Row(
         modifier = Modifier.fillMaxWidth(),
@@ -330,16 +317,43 @@ private fun VariantSection(
         selectedIndex = activeVariantIndex,
         onSelect = { selectedVariantIndex = it },
         onAdd = {
+            val newStatus = defaultNewVariantStatus(endpoint.variants)
             val newVariant = ProjectVariant(
-                name = "",
-                status = defaultNewVariantStatus(endpoint.variants),
+                name = suggestedVariantName(
+                    status = newStatus,
+                    existingNames = endpoint.variants.map(ProjectVariant::name),
+                    preferredName = "Variant",
+                ),
+                status = newStatus,
             )
             val updated = endpoint.copy(variants = endpoint.variants + newVariant)
             onUpdateEndpoint(updated)
             selectedVariantIndex = updated.variants.lastIndex
             selectedTab = VariantDetailTab.SUMMARY
         },
+        onRemove = { requestRemove(it) },
     )
+
+    variantIndexToDelete?.let { deleteIndex ->
+        val variantName = endpoint.variants.getOrNull(deleteIndex)?.name ?: "this variant"
+        AlertDialog(
+            onDismissRequest = { variantIndexToDelete = null },
+            title = { Text("Delete variant?") },
+            text = { Text("\"$variantName\" has been edited. Deleting it cannot be undone.") },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        removeVariant(deleteIndex)
+                        variantIndexToDelete = null
+                    },
+                    colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error),
+                ) { Text("Delete") }
+            },
+            dismissButton = {
+                TextButton(onClick = { variantIndexToDelete = null }) { Text("Cancel") }
+            },
+        )
+    }
 
     endpoint.variants.getOrNull(activeVariantIndex)?.let { variant ->
         Card(modifier = Modifier.fillMaxWidth()) {
@@ -360,11 +374,7 @@ private fun VariantSection(
                             onUpdateEndpoint(endpoint.updateVariant(activeVariantIndex, updated))
                         },
                         onUpdateEndpoint = onUpdateEndpoint,
-                        onRemove = {
-                            val updatedVariants = endpoint.variants.toMutableList().also { it.removeAt(activeVariantIndex) }
-                            onUpdateEndpoint(endpoint.copy(variants = updatedVariants))
-                            selectedVariantIndex = (activeVariantIndex - 1).coerceAtLeast(0)
-                        },
+                        onRemove = { requestRemove(activeVariantIndex) },
                         canRemove = endpoint.variants.size > 1,
                     )
 
@@ -416,6 +426,7 @@ private fun VariantTabs(
     selectedIndex: Int,
     onSelect: (Int) -> Unit,
     onAdd: () -> Unit,
+    onRemove: (Int) -> Unit,
 ) {
     TabStrip {
         variants.forEachIndexed { index, variant ->
@@ -428,6 +439,7 @@ private fun VariantTabs(
                 label = label,
                 selected = isSelected,
                 onClick = { onSelect(index) },
+                onClose = if (variants.size > 1) { { onRemove(index) } } else null,
             )
         }
         TabChip(
@@ -470,6 +482,7 @@ private fun TabChip(
     label: String,
     selected: Boolean,
     onClick: () -> Unit,
+    onClose: (() -> Unit)? = null,
 ) {
     val background = if (selected) {
         MaterialTheme.colorScheme.primaryContainer
@@ -482,17 +495,32 @@ private fun TabChip(
         MaterialTheme.colorScheme.onSurfaceVariant
     }
 
-    Text(
-        text = label,
-        style = MaterialTheme.typography.labelLarge,
-        color = contentColor,
-        fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
+    Row(
         modifier = Modifier
             .clip(RoundedCornerShape(10.dp))
             .background(background)
             .clickable(onClick = onClick)
-            .padding(horizontal = 14.dp, vertical = 8.dp),
-    )
+            .padding(start = 14.dp, end = if (onClose != null) 6.dp else 14.dp, top = 8.dp, bottom = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelLarge,
+            color = contentColor,
+            fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
+        )
+        if (onClose != null) {
+            Icon(
+                imageVector = Icons.Default.Close,
+                contentDescription = "Delete variant",
+                tint = contentColor,
+                modifier = Modifier
+                    .size(14.dp)
+                    .clickable(onClick = onClose),
+            )
+        }
+    }
 }
 
 @Composable
@@ -587,12 +615,18 @@ private fun VariantSummaryTab(
         }
 
         // Variant editing controls
+        val siblingNames = endpoint.variants.map { it.name }.filter { it != variant.name }.toSet()
+        val nameConflict = variant.name.isNotBlank() && variant.name in siblingNames
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             OutlinedTextField(
                 value = variant.name,
                 onValueChange = { onUpdate(variant.copy(name = it)) },
                 label = { Text("Variant Name") },
                 singleLine = true,
+                isError = nameConflict,
+                supportingText = if (nameConflict) {
+                    { Text("Name must be unique within this endpoint") }
+                } else null,
                 modifier = Modifier.weight(1f),
             )
             OutlinedTextField(
