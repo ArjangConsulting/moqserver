@@ -299,6 +299,7 @@ internal fun StudioWorkspaceScreen(
                                 EndpointDetailPane(
                                     endpoint = endpoint,
                                     onUpdateEndpoint = { viewModel.updateEndpoint(it) },
+                                    onDeleteEndpoint = { viewModel.removeEndpoint(endpoint.id) },
                                     projectPath = state.project?.projectPath.orEmpty(),
                                     companionConnected = state.companion.connected && state.companion.hasAvailableProvider,
                                     onGenerateVariants = { onAIAction(AIAction.GENERATE_VARIANTS) },
