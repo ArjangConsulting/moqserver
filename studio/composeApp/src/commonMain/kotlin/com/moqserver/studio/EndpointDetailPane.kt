@@ -834,26 +834,156 @@ private fun CookiesTab(
         )
     }
 
-    RuleMatcherTableEditor(
-        title = "Request Cookies",
-        nameColumnLabel = "Cookie Name",
-        emptyText = "No cookies configured. Add a cookie to set up cookie-based matching criteria.",
-        items = cookies,
-        onUpdate = { updated ->
-            onUpdate(requestRules.copy(cookies = updated.ifEmpty { null }))
-        },
-        onAdd = {
-            onUpdate(requestRules.copy(cookies = cookies + RuleMatcher(name = "", required = true)))
-        },
-        onClear = {
-            onUpdate(requestRules.copy(cookies = null))
-        },
-        deleteContentDescription = "Delete cookie",
-        availableMatchTypes = headerMatchTypes,
-        fallbackMatchType = MatchType.EQUAL_TO,
-        showRequiredColumn = true,
-        normalizeItem = ::normalizedCookie,
-    )
+    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text("Request Cookies", style = MaterialTheme.typography.titleSmall)
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                if (cookies.isNotEmpty()) {
+                    TextButton(onClick = {
+                        onUpdate(requestRules.copy(cookies = null))
+                    }) {
+                        Text("Clear")
+                    }
+                }
+                TextButton(onClick = {
+                    onUpdate(requestRules.copy(cookies = cookies + RuleMatcher(name = "", required = true)))
+                }) {
+                    Text("Add")
+                }
+            }
+        }
+
+        if (cookies.isEmpty()) {
+            Text(
+                text = "No cookies configured. Add a cookie to set up cookie-based matching criteria.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            return@Column
+        }
+
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp),
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                "Cookie Name",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.width(headerNameColumnWidth),
+            )
+            Text(
+                "Cookie Value",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.weight(2f),
+            )
+            Text(
+                "Required",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.width(80.dp),
+            )
+            Text(
+                "Condition",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.width(headerConditionColumnWidth),
+            )
+            Text(
+                "Match Value",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.width(headerMatchValueColumnWidth),
+            )
+            Spacer(Modifier.width(32.dp))
+        }
+
+        HorizontalDivider()
+
+        cookies.forEachIndexed { index, cookie ->
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp),
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                OutlinedTextField(
+                    value = cookie.name,
+                    onValueChange = { newName ->
+                        onUpdate(requestRules.copy(cookies = cookies.updated(index, normalizedCookie(cookie.copy(name = newName)))))
+                    },
+                    placeholder = { Text("Cookie name", color = placeholderColors.disabledPlaceholderColor) },
+                    singleLine = true,
+                    textStyle = MaterialTheme.typography.bodySmall,
+                    colors = placeholderColors,
+                    modifier = Modifier.width(headerNameColumnWidth),
+                )
+                OutlinedTextField(
+                    value = cookie.match.orEmpty(),
+                    onValueChange = { newValue ->
+                        onUpdate(
+                            requestRules.copy(
+                                cookies = cookies.updated(
+                                    index,
+                                    normalizedCookie(cookie.copy(match = newValue)),
+                                ),
+                            ),
+                        )
+                    },
+                    placeholder = { Text("Value", color = placeholderColors.disabledPlaceholderColor) },
+                    singleLine = true,
+                    textStyle = MaterialTheme.typography.bodySmall,
+                    colors = placeholderColors,
+                    modifier = Modifier.weight(2f),
+                )
+                Box(modifier = Modifier.width(80.dp), contentAlignment = Alignment.Center) {
+                    Checkbox(
+                        checked = cookie.required == true,
+                        onCheckedChange = { checked ->
+                            val updated = if (checked) {
+                                normalizedCookie(cookie.copy(required = true, matchType = cookie.matchType ?: MatchType.EQUAL_TO))
+                            } else {
+                                cookie.copy(required = null, matchType = null)
+                            }
+                            onUpdate(requestRules.copy(cookies = cookies.updated(index, updated)))
+                        },
+                    )
+                }
+                MatchConditionEditor(
+                    ruleMatcher = cookie,
+                    onUpdate = { updated ->
+                        if (cookie.required != true) return@MatchConditionEditor
+                        onUpdate(requestRules.copy(cookies = cookies.updated(index, normalizedCookie(updated.copy(required = true)))))
+                    },
+                    availableMatchTypes = headerMatchTypes,
+                    fallbackMatchType = MatchType.EQUAL_TO,
+                    enabled = cookie.required == true,
+                    dropdownWidth = headerConditionColumnWidth,
+                    valueWidth = headerMatchValueColumnWidth,
+                    showValuePlaceholder = true,
+                )
+                IconButton(
+                    onClick = {
+                        val updated = cookies.toMutableList().also { it.removeAt(index) }
+                        onUpdate(requestRules.copy(cookies = updated.ifEmpty { null }))
+                    },
+                    modifier = Modifier.size(32.dp),
+                ) {
+                    Icon(
+                        imageVector = Icons.Outlined.Delete,
+                        contentDescription = "Delete cookie",
+                        tint = MaterialTheme.colorScheme.error,
+                    )
+                }
+            }
+        }
+    }
 }
 
 @Composable
