@@ -1,11 +1,14 @@
 package com.moqserver.studio
 
+import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
@@ -14,8 +17,6 @@ import androidx.compose.material.icons.filled.DarkMode
 import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.filled.LightMode
 import androidx.compose.material.icons.filled.Refresh
-import androidx.compose.material.icons.filled.Save
-import androidx.compose.material.icons.filled.SaveAs
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -33,12 +34,13 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import com.moqserver.studio.domain.AIAction
+import com.moqserver.studio.domain.AIState
 import com.moqserver.studio.domain.StudioRootViewModel
 import com.moqserver.studio.domain.StudioState
 import com.moqserver.studio.projectformat.MoqProject
@@ -113,9 +115,6 @@ fun App(
 
                 else -> StudioWorkspaceScreen(
                     state = state,
-                    onCloseProject = onCloseProject,
-                    onSaveProject = onSaveProject,
-                    onSaveProjectAs = onSaveProjectAs,
                     onRefreshCompanion = onRefreshCompanion,
                     onAIAction = onAIAction,
                     showAiPanel = showAiPanel,
@@ -251,9 +250,6 @@ internal fun StudioLandingScreen(
 @Composable
 internal fun StudioWorkspaceScreen(
     state: StudioState,
-    onCloseProject: () -> Unit,
-    onSaveProject: (MoqProject) -> Unit,
-    onSaveProjectAs: (MoqProject) -> Unit,
     onRefreshCompanion: () -> Unit,
     onAIAction: (AIAction) -> Unit,
     showAiPanel: Boolean,
@@ -262,21 +258,6 @@ internal fun StudioWorkspaceScreen(
 ) {
     Box(modifier = Modifier.fillMaxSize()) {
         Column(modifier = Modifier.fillMaxSize()) {
-            ProjectOverviewCard(
-                state = state,
-                onCloseProject = onCloseProject,
-                onSaveProject = onSaveProject,
-                onSaveProjectAs = onSaveProjectAs,
-            )
-
-            CompanionStatusBar(
-                ai = state.ai,
-                onRefresh = onRefreshCompanion,
-                onSelectProvider = { viewModel.selectProvider(it) },
-            )
-
-            HorizontalDivider()
-
             Box(modifier = Modifier.weight(1f)) {
                 if (state.aiAction.action != null || state.aiAction.loading) {
                     AIResultsPanel(
@@ -322,6 +303,8 @@ internal fun StudioWorkspaceScreen(
                     },
                 )
             }
+
+            WorkspaceStatusBar(state)
         }
 
         if (showAiPanel) {
@@ -354,19 +337,6 @@ internal fun StudioWorkspaceScreen(
 }
 
 @Composable
-internal fun ProjectOverviewCard(
-    state: StudioState,
-    onCloseProject: () -> Unit,
-    onSaveProject: (MoqProject) -> Unit,
-    onSaveProjectAs: (MoqProject) -> Unit,
-) {
-    if (state.project == null) return
-    Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 12.dp)) {
-        ProjectInfoCard(state)
-    }
-}
-
-@Composable
 internal fun RecentProjectsCard(recentProjects: List<String>) {
     if (recentProjects.isEmpty()) return
 
@@ -385,21 +355,64 @@ internal fun RecentProjectsCard(recentProjects: List<String>) {
 }
 
 @Composable
-internal fun ProjectInfoCard(state: StudioState) {
+internal fun WorkspaceStatusBar(state: StudioState) {
     val project = state.project ?: return
-    Card(modifier = Modifier.fillMaxWidth()) {
-        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                Text("Version: ${project.manifest.version}", style = MaterialTheme.typography.labelMedium)
-                Text("Endpoints: ${project.endpoints.size}", style = MaterialTheme.typography.labelMedium)
-            }
-            if (state.isDirty) {
+    val dirtyText = if (state.isDirty) "Unsaved changes" else "No unsaved changes"
+    val dirtyColor = if (state.isDirty) MaterialTheme.colorScheme.error else Color(0xFF4CAF50)
+    val aiStatus = aiStatusPresentation(state.ai)
+
+    Column(modifier = Modifier.fillMaxWidth()) {
+        HorizontalDivider()
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 8.dp),
+            horizontalArrangement = Arrangement.End,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text("Version ${project.manifest.version}", style = MaterialTheme.typography.labelMedium)
+                StatusSeparator()
+                Text("${project.endpoints.size} endpoints", style = MaterialTheme.typography.labelMedium)
+                StatusSeparator()
                 Text(
-                    "Unsaved changes",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.error,
+                    dirtyText,
+                    style = MaterialTheme.typography.labelMedium,
+                    color = dirtyColor,
+                )
+                StatusSeparator()
+                Text(
+                    aiStatus.label,
+                    style = MaterialTheme.typography.labelMedium,
+                    color = aiStatus.color,
                 )
             }
         }
     }
+}
+
+private data class StatusPresentation(
+    val label: String,
+    val color: Color,
+)
+
+@Composable
+private fun aiStatusPresentation(ai: AIState): StatusPresentation = when {
+    ai.loading -> StatusPresentation("AI checking providers", MaterialTheme.colorScheme.tertiary)
+    ai.isReady -> StatusPresentation("AI ready", Color(0xFF4CAF50))
+    ai.providers.isEmpty() && ai.error == null -> StatusPresentation("AI not configured", MaterialTheme.colorScheme.outline)
+    else -> StatusPresentation("No AI provider available", MaterialTheme.colorScheme.error)
+}
+
+@Composable
+private fun StatusSeparator() {
+    Box(
+        modifier = Modifier
+            .height(12.dp)
+            .width(1.dp)
+            .background(MaterialTheme.colorScheme.outlineVariant),
+    )
 }
