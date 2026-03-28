@@ -90,9 +90,16 @@ private fun ProjectVariant.isPristine(): Boolean =
         (delayMs == null || delayMs == 0) &&
         isDefault != true
 
+internal fun ProjectVariant.hasSessionEdits(originalVariants: List<ProjectVariant>): Boolean {
+    val originalVariant = originalVariants.firstOrNull { it.referenceName == referenceName }
+        ?: originalVariants.firstOrNull { it.name == name }
+    return if (originalVariant != null) this != originalVariant else !isPristine()
+}
+
 @Composable
 fun EndpointDetailPane(
     endpoint: EndpointDocument,
+    originalEndpoint: EndpointDocument? = null,
     allEndpoints: List<EndpointDocument>,
     onUpdateEndpoint: (EndpointDocument) -> Unit,
     onDeleteEndpoint: () -> Unit = {},
@@ -168,7 +175,7 @@ fun EndpointDetailPane(
         HorizontalDivider()
         EndpointMetadataForm(endpoint, allEndpoints, onUpdateEndpoint)
         HorizontalDivider()
-        VariantSection(endpoint, onUpdateEndpoint, projectPath, companionConnected, onGenerateVariants)
+        VariantSection(endpoint, originalEndpoint, onUpdateEndpoint, projectPath, companionConnected, onGenerateVariants)
     }
 }
 
@@ -422,6 +429,7 @@ private fun NetworkSection(
 @Composable
 private fun VariantSection(
     endpoint: EndpointDocument,
+    originalEndpoint: EndpointDocument? = null,
     onUpdateEndpoint: (EndpointDocument) -> Unit,
     projectPath: String = "",
     companionConnected: Boolean = false,
@@ -441,7 +449,8 @@ private fun VariantSection(
 
     fun requestRemove(index: Int) {
         val variant = endpoint.variants.getOrNull(index) ?: return
-        if (variant.isPristine()) removeVariant(index) else variantIndexToDelete = index
+        val hasSessionEdits = variant.hasSessionEdits(originalEndpoint?.variants.orEmpty())
+        if (hasSessionEdits) variantIndexToDelete = index else removeVariant(index)
     }
 
     Row(
