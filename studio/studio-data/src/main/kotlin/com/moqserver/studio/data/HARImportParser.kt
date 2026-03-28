@@ -227,7 +227,7 @@ class HARImportParser {
 
         return exchanges.map { exchange ->
             val baseName = baseVariantName(exchange.statusCode, allowDefault = !didAssignDefault)
-            val name = uniqueName(baseName, usedNames)
+            val name = uniqueImportName(baseName, usedNames)
             usedNames.add(name)
             if (name == "default") didAssignDefault = true
 
@@ -311,16 +311,6 @@ class HARImportParser {
         }
     }
 
-    private fun uniqueName(baseName: String, usedNames: Set<String>): String {
-        if (baseName !in usedNames) return baseName
-        var suffix = 2
-        var candidate = "$baseName-$suffix"
-        while (candidate in usedNames) {
-            suffix++
-            candidate = "$baseName-$suffix"
-        }
-        return candidate
-    }
 
     private fun noImportableEntriesMessage(warnings: List<String>): String {
         val prefix = "HAR file does not contain any importable HTTP entries."
