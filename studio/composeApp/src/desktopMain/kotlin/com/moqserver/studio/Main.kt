@@ -97,7 +97,7 @@ fun main(args: Array<String>) {
             LaunchedEffect(pendingProjectOpenPath.value) {
                 val path = pendingProjectOpenPath.value ?: return@LaunchedEffect
                 pendingProjectOpenPath.value = null
-                if (!confirmProjectTransition(window, state, repo, appViewModel, lastFileDirectory, Dispatchers.IO)) {
+                if (!guardProjectTransition()) {
                     logger.debug("OS file-open event cancelled while resolving current project state")
                     return@LaunchedEffect
                 }
@@ -110,19 +110,13 @@ fun main(args: Array<String>) {
                 )
             }
 
+            fun guardProjectTransition(): Boolean =
+                confirmProjectTransition(window, appViewModel.state.value, repo, appViewModel, lastFileDirectory, Dispatchers.IO)
+
             fun requestOpenProject() {
                 scope.launch(exceptionHandler) {
                     logger.debug("User requested open project")
-                    if (
-                        !confirmProjectTransition(
-                            window,
-                            appViewModel.state.value,
-                            repo,
-                            appViewModel,
-                            lastFileDirectory,
-                            Dispatchers.IO,
-                        )
-                    ) {
+                    if (!guardProjectTransition()) {
                         logger.debug("Open project cancelled while resolving current project state")
                         return@launch
                     }
@@ -143,16 +137,7 @@ fun main(args: Array<String>) {
                     logger.debug("User requested close project")
                     val currentState = appViewModel.state.value
                     if (currentState.project == null) return@launch
-                    if (
-                        !confirmProjectTransition(
-                            window,
-                            currentState,
-                            repo,
-                            appViewModel,
-                            lastFileDirectory,
-                            Dispatchers.IO,
-                        )
-                    ) {
+                    if (!guardProjectTransition()) {
                         logger.debug("Close project cancelled while resolving unsaved changes")
                         return@launch
                     }
@@ -164,6 +149,10 @@ fun main(args: Array<String>) {
             fun requestImportOpenAPI() {
                 scope.launch(exceptionHandler) {
                     logger.debug("User requested import OpenAPI spec")
+                    if (!guardProjectTransition()) {
+                        logger.debug("Import OpenAPI cancelled while resolving current project state")
+                        return@launch
+                    }
                     val file = chooseFile(
                         window,
                         "Import OpenAPI Spec",
@@ -189,6 +178,10 @@ fun main(args: Array<String>) {
             fun requestImportHAR() {
                 scope.launch(exceptionHandler) {
                     logger.debug("User requested import HAR file")
+                    if (!guardProjectTransition()) {
+                        logger.debug("Import HAR cancelled while resolving current project state")
+                        return@launch
+                    }
                     val file = chooseFile(
                         window,
                         "Import HAR File",
