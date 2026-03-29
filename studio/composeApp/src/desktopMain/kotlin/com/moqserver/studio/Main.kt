@@ -32,6 +32,7 @@ import javax.swing.JOptionPane
 private val logger = loggerFor<Any>()
 
 fun main(args: Array<String>) {
+    System.setProperty("apple.awt.application.name", STUDIO_APP_DISPLAY_NAME)
     logger.info("moqserver studio starting (args={})", args.toList())
     installCrashHandlers()
     application {
@@ -82,6 +83,7 @@ fun main(args: Array<String>) {
 
             LaunchedEffect(window) {
                 installAppIcon(window)
+                installAboutHandler { showAboutDialog(window) }
                 installProjectOpenHandler { incomingPath ->
                     logger.info("OS file-open event: {}", incomingPath)
                     pendingProjectOpenPath.value = incomingPath

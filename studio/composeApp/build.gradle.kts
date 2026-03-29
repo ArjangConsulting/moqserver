@@ -61,6 +61,7 @@ kotlin {
 compose.desktop {
     application {
         mainClass = "com.moqserver.studio.MainKt"
+        jvmArgs += listOf("-Dapple.awt.application.name=moqserver Studio")
 
         nativeDistributions {
             packageName = "moqserver-studio"
@@ -82,6 +83,10 @@ compose.desktop {
                 infoPlist {
                     extraKeysRawXml =
                         """
+                        <key>CFBundleName</key>
+                        <string>moqserver Studio</string>
+                        <key>CFBundleDisplayName</key>
+                        <string>moqserver Studio</string>
                         <key>UTExportedTypeDeclarations</key>
                         <array>
                           <dict>

@@ -314,7 +314,7 @@ data class StudioState(
 
     val windowTitle: String
         get() {
-            val name = project?.manifest?.name ?: "Moq Studio"
+            val name = project?.manifest?.name ?: "moqserver Studio"
             return if (isDirty) "$name *" else name
         }
 }

@@ -16,7 +16,7 @@ import java.awt.Window as AwtWindow
 
 private val logger = loggerFor<StudioRootViewModel>()
 
-internal const val STUDIO_APP_DISPLAY_NAME = "Moq Studio"
+internal const val STUDIO_APP_DISPLAY_NAME = "moqserver Studio"
 internal const val STUDIO_APP_VERSION = "1.0.0"
 private const val STUDIO_APP_ICON_RESOURCE = "/icons/icon.png"
 
@@ -148,6 +148,16 @@ internal fun showAboutDialog(owner: AwtWindow?) {
         "About $STUDIO_APP_DISPLAY_NAME",
         JOptionPane.INFORMATION_MESSAGE,
     )
+}
+
+internal fun installAboutHandler(showAbout: () -> Unit) {
+    if (!Desktop.isDesktopSupported()) return
+    val desktop = runCatching { Desktop.getDesktop() }.getOrNull() ?: return
+    if (!desktop.isSupported(Desktop.Action.APP_ABOUT)) {
+        return
+    }
+
+    desktop.setAboutHandler { showAbout() }
 }
 
 // ---------------------------------------------------------------------------
