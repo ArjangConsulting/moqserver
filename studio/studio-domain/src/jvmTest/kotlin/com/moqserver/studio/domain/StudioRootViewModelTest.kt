@@ -1,5 +1,13 @@
 package com.moqserver.studio.domain
 
+import com.moqserver.studio.projectformat.AuthType
+import com.moqserver.studio.projectformat.EndpointDocument
+import com.moqserver.studio.projectformat.MoqProject
+import com.moqserver.studio.projectformat.NetworkBehavior
+import com.moqserver.studio.projectformat.ProjectAuthConfig
+import com.moqserver.studio.projectformat.ProjectDefaults
+import com.moqserver.studio.projectformat.ProjectManifest
+import com.moqserver.studio.projectformat.ProjectVariant
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -7,6 +15,28 @@ import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 class StudioRootViewModelTest {
+
+    private fun sampleProject() = MoqProject(
+        manifest = ProjectManifest(
+            name = "Test Project",
+            defaults = ProjectDefaults(
+                delayMs = 0,
+                auth = ProjectAuthConfig(type = AuthType.NONE, verify = false),
+                network = NetworkBehavior(latencyMs = 0, jitterMs = 0, packetLossPercent = 0.0),
+            ),
+        ),
+        endpoints = listOf(
+            EndpointDocument(
+                id = "get-users",
+                method = "GET",
+                path = "/users",
+                variants = listOf(
+                    ProjectVariant(name = "Success", status = 200, isDefault = true),
+                ),
+            ),
+        ),
+        projectPath = "/tmp/test.moqproj",
+    )
 
     @Test
     fun `ai state starts empty and not loading`() {
@@ -118,5 +148,31 @@ class StudioRootViewModelTest {
         assertNull(state.project)
         assertEquals(listOf("/tmp/first.moqproj"), state.recentProjects)
         assertEquals("Project closed. Open a .moqproj directory to get started.", state.statusLine)
+    }
+
+    @Test
+    fun `updateEndpoint does not mark project dirty when endpoint is unchanged`() {
+        val viewModel = StudioRootViewModel()
+        val project = sampleProject()
+
+        viewModel.projectLoaded(project)
+        viewModel.updateEndpoint(project.endpoints.single())
+
+        val state = viewModel.state.value
+        assertFalse(state.isDirty)
+        assertEquals(project, state.project)
+    }
+
+    @Test
+    fun `updateManifest does not mark project dirty when manifest is unchanged`() {
+        val viewModel = StudioRootViewModel()
+        val project = sampleProject()
+
+        viewModel.projectLoaded(project)
+        viewModel.updateManifest(project.manifest)
+
+        val state = viewModel.state.value
+        assertFalse(state.isDirty)
+        assertEquals(project, state.project)
     }
 }
