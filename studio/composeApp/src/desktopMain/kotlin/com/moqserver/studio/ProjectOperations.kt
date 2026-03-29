@@ -1,17 +1,21 @@
 package com.moqserver.studio
 
-import com.moqserver.studio.domain.StudioRootViewModel
-import com.moqserver.studio.logging.loggerFor
-import com.moqserver.studio.projectformat.ProjectRepository
-import kotlinx.coroutines.CoroutineDispatcher
-import kotlinx.coroutines.runBlocking
-import kotlinx.coroutines.withContext
 import java.awt.Desktop
 import java.awt.Image
 import java.awt.Taskbar
 import java.io.File
 import javax.imageio.ImageIO
 import javax.swing.JOptionPane
+
+import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withContext
+
+import com.moqserver.studio.domain.StudioRootViewModel
+import com.moqserver.studio.domain.StudioState
+import com.moqserver.studio.logging.loggerFor
+import com.moqserver.studio.projectformat.ProjectRepository
+
 import java.awt.Window as AwtWindow
 
 private val logger = loggerFor<StudioRootViewModel>()
@@ -19,6 +23,15 @@ private val logger = loggerFor<StudioRootViewModel>()
 internal const val STUDIO_APP_DISPLAY_NAME = "moqserver Studio"
 internal const val STUDIO_APP_VERSION = "1.0.0"
 private const val STUDIO_APP_ICON_RESOURCE = "/icons/icon.png"
+
+internal enum class WindowCloseAction {
+    CLOSE_PROJECT,
+    EXIT_APPLICATION,
+}
+
+internal fun resolveWindowCloseAction(state: StudioState): WindowCloseAction {
+    return if (state.project != null) WindowCloseAction.CLOSE_PROJECT else WindowCloseAction.EXIT_APPLICATION
+}
 
 // ---------------------------------------------------------------------------
 // Project open / save / transition
@@ -59,28 +72,12 @@ internal suspend fun openProject(
 }
 
 /**
- * Checks whether the application can exit safely; prompts the user to save if dirty.
- * Returns `true` when the exit may proceed.
- */
-internal fun confirmExit(
-    owner: AwtWindow?,
-    state: com.moqserver.studio.domain.StudioState,
-    repo: ProjectRepository,
-    appViewModel: StudioRootViewModel,
-    lastFileDirectory: androidx.compose.runtime.MutableState<String?>,
-    ioDispatcher: CoroutineDispatcher,
-): Boolean {
-    if (state.project == null || !state.isDirty) return true
-    return confirmProjectTransition(owner, state, repo, appViewModel, lastFileDirectory, ioDispatcher)
-}
-
-/**
  * If the current project has unsaved changes, prompts the user to save/discard/cancel.
  * Returns `true` when the transition may proceed (saved or discarded), `false` on cancel.
  */
 internal fun confirmProjectTransition(
     owner: AwtWindow?,
-    state: com.moqserver.studio.domain.StudioState,
+    state: StudioState,
     repo: ProjectRepository,
     appViewModel: StudioRootViewModel,
     lastFileDirectory: androidx.compose.runtime.MutableState<String?>,
