@@ -7,7 +7,12 @@ public enum ProjectToRuntimeConverter {
     /// Convert an entire MoqProject to runtime endpoints.
     public static func convert(_ project: MoqProject) throws -> [Endpoint] {
         try project.endpoints.map { doc in
-            try convertEndpoint(doc, defaults: project.manifest.defaults, projectPath: project.projectPath)
+            try convertEndpoint(
+                doc,
+                defaults: project.manifest.defaults,
+                globalRules: project.manifest.globalRules,
+                projectPath: project.projectPath
+            )
         }
     }
 
@@ -15,6 +20,7 @@ public enum ProjectToRuntimeConverter {
     public static func convertEndpoint(
         _ doc: EndpointDocument,
         defaults: ProjectDefaults,
+        globalRules: GlobalRules? = nil,
         projectPath: String
     ) throws -> Endpoint {
         let method = HTTPMethodValue(rawValue: doc.method)
@@ -26,29 +32,22 @@ public enum ProjectToRuntimeConverter {
             try convertVariant(variant, defaults: defaults, projectPath: projectPath)
         }
 
-        // Build required headers from request_rules
-        var requiredHeaders: [String] = []
-        if let rules = doc.requestRules?.headers {
-            for matcher in rules where matcher.required == true {
-                requiredHeaders.append(matcher.name)
-            }
-        }
-
-        // Build required query parameters from request_rules
-        var requiredQueryParams: [String] = []
-        if let rules = doc.requestRules?.queryParams {
-            for matcher in rules where matcher.required == true {
-                requiredQueryParams.append(matcher.name)
-            }
-        }
+        let headerRules = mergeRules(globalRules?.requiredHeaders, doc.requestRules?.headers)
+        let queryParamRules = doc.requestRules?.queryParams ?? []
+        let cookieRules = doc.requestRules?.cookies ?? []
+        let network = mergeNetwork(defaults: defaults.network, override: doc.network)
+        let verifyCookies = doc.requestRules?.verifyCookies ?? globalRules?.verifyCookies ?? false
 
         return Endpoint(
             key: key,
             authRequirement: auth,
             variants: variants,
-            requiredQueryParameters: requiredQueryParams,
-            requiredHeaders: requiredHeaders,
-            operation: doc.operation
+            queryParamRules: queryParamRules,
+            headerRules: headerRules,
+            cookieRules: cookieRules,
+            verifyCookies: verifyCookies,
+            operation: doc.operation,
+            network: network
         )
     }
 
@@ -114,6 +113,30 @@ public enum ProjectToRuntimeConverter {
             headers: headers,
             body: body,
             delay: delay
+        )
+    }
+
+    private static func mergeRules(_ globalRules: [RuleMatcher]?, _ endpointRules: [RuleMatcher]?) -> [RuleMatcher] {
+        var merged: [RuleMatcher] = []
+        for rule in globalRules ?? [] {
+            merged.append(rule)
+        }
+        for rule in endpointRules ?? [] where !merged.contains(where: { $0.name == rule.name }) {
+            merged.append(rule)
+        }
+        for rule in endpointRules ?? [] where merged.contains(where: { $0.name == rule.name }) {
+            if let index = merged.firstIndex(where: { $0.name == rule.name }) {
+                merged[index] = rule
+            }
+        }
+        return merged
+    }
+
+    private static func mergeNetwork(defaults: NetworkBehavior, override: NetworkBehavior?) -> NetworkBehavior {
+        NetworkBehavior(
+            latencyMs: override?.latencyMs ?? defaults.latencyMs,
+            jitterMs: override?.jitterMs ?? defaults.jitterMs,
+            packetLossPercent: override?.packetLossPercent ?? defaults.packetLossPercent
         )
     }
 }

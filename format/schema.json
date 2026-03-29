@@ -97,6 +97,25 @@
         },
         "required": {
           "type": "boolean"
+        },
+        "match_type": {
+          "type": "string",
+          "enum": [
+            "require",
+            "equal_to",
+            "not_equal_to",
+            "contains",
+            "not_contains",
+            "begins_with",
+            "ends_with",
+            "matches_regex",
+            "is_empty",
+            "not_empty",
+            "gt",
+            "gte",
+            "lt",
+            "lte"
+          ]
         }
       },
       "required": ["name"]

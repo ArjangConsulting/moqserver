@@ -8,10 +8,11 @@ struct RulesTests {
 
     @Test("RuleMatcher init with all fields")
     func ruleMatcherInit() {
-        let matcher = RuleMatcher(name: "Authorization", match: "^Bearer .+", required: true)
+        let matcher = RuleMatcher(name: "Authorization", match: "^Bearer .+", required: true, matchType: .matchesRegex)
         #expect(matcher.name == "Authorization")
         #expect(matcher.match == "^Bearer .+")
         #expect(matcher.required == true)
+        #expect(matcher.matchType == .matchesRegex)
     }
 
     @Test("RuleMatcher init with defaults")
@@ -20,21 +21,25 @@ struct RulesTests {
         #expect(matcher.name == "X-Custom")
         #expect(matcher.match == nil)
         #expect(matcher.required == nil)
+        #expect(matcher.matchType == nil)
     }
 
     @Test("RuleMatcher encode/decode roundtrip")
     func ruleMatcherCodable() throws {
-        let original = RuleMatcher(name: "Accept", match: "application/json", required: true)
+        let original = RuleMatcher(name: "Accept", match: "application/json", required: true, matchType: .equalTo)
         let data = try JSONEncoder().encode(original)
         let decoded = try JSONDecoder().decode(RuleMatcher.self, from: data)
         #expect(decoded == original)
+
+        let json = try JSONSerialization.jsonObject(with: data) as! [String: Any]
+        #expect(json["match_type"] as? String == "equal_to")
     }
 
     @Test("RuleMatcher equality")
     func ruleMatcherEquality() {
-        let a = RuleMatcher(name: "X-Key", match: "abc", required: true)
-        let b = RuleMatcher(name: "X-Key", match: "abc", required: true)
-        let c = RuleMatcher(name: "X-Key", match: "def", required: false)
+        let a = RuleMatcher(name: "X-Key", match: "abc", required: true, matchType: .equalTo)
+        let b = RuleMatcher(name: "X-Key", match: "abc", required: true, matchType: .equalTo)
+        let c = RuleMatcher(name: "X-Key", match: "def", required: false, matchType: .notEqualTo)
         #expect(a == b)
         #expect(a != c)
     }
@@ -81,11 +86,13 @@ struct RulesTests {
         let rules = RequestRules(
             headers: [RuleMatcher(name: "Content-Type", match: "application/json")],
             verifyCookies: false,
-            queryParams: [RuleMatcher(name: "page", required: true)]
+            queryParams: [RuleMatcher(name: "page", required: true)],
+            cookies: [RuleMatcher(name: "session_id", matchType: .notEmpty)]
         )
         #expect(rules.headers?.count == 1)
         #expect(rules.verifyCookies == false)
         #expect(rules.queryParams?.count == 1)
+        #expect(rules.cookies?.count == 1)
     }
 
     @Test("RequestRules init with defaults")
@@ -94,6 +101,7 @@ struct RulesTests {
         #expect(rules.headers == nil)
         #expect(rules.verifyCookies == nil)
         #expect(rules.queryParams == nil)
+        #expect(rules.cookies == nil)
     }
 
     @Test("RequestRules encode/decode roundtrip with snake_case keys")
@@ -101,12 +109,14 @@ struct RulesTests {
         let original = RequestRules(
             headers: [RuleMatcher(name: "Accept")],
             verifyCookies: true,
-            queryParams: [RuleMatcher(name: "limit", match: "\\d+")]
+            queryParams: [RuleMatcher(name: "limit", match: "\\d+", matchType: .matchesRegex)],
+            cookies: [RuleMatcher(name: "session_id", matchType: .notEmpty)]
         )
         let data = try JSONEncoder().encode(original)
         let json = try JSONSerialization.jsonObject(with: data) as! [String: Any]
         #expect(json["verify_cookies"] != nil)
         #expect(json["query_params"] != nil)
+        #expect(json["cookies"] != nil)
 
         let decoded = try JSONDecoder().decode(RequestRules.self, from: data)
         #expect(decoded == original)
@@ -116,14 +126,17 @@ struct RulesTests {
     func requestRulesDecodeSnakeCase() throws {
         let json = """
         {
-            "headers": [{"name": "X-Custom", "required": true}],
+            "headers": [{"name": "X-Custom", "required": true, "match_type": "require"}],
             "verify_cookies": true,
-            "query_params": [{"name": "page"}]
+            "query_params": [{"name": "page"}],
+            "cookies": [{"name": "session_id", "match_type": "not_empty"}]
         }
         """.data(using: .utf8)!
         let rules = try JSONDecoder().decode(RequestRules.self, from: json)
         #expect(rules.headers?.first?.name == "X-Custom")
         #expect(rules.verifyCookies == true)
         #expect(rules.queryParams?.first?.name == "page")
+        #expect(rules.headers?.first?.matchType == .require)
+        #expect(rules.cookies?.first?.matchType == .notEmpty)
     }
 }

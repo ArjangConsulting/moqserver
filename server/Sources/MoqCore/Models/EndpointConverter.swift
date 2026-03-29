@@ -21,8 +21,12 @@ public enum EndpointConverter {
             ),
             authRequirement: parsed.authRequirement,
             variants: variants,
-            requiredQueryParameters: parsed.requiredQueryParameters,
-            requiredHeaders: parsed.requiredHeaders,
+            queryParamRules: parsed.requiredQueryParameters.map {
+                RuleMatcher(name: $0, required: true, matchType: .require)
+            },
+            headerRules: parsed.requiredHeaders.map {
+                RuleMatcher(name: $0, required: true, matchType: .require)
+            },
             requiresBody: parsed.requiresBody,
             acceptedContentTypes: parsed.acceptedContentTypes
         )

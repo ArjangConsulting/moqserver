@@ -221,10 +221,20 @@ struct EndToEndTests {
             #expect(res.status == .unauthorized)
         }
 
-        // With valid token and required Accept header
+        // Missing cookie fails before success path
         try await withApp(app, .GET, "/api/v1/users", headers: [
             "Authorization": "Bearer valid-token",
             "Accept": "application/json",
+        ]) { res in
+            #expect(res.status == .badRequest)
+            #expect(res.body.string.contains("missing_required_cookie"))
+        }
+
+        // With valid token, required Accept header, and cookie
+        try await withApp(app, .GET, "/api/v1/users", headers: [
+            "Authorization": "Bearer valid-token",
+            "Accept": "application/json",
+            "Cookie": "session_id=abc123",
         ]) { res in
             #expect(res.status == .ok)
             let body = res.body.string
@@ -235,6 +245,7 @@ struct EndToEndTests {
         try await withApp(app, .GET, "/api/v1/users", headers: [
             "Authorization": "Bearer valid-token",
             "Accept": "application/json",
+            "Cookie": "session_id=abc123",
             "X-Mock-Variant": "empty",
         ]) { res in
             #expect(res.status == .ok)

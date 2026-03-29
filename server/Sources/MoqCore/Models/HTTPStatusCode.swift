@@ -16,5 +16,6 @@ public struct HTTPStatusCode: Hashable, Sendable, CustomStringConvertible {
     public static let forbidden = HTTPStatusCode(code: 403)
     public static let notFound = HTTPStatusCode(code: 404)
     public static let unsupportedMediaType = HTTPStatusCode(code: 415)
+    public static let serviceUnavailable = HTTPStatusCode(code: 503)
     public static let internalServerError = HTTPStatusCode(code: 500)
 }

@@ -70,7 +70,8 @@ public actor InMemoryMockStore: MockStoring {
         method: HTTPMethodValue,
         path: String,
         operationName: String?,
-        operationType: EndpointOperation.OperationType?
+        operationType: EndpointOperation.OperationType?,
+        normalizedDocument: String?
     ) -> Endpoint? {
         let normalizedPath = path.hasPrefix("/") ? path : "/\(path)"
         let key = EndpointKey(method: method, path: normalizedPath)
@@ -88,8 +89,23 @@ public actor InMemoryMockStore: MockStoring {
             if let match = list.first(where: {
                 $0.operation?.type == type && $0.operation?.name == nil
             }) {
+                if let normalizedDocument,
+                   let documentMatch = list.first(where: {
+                       $0.operation?.type == type &&
+                       $0.operation?.name == nil &&
+                       Self.normalizeGraphQLDocument($0.operation?.document) == normalizedDocument
+                   }) {
+                    return documentMatch
+                }
                 return match
             }
+        }
+
+        if let normalizedDocument,
+           let documentMatch = list.first(where: {
+               Self.normalizeGraphQLDocument($0.operation?.document) == normalizedDocument
+           }) {
+            return documentMatch
         }
 
         // Fall back to first registered GraphQL endpoint
@@ -115,10 +131,14 @@ public actor InMemoryMockStore: MockStoring {
                 key: key,
                 authRequirement: existing.authRequirement,
                 variants: mergedVariants,
-                requiredQueryParameters: existing.requiredQueryParameters,
-                requiredHeaders: existing.requiredHeaders,
+                queryParamRules: existing.queryParamRules,
+                headerRules: existing.headerRules,
+                cookieRules: existing.cookieRules,
+                verifyCookies: existing.verifyCookies,
                 requiresBody: existing.requiresBody,
-                acceptedContentTypes: existing.acceptedContentTypes
+                acceptedContentTypes: existing.acceptedContentTypes,
+                operation: existing.operation,
+                network: existing.network
             )
             endpoints[key] = existing
         } else {
@@ -188,5 +208,13 @@ public actor InMemoryMockStore: MockStoring {
         if let data = try? JSONEncoder().encode(variantOverrides) {
             try? data.write(to: fileURL)
         }
+    }
+
+    private static func normalizeGraphQLDocument(_ document: String?) -> String? {
+        guard let document else { return nil }
+        return document
+            .components(separatedBy: .whitespacesAndNewlines)
+            .filter { !$0.isEmpty }
+            .joined(separator: " ")
     }
 }
