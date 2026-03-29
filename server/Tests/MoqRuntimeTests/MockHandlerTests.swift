@@ -12,7 +12,11 @@ struct MockHandlerTests {
         method: HTTPMethodValue,
         path: String,
         auth: AuthRequirement = .none,
-        variants: [ResponseVariant]? = nil
+        variants: [ResponseVariant]? = nil,
+        headerRules: [RuleMatcher] = [],
+        cookieRules: [RuleMatcher] = [],
+        verifyCookies: Bool = false,
+        network: NetworkBehavior? = nil
     ) -> Endpoint {
         let defaultVariants = [
             ResponseVariant(
@@ -25,7 +29,11 @@ struct MockHandlerTests {
         return Endpoint(
             key: EndpointKey(method: method, path: path),
             authRequirement: auth,
-            variants: variants ?? defaultVariants
+            variants: variants ?? defaultVariants,
+            headerRules: headerRules,
+            cookieRules: cookieRules,
+            verifyCookies: verifyCookies,
+            network: network
         )
     }
 
@@ -293,6 +301,82 @@ struct MockHandlerTests {
             body: ByteBuffer(string: #"{"query":"{ users { id } }"}"#)
         ) { res async in
             #expect(res.status == .ok)
+        }
+    }
+
+    @Test("GraphQL anonymous document resolves matching endpoint")
+    func graphqlAnonymousDocumentResolution() async throws {
+        let store = InMemoryMockStore()
+        await store.register(Endpoint(
+            key: EndpointKey(method: .post, path: "/graphql"),
+            authRequirement: .none,
+            variants: [ResponseVariant(name: "current-user", statusCode: .ok, body: Data(#"{"data":{"currentUser":{"id":"123"}}}"#.utf8))],
+            operation: EndpointOperation(
+                type: .query,
+                document: "query { currentUser { id name } }"
+            )
+        ))
+        await store.register(Endpoint(
+            key: EndpointKey(method: .post, path: "/graphql"),
+            authRequirement: .none,
+            variants: [ResponseVariant(name: "current-account", statusCode: .ok, body: Data(#"{"data":{"currentAccount":{"id":"999"}}}"#.utf8))],
+            operation: EndpointOperation(
+                type: .query,
+                document: "query { currentAccount { id } }"
+            )
+        ))
+
+        let app = try await buildApp(store: store)
+        defer { Task { try? await app.asyncShutdown() } }
+
+        try await app.testing().test(
+            .POST,
+            "/graphql",
+            headers: ["Content-Type": "application/json"],
+            body: ByteBuffer(string: #"{"query":"query { currentUser { id name } }"}"#)
+        ) { res async in
+            #expect(res.status == .ok)
+            let body = String(buffer: res.body)
+            #expect(body.contains("currentUser"))
+            #expect(!body.contains("currentAccount"))
+        }
+    }
+
+    @Test("Cookie validation returns specific error code")
+    func cookieValidation() async throws {
+        let store = InMemoryMockStore()
+        await store.register(makeEndpoint(
+            method: .get,
+            path: "/needs-cookie",
+            cookieRules: [RuleMatcher(name: "session_id", matchType: .notEmpty)]
+        ))
+
+        let app = try await buildApp(store: store)
+        defer { Task { try? await app.asyncShutdown() } }
+
+        try await app.testing().test(.GET, "/needs-cookie") { res async in
+            #expect(res.status == .badRequest)
+            let body = String(buffer: res.body)
+            #expect(body.contains("cookie_value_mismatch"))
+        }
+    }
+
+    @Test("Packet loss simulation returns 503")
+    func packetLossSimulation() async throws {
+        let store = InMemoryMockStore()
+        await store.register(makeEndpoint(
+            method: .get,
+            path: "/lossy",
+            network: NetworkBehavior(latencyMs: 0, jitterMs: 0, packetLossPercent: 100)
+        ))
+
+        let app = try await buildApp(store: store)
+        defer { Task { try? await app.asyncShutdown() } }
+
+        try await app.testing().test(.GET, "/lossy") { res async in
+            #expect(res.status == .serviceUnavailable)
+            let body = String(buffer: res.body)
+            #expect(body.contains("simulated_packet_loss"))
         }
     }
 }

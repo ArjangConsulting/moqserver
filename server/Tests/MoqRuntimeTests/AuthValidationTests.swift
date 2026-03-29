@@ -29,8 +29,8 @@ struct AuthValidationTests {
         method: HTTPMethodValue,
         path: String,
         auth: AuthRequirement,
-        requiredQueryParameters: [String] = [],
-        requiredHeaders: [String] = [],
+        queryParamRules: [RuleMatcher] = [],
+        headerRules: [RuleMatcher] = [],
         requiresBody: Bool = false,
         acceptedContentTypes: [String] = []
     ) -> Endpoint {
@@ -38,8 +38,8 @@ struct AuthValidationTests {
             key: EndpointKey(method: method, path: path),
             authRequirement: auth,
             variants: [ResponseVariant(name: "default", body: Data(#"{"ok":true}"#.utf8))],
-            requiredQueryParameters: requiredQueryParameters,
-            requiredHeaders: requiredHeaders,
+            queryParamRules: queryParamRules,
+            headerRules: headerRules,
             requiresBody: requiresBody,
             acceptedContentTypes: acceptedContentTypes
         )
@@ -160,28 +160,38 @@ struct AuthValidationTests {
     @Test("Endpoint validates required query parameters")
     func requiredQueryValidation() async throws {
         let store = await makeStore(endpoints: [
-            makeEndpoint(method: .get, path: "/validate-query", auth: .none, requiredQueryParameters: ["id"])
+            makeEndpoint(
+                method: .get,
+                path: "/validate-query",
+                auth: .none,
+                queryParamRules: [RuleMatcher(name: "id", required: true, matchType: .require)]
+            )
         ])
         let app = try await buildApp(store: store, config: config)
         defer { Task { try? await app.asyncShutdown() } }
 
         try await app.testing().test(.GET, "/validate-query") { res async in
             #expect(res.status == .badRequest)
-            #expect(res.body.string.contains("Missing required query parameter"))
+            #expect(res.body.string.contains("missing_required_query_param"))
         }
     }
 
     @Test("Endpoint validates required headers")
     func requiredHeaderValidation() async throws {
         let store = await makeStore(endpoints: [
-            makeEndpoint(method: .get, path: "/validate-header", auth: .none, requiredHeaders: ["X-Trace-Id"])
+            makeEndpoint(
+                method: .get,
+                path: "/validate-header",
+                auth: .none,
+                headerRules: [RuleMatcher(name: "X-Trace-Id", required: true, matchType: .require)]
+            )
         ])
         let app = try await buildApp(store: store, config: config)
         defer { Task { try? await app.asyncShutdown() } }
 
         try await app.testing().test(.GET, "/validate-header") { res async in
             #expect(res.status == .badRequest)
-            #expect(res.body.string.contains("Missing required header"))
+            #expect(res.body.string.contains("missing_required_header"))
         }
     }
 

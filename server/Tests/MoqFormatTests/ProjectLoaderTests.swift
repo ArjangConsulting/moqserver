@@ -66,6 +66,9 @@ struct ProjectLoaderTests {
         #expect(rules?.headers?.first?.name == "Accept")
         #expect(rules?.headers?.first?.match == "application/json")
         #expect(rules?.headers?.first?.required == true)
+        #expect(rules?.headers?.first?.matchType == .equalTo)
+        #expect(rules?.cookies?.first?.name == "session_id")
+        #expect(rules?.cookies?.first?.matchType == .notEmpty)
     }
 
     @Test("Loads GraphQL endpoint with named operation")

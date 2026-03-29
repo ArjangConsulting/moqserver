@@ -7,7 +7,8 @@ public protocol MockStoring: Sendable {
         method: HTTPMethodValue,
         path: String,
         operationName: String?,
-        operationType: EndpointOperation.OperationType?
+        operationType: EndpointOperation.OperationType?,
+        normalizedDocument: String?
     ) async -> Endpoint?
     func allEndpoints() async -> [Endpoint]
     func mergeVariants(from endpoint: Endpoint) async

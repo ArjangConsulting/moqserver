@@ -24,6 +24,12 @@ struct ProjectConverterTests {
         #expect(listUsers?.key.method == .get)
         #expect(listUsers?.authRequirement == .bearer)
         #expect(listUsers?.variants.count == 4)
+        #expect(listUsers?.headerRules.first?.name == "Accept")
+        #expect(listUsers?.headerRules.first?.matchType == .equalTo)
+        #expect(listUsers?.cookieRules.first?.name == "session_id")
+        #expect(listUsers?.verifyCookies == true)
+        #expect(listUsers?.network?.latencyMs == 100)
+        #expect(listUsers?.network?.jitterMs == 20)
     }
 
     @Test("Converts auth with verify=false to .none")

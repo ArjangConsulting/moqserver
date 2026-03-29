@@ -123,6 +123,14 @@ public struct ProjectWriter: ProjectWriting {
             } else if rules.queryParams != nil {
                 lines.append("  query_params: []")
             }
+            if let cookies = rules.cookies, !cookies.isEmpty {
+                lines.append("  cookies:")
+                for matcher in cookies {
+                    lines.append(contentsOf: encodeRuleMatcher(matcher, indent: 4))
+                }
+            } else if rules.cookies != nil {
+                lines.append("  cookies: []")
+            }
         }
 
         lines.append("")

@@ -87,6 +87,7 @@ struct SmokeTests {
         try await withApp(app, .GET, "/api/v1/users", headers: [
             "Authorization": "Bearer valid-token",
             "Accept": "application/json",
+            "Cookie": "session_id=smoke-test",
         ]) { res in
             #expect(res.status == .ok)
         }

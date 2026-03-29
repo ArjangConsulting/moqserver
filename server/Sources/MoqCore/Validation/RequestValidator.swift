@@ -6,28 +6,27 @@ public struct RequestValidator: RequestValidating {
     public init() {}
 
     public func validate(endpoint: Endpoint, context: RequestContext) -> RequestValidationError? {
-        let missingQuery = endpoint.requiredQueryParameters.filter { context.queryParameters[$0] == nil }
-        if !missingQuery.isEmpty {
-            return RequestValidationError(
-                statusCode: .badRequest,
-                message: "Missing required query parameter(s): \(missingQuery.joined(separator: ", "))"
-            )
+        if let error = validateRules(endpoint.queryParamRules, values: context.queryParameters, kind: .queryParam) {
+            return error
         }
 
-        let missingHeaders = endpoint.requiredHeaders.filter {
-            guard let value = context.headers[$0.lowercased()] ?? context.headers[$0] else { return true }
-            return value.isEmpty
+        if let error = validateRules(endpoint.headerRules, values: context.headers, kind: .header) {
+            return error
         }
-        if !missingHeaders.isEmpty {
-            return RequestValidationError(
-                statusCode: .badRequest,
-                message: "Missing required header(s): \(missingHeaders.joined(separator: ", "))"
-            )
+
+        let cookieValues = endpoint.verifyCookies ? mergedCookieValues(endpoint.cookieRules, cookies: context.cookies) : context.cookies
+        if let error = validateRules(endpoint.cookieRules, values: cookieValues, kind: .cookie) {
+            return error
+        }
+        if endpoint.verifyCookies,
+           let error = validateCookiePresence(context.cookies, explicitRules: endpoint.cookieRules) {
+            return error
         }
 
         if endpoint.requiresBody && !context.hasBody {
             return RequestValidationError(
                 statusCode: .badRequest,
+                code: .missingRequestBody,
                 message: "Request body is required"
             )
         }
@@ -43,6 +42,7 @@ public struct RequestValidator: RequestValidating {
             if !matches {
                 return RequestValidationError(
                     statusCode: .unsupportedMediaType,
+                    code: .unsupportedContentType,
                     message: "Unsupported Content-Type '\(requestType)'. Expected one of: \(supported.joined(separator: ", "))"
                 )
             }
@@ -62,5 +62,104 @@ public struct RequestValidator: RequestValidating {
             return requestParts[0] == expectedParts[0]
         }
         return false
+    }
+
+    private enum RuleKind {
+        case header
+        case queryParam
+        case cookie
+
+        var label: String {
+            switch self {
+            case .header:
+                return "Header"
+            case .queryParam:
+                return "Query parameter"
+            case .cookie:
+                return "Cookie"
+            }
+        }
+
+        var missingCode: RequestValidationErrorCode {
+            switch self {
+            case .header:
+                return .missingRequiredHeader
+            case .queryParam:
+                return .missingRequiredQueryParam
+            case .cookie:
+                return .missingRequiredCookie
+            }
+        }
+
+        var mismatchCode: RequestValidationErrorCode {
+            switch self {
+            case .header:
+                return .headerValueMismatch
+            case .queryParam:
+                return .queryParamValueMismatch
+            case .cookie:
+                return .cookieValueMismatch
+            }
+        }
+    }
+
+    private func validateRules(
+        _ rules: [RuleMatcher],
+        values: [String: String],
+        kind: RuleKind
+    ) -> RequestValidationError? {
+        for rule in rules {
+            let actualValue = resolvedValue(for: rule.name, in: values, caseInsensitive: kind == .header)
+            if let failure = RuleEvaluator.evaluate(rule, actualValue: actualValue) {
+                switch failure {
+                case .missing:
+                    return RequestValidationError(
+                        statusCode: .badRequest,
+                        code: kind.missingCode,
+                        message: "\(kind.label) '\(rule.name)' is required"
+                    )
+                case .mismatch(let expectedDescription, let actualValue):
+                    let actualDescription = actualValue.map { "got '\($0)'" } ?? "but was missing"
+                    return RequestValidationError(
+                        statusCode: .badRequest,
+                        code: kind.mismatchCode,
+                        message: "\(kind.label) '\(rule.name)' must \(expectedDescription), \(actualDescription)"
+                    )
+                }
+            }
+        }
+        return nil
+    }
+
+    private func validateCookiePresence(
+        _ cookies: [String: String],
+        explicitRules: [RuleMatcher]
+    ) -> RequestValidationError? {
+        let requiredCookieNames = Set(explicitRules.map(\.name))
+        if !cookies.isEmpty || !requiredCookieNames.isEmpty {
+            return nil
+        }
+        return RequestValidationError(
+            statusCode: .badRequest,
+            code: .missingRequiredCookie,
+            message: "At least one cookie is required"
+        )
+    }
+
+    private func mergedCookieValues(_ rules: [RuleMatcher], cookies: [String: String]) -> [String: String] {
+        guard !rules.isEmpty else { return cookies }
+        var merged = cookies
+        for rule in rules where merged[rule.name] == nil {
+            merged[rule.name] = nil
+        }
+        return merged
+    }
+
+    private func resolvedValue(for name: String, in values: [String: String], caseInsensitive: Bool) -> String? {
+        if let exact = values[name] {
+            return exact
+        }
+        guard caseInsensitive else { return nil }
+        return values.first { $0.key.caseInsensitiveCompare(name) == .orderedSame }?.value
     }
 }

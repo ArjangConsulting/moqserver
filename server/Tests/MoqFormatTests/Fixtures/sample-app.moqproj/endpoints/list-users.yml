@@ -13,8 +13,12 @@ request_rules:
   headers:
     - name: Accept
       match: "application/json"
+      match_type: equal_to
       required: true
   verify_cookies: true
+  cookies:
+    - name: session_id
+      match_type: not_empty
   query_params: []
 
 variants:

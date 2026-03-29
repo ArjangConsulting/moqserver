@@ -68,13 +68,14 @@ public struct MockHandler: Sendable {
         let requestContext = RequestContext(
             queryParameters: extractQueryParameters(from: req),
             headers: extractHeaders(from: req),
+            cookies: extractCookies(from: req),
             hasBody: (req.body.data?.readableBytes ?? 0) > 0,
             contentType: req.headers.first(name: .contentType)
         )
         if let validationError = requestValidator.validate(endpoint: endpoint, context: requestContext) {
             let errorResponse = ErrorResponse(
                 error: validationError.message,
-                code: "request_validation_failed",
+                code: validationError.code.rawValue,
                 detail: "\(endpoint.key.method.rawValue) \(endpoint.key.path)"
             )
             return Response(
@@ -115,8 +116,12 @@ public struct MockHandler: Sendable {
             )
         }
 
+        if let packetLossResponse = simulatedPacketLossResponse(for: endpoint) {
+            return packetLossResponse
+        }
+
         // Apply delay
-        let delay = variant.delay ?? config?.effectiveDelay(for: endpointKeyString)
+        let delay = effectiveDelay(for: endpoint, variant: variant, endpointKeyString: endpointKeyString)
         if let delay, delay > 0 {
             try await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
         }
@@ -316,9 +321,51 @@ public struct MockHandler: Sendable {
     private func extractHeaders(from req: Request) -> [String: String] {
         var headers: [String: String] = [:]
         for (name, value) in req.headers {
-            headers[name] = value
+            headers[name.lowercased()] = value
         }
         return headers
+    }
+
+    private func extractCookies(from req: Request) -> [String: String] {
+        var cookies: [String: String] = [:]
+        for header in req.headers[canonicalForm: "Cookie"] {
+            for component in header.split(separator: ";") {
+                let parts = component.split(separator: "=", maxSplits: 1).map {
+                    $0.trimmingCharacters(in: .whitespaces)
+                }
+                guard let name = parts.first, !name.isEmpty else { continue }
+                let value = parts.count > 1 ? parts[1] : ""
+                cookies[name] = value
+            }
+        }
+        return cookies
+    }
+
+    private func effectiveDelay(for endpoint: Endpoint, variant: ResponseVariant, endpointKeyString: String) -> TimeInterval? {
+        let variantDelay = variant.delay ?? config?.effectiveDelay(for: endpointKeyString) ?? 0
+        let network = endpoint.network
+        let latency = TimeInterval((network?.latencyMs ?? 0)) / 1000.0
+        let jitterMs = network?.jitterMs ?? 0
+        let jitter = jitterMs > 0 ? TimeInterval(Int.random(in: -jitterMs...jitterMs)) / 1000.0 : 0
+        let total = max(0, variantDelay + latency + jitter)
+        return total > 0 ? total : nil
+    }
+
+    private func simulatedPacketLossResponse(for endpoint: Endpoint) -> Response? {
+        let percent = endpoint.network?.packetLossPercent ?? 0
+        guard percent > 0 else { return nil }
+        guard Double.random(in: 0..<100) < percent else { return nil }
+
+        let errorResponse = ErrorResponse(
+            error: "Simulated packet loss",
+            code: "simulated_packet_loss",
+            hint: "Reduce packet_loss_percent in the project network settings to disable this failure"
+        )
+        return Response(
+            status: .serviceUnavailable,
+            headers: ["Content-Type": "application/json"],
+            body: .init(data: errorResponse.jsonData())
+        )
     }
 
     // MARK: - GraphQL Resolution
@@ -331,7 +378,8 @@ public struct MockHandler: Sendable {
                 method: method,
                 path: path,
                 operationName: graphqlBody.operationName,
-                operationType: operationType
+                operationType: operationType,
+                normalizedDocument: graphqlBody.normalizedDocument()
             ) {
                 return match
             }
@@ -371,5 +419,12 @@ struct GraphQLRequestBody {
             return .query
         }
         return nil
+    }
+
+    func normalizedDocument() -> String {
+        query
+            .components(separatedBy: .whitespacesAndNewlines)
+            .filter { !$0.isEmpty }
+            .joined(separator: " ")
     }
 }
