@@ -40,12 +40,15 @@ class StudioRootViewModel(
 
     fun updateManifest(manifest: ProjectManifest) {
         val current = _state.value.project ?: return
+        if (current.manifest == manifest) return
         val updated = current.copy(manifest = manifest)
         _state.update { it.copy(project = updated, isDirty = true, diagnostics = revalidate(updated)) }
     }
 
     fun updateEndpoint(endpoint: EndpointDocument) {
         val current = _state.value.project ?: return
+        val existing = current.endpoints.find { it.id == endpoint.id } ?: return
+        if (existing == endpoint) return
         val updated = current.copy(
             endpoints = current.endpoints.map { if (it.id == endpoint.id) endpoint else it }
         )
