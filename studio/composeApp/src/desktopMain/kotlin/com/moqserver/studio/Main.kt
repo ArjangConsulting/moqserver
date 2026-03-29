@@ -1,5 +1,8 @@
 package com.moqserver.studio
 
+import java.io.File
+import javax.swing.JOptionPane
+
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -26,8 +29,6 @@ import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import java.io.File
-import javax.swing.JOptionPane
 
 private val logger = loggerFor<Any>()
 
@@ -70,10 +71,19 @@ fun main(args: Array<String>) {
 
         Window(
             onCloseRequest = {
-                logger.debug("Window close requested: isDirty={}", state.isDirty)
-                if (confirmExit(null, state, repo, appViewModel, lastFileDirectory, Dispatchers.IO)) {
-                    logger.info("Application exiting")
-                    exitApplication()
+                when (resolveWindowCloseAction(state)) {
+                    WindowCloseAction.CLOSE_PROJECT -> {
+                        logger.debug("Window close requested: closing current project (isDirty={})", state.isDirty)
+                        if (confirmProjectTransition(null, state, repo, appViewModel, lastFileDirectory, Dispatchers.IO)) {
+                            appViewModel.projectClosed()
+                            logger.info("Project closed from window close request")
+                        }
+                    }
+
+                    WindowCloseAction.EXIT_APPLICATION -> {
+                        logger.info("Window close requested from landing screen: exiting application")
+                        exitApplication()
+                    }
                 }
             },
             title = STUDIO_APP_DISPLAY_NAME,
