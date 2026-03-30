@@ -162,6 +162,8 @@ private fun LandingPreview() {
             onOpenProject = {},
             onImportOpenAPI = {},
             onImportHAR = {},
+            onOpenRecentProject = {},
+            onRemoveRecentProject = {},
         )
     }
 }

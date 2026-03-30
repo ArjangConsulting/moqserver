@@ -21,6 +21,7 @@ import androidx.compose.ui.window.rememberWindowState
 import com.moqserver.studio.data.AISettingsRepository
 import com.moqserver.studio.data.HARImportParser
 import com.moqserver.studio.data.OpenAPIImportParser
+import com.moqserver.studio.data.RecentProjectsRepository
 import com.moqserver.studio.domain.ImportSourceType
 import com.moqserver.studio.domain.StudioRootViewModel
 import com.moqserver.studio.logging.loggerFor
@@ -41,6 +42,7 @@ fun main(args: Array<String>) {
         val openApiParser = remember { OpenAPIImportParser() }
         val harParser = remember { HARImportParser() }
         val settingsRepo = remember { AISettingsRepository() }
+        val recentProjectsRepo = remember { RecentProjectsRepository() }
         val aiSettings = remember { mutableStateOf(settingsRepo.load()) }
         val aiRegistry = remember(aiSettings.value) { buildAIRegistry(aiSettings.value) }
         val showSettings = remember { mutableStateOf(false) }
@@ -63,6 +65,10 @@ fun main(args: Array<String>) {
             aiSettings.value.selectedProviderId?.let(appViewModel::selectProvider)
         }
 
+        LaunchedEffect(Unit) {
+            appViewModel.setRecentProjects(recentProjectsRepo.load())
+        }
+
         val windowState = rememberWindowState(
             width = 1400.dp,
             height = 900.dp,
@@ -74,7 +80,17 @@ fun main(args: Array<String>) {
                 when (resolveWindowCloseAction(state)) {
                     WindowCloseAction.CLOSE_PROJECT -> {
                         logger.debug("Window close requested: closing current project (isDirty={})", state.isDirty)
-                        if (confirmProjectTransition(null, state, repo, appViewModel, lastFileDirectory, Dispatchers.IO)) {
+                        if (
+                            confirmProjectTransition(
+                                owner = null,
+                                state = state,
+                                repo = repo,
+                                appViewModel = appViewModel,
+                                lastFileDirectory = lastFileDirectory,
+                                recentProjectsRepo = recentProjectsRepo,
+                                ioDispatcher = Dispatchers.IO,
+                            )
+                        ) {
                             appViewModel.projectClosed()
                             logger.info("Project closed from window close request")
                         }
@@ -107,7 +123,15 @@ fun main(args: Array<String>) {
             }
 
             fun guardProjectTransition(): Boolean =
-                confirmProjectTransition(window, appViewModel.state.value, repo, appViewModel, lastFileDirectory, Dispatchers.IO)
+                confirmProjectTransition(
+                    owner = window,
+                    state = appViewModel.state.value,
+                    repo = repo,
+                    appViewModel = appViewModel,
+                    lastFileDirectory = lastFileDirectory,
+                    recentProjectsRepo = recentProjectsRepo,
+                    ioDispatcher = Dispatchers.IO,
+                )
 
             LaunchedEffect(pendingProjectOpenPath.value) {
                 val path = pendingProjectOpenPath.value ?: return@LaunchedEffect
@@ -121,6 +145,7 @@ fun main(args: Array<String>) {
                     repo = repo,
                     appViewModel = appViewModel,
                     lastFileDirectory = lastFileDirectory,
+                    recentProjectsRepo = recentProjectsRepo,
                     ioDispatcher = Dispatchers.IO,
                 )
             }
@@ -139,8 +164,37 @@ fun main(args: Array<String>) {
                         repo,
                         appViewModel,
                         lastFileDirectory,
+                        recentProjectsRepo,
                         Dispatchers.IO,
                     )
+                }
+            }
+
+            fun requestOpenRecentProject(path: String) {
+                scope.launch(exceptionHandler) {
+                    logger.debug("User requested open recent project: {}", path)
+                    if (!guardProjectTransition()) {
+                        logger.debug("Open recent project cancelled while resolving current project state")
+                        return@launch
+                    }
+                    openProject(
+                        rawPath = path,
+                        repo = repo,
+                        appViewModel = appViewModel,
+                        lastFileDirectory = lastFileDirectory,
+                        recentProjectsRepo = recentProjectsRepo,
+                        ioDispatcher = Dispatchers.IO,
+                    )
+                }
+            }
+
+            fun removeRecentProject(path: String) {
+                scope.launch(exceptionHandler) {
+                    logger.debug("Removing recent project: {}", path)
+                    appViewModel.removeRecentProject(path)
+                    withContext(Dispatchers.IO) {
+                        recentProjectsRepo.save(appViewModel.state.value.recentProjects)
+                    }
                 }
             }
 
@@ -220,6 +274,14 @@ fun main(args: Array<String>) {
                 Menu("File") {
                     Item("Open Project", onClick = ::requestOpenProject)
                     Item("Close Project", enabled = state.project != null, onClick = ::requestCloseProject)
+                    if (state.recentProjects.isNotEmpty()) {
+                        Separator()
+                        Menu("Recent Projects") {
+                            state.recentProjects.forEach { path ->
+                                Item(recentProjectLabel(path), onClick = { requestOpenRecentProject(path) })
+                            }
+                        }
+                    }
                     Separator()
                     Item("Import OpenAPI", onClick = ::requestImportOpenAPI)
                     Item("Import HAR", onClick = ::requestImportHAR)
@@ -256,6 +318,8 @@ fun main(args: Array<String>) {
                             try {
                                 withContext(Dispatchers.IO) { repo.save(project, project.projectPath) }
                                 appViewModel.projectSaved(project.projectPath)
+                                appViewModel.addRecentProject(project.projectPath)
+                                withContext(Dispatchers.IO) { recentProjectsRepo.save(appViewModel.state.value.recentProjects) }
                             } catch (e: Exception) {
                                 reportRecoverable(
                                     context = "Failed to save project",
@@ -280,6 +344,7 @@ fun main(args: Array<String>) {
                                 withContext(Dispatchers.IO) { repo.save(project, path) }
                                 appViewModel.projectSaved(path)
                                 appViewModel.addRecentProject(path)
+                                withContext(Dispatchers.IO) { recentProjectsRepo.save(appViewModel.state.value.recentProjects) }
                                 lastFileDirectory.value = File(path).parentFile?.canonicalPath ?: path
                             } catch (e: Exception) {
                                 reportRecoverable(
@@ -292,6 +357,8 @@ fun main(args: Array<String>) {
                     },
                     onImportOpenAPI = ::requestImportOpenAPI,
                     onImportHAR = ::requestImportHAR,
+                    onOpenRecentProject = ::requestOpenRecentProject,
+                    onRemoveRecentProject = ::removeRecentProject,
                     onConfirmImport = {
                         scope.launch(exceptionHandler) {
                             val importState = appViewModel.state.value.importState ?: return@launch
@@ -314,6 +381,7 @@ fun main(args: Array<String>) {
                                 withContext(Dispatchers.IO) { repo.save(project, path) }
                                 appViewModel.projectSaved(path)
                                 appViewModel.addRecentProject(path)
+                                withContext(Dispatchers.IO) { recentProjectsRepo.save(appViewModel.state.value.recentProjects) }
                                 lastFileDirectory.value = File(path).parentFile?.canonicalPath ?: path
                                 logger.info("Import complete: {} endpoint(s) saved to {}", project.endpoints.size, path)
                             } catch (e: Exception) {

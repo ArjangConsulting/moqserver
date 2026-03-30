@@ -2,6 +2,7 @@ package com.moqserver.studio
 
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -10,9 +11,11 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.DarkMode
 import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.filled.LightMode
@@ -63,6 +66,7 @@ private object AppStrings {
     const val IMPORT_OPENAPI = "Import OpenAPI"
     const val IMPORT_HAR = "Import HAR"
     const val RECENT_PROJECTS = "Recent Projects"
+    const val REMOVE_RECENT_PROJECT = "Remove recent project"
     const val AI_COMPANION = "AI Companion"
     const val CLOSE = "Close"
     const val UNSAVED_CHANGES = "Unsaved changes"
@@ -89,6 +93,8 @@ fun App(
     onImportOpenAPI: () -> Unit = {},
     onImportHAR: () -> Unit = {},
     onConfirmImport: () -> Unit = {},
+    onOpenRecentProject: (String) -> Unit = {},
+    onRemoveRecentProject: (String) -> Unit = {},
     onRefreshCompanion: () -> Unit = {},
     onAIAction: (AIAction) -> Unit = {},
 ) {
@@ -138,6 +144,8 @@ fun App(
                     onOpenProject = onOpenProject,
                     onImportOpenAPI = onImportOpenAPI,
                     onImportHAR = onImportHAR,
+                    onOpenRecentProject = onOpenRecentProject,
+                    onRemoveRecentProject = onRemoveRecentProject,
                 )
 
                 else -> StudioWorkspaceScreen(
@@ -242,6 +250,8 @@ internal fun StudioLandingScreen(
     onOpenProject: () -> Unit,
     onImportOpenAPI: () -> Unit,
     onImportHAR: () -> Unit,
+    onOpenRecentProject: (String) -> Unit,
+    onRemoveRecentProject: (String) -> Unit,
 ) {
     Column(
         modifier = Modifier.fillMaxSize().padding(StudioDimens.xxxl),
@@ -272,7 +282,11 @@ internal fun StudioLandingScreen(
             }
         }
 
-        RecentProjectsCard(state.recentProjects)
+        RecentProjectsCard(
+            recentProjects = state.recentProjects,
+            onOpenProject = onOpenRecentProject,
+            onRemoveProject = onRemoveRecentProject,
+        )
     }
 }
 
@@ -369,22 +383,56 @@ internal fun StudioWorkspaceScreen(
 }
 
 @Composable
-internal fun RecentProjectsCard(recentProjects: List<String>) {
+internal fun RecentProjectsCard(
+    recentProjects: List<String>,
+    onOpenProject: (String) -> Unit,
+    onRemoveProject: (String) -> Unit,
+) {
     if (recentProjects.isEmpty()) return
 
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(StudioDimens.xxl), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Text(AppStrings.RECENT_PROJECTS, style = MaterialTheme.typography.titleMedium)
             recentProjects.forEach { path ->
-                Text(
-                    text = path.substringAfterLast("/"),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.primary,
-                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .weight(1f)
+                            .clickable { onOpenProject(path) }
+                            .padding(vertical = StudioDimens.xs),
+                        verticalArrangement = Arrangement.spacedBy(StudioDimens.xxs),
+                    ) {
+                        Text(
+                            text = recentProjectLabel(path),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.primary,
+                        )
+                        Text(
+                            text = path,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    IconButton(
+                        onClick = { onRemoveProject(path) },
+                        modifier = Modifier.size(36.dp),
+                    ) {
+                        Icon(
+                            imageVector = Icons.Filled.Close,
+                            contentDescription = AppStrings.REMOVE_RECENT_PROJECT,
+                        )
+                    }
+                }
             }
         }
     }
 }
+
+internal fun recentProjectLabel(path: String): String = path.substringAfterLast("/")
 
 @Composable
 internal fun WorkspaceStatusBar(state: StudioState) {

@@ -11,6 +11,7 @@ import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
 
+import com.moqserver.studio.data.RecentProjectsRepository
 import com.moqserver.studio.domain.StudioRootViewModel
 import com.moqserver.studio.domain.StudioState
 import com.moqserver.studio.logging.loggerFor
@@ -46,6 +47,7 @@ internal suspend fun openProject(
     repo: ProjectRepository,
     appViewModel: StudioRootViewModel,
     lastFileDirectory: androidx.compose.runtime.MutableState<String?>,
+    recentProjectsRepo: RecentProjectsRepository,
     ioDispatcher: CoroutineDispatcher,
 ) {
     val path = resolveProjectPath(rawPath)
@@ -60,6 +62,7 @@ internal suspend fun openProject(
         val project = runOnIo(ioDispatcher) { repo.load(path) }
         appViewModel.projectLoaded(project)
         appViewModel.addRecentProject(path)
+        runOnIo(ioDispatcher) { recentProjectsRepo.save(appViewModel.state.value.recentProjects) }
         lastFileDirectory.value = File(path).parentFile?.canonicalPath ?: path
         logger.info("Project '{}' opened successfully", project.manifest.name)
     } catch (e: Exception) {
@@ -81,6 +84,7 @@ internal fun confirmProjectTransition(
     repo: ProjectRepository,
     appViewModel: StudioRootViewModel,
     lastFileDirectory: androidx.compose.runtime.MutableState<String?>,
+    recentProjectsRepo: RecentProjectsRepository,
     ioDispatcher: CoroutineDispatcher,
 ): Boolean {
     if (state.project == null || !state.isDirty) return true
@@ -113,6 +117,9 @@ internal fun confirmProjectTransition(
                 }
                 appViewModel.projectSaved(path)
                 appViewModel.addRecentProject(path)
+                runBlocking {
+                    runOnIo(ioDispatcher) { recentProjectsRepo.save(appViewModel.state.value.recentProjects) }
+                }
                 lastFileDirectory.value = File(path).parentFile?.canonicalPath ?: path
                 true
             } catch (throwable: Throwable) {

@@ -118,6 +118,14 @@ class StudioRootViewModel(
         }
     }
 
+    fun setRecentProjects(paths: List<String>) {
+        _state.update { it.copy(recentProjects = paths.distinct().take(10)) }
+    }
+
+    fun removeRecentProject(path: String) {
+        _state.update { it.copy(recentProjects = it.recentProjects.filterNot { recentPath -> recentPath == path }) }
+    }
+
     fun setError(message: String) {
         _state.update { it.copy(statusLine = "Error: $message") }
     }
