@@ -151,6 +151,16 @@ class StudioRootViewModelTest {
     }
 
     @Test
+    fun `removeRecentProject removes only the selected path`() {
+        val viewModel = StudioRootViewModel()
+
+        viewModel.setRecentProjects(listOf("/tmp/first.moqproj", "/tmp/second.moqproj"))
+        viewModel.removeRecentProject("/tmp/first.moqproj")
+
+        assertEquals(listOf("/tmp/second.moqproj"), viewModel.state.value.recentProjects)
+    }
+
+    @Test
     fun `updateEndpoint does not mark project dirty when endpoint is unchanged`() {
         val viewModel = StudioRootViewModel()
         val project = sampleProject()

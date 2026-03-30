@@ -25,6 +25,11 @@ class ProjectOperationsTest {
         assertEquals(WindowCloseAction.EXIT_APPLICATION, resolveWindowCloseAction(StudioState()))
     }
 
+    @Test
+    fun `recentProjectLabel uses last path segment`() {
+        assertEquals("Sample.moqproj", recentProjectLabel("/tmp/path/Sample.moqproj"))
+    }
+
     private fun sampleProject(): MoqProject {
         return MoqProject(
             manifest = ProjectManifest(
