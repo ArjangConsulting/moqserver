@@ -188,13 +188,14 @@ private fun VariantEditingControls(
 			},
 			modifier = Modifier.weight(1f),
 		)
-		OutlinedTextField(
-			value = variant.status.toString(),
-			onValueChange = { value ->
-				value.toIntOrNull()?.let { status ->
-					onUpdate(variant.copy(status = status))
-				}
-			},
+        OutlinedTextField(
+            value = variant.status.toString(),
+            onValueChange = { value ->
+                when (val update = acceptedIntInput(value, variant.status)) {
+                    is NumericInputUpdate.Accepted -> onUpdate(variant.copy(status = update.value))
+                    NumericInputUpdate.Ignored -> Unit
+                }
+            },
 		label = {
 			Row(verticalAlignment = Alignment.CenterVertically) {
 				Text(VariantSummaryStrings.STATUS)
@@ -257,12 +258,14 @@ private fun DefaultAndDelayRow(
 			)
 		}
 		Spacer(Modifier.weight(1f))
-		OutlinedTextField(
-			value = (variant.delayMs ?: 0).toString(),
-			onValueChange = {
-				val ms = it.toIntOrNull()
-				onUpdate(variant.copy(delayMs = if (ms != null && ms > 0) ms else null))
-			},
+        OutlinedTextField(
+            value = (variant.delayMs ?: 0).toString(),
+            onValueChange = {
+                when (val update = acceptedPositiveIntOrNullInput(it, variant.delayMs)) {
+                    is NumericInputUpdate.Accepted -> onUpdate(variant.copy(delayMs = update.value))
+                    NumericInputUpdate.Ignored -> Unit
+                }
+            },
 		label = {
 			Row(verticalAlignment = Alignment.CenterVertically) {
 				Text(VariantSummaryStrings.DELAY_LABEL)

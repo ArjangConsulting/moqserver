@@ -165,12 +165,14 @@ private fun NetworkSection(
 
 	if (hasNetwork && network != null) {
 		Row(horizontalArrangement = Arrangement.spacedBy(StudioDimens.l)) {
-			OutlinedTextField(
-				value = (network.latencyMs ?: 0).toString(),
-				onValueChange = {
-					val ms = it.toIntOrNull() ?: 0
-					onUpdate(network.copy(latencyMs = ms))
-				},
+            OutlinedTextField(
+                value = (network.latencyMs ?: 0).toString(),
+                onValueChange = {
+                    when (val update = acceptedIntInput(it, network.latencyMs ?: 0)) {
+                        is NumericInputUpdate.Accepted -> onUpdate(network.copy(latencyMs = update.value))
+                        NumericInputUpdate.Ignored -> Unit
+                    }
+                },
 				label = {
 					Row(verticalAlignment = Alignment.CenterVertically) {
 						Text(CriteriaTabStrings.LATENCY_LABEL)
@@ -180,12 +182,14 @@ private fun NetworkSection(
 				singleLine = true,
 				modifier = Modifier.weight(1f),
 			)
-			OutlinedTextField(
-				value = (network.jitterMs ?: 0).toString(),
-				onValueChange = {
-					val ms = it.toIntOrNull() ?: 0
-					onUpdate(network.copy(jitterMs = ms))
-				},
+            OutlinedTextField(
+                value = (network.jitterMs ?: 0).toString(),
+                onValueChange = {
+                    when (val update = acceptedIntInput(it, network.jitterMs ?: 0)) {
+                        is NumericInputUpdate.Accepted -> onUpdate(network.copy(jitterMs = update.value))
+                        NumericInputUpdate.Ignored -> Unit
+                    }
+                },
 				label = {
 					Row(verticalAlignment = Alignment.CenterVertically) {
 						Text(CriteriaTabStrings.JITTER_LABEL)
@@ -195,12 +199,14 @@ private fun NetworkSection(
 				singleLine = true,
 				modifier = Modifier.weight(1f),
 			)
-			OutlinedTextField(
-				value = (network.packetLossPercent ?: 0.0).toString(),
-				onValueChange = {
-					val pct = it.toDoubleOrNull() ?: 0.0
-					onUpdate(network.copy(packetLossPercent = pct))
-				},
+            OutlinedTextField(
+                value = (network.packetLossPercent ?: 0.0).toString(),
+                onValueChange = {
+                    when (val update = acceptedDoubleInput(it, network.packetLossPercent ?: 0.0)) {
+                        is NumericInputUpdate.Accepted -> onUpdate(network.copy(packetLossPercent = update.value))
+                        NumericInputUpdate.Ignored -> Unit
+                    }
+                },
 				label = {
 					Row(verticalAlignment = Alignment.CenterVertically) {
 						Text(CriteriaTabStrings.PACKET_LOSS_LABEL)
