@@ -203,6 +203,8 @@ data class AIProviderInfo(
     val kind: ProviderKind,
     val available: Boolean,
     val capabilities: Set<String>,
+    val defaultModel: String? = null,
+    val baseUrl: String? = null,
 )
 
 data class AIState(

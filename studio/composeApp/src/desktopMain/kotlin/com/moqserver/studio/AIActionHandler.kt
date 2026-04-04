@@ -183,7 +183,25 @@ private suspend fun providerInfo(provider: AIProvider): AIProviderInfo {
 		kind = if (provider.kind == AIProviderKind.LOCAL) ProviderKind.LOCAL else ProviderKind.HOSTED,
 		available = provider.checkAvailability(),
 		capabilities = provider.capabilities.map { it.name }.toSet(),
+		defaultModel = providerDefaultModel(provider),
+		baseUrl = providerBaseUrl(provider),
 	)
+}
+
+private fun providerDefaultModel(provider: AIProvider): String? = when (provider) {
+	is OllamaAIProvider -> provider.defaultModel
+	is OpenAIAIProvider -> provider.defaultModel
+	is AnthropicAIProvider -> provider.defaultModel
+	is GeminiAIProvider -> provider.defaultModel
+	else -> null
+}
+
+private fun providerBaseUrl(provider: AIProvider): String? = when (provider) {
+	is OllamaAIProvider -> provider.baseUrl
+	is OpenAIAIProvider -> provider.baseUrl
+	is AnthropicAIProvider -> provider.baseUrl
+	is GeminiAIProvider -> provider.baseUrl
+	else -> null
 }
 
 private suspend fun executeAnalyzeSpec(

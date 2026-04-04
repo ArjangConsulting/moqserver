@@ -105,18 +105,20 @@ private fun previewState(): StudioState {
         project = project,
         originalProject = project,
         selectedEndpointId = "get-users",
-        ai = AIState(
-            providers = listOf(
-                AIProviderInfo(
-                    id = "ollama",
-                    displayName = "Ollama (local)",
-                    kind = ProviderKind.LOCAL,
-                    available = true,
-                    capabilities = setOf("ANALYZE_SPEC", "GENERATE_VARIANTS", "REFINE_PROJECT"),
-                )
-            ),
-            selectedProviderId = "ollama",
-        ),
+		ai = AIState(
+			providers = listOf(
+				AIProviderInfo(
+					id = "ollama",
+					displayName = "Ollama (local)",
+					kind = ProviderKind.LOCAL,
+					available = true,
+					capabilities = setOf("ANALYZE_SPEC", "GENERATE_VARIANTS", "REFINE_PROJECT"),
+					defaultModel = "llama3.2:latest",
+					baseUrl = "http://localhost:11434",
+				)
+			),
+			selectedProviderId = "ollama",
+		),
         diagnostics = listOf(
             ValidationDiagnostic(
                 severity = ValidationDiagnostic.Severity.WARNING,
@@ -173,13 +175,15 @@ private fun LandingPreview() {
 @Composable
 private fun WorkspacePreview() {
     StudioTheme(StudioThemeMode.DARK) {
-        StudioWorkspaceScreen(
-            state = previewState(),
-            onAIAction = {},
-            onGenerateBody = { _, _, _ -> },
-            viewModel = StudioRootViewModel(),
-        )
-    }
+		StudioWorkspaceScreen(
+			state = previewState(),
+			variantReferenceSyncPreference = null,
+			onAIAction = {},
+			onGenerateBody = { _, _, _ -> },
+			onVariantReferenceSyncPreferenceChange = { _, _ -> },
+			viewModel = StudioRootViewModel(),
+		)
+	}
 }
 
 @Preview
