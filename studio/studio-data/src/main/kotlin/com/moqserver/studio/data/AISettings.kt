@@ -3,8 +3,16 @@ package com.moqserver.studio.data
 import kotlinx.serialization.Serializable
 
 @Serializable
+enum class ThemePreference {
+    SYSTEM,
+    LIGHT,
+    DARK,
+}
+
+@Serializable
 data class AISettings(
     val selectedProviderId: String? = null,
+    val themeMode: ThemePreference = ThemePreference.SYSTEM,
     val ollama: OllamaSettings = OllamaSettings(),
     val openai: OpenAISettings = OpenAISettings(),
     val anthropic: AnthropicSettings = AnthropicSettings(),

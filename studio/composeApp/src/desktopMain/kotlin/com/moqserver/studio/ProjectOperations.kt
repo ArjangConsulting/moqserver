@@ -164,6 +164,18 @@ internal fun installAboutHandler(showAbout: () -> Unit) {
     desktop.setAboutHandler { showAbout() }
 }
 
+internal fun installPreferencesHandler(showPreferences: () -> Unit) {
+    if (!Desktop.isDesktopSupported()) return
+    val desktop = runCatching { Desktop.getDesktop() }.getOrNull() ?: return
+    if (!desktop.isSupported(Desktop.Action.APP_PREFERENCES)) {
+        return
+    }
+
+    desktop.setPreferencesHandler { showPreferences() }
+}
+
+internal fun isMacOs(): Boolean = System.getProperty("os.name").lowercase().contains("mac")
+
 // ---------------------------------------------------------------------------
 // OS integration (app icon, file-open handler)
 // ---------------------------------------------------------------------------

@@ -24,11 +24,20 @@ object ResponseParser {
 
     fun parseGenerateVariantsResponse(text: String): GenerateVariantsResult {
         val cleaned = stripMarkdownFences(text)
-        return try {
-            GenerateVariantsResult(variants = json.decodeFromString<List<GeneratedVariant>>(cleaned))
-        } catch (_: Exception) {
-            GenerateVariantsResult(variants = emptyList())
+        val candidates = listOfNotNull(
+            cleaned,
+            extractJsonArray(cleaned),
+        ).distinct()
+
+        for (candidate in candidates) {
+            try {
+                return GenerateVariantsResult(variants = json.decodeFromString<List<GeneratedVariant>>(candidate))
+            } catch (_: Exception) {
+                // Try the next candidate. Ollama sometimes wraps JSON with extra text.
+            }
         }
+
+        return GenerateVariantsResult(variants = emptyList())
     }
 
     fun parseRefineProjectResponse(text: String): RefineProjectResult {
@@ -49,6 +58,41 @@ object ResponseParser {
             result = result.trim()
         }
         return result
+    }
+
+    private fun extractJsonArray(text: String): String? {
+        val start = text.indexOf('[')
+        if (start == -1) return null
+
+        var depth = 0
+        var inString = false
+        var escaping = false
+
+        for (index in start until text.length) {
+            val character = text[index]
+
+            if (inString) {
+                when {
+                    escaping -> escaping = false
+                    character == '\\' -> escaping = true
+                    character == '"' -> inString = false
+                }
+                continue
+            }
+
+            when (character) {
+                '"' -> inString = true
+                '[' -> depth += 1
+                ']' -> {
+                    depth -= 1
+                    if (depth == 0) {
+                        return text.substring(start, index + 1)
+                    }
+                }
+            }
+        }
+
+        return null
     }
 
     private fun fallbackFinding(rawText: String) = SpecFinding(

@@ -9,8 +9,9 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyShortcut
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.MenuBar
 import androidx.compose.ui.window.Window
@@ -22,6 +23,7 @@ import com.moqserver.studio.data.AISettingsRepository
 import com.moqserver.studio.data.HARImportParser
 import com.moqserver.studio.data.OpenAPIImportParser
 import com.moqserver.studio.data.RecentProjectsRepository
+import com.moqserver.studio.data.ThemePreference
 import com.moqserver.studio.domain.ImportSourceType
 import com.moqserver.studio.domain.StudioRootViewModel
 import com.moqserver.studio.logging.loggerFor
@@ -32,6 +34,18 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 private val logger = loggerFor<Any>()
+
+private fun ThemePreference.toStudioThemeMode(): StudioThemeMode = when (this) {
+    ThemePreference.SYSTEM -> StudioThemeMode.SYSTEM
+    ThemePreference.LIGHT -> StudioThemeMode.LIGHT
+    ThemePreference.DARK -> StudioThemeMode.DARK
+}
+
+private fun StudioThemeMode.toThemePreference(): ThemePreference = when (this) {
+    StudioThemeMode.SYSTEM -> ThemePreference.SYSTEM
+    StudioThemeMode.LIGHT -> ThemePreference.LIGHT
+    StudioThemeMode.DARK -> ThemePreference.DARK
+}
 
 fun main(args: Array<String>) {
     System.setProperty("apple.awt.application.name", STUDIO_APP_DISPLAY_NAME)
@@ -48,7 +62,7 @@ fun main(args: Array<String>) {
         val showSettings = remember { mutableStateOf(false) }
         val appViewModel = remember { StudioRootViewModel() }
         val scope = rememberCoroutineScope()
-        val themeMode = rememberSaveable { mutableStateOf(StudioThemeMode.SYSTEM) }
+        val themeMode = remember { mutableStateOf(aiSettings.value.themeMode.toStudioThemeMode()) }
         val lastFileDirectory = remember { mutableStateOf<String?>(null) }
         val pendingProjectOpenPath = remember { mutableStateOf(resolveInitialProjectPath(args)) }
         val exceptionHandler = remember {
@@ -67,6 +81,10 @@ fun main(args: Array<String>) {
 
         LaunchedEffect(Unit) {
             appViewModel.setRecentProjects(recentProjectsRepo.load())
+        }
+
+        LaunchedEffect(aiRegistry) {
+            refreshAIProviders(aiRegistry, appViewModel, Dispatchers.IO)
         }
 
         val windowState = rememberWindowState(
@@ -110,6 +128,7 @@ fun main(args: Array<String>) {
             LaunchedEffect(window) {
                 installAppIcon(window)
                 installAboutHandler { showAboutDialog(window) }
+                installPreferencesHandler { showSettings.value = true }
                 installProjectOpenHandler { incomingPath ->
                     logger.info("OS file-open event: {}", incomingPath)
                     pendingProjectOpenPath.value = incomingPath
@@ -270,9 +289,97 @@ fun main(args: Array<String>) {
                 }
             }
 
+            suspend fun saveProject(project: com.moqserver.studio.projectformat.MoqProject) {
+                logger.info("Saving project '{}' to: {}", project.manifest.name, project.projectPath)
+                withContext(Dispatchers.IO) { repo.save(project, project.projectPath) }
+                appViewModel.projectSaved(project.projectPath)
+                appViewModel.addRecentProject(project.projectPath)
+                withContext(Dispatchers.IO) { recentProjectsRepo.save(appViewModel.state.value.recentProjects) }
+            }
+
+            suspend fun saveProjectAs(project: com.moqserver.studio.projectformat.MoqProject) {
+                logger.debug("User requested Save As for project '{}'", project.manifest.name)
+                val path = chooseProjectDirectory(
+                    parent = window,
+                    title = "Save Project As",
+                    initialDirectory = lastFileDirectory.value,
+                    projectName = project.manifest.name,
+                ) ?: run {
+                    logger.debug("Save As dialog cancelled")
+                    return
+                }
+                logger.info("Saving project '{}' as: {}", project.manifest.name, path)
+                withContext(Dispatchers.IO) { repo.save(project, path) }
+                appViewModel.projectSaved(path)
+                appViewModel.addRecentProject(path)
+                withContext(Dispatchers.IO) { recentProjectsRepo.save(appViewModel.state.value.recentProjects) }
+                lastFileDirectory.value = File(path).parentFile?.canonicalPath ?: path
+            }
+
+            val isMac = isMacOs()
+            val saveShortcut = if (isMac) {
+                KeyShortcut(key = Key.S, meta = true)
+            } else {
+                KeyShortcut(key = Key.S, ctrl = true)
+            }
+            val saveAsShortcut = if (isMac) {
+                KeyShortcut(key = Key.S, meta = true, alt = true)
+            } else {
+                KeyShortcut(key = Key.S, ctrl = true, alt = true)
+            }
+            val preferencesShortcut = if (isMac) {
+                KeyShortcut(key = Key.Comma, meta = true)
+            } else {
+                null
+            }
+            val showPreferencesInMenuBar = !isMac
+
             MenuBar {
                 Menu("File") {
                     Item("Open Project", onClick = ::requestOpenProject)
+                    Item(
+                        "Save",
+                        enabled = state.project != null && state.isDirty && !state.hasErrors,
+                        shortcut = saveShortcut,
+                        onClick = {
+                            val project = state.project ?: return@Item
+                            scope.launch(exceptionHandler) {
+                                try {
+                                    if (project.projectPath.isBlank()) {
+                                        saveProjectAs(project)
+                                    } else {
+                                        saveProject(project)
+                                    }
+                                } catch (e: Exception) {
+                                    reportRecoverable(
+                                        context = "Failed to save project",
+                                        throwable = e,
+                                        onUserMessage = appViewModel::setError,
+                                    )
+                                }
+                            }
+                        },
+                    )
+                    Item(
+                        "Save As",
+                        enabled = state.project != null,
+                        shortcut = saveAsShortcut,
+                        onClick = {
+                            val project = state.project ?: return@Item
+                            scope.launch(exceptionHandler) {
+                                try {
+                                    saveProjectAs(project)
+                                } catch (e: Exception) {
+                                    reportRecoverable(
+                                        context = "Failed to save project",
+                                        throwable = e,
+                                        onUserMessage = appViewModel::setError,
+                                    )
+                                }
+                            }
+                        },
+                    )
+                    Separator()
                     Item("Close Project", enabled = state.project != null, onClick = ::requestCloseProject)
                     if (state.recentProjects.isNotEmpty()) {
                         Separator()
@@ -285,8 +392,15 @@ fun main(args: Array<String>) {
                     Separator()
                     Item("Import OpenAPI", onClick = ::requestImportOpenAPI)
                     Item("Import HAR", onClick = ::requestImportHAR)
-                    Separator()
-                    Item("AI Settings\u2026", onClick = { showSettings.value = true })
+                }
+                if (showPreferencesInMenuBar) {
+                    Menu("Edit") {
+                        Item(
+                            "Preferences...",
+                            shortcut = preferencesShortcut,
+                            onClick = { showSettings.value = true },
+                        )
+                    }
                 }
                 Menu("Help") {
                     Item("About $STUDIO_APP_DISPLAY_NAME", onClick = { showAboutDialog(window) })
@@ -297,55 +411,7 @@ fun main(args: Array<String>) {
                 App(
                     appViewModel = appViewModel,
                     themeMode = themeMode.value,
-                    onThemeModeChange = { newMode ->
-                        logger.debug("Theme changed: {} \u2192 {}", themeMode.value, newMode)
-                        themeMode.value = newMode
-                    },
                     onOpenProject = ::requestOpenProject,
-                    onCloseProject = ::requestCloseProject,
-                    onSaveProject = { project ->
-                        scope.launch(exceptionHandler) {
-                            logger.info("Saving project '{}' to: {}", project.manifest.name, project.projectPath)
-                            try {
-                                withContext(Dispatchers.IO) { repo.save(project, project.projectPath) }
-                                appViewModel.projectSaved(project.projectPath)
-                                appViewModel.addRecentProject(project.projectPath)
-                                withContext(Dispatchers.IO) { recentProjectsRepo.save(appViewModel.state.value.recentProjects) }
-                            } catch (e: Exception) {
-                                reportRecoverable(
-                                    context = "Failed to save project",
-                                    throwable = e,
-                                    onUserMessage = appViewModel::setError,
-                                )
-                            }
-                        }
-                    },
-                    onSaveProjectAs = { project ->
-                        scope.launch(exceptionHandler) {
-                            logger.debug("User requested Save As for project '{}'", project.manifest.name)
-                            val path = chooseProjectDirectory(
-                                parent = window,
-                                title = "Save Project As",
-                                initialDirectory = lastFileDirectory.value,
-                                projectName = project.manifest.name,
-                            )
-                                ?: run { logger.debug("Save As dialog cancelled"); return@launch }
-                            logger.info("Saving project '{}' as: {}", project.manifest.name, path)
-                            try {
-                                withContext(Dispatchers.IO) { repo.save(project, path) }
-                                appViewModel.projectSaved(path)
-                                appViewModel.addRecentProject(path)
-                                withContext(Dispatchers.IO) { recentProjectsRepo.save(appViewModel.state.value.recentProjects) }
-                                lastFileDirectory.value = File(path).parentFile?.canonicalPath ?: path
-                            } catch (e: Exception) {
-                                reportRecoverable(
-                                    context = "Failed to save project",
-                                    throwable = e,
-                                    onUserMessage = appViewModel::setError,
-                                )
-                            }
-                        }
-                    },
                     onImportOpenAPI = ::requestImportOpenAPI,
                     onImportHAR = ::requestImportHAR,
                     onOpenRecentProject = ::requestOpenRecentProject,
@@ -384,12 +450,6 @@ fun main(args: Array<String>) {
                             }
                         }
                     },
-                    onRefreshCompanion = {
-                        scope.launch(exceptionHandler) { refreshAIProviders(aiRegistry, appViewModel, Dispatchers.IO) }
-                    },
-                    onOpenAISettings = {
-                        showSettings.value = true
-                    },
                     onAIAction = { action ->
                         scope.launch(exceptionHandler) {
                             executeAIAction(action, aiRegistry, appViewModel, Dispatchers.IO)
@@ -414,31 +474,76 @@ fun main(args: Array<String>) {
         if (showSettings.value) {
             Window(
                 onCloseRequest = { showSettings.value = false },
-                title = "AI Settings",
-                state = rememberWindowState(width = 600.dp, height = 700.dp),
+                title = "Preferences",
+                state = rememberWindowState(width = 900.dp, height = 680.dp),
             ) {
                 StudioTheme(themeMode = themeMode.value) {
-                    AISettingsScreen(
-                        settings = aiSettings.value,
-                        onSave = { updated ->
+                    PreferencesScreen(
+                        state = PreferencesState(
+                            themeMode = themeMode.value,
+                            aiSettings = aiSettings.value,
+                        ),
+                        onThemeModeChange = { updatedThemeMode ->
                             scope.launch(exceptionHandler) {
-                                val settingsToSave = updated.copy(
+                                val settingsToSave = aiSettings.value.copy(
+                                    themeMode = updatedThemeMode.toThemePreference(),
+                                )
+                                try {
+                                    withContext(Dispatchers.IO) { settingsRepo.save(settingsToSave) }
+                                } catch (e: Exception) {
+                                    logger.error("Failed to save preferences: {}", e.message)
+                                    JOptionPane.showMessageDialog(
+                                        window,
+                                        e.message ?: "Failed to save preferences.",
+                                        "Preferences",
+                                        JOptionPane.ERROR_MESSAGE,
+                                    )
+                                    return@launch
+                                }
+                                logger.info("Theme preference saved")
+                                aiSettings.value = settingsToSave
+                                themeMode.value = updatedThemeMode
+                                refreshAIProviders(buildAIRegistry(settingsToSave), appViewModel, Dispatchers.IO)
+                            }
+                        },
+                        onTestAIProvider = { providerId, testSettings, onStatus ->
+                            scope.launch(exceptionHandler) {
+                                onStatus(ProviderConnectionStatus.Checking)
+                                val provider = buildAIProviderForTesting(testSettings, providerId)
+                                if (provider == null) {
+                                    onStatus(ProviderConnectionStatus.Failure("Unknown provider."))
+                                    return@launch
+                                }
+
+                                val issues = withContext(Dispatchers.IO) { provider.validateConfig() }
+                                if (issues.isNotEmpty()) {
+                                    onStatus(ProviderConnectionStatus.Failure(issues.first()))
+                                    return@launch
+                                }
+
+                                onStatus(ProviderConnectionStatus.Success("Connection looks good"))
+                            }
+                        },
+                        onSaveAISettings = { updatedAISettings ->
+                            scope.launch(exceptionHandler) {
+                                val settingsToSave = updatedAISettings.copy(
                                     selectedProviderId = appViewModel.state.value.ai.selectedProviderId,
+                                    themeMode = themeMode.value.toThemePreference(),
                                 )
                                 val updatedRegistry = buildAIRegistry(settingsToSave)
                                 try {
                                     withContext(Dispatchers.IO) { settingsRepo.save(settingsToSave) }
                                 } catch (e: Exception) {
-                                    logger.error("Failed to save AI settings: {}", e.message)
+                                    logger.error("Failed to save preferences: {}", e.message)
                                     JOptionPane.showMessageDialog(
                                         window,
-                                        e.message ?: "Failed to save AI settings.",
-                                        "AI Settings",
+                                        e.message ?: "Failed to save preferences.",
+                                        "Preferences",
                                         JOptionPane.ERROR_MESSAGE,
                                     )
                                     return@launch
                                 }
-                                logger.info("AI settings saved")
+                                logger.info("Preferences saved")
                                 aiSettings.value = settingsToSave
                                 showSettings.value = false
                                 refreshAIProviders(updatedRegistry, appViewModel, Dispatchers.IO)

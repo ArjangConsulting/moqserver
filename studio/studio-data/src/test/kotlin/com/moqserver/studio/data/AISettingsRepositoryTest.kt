@@ -4,6 +4,7 @@ import java.io.File
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertTrue
 
 class AISettingsRepositoryTest {
 
@@ -18,6 +19,7 @@ class AISettingsRepositoryTest {
 
         repository.save(
             AISettings(
+                themeMode = ThemePreference.DARK,
                 openai = OpenAISettings(apiKey = "openai-secret"),
                 anthropic = AnthropicSettings(apiKey = "anthropic-secret"),
                 gemini = GeminiSettings(apiKey = "gemini-secret"),
@@ -28,6 +30,7 @@ class AISettingsRepositoryTest {
         assertFalse(persisted.contains("openai-secret"))
         assertFalse(persisted.contains("anthropic-secret"))
         assertFalse(persisted.contains("gemini-secret"))
+        assertTrue(persisted.contains("\"themeMode\": \"DARK\""))
         assertEquals("openai-secret", credentialStore.read("openai.api-key"))
         assertEquals("anthropic-secret", credentialStore.read("anthropic.api-key"))
         assertEquals("gemini-secret", credentialStore.read("gemini.api-key"))
@@ -52,6 +55,7 @@ class AISettingsRepositoryTest {
             """
             {
               "selectedProviderId": "openai",
+              "themeMode": "LIGHT",
               "openai": { "apiKey": "", "baseUrl": "https://example.com/openai", "defaultModel": "gpt-test" },
               "anthropic": { "apiKey": "", "baseUrl": "https://example.com/anthropic", "defaultModel": "claude-test" },
               "gemini": { "apiKey": "", "baseUrl": "https://example.com/gemini", "defaultModel": "gemini-test" }
@@ -65,6 +69,7 @@ class AISettingsRepositoryTest {
         assertEquals("anthropic-secret", loaded.anthropic.apiKey)
         assertEquals("gemini-secret", loaded.gemini.apiKey)
         assertEquals("openai", loaded.selectedProviderId)
+        assertEquals(ThemePreference.LIGHT, loaded.themeMode)
         assertEquals("https://example.com/openai", loaded.openai.baseUrl)
         assertEquals("claude-test", loaded.anthropic.defaultModel)
 

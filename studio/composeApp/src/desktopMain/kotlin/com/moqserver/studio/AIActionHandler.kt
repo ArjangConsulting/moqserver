@@ -60,6 +60,36 @@ internal fun buildAIRegistry(settings: AISettings): AIProviderRegistry {
     return AIProviderRegistry(providers)
 }
 
+internal fun buildAIProviderForTesting(
+    settings: AISettings,
+    providerId: String,
+): AIProvider? = when (providerId) {
+    OllamaAIProvider.PROVIDER_ID -> OllamaAIProvider(
+        baseUrl = settings.ollama.baseUrl,
+        defaultModel = settings.ollama.defaultModel,
+    )
+
+    OpenAIAIProvider.PROVIDER_ID -> OpenAIAIProvider(
+        apiKey = settings.openai.apiKey,
+        baseUrl = settings.openai.baseUrl,
+        defaultModel = settings.openai.defaultModel,
+    )
+
+    AnthropicAIProvider.PROVIDER_ID -> AnthropicAIProvider(
+        apiKey = settings.anthropic.apiKey,
+        baseUrl = settings.anthropic.baseUrl,
+        defaultModel = settings.anthropic.defaultModel,
+    )
+
+    GeminiAIProvider.PROVIDER_ID -> GeminiAIProvider(
+        apiKey = settings.gemini.apiKey,
+        baseUrl = settings.gemini.baseUrl,
+        defaultModel = settings.gemini.defaultModel,
+    )
+
+    else -> null
+}
+
 /**
  * Checks availability of all registered AI providers and pushes the results into [viewModel].
  */

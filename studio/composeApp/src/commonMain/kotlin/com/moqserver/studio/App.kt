@@ -15,11 +15,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.DarkMode
 import androidx.compose.material.icons.filled.FolderOpen
-import androidx.compose.material.icons.filled.LightMode
-import androidx.compose.material.icons.filled.Refresh
-import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledTonalButton
@@ -27,7 +23,6 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -47,18 +42,12 @@ import com.moqserver.studio.domain.AIAction
 import com.moqserver.studio.domain.AIState
 import com.moqserver.studio.domain.StudioRootViewModel
 import com.moqserver.studio.domain.StudioState
-import com.moqserver.studio.projectformat.MoqProject
 import com.moqserver.composeapp.generated.resources.GreatVibes_Regular
 import com.moqserver.composeapp.generated.resources.Res
 import org.jetbrains.compose.resources.Font
 
 private object AppStrings {
     const val APP_TITLE = "moq studio"
-    const val TOGGLE_THEME = "Toggle theme"
-    const val CONNECT_REFRESH_AI = "Connect or refresh AI companion"
-    const val CLEAR_PROJECT = "Clear Project"
-    const val SAVE_AS = "Save As"
-    const val SAVE = "Save"
     const val WORKSPACE = "Workspace"
     const val OPEN_OR_IMPORT = "Open or import a project"
     const val OPEN_MOQPROJ = "Open .moqproj"
@@ -74,7 +63,6 @@ private object AppStrings {
     const val AI_READY = "AI ready"
     const val AI_NOT_CONFIGURED = "AI not configured"
     const val NO_AI_PROVIDER = "No AI provider available"
-    const val AI_SETTINGS = "AI Settings"
     const val AI_PROVIDER_PREFIX = "AI: "
     const val VERSION_PREFIX = "Version "
     const val ENDPOINTS_SUFFIX = " endpoints"
@@ -85,43 +73,21 @@ private object AppStrings {
 fun App(
     appViewModel: StudioRootViewModel,
     themeMode: StudioThemeMode,
-    onThemeModeChange: (StudioThemeMode) -> Unit,
     onOpenProject: () -> Unit = {},
-    onCloseProject: () -> Unit = {},
-    onSaveProject: (MoqProject) -> Unit = {},
-    onSaveProjectAs: (MoqProject) -> Unit = {},
     onImportOpenAPI: () -> Unit = {},
     onImportHAR: () -> Unit = {},
     onConfirmImport: () -> Unit = {},
     onOpenRecentProject: (String) -> Unit = {},
     onRemoveRecentProject: (String) -> Unit = {},
-    onRefreshCompanion: () -> Unit = {},
-    onOpenAISettings: () -> Unit = {},
     onAIAction: (AIAction) -> Unit = {},
     onGenerateBody: (String, String, String) -> Unit = { _, _, _ -> },
 ) {
     val state by appViewModel.state.collectAsState()
-    val systemInDarkTheme = isSystemInDarkTheme()
 
     Scaffold(
         topBar = {
             StudioTopBar(
                 state = state,
-                themeMode = themeMode,
-                onThemeModeToggle = {
-                    onThemeModeChange(
-                        resolveNextThemeMode(
-                            themeMode = themeMode,
-                            systemInDarkTheme = systemInDarkTheme,
-                        )
-                    )
-                },
-                systemInDarkTheme = systemInDarkTheme,
-                onCloseProject = onCloseProject,
-                onSaveProject = onSaveProject,
-                onSaveProjectAs = onSaveProjectAs,
-                onRefreshCompanion = onRefreshCompanion,
-                onOpenAISettings = onOpenAISettings,
             )
         }
     ) { innerPadding ->
@@ -149,9 +115,7 @@ fun App(
 
                 else -> StudioWorkspaceScreen(
                     state = state,
-                    onRefreshCompanion = onRefreshCompanion,
                     onAIAction = onAIAction,
-                    onOpenAISettings = onOpenAISettings,
                     onGenerateBody = onGenerateBody,
                     viewModel = appViewModel,
                 )
@@ -164,17 +128,8 @@ fun App(
 @Composable
 private fun StudioTopBar(
     state: StudioState,
-    themeMode: StudioThemeMode,
-    systemInDarkTheme: Boolean,
-    onThemeModeToggle: () -> Unit,
-    onCloseProject: () -> Unit,
-    onSaveProject: (MoqProject) -> Unit,
-    onSaveProjectAs: (MoqProject) -> Unit,
-    onRefreshCompanion: () -> Unit,
-    onOpenAISettings: () -> Unit,
 ) {
     val calligraphyFont = FontFamily(Font(Res.font.GreatVibes_Regular))
-    val darkTheme = resolveDarkTheme(themeMode, systemInDarkTheme)
 
     Column {
         TopAppBar(
@@ -184,14 +139,6 @@ private fun StudioTopBar(
                     fontFamily = calligraphyFont,
                     style = MaterialTheme.typography.headlineMedium,
                 )
-            },
-            actions = {
-                IconButton(onClick = onThemeModeToggle) {
-                    Icon(
-                        imageVector = if (darkTheme) Icons.Filled.LightMode else Icons.Filled.DarkMode,
-                        contentDescription = AppStrings.TOGGLE_THEME,
-                    )
-                }
             },
             colors = TopAppBarDefaults.topAppBarColors(),
         )
@@ -210,29 +157,6 @@ private fun StudioTopBar(
                     text = project.manifest.name,
                     style = MaterialTheme.typography.titleMedium,
                 )
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(StudioDimens.m),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    IconButton(onClick = onRefreshCompanion) {
-                        Icon(Icons.Filled.Refresh, contentDescription = AppStrings.CONNECT_REFRESH_AI)
-                    }
-                    OutlinedButton(onClick = onOpenAISettings) {
-                        Text(AppStrings.AI_SETTINGS)
-                    }
-                    OutlinedButton(onClick = onCloseProject) {
-                        Text(AppStrings.CLEAR_PROJECT)
-                    }
-                    OutlinedButton(onClick = { onSaveProjectAs(project) }) {
-                        Text(AppStrings.SAVE_AS)
-                    }
-                    Button(
-                        onClick = { onSaveProject(project) },
-                        enabled = state.isDirty && !state.hasErrors,
-                    ) {
-                        Text(AppStrings.SAVE)
-                    }
-                }
             }
         }
     }
@@ -287,9 +211,7 @@ internal fun StudioLandingScreen(
 @Composable
 internal fun StudioWorkspaceScreen(
     state: StudioState,
-    onRefreshCompanion: () -> Unit,
     onAIAction: (AIAction) -> Unit,
-    onOpenAISettings: () -> Unit,
     onGenerateBody: (String, String, String) -> Unit,
     viewModel: StudioRootViewModel,
 ) {
@@ -350,7 +272,6 @@ internal fun StudioWorkspaceScreen(
 
             WorkspaceStatusBar(
                 state = state,
-                onOpenAI = onOpenAISettings,
             )
         }
     }
@@ -412,7 +333,6 @@ internal fun recentProjectLabel(path: String): String = path.substringAfterLast(
 @Composable
 internal fun WorkspaceStatusBar(
     state: StudioState,
-    onOpenAI: () -> Unit,
 ) {
     val project = state.project ?: return
     val dirtyText = if (state.isDirty) AppStrings.UNSAVED_CHANGES else AppStrings.NO_UNSAVED_CHANGES
@@ -429,9 +349,7 @@ internal fun WorkspaceStatusBar(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            OutlinedButton(onClick = onOpenAI) {
-                Text("${AppStrings.AI_PROVIDER_PREFIX}$providerLabel")
-            }
+            Text("${AppStrings.AI_PROVIDER_PREFIX}$providerLabel", style = MaterialTheme.typography.labelMedium)
             Row(
                 horizontalArrangement = Arrangement.spacedBy(StudioDimens.l),
                 verticalAlignment = Alignment.CenterVertically,

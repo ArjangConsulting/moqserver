@@ -2,6 +2,8 @@ package com.moqserver.studio
 
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
+import kotlin.test.assertTrue
 
 import com.moqserver.studio.domain.StudioState
 import com.moqserver.studio.projectformat.AuthType
@@ -30,6 +32,20 @@ class ProjectOperationsTest {
         assertEquals("Sample.moqproj", recentProjectLabel("/tmp/path/Sample.moqproj"))
     }
 
+    @Test
+    fun `isMacOs returns true on mac`() {
+        withOsName("Mac OS X") {
+            assertTrue(isMacOs())
+        }
+    }
+
+    @Test
+    fun `isMacOs returns false on non-mac`() {
+        withOsName("Linux") {
+            assertFalse(isMacOs())
+        }
+    }
+
     private fun sampleProject(): MoqProject {
         return MoqProject(
             manifest = ProjectManifest(
@@ -43,5 +59,19 @@ class ProjectOperationsTest {
             endpoints = emptyList(),
             projectPath = "/tmp/sample.moqproj",
         )
+    }
+
+    private fun withOsName(value: String, block: () -> Unit) {
+        val previous = System.getProperty("os.name")
+        try {
+            System.setProperty("os.name", value)
+            block()
+        } finally {
+            if (previous == null) {
+                System.clearProperty("os.name")
+            } else {
+                System.setProperty("os.name", previous)
+            }
+        }
     }
 }
