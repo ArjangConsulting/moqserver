@@ -22,12 +22,12 @@ class VariantNamingTest {
         val error = suggestedVariantName(status = 404, existingNames = names, preferredName = "error-404")
 
         assertEquals("Success", success)
-        assertEquals("Success_2", successTwo)
+        assertEquals("Success 2", successTwo)
         assertEquals("Error", error)
     }
 
     @Test
-    fun `preserves custom names that are already code-compatible`() {
+    fun `preserves custom names that are already readable`() {
         assertEquals(
             "Unauthorized",
             suggestedVariantName(status = 401, preferredName = "Unauthorized"),
@@ -35,21 +35,21 @@ class VariantNamingTest {
     }
 
     @Test
-    fun `sanitizes names with spaces to use underscores`() {
-        assertEquals("Not_Found", suggestedVariantName(status = 404, preferredName = "Not Found"))
-        assertEquals("Internal_Server_Error", suggestedVariantName(status = 500, preferredName = "Internal Server Error"))
+    fun `preserves spaces in custom display names`() {
+        assertEquals("Not Found", suggestedVariantName(status = 404, preferredName = "Not Found"))
+        assertEquals("Internal Server Error", suggestedVariantName(status = 500, preferredName = "Internal Server Error"))
     }
 
     @Test
-    fun `sanitizes names that start with a digit`() {
-        assertEquals("_404", sanitizeToCodeCompatibleName("404"))
-        assertEquals("_2xx_success", sanitizeToCodeCompatibleName("2xx success"))
-    }
-
-    @Test
-    fun `collapses consecutive special characters into a single underscore`() {
-        assertEquals("Not_Found", sanitizeToCodeCompatibleName("Not--Found"))
-        assertEquals("Server_Error", sanitizeToCodeCompatibleName("Server  Error"))
+    fun `adds numeric suffix with spaces for duplicate custom display names`() {
+        assertEquals(
+            "Server Error 2",
+            suggestedVariantName(
+                status = 500,
+                preferredName = "Server Error",
+                existingNames = listOf("Server Error"),
+            ),
+        )
     }
 
     @Test

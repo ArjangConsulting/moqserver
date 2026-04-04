@@ -1,6 +1,7 @@
 package com.moqserver.studio.endpointdetail
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
@@ -8,10 +9,12 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 
 import com.moqserver.studio.StudioDimens
+import com.moqserver.studio.data.VariantReferenceSyncPreference
 import com.moqserver.studio.projectformat.EndpointDocument
 import com.moqserver.studio.projectformat.ProjectVariant
 import com.moqserver.studio.projectformat.isValidReferenceName
@@ -28,6 +31,12 @@ private object VariantSummaryStrings {
     const val REFERENCE_NAME_REQUIRED = "Reference name is required"
     const val REFERENCE_NAME_INVALID = "Use letters, numbers, and underscores only"
     const val REFERENCE_NAME_CONFLICT = "Reference name must be unique within this API"
+    const val UPDATE_REFERENCE_TITLE = "Update reference name?"
+    const val UPDATE_REFERENCE_MESSAGE =
+        "This reference name still matches the old display name. Update it to match the new name too?"
+    const val UPDATE_REFERENCE = "Update Reference"
+    const val KEEP_REFERENCE = "Keep Current"
+    const val REMEMBER_FOR_PROJECT = "Remember for this project"
     const val STATUS = "Status"
     const val STATUS_TOOLTIP = "HTTP status code this variant returns (100-599)."
     const val STATUS_RANGE = "100-599"
@@ -43,8 +52,10 @@ private object VariantSummaryStrings {
 internal fun VariantSummaryTab(
 	endpoint: EndpointDocument,
 	variant: ProjectVariant,
+	projectPath: String,
+	variantReferenceSyncPreference: VariantReferenceSyncPreference?,
 	onUpdate: (ProjectVariant) -> Unit,
-	onUpdateEndpoint: (EndpointDocument) -> Unit,
+	onVariantReferenceSyncPreferenceChange: (String, VariantReferenceSyncPreference?) -> Unit,
 	onRemove: () -> Unit,
 	canRemove: Boolean,
 ) {
@@ -53,7 +64,10 @@ internal fun VariantSummaryTab(
 		VariantEditingControls(
 			endpoint = endpoint,
 			variant = variant,
+			projectPath = projectPath,
+			variantReferenceSyncPreference = variantReferenceSyncPreference,
 			onUpdate = onUpdate,
+			onVariantReferenceSyncPreferenceChange = onVariantReferenceSyncPreferenceChange,
 			onRemove = onRemove,
 			canRemove = canRemove,
 		)
@@ -134,7 +148,10 @@ private fun ResponseHeadersSummary(responseHeaders: Map<String, String>) {
 private fun VariantEditingControls(
 	endpoint: EndpointDocument,
 	variant: ProjectVariant,
+	projectPath: String,
+	variantReferenceSyncPreference: VariantReferenceSyncPreference?,
 	onUpdate: (ProjectVariant) -> Unit,
+	onVariantReferenceSyncPreferenceChange: (String, VariantReferenceSyncPreference?) -> Unit,
 	onRemove: () -> Unit,
 	canRemove: Boolean,
 ) {
@@ -148,11 +165,54 @@ private fun VariantEditingControls(
 	val referenceNameInvalid = variant.referenceName.isNotBlank() && !isValidReferenceName(variant.referenceName)
 	val referenceNameConflict = variant.referenceName.isNotBlank() && variant.referenceName in siblingReferenceNames
 	val statusError = variant.status !in 100..599
+	var pendingReferenceUpdate by remember(variant.referenceName, variant.name) { mutableStateOf<String?>(null) }
+	var showReferenceSyncDialog by remember(variant.referenceName, variant.name) { mutableStateOf(false) }
+	var rememberDecision by remember(variant.referenceName, variant.name) { mutableStateOf(false) }
+	var nameFieldFocused by remember { mutableStateOf(false) }
+
+	fun applyNameUpdate(updatedName: String, updatedReferenceName: String = variant.referenceName) {
+		onUpdate(variant.copy(name = updatedName, referenceName = updatedReferenceName))
+	}
+
+	fun persistPreference(preference: VariantReferenceSyncPreference?) {
+		if (projectPath.isNotBlank()) {
+			onVariantReferenceSyncPreferenceChange(projectPath, preference)
+		}
+	}
 
 	Row(horizontalArrangement = Arrangement.spacedBy(StudioDimens.l)) {
 		OutlinedTextField(
 			value = variant.name,
-			onValueChange = { onUpdate(variant.copy(name = it)) },
+			onValueChange = { updatedName ->
+				val result = applyVariantNameChange(
+					newName = updatedName,
+					currentReferenceName = variant.referenceName,
+					previousName = variant.name,
+					existingReferenceNames = siblingReferenceNames + variant.referenceName,
+					preference = variantReferenceSyncPreference,
+				)
+				if (result.shouldPrompt) {
+					pendingReferenceUpdate = syncedVariantReferenceName(
+						newName = updatedName,
+						currentReferenceName = variant.referenceName,
+						existingReferenceNames = siblingReferenceNames + variant.referenceName,
+					)
+					onUpdate(variant.copy(name = updatedName))
+				} else {
+					pendingReferenceUpdate = null
+					showReferenceSyncDialog = false
+					applyNameUpdate(updatedName, result.newReferenceName)
+				}
+			},
+			modifier = Modifier
+				.weight(1f)
+				.onFocusChanged { focusState ->
+					val lostFocus = nameFieldFocused && !focusState.isFocused
+					nameFieldFocused = focusState.isFocused
+					if (lostFocus && pendingReferenceUpdate != null) {
+						showReferenceSyncDialog = true
+					}
+				},
 		label = {
 			Row(verticalAlignment = Alignment.CenterVertically) {
 				Text(VariantSummaryStrings.VARIANT_NAME)
@@ -161,16 +221,20 @@ private fun VariantEditingControls(
 			},
 			singleLine = true,
 			isError = nameConflict,
-		supportingText = if (nameConflict) {
-			{ Text(VariantSummaryStrings.NAME_CONFLICT) }
-		} else {
+			supportingText = if (nameConflict) {
+				{ Text(VariantSummaryStrings.NAME_CONFLICT) }
+			} else {
 				null
 			},
-			modifier = Modifier.weight(1f),
 		)
 		OutlinedTextField(
 			value = variant.referenceName,
-			onValueChange = { onUpdate(variant.copy(referenceName = it)) },
+			onValueChange = {
+				pendingReferenceUpdate = null
+				showReferenceSyncDialog = false
+				rememberDecision = false
+				onUpdate(variant.copy(referenceName = it))
+			},
 		label = {
 			Row(verticalAlignment = Alignment.CenterVertically) {
 				Text(VariantSummaryStrings.REFERENCE_NAME)
@@ -210,6 +274,60 @@ private fun VariantEditingControls(
 				null
 			},
 			modifier = Modifier.width(130.dp),
+		)
+	}
+
+	if (showReferenceSyncDialog && pendingReferenceUpdate != null) {
+		AlertDialog(
+			onDismissRequest = {
+				showReferenceSyncDialog = false
+				rememberDecision = false
+			},
+			title = { Text(VariantSummaryStrings.UPDATE_REFERENCE_TITLE) },
+			text = {
+				Column(verticalArrangement = Arrangement.spacedBy(StudioDimens.m)) {
+					Text(VariantSummaryStrings.UPDATE_REFERENCE_MESSAGE)
+					Row(
+						verticalAlignment = Alignment.CenterVertically,
+						horizontalArrangement = Arrangement.spacedBy(StudioDimens.s),
+					) {
+						Checkbox(
+							checked = rememberDecision,
+							onCheckedChange = { rememberDecision = it },
+						)
+						Text(VariantSummaryStrings.REMEMBER_FOR_PROJECT)
+					}
+				}
+			},
+			confirmButton = {
+				TextButton(
+					onClick = {
+						if (rememberDecision) {
+							persistPreference(VariantReferenceSyncPreference.ALWAYS_UPDATE)
+						}
+						onUpdate(variant.copy(referenceName = pendingReferenceUpdate ?: variant.referenceName))
+						pendingReferenceUpdate = null
+						showReferenceSyncDialog = false
+						rememberDecision = false
+					},
+				) {
+					Text(VariantSummaryStrings.UPDATE_REFERENCE)
+				}
+			},
+			dismissButton = {
+				TextButton(
+					onClick = {
+						if (rememberDecision) {
+							persistPreference(VariantReferenceSyncPreference.NEVER_UPDATE)
+						}
+						pendingReferenceUpdate = null
+						showReferenceSyncDialog = false
+						rememberDecision = false
+					},
+				) {
+					Text(VariantSummaryStrings.KEEP_REFERENCE)
+				}
+			},
 		)
 	}
 

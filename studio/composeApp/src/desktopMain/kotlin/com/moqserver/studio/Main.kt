@@ -467,6 +467,35 @@ fun main(args: Array<String>) {
                             )
                         }
                     },
+                    variantReferenceSyncPreference = state.project?.projectPath
+                        ?.let { aiSettings.value.variantReferenceSyncByProject[it] },
+                    onVariantReferenceSyncPreferenceChange = { projectPath, preference ->
+                        scope.launch(exceptionHandler) {
+                            val updatedPreferences = aiSettings.value.variantReferenceSyncByProject.toMutableMap().also { preferences ->
+                                if (preference == null) {
+                                    preferences.remove(projectPath)
+                                } else {
+                                    preferences[projectPath] = preference
+                                }
+                            }
+                            val settingsToSave = aiSettings.value.copy(
+                                variantReferenceSyncByProject = updatedPreferences,
+                            )
+                            try {
+                                withContext(Dispatchers.IO) { settingsRepo.save(settingsToSave) }
+                            } catch (e: Exception) {
+                                logger.error("Failed to save variant reference preference: {}", e.message)
+                                JOptionPane.showMessageDialog(
+                                    window,
+                                    e.message ?: "Failed to save preferences.",
+                                    "Preferences",
+                                    JOptionPane.ERROR_MESSAGE,
+                                )
+                                return@launch
+                            }
+                            aiSettings.value = settingsToSave
+                        }
+                    },
                 )
             }
         }

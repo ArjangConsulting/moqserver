@@ -13,6 +13,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.dp
 
+import com.moqserver.studio.data.VariantReferenceSyncPreference
 import com.moqserver.studio.domain.AIProviderInfo
 import com.moqserver.studio.endpointdetail.*
 import com.moqserver.studio.projectformat.*
@@ -57,10 +58,12 @@ fun EndpointDetailPane(
     onUpdateEndpoint: (EndpointDocument) -> Unit,
     onDeleteEndpoint: () -> Unit = {},
     projectPath: String = "",
+    variantReferenceSyncPreference: VariantReferenceSyncPreference? = null,
     aiAvailable: Boolean = false,
     aiProvider: AIProviderInfo? = null,
     aiBodyGenerating: Boolean = false,
     aiBodyError: String? = null,
+    onVariantReferenceSyncPreferenceChange: (String, VariantReferenceSyncPreference?) -> Unit = { _, _ -> },
     onGenerateBody: (ProjectVariant, String) -> Unit = { _, _ -> },
     initialVariantName: String? = null,
 ) {
@@ -104,10 +107,12 @@ fun EndpointDetailPane(
             originalEndpoint = originalEndpoint,
             onUpdateEndpoint = onUpdateEndpoint,
             projectPath = projectPath,
+            variantReferenceSyncPreference = variantReferenceSyncPreference,
             aiAvailable = aiAvailable,
             aiProvider = aiProvider,
             aiBodyGenerating = aiBodyGenerating,
             aiBodyError = aiBodyError,
+            onVariantReferenceSyncPreferenceChange = onVariantReferenceSyncPreferenceChange,
             onGenerateBody = onGenerateBody,
             initialVariantName = initialVariantName,
         )
@@ -247,10 +252,12 @@ private fun VariantSection(
     originalEndpoint: EndpointDocument? = null,
     onUpdateEndpoint: (EndpointDocument) -> Unit,
     projectPath: String = "",
+    variantReferenceSyncPreference: VariantReferenceSyncPreference? = null,
     aiAvailable: Boolean = false,
     aiProvider: AIProviderInfo? = null,
     aiBodyGenerating: Boolean = false,
     aiBodyError: String? = null,
+    onVariantReferenceSyncPreferenceChange: (String, VariantReferenceSyncPreference?) -> Unit = { _, _ -> },
     onGenerateBody: (ProjectVariant, String) -> Unit = { _, _ -> },
     initialVariantName: String? = null,
 ) {
@@ -333,6 +340,7 @@ private fun VariantSection(
             activeVariantIndex = activeVariantIndex,
             requestRules = requestRules,
             projectPath = projectPath,
+            variantReferenceSyncPreference = variantReferenceSyncPreference,
             aiProvider = aiProvider,
             aiAvailable = aiAvailable,
             aiBodyGenerating = aiBodyGenerating,
@@ -340,6 +348,7 @@ private fun VariantSection(
             selectedTab = selectedTab,
             onSelectTab = { selectedTab = it },
             onUpdateEndpoint = onUpdateEndpoint,
+            onVariantReferenceSyncPreferenceChange = onVariantReferenceSyncPreferenceChange,
             onGenerateBody = { prompt -> onGenerateBody(variant, prompt) },
             onRequestRemove = { requestRemove(activeVariantIndex) },
         )
@@ -432,6 +441,7 @@ private fun VariantDetailCard(
     activeVariantIndex: Int,
     requestRules: RequestRules,
     projectPath: String,
+    variantReferenceSyncPreference: VariantReferenceSyncPreference?,
     aiProvider: AIProviderInfo?,
     aiAvailable: Boolean,
     aiBodyGenerating: Boolean,
@@ -439,6 +449,7 @@ private fun VariantDetailCard(
     selectedTab: VariantDetailTab,
     onSelectTab: (VariantDetailTab) -> Unit,
     onUpdateEndpoint: (EndpointDocument) -> Unit,
+    onVariantReferenceSyncPreferenceChange: (String, VariantReferenceSyncPreference?) -> Unit,
     onGenerateBody: (String) -> Unit,
     onRequestRemove: () -> Unit,
 ) {
@@ -453,10 +464,12 @@ private fun VariantDetailCard(
                 VariantDetailTab.SUMMARY -> VariantSummaryTab(
                     endpoint = endpoint,
                     variant = variant,
+                    projectPath = projectPath,
+                    variantReferenceSyncPreference = variantReferenceSyncPreference,
                     onUpdate = { updated ->
                         onUpdateEndpoint(endpoint.updateVariant(activeVariantIndex, updated))
                     },
-                    onUpdateEndpoint = onUpdateEndpoint,
+                    onVariantReferenceSyncPreferenceChange = onVariantReferenceSyncPreferenceChange,
                     onRemove = onRequestRemove,
                     canRemove = endpoint.variants.size > 1,
                 )

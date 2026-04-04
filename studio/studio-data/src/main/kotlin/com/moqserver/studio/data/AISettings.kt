@@ -10,9 +10,16 @@ enum class ThemePreference {
 }
 
 @Serializable
+enum class VariantReferenceSyncPreference {
+    ALWAYS_UPDATE,
+    NEVER_UPDATE,
+}
+
+@Serializable
 data class AISettings(
     val selectedProviderId: String? = null,
     val themeMode: ThemePreference = ThemePreference.SYSTEM,
+    val variantReferenceSyncByProject: Map<String, VariantReferenceSyncPreference> = emptyMap(),
     val ollama: OllamaSettings = OllamaSettings(),
     val openai: OpenAISettings = OpenAISettings(),
     val anthropic: AnthropicSettings = AnthropicSettings(),
