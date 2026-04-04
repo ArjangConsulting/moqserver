@@ -176,8 +176,8 @@ private fun WorkspacePreview() {
             state = previewState(),
             onRefreshCompanion = {},
             onAIAction = {},
-            showAiPanel = true,
-            onCloseAiPanel = {},
+            onOpenAISettings = {},
+            onGenerateBody = { _, _, _ -> },
             viewModel = StudioRootViewModel(),
         )
     }

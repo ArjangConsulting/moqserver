@@ -73,9 +73,21 @@ object PromptBuilder {
             for (key in keys) appendLine("  $key")
         }
 
+        request.selection?.variantNames?.takeIf { it.isNotEmpty() }?.let { names ->
+            appendLine()
+            appendLine("Use these variant names when applicable:")
+            for (name in names) appendLine("  $name")
+        }
+
         request.intent?.let { intent ->
             intent.description?.let { appendLine(); appendLine("Intent: $it") }
             intent.type?.let { appendLine("Focus on: $it") }
+        }
+
+        if (request.intent?.type == "body-generation") {
+            appendLine()
+            appendLine("This request is for an existing response body.")
+            appendLine("Return exactly one variant object that matches the selected endpoint and current variant context.")
         }
 
         val maxVariants = request.options?.maxVariants ?: DEFAULT_MAX_VARIANTS

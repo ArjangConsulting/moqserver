@@ -301,15 +301,6 @@ fun main(args: Array<String>) {
                         logger.debug("Theme changed: {} \u2192 {}", themeMode.value, newMode)
                         themeMode.value = newMode
                     },
-                    onToggleAiPanel = {
-                        val nextVisible = !state.aiPanelVisible
-                        appViewModel.setAiPanelVisible(nextVisible)
-                        if (nextVisible && state.ai.providers.isEmpty()) {
-                            scope.launch(exceptionHandler) {
-                                refreshAIProviders(aiRegistry, appViewModel, Dispatchers.IO)
-                            }
-                        }
-                    },
                     onOpenProject = ::requestOpenProject,
                     onCloseProject = ::requestCloseProject,
                     onSaveProject = { project ->
@@ -396,9 +387,24 @@ fun main(args: Array<String>) {
                     onRefreshCompanion = {
                         scope.launch(exceptionHandler) { refreshAIProviders(aiRegistry, appViewModel, Dispatchers.IO) }
                     },
+                    onOpenAISettings = {
+                        showSettings.value = true
+                    },
                     onAIAction = { action ->
                         scope.launch(exceptionHandler) {
                             executeAIAction(action, aiRegistry, appViewModel, Dispatchers.IO)
+                        }
+                    },
+                    onGenerateBody = { endpointId, variantReferenceName, prompt ->
+                        scope.launch(exceptionHandler) {
+                            generateBodyForVariant(
+                                endpointId = endpointId,
+                                variantReferenceName = variantReferenceName,
+                                prompt = prompt,
+                                registry = aiRegistry,
+                                viewModel = appViewModel,
+                                ioDispatcher = Dispatchers.IO,
+                            )
                         }
                     },
                 )

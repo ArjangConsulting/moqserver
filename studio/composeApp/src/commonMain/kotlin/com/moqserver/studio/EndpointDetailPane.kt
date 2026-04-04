@@ -13,6 +13,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.dp
 
+import com.moqserver.studio.domain.AIProviderInfo
 import com.moqserver.studio.endpointdetail.*
 import com.moqserver.studio.projectformat.*
 import com.moqserver.studio.ui.*
@@ -36,7 +37,7 @@ private object EndpointDetailStrings {
     const val PATH_TOOLTIP = "URL path this endpoint responds to (e.g. /users/{id})."
     const val VARIANTS_PREFIX = "Variants ("
     const val VARIANTS_SUFFIX = ")"
-    const val AI_GENERATE = "AI Generate"
+    const val AI_GENERATE = "AI Variants"
     const val VARIANT_DEFAULT_MARKER = " *"
     const val ADD_VARIANT = "+"
     const val DELETE_VARIANT_TITLE = "Delete variant?"
@@ -58,7 +59,9 @@ fun EndpointDetailPane(
     onDeleteEndpoint: () -> Unit = {},
     projectPath: String = "",
     companionConnected: Boolean = false,
+    aiProvider: AIProviderInfo? = null,
     onGenerateVariants: () -> Unit = {},
+    onGenerateBody: (ProjectVariant, String) -> Unit = { _, _ -> },
     initialVariantName: String? = null,
 ) {
     var showDeleteConfirm by remember { mutableStateOf(false) }
@@ -93,7 +96,6 @@ fun EndpointDetailPane(
         verticalArrangement = Arrangement.spacedBy(StudioDimens.xl),
     ) {
         EndpointHeader(endpoint = endpoint, onDelete = { showDeleteConfirm = true })
-        EndpointTagsRow(endpoint = endpoint)
         HorizontalDivider()
         EndpointMetadataForm(endpoint = endpoint, allEndpoints = allEndpoints, onUpdateEndpoint = onUpdateEndpoint)
         HorizontalDivider()
@@ -103,7 +105,9 @@ fun EndpointDetailPane(
             onUpdateEndpoint = onUpdateEndpoint,
             projectPath = projectPath,
             companionConnected = companionConnected,
+            aiProvider = aiProvider,
             onGenerateVariants = onGenerateVariants,
+            onGenerateBody = onGenerateBody,
             initialVariantName = initialVariantName,
         )
     }
@@ -133,25 +137,6 @@ private fun EndpointHeader(
         style = MaterialTheme.typography.bodyLarge,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
     )
-}
-
-@OptIn(ExperimentalLayoutApi::class)
-@Composable
-private fun EndpointTagsRow(endpoint: EndpointDocument) {
-    endpoint.tags?.takeIf { it.isNotEmpty() }?.let { tags ->
-        FlowRow(horizontalArrangement = Arrangement.spacedBy(StudioDimens.s)) {
-            tags.forEach { tag ->
-                Text(
-                    text = tag,
-                    style = MaterialTheme.typography.labelSmall,
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(StudioDimens.xs))
-                        .background(MaterialTheme.colorScheme.secondaryContainer)
-                        .padding(horizontal = StudioDimens.m, vertical = StudioDimens.xxs),
-                )
-            }
-        }
-    }
 }
 
 @Composable
@@ -262,7 +247,9 @@ private fun VariantSection(
     onUpdateEndpoint: (EndpointDocument) -> Unit,
     projectPath: String = "",
     companionConnected: Boolean = false,
+    aiProvider: AIProviderInfo? = null,
     onGenerateVariants: () -> Unit = {},
+    onGenerateBody: (ProjectVariant, String) -> Unit = { _, _ -> },
     initialVariantName: String? = null,
 ) {
     var selectedVariantIndex by remember(endpoint.id, initialVariantName) {
@@ -346,9 +333,12 @@ private fun VariantSection(
             activeVariantIndex = activeVariantIndex,
             requestRules = requestRules,
             projectPath = projectPath,
+            aiProvider = aiProvider,
+            companionConnected = companionConnected,
             selectedTab = selectedTab,
             onSelectTab = { selectedTab = it },
             onUpdateEndpoint = onUpdateEndpoint,
+            onGenerateBody = { prompt -> onGenerateBody(variant, prompt) },
             onRequestRemove = { requestRemove(activeVariantIndex) },
         )
     }
@@ -447,9 +437,12 @@ private fun VariantDetailCard(
     activeVariantIndex: Int,
     requestRules: RequestRules,
     projectPath: String,
+    aiProvider: AIProviderInfo?,
+    companionConnected: Boolean,
     selectedTab: VariantDetailTab,
     onSelectTab: (VariantDetailTab) -> Unit,
     onUpdateEndpoint: (EndpointDocument) -> Unit,
+    onGenerateBody: (String) -> Unit,
     onRequestRemove: () -> Unit,
 ) {
     Card(modifier = Modifier.fillMaxWidth()) {
@@ -494,7 +487,12 @@ private fun VariantDetailCard(
                 )
 
                 VariantDetailTab.BODY -> BodyTab(
+					endpointMethod = endpoint.method,
+					endpointPath = endpoint.path,
                     variant = variant,
+					aiProviderLabel = aiProvider?.displayName,
+					canGenerateWithAi = companionConnected,
+					onGenerateBody = onGenerateBody,
                     projectPath = projectPath,
                     onUpdate = { updated ->
                         onUpdateEndpoint(endpoint.updateVariant(activeVariantIndex, updated))

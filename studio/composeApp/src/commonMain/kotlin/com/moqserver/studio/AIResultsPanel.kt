@@ -41,6 +41,7 @@ import com.moqserver.studio.domain.SpecFinding
 private object AIResultsPanelStrings {
     const val SPEC_ANALYSIS = "Spec Analysis"
     const val GENERATED_VARIANTS = "Generated Variants"
+    const val GENERATING_BODY = "Generating Response Body"
     const val PROJECT_SUGGESTIONS = "Project Suggestions"
     const val CLOSE = "Close"
     const val WORKING = "Working..."
@@ -83,6 +84,7 @@ fun AIResultsPanel(
                 text = when (aiAction.action) {
                     AIAction.ANALYZE_SPEC -> AIResultsPanelStrings.SPEC_ANALYSIS
                     AIAction.GENERATE_VARIANTS -> AIResultsPanelStrings.GENERATED_VARIANTS
+                    AIAction.GENERATE_BODY -> AIResultsPanelStrings.GENERATING_BODY
                     AIAction.REFINE_PROJECT -> AIResultsPanelStrings.PROJECT_SUGGESTIONS
                     null -> ""
                 },
@@ -131,6 +133,7 @@ fun AIResultsPanel(
             AIAction.GENERATE_VARIANTS -> aiAction.generateResult?.let {
                 GenerateResultView(it, onAcceptVariant)
             }
+            AIAction.GENERATE_BODY -> Unit
             AIAction.REFINE_PROJECT -> aiAction.refineResult?.let {
                 RefineResultView(it, onNavigateToEndpoint)
             }
