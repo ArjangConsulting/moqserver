@@ -109,10 +109,13 @@ public enum ProjectToRuntimeConverter {
 
         return ResponseVariant(
             name: variant.name,
+            referenceName: variant.referenceName,
+            isDefault: variant.isDefault == true,
             statusCode: statusCode,
             headers: headers,
             body: body,
-            delay: delay
+            delay: delay,
+            requestMatch: variant.requestMatch
         )
     }
 

@@ -178,7 +178,7 @@ public struct MockHandler: Sendable {
     private func selectVariant(endpoint: Endpoint, named name: String?, req: Request) -> ResponseVariant? {
         let primaryCandidates: [ResponseVariant]
         if let name {
-            primaryCandidates = endpoint.variants.filter { $0.name == name }
+            primaryCandidates = endpoint.variants.filter { $0.matchesIdentifier(name) }
         } else {
             primaryCandidates = endpoint.variants
         }

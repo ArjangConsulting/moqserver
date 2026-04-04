@@ -129,4 +129,121 @@ struct ProjectWriterTests {
         #expect(reloaded.endpoints.count == 1)
         #expect(reloaded.endpoints.first?.alias == "Delete Pets By Pet Id")
     }
+
+    @Test("Preserves Studio reference names and match types when writing")
+    func preservesStudioMetadata() throws {
+        let writer = ProjectWriter()
+        let loader = ProjectLoader()
+        let project = MoqProject(
+            manifest: ProjectManifest(
+                version: "1",
+                name: "Metadata Test",
+                defaults: ProjectDefaults(
+                    delayMs: 0,
+                    auth: ProjectAuthConfig(type: .none, verify: false),
+                    network: NetworkBehavior()
+                )
+            ),
+            endpoints: [
+                EndpointDocument(
+                    id: "get-users",
+                    alias: "Get Users",
+                    description: "Used to verify metadata persistence",
+                    referenceName: "usersApi",
+                    method: "GET",
+                    path: "/users",
+                    requestRules: RequestRules(
+                        headers: [
+                            RuleMatcher(name: "X-Request-ID", match: "^req-.*", required: true, matchType: .matchesRegex)
+                        ]
+                    ),
+                    variants: [
+                        ProjectVariant(
+                            name: "Success",
+                            referenceName: "successResponse",
+                            isDefault: true,
+                            status: 200,
+                            body: .object(["ok": .bool(true)])
+                        )
+                    ]
+                )
+            ],
+            projectPath: "/tmp/metadata-test.moqproj"
+        )
+
+        let tempDir = NSTemporaryDirectory()
+        let outputPath = (tempDir as NSString).appendingPathComponent("metadata-save-\(UUID().uuidString).moqproj")
+        defer { try? FileManager.default.removeItem(atPath: outputPath) }
+
+        try writer.write(project, to: outputPath)
+
+        let endpointPath = (outputPath as NSString).appendingPathComponent("endpoints/get-users.yml")
+        let yaml = try String(contentsOfFile: endpointPath, encoding: .utf8)
+        #expect(yaml.contains(#"description: "Used to verify metadata persistence""#))
+        #expect(yaml.contains(#"reference_name: "usersApi""#))
+        #expect(yaml.contains(#"match_type: matches_regex"#))
+        #expect(yaml.contains(#"reference_name: "successResponse""#))
+
+        let reloaded = try loader.load(from: outputPath)
+        let endpoint = try #require(reloaded.endpoints.first)
+        let variant = try #require(endpoint.variants.first)
+        #expect(endpoint.referenceName == "usersApi")
+        #expect(endpoint.description == "Used to verify metadata persistence")
+        #expect(endpoint.requestRules?.headers?.first?.matchType == .matchesRegex)
+        #expect(variant.referenceName == "successResponse")
+    }
+
+    @Test("Preserves variant request_match when writing")
+    func preservesVariantRequestMatch() throws {
+        let writer = ProjectWriter()
+        let loader = ProjectLoader()
+        let project = MoqProject(
+            manifest: ProjectManifest(
+                version: "1",
+                name: "Variant Match Test",
+                defaults: ProjectDefaults(
+                    delayMs: 0,
+                    auth: ProjectAuthConfig(type: .none, verify: false),
+                    network: NetworkBehavior()
+                )
+            ),
+            endpoints: [
+                EndpointDocument(
+                    id: "get-users",
+                    method: "GET",
+                    path: "/users",
+                    variants: [
+                        ProjectVariant(
+                            name: "matched",
+                            status: 200,
+                            requestMatch: RequestMatch(
+                                query: ["type": "active"],
+                                headers: ["X-Role": "admin"],
+                                bodyContains: "currentUser"
+                            ),
+                            body: .object(["ok": .bool(true)])
+                        )
+                    ]
+                )
+            ],
+            projectPath: "/tmp/variant-match-test.moqproj"
+        )
+
+        let tempDir = NSTemporaryDirectory()
+        let outputPath = (tempDir as NSString).appendingPathComponent("variant-match-save-\(UUID().uuidString).moqproj")
+        defer { try? FileManager.default.removeItem(atPath: outputPath) }
+
+        try writer.write(project, to: outputPath)
+
+        let endpointPath = (outputPath as NSString).appendingPathComponent("endpoints/get-users.yml")
+        let yaml = try String(contentsOfFile: endpointPath, encoding: .utf8)
+        #expect(yaml.contains("request_match:"))
+        #expect(yaml.contains("body_contains: \"currentUser\""))
+
+        let reloaded = try loader.load(from: outputPath)
+        let variant = try #require(reloaded.endpoints.first?.variants.first)
+        #expect(variant.requestMatch?.query == ["type": "active"])
+        #expect(variant.requestMatch?.headers == ["X-Role": "admin"])
+        #expect(variant.requestMatch?.bodyContains == "currentUser")
+    }
 }

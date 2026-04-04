@@ -30,6 +30,33 @@ struct ProjectConverterTests {
         #expect(listUsers?.verifyCookies == true)
         #expect(listUsers?.network?.latencyMs == 100)
         #expect(listUsers?.network?.jitterMs == 20)
+        #expect(listUsers?.defaultVariant?.name == "success")
+        #expect(listUsers?.variant(named: "success")?.referenceName == "success")
+    }
+
+    @Test("Honors explicit default variant instead of first variant")
+    func honorsExplicitDefaultVariant() throws {
+        let endpoint = EndpointDocument(
+            id: "pets",
+            referenceName: "pets",
+            method: "GET",
+            path: "/pets",
+            variants: [
+                ProjectVariant(name: "first", referenceName: "first", status: 200),
+                ProjectVariant(name: "second", referenceName: "second", isDefault: true, status: 201),
+            ]
+        )
+        let runtime = try ProjectToRuntimeConverter.convertEndpoint(
+            endpoint,
+            defaults: ProjectDefaults(
+                delayMs: 0,
+                auth: ProjectAuthConfig(type: .none, verify: false),
+                network: NetworkBehavior()
+            ),
+            projectPath: "/tmp"
+        )
+
+        #expect(runtime.defaultVariant?.name == "second")
     }
 
     @Test("Converts auth with verify=false to .none")
@@ -110,5 +137,33 @@ struct ProjectConverterTests {
         )
         // 100 + 50 = 150ms = 0.15s
         #expect(result.delay == 0.15)
+    }
+
+    @Test("Converts variant request_match into runtime requestMatch")
+    func convertsVariantRequestMatch() throws {
+        let variant = ProjectVariant(
+            name: "matched",
+            referenceName: "matched",
+            status: 200,
+            requestMatch: RequestMatch(
+                query: ["type": "active"],
+                headers: ["X-Role": "admin"],
+                bodyContains: "currentUser"
+            )
+        )
+
+        let result = try ProjectToRuntimeConverter.convertVariant(
+            variant,
+            defaults: ProjectDefaults(
+                delayMs: 0,
+                auth: ProjectAuthConfig(type: .none, verify: false),
+                network: NetworkBehavior()
+            ),
+            projectPath: "/tmp"
+        )
+
+        #expect(result.requestMatch?.query == ["type": "active"])
+        #expect(result.requestMatch?.headers == ["X-Role": "admin"])
+        #expect(result.requestMatch?.bodyContains == "currentUser")
     }
 }

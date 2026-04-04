@@ -218,6 +218,42 @@ class ProjectValidator(
                     )
                 }
 
+                variant.requestMatch?.let { requestMatch ->
+                    if (requestMatch.query.orEmpty().keys.any { it.isBlank() }) {
+                        diagnostics += ValidationDiagnostic(
+                            severity = ValidationDiagnostic.Severity.ERROR,
+                            message = "Variant request_match query names must not be blank.",
+                            file = fileName,
+                            field = "$variantField.request_match.query",
+                            endpointId = endpoint.id,
+                            endpointLabel = endpointLabel,
+                            variantName = variant.name,
+                        )
+                    }
+                    if (requestMatch.headers.orEmpty().keys.any { it.isBlank() }) {
+                        diagnostics += ValidationDiagnostic(
+                            severity = ValidationDiagnostic.Severity.ERROR,
+                            message = "Variant request_match header names must not be blank.",
+                            file = fileName,
+                            field = "$variantField.request_match.headers",
+                            endpointId = endpoint.id,
+                            endpointLabel = endpointLabel,
+                            variantName = variant.name,
+                        )
+                    }
+                    if (requestMatch.query.isNullOrEmpty() && requestMatch.headers.isNullOrEmpty() && requestMatch.bodyContains.isNullOrBlank()) {
+                        diagnostics += ValidationDiagnostic(
+                            severity = ValidationDiagnostic.Severity.ERROR,
+                            message = "Variant request_match must define query, headers, or body_contains.",
+                            file = fileName,
+                            field = "$variantField.request_match",
+                            endpointId = endpoint.id,
+                            endpointLabel = endpointLabel,
+                            variantName = variant.name,
+                        )
+                    }
+                }
+
                 if (variant.body != null && variant.bodyFile != null) {
                     diagnostics += ValidationDiagnostic(
                         severity = ValidationDiagnostic.Severity.ERROR,

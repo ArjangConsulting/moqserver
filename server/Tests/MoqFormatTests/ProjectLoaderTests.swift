@@ -40,6 +40,8 @@ struct ProjectLoaderTests {
 
         let listUsers = project.endpoints.first { $0.id == "list-users" }
         #expect(listUsers != nil)
+        #expect(listUsers?.description == nil)
+        #expect(listUsers?.referenceName == "listUsers")
         #expect(listUsers?.method == "GET")
         #expect(listUsers?.path == "/api/v1/users")
         #expect(listUsers?.tags == ["users", "core"])
@@ -49,6 +51,7 @@ struct ProjectLoaderTests {
 
         let success = listUsers?.variants.first { $0.name == "success" }
         #expect(success?.isDefault == true)
+        #expect(success?.referenceName == "success")
         #expect(success?.status == 200)
         #expect(success?.bodyFile == "fixtures/users-list.json")
         #expect(success?.delayMs == 50)

@@ -2,6 +2,7 @@ package com.moqserver.studio.endpointdetail
 
 import com.moqserver.studio.projectformat.EndpointDocument
 import com.moqserver.studio.projectformat.ProjectVariant
+import com.moqserver.studio.projectformat.VariantRequestMatch
 import com.moqserver.studio.projectformat.YamlValue
 import kotlinx.serialization.json.*
 
@@ -188,4 +189,8 @@ internal fun EndpointDocument.updateHeadersState(
 ): EndpointDocument {
 	return updateVariant(index, variant.copy(headers = headers.ifEmpty { null }))
 		.copy(requestRules = requestRules.normalize())
+}
+
+internal fun ProjectVariant.withNormalizedRequestMatch(requestMatch: VariantRequestMatch?): ProjectVariant {
+	return copy(requestMatch = requestMatch?.normalize())
 }

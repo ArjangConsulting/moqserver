@@ -181,9 +181,18 @@ class YamlProjectCodec {
             isDefault = map.bool("default"),
             status = map.int("status") ?: throw missing("status", "variant"),
             headers = (map["headers"] as? Map<*, *>)?.entries?.associate { (k, v) -> k.toString() to v.toString() },
+            requestMatch = (map["request_match"] as? Map<*, *>)?.let { parseVariantRequestMatch(it) },
             body = map["body"]?.let { YamlValue.from(it) },
             bodyFile = map.str("body_file"),
             delayMs = map.int("delay_ms"),
+        )
+    }
+
+    private fun parseVariantRequestMatch(map: Map<*, *>): VariantRequestMatch {
+        return VariantRequestMatch(
+            query = (map["query"] as? Map<*, *>)?.entries?.associate { (k, v) -> k.toString() to v.toString() },
+            headers = (map["headers"] as? Map<*, *>)?.entries?.associate { (k, v) -> k.toString() to v.toString() },
+            bodyContains = map.str("body_contains")?.takeIf { it.isNotBlank() },
         )
     }
 
@@ -300,6 +309,30 @@ class YamlProjectCodec {
             lines += "${pad}  headers:"
             headers.toSortedMap().forEach { (k, v) ->
                 lines += "${pad}    ${encodeYamlKey(k)}: ${yamlQuote(v)}"
+            }
+        }
+
+        variant.requestMatch?.let { requestMatch ->
+            val query = requestMatch.query
+            val headers = requestMatch.headers
+            val bodyContains = requestMatch.bodyContains
+            if (!query.isNullOrEmpty() || !headers.isNullOrEmpty() || !bodyContains.isNullOrBlank()) {
+                lines += "${pad}  request_match:"
+                if (!query.isNullOrEmpty()) {
+                    lines += "${pad}    query:"
+                    query.toSortedMap().forEach { (k, v) ->
+                        lines += "${pad}      ${encodeYamlKey(k)}: ${yamlQuote(v)}"
+                    }
+                }
+                if (!headers.isNullOrEmpty()) {
+                    lines += "${pad}    headers:"
+                    headers.toSortedMap().forEach { (k, v) ->
+                        lines += "${pad}      ${encodeYamlKey(k)}: ${yamlQuote(v)}"
+                    }
+                }
+                if (!bodyContains.isNullOrBlank()) {
+                    lines += "${pad}    body_contains: ${yamlQuote(bodyContains)}"
+                }
             }
         }
 

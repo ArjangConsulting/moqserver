@@ -73,6 +73,24 @@ struct MockHandlerTests {
         }
     }
 
+    @Test("X-Mock-Variant can select variant by reference name")
+    func variantHeaderSelectionByReferenceName() async throws {
+        let store = InMemoryMockStore()
+        await store.register(makeEndpoint(method: .get, path: "/pets", variants: [
+            ResponseVariant(name: "Default", referenceName: "defaultVariant", statusCode: .ok, body: Data(#"{"status":"ok"}"#.utf8)),
+            ResponseVariant(name: "Server Error", referenceName: "serverError", statusCode: .internalServerError, body: Data(#"{"error":"fail"}"#.utf8)),
+        ]))
+
+        let app = try await buildApp(store: store)
+        defer { Task { try? await app.asyncShutdown() } }
+
+        try await app.testing().test(.GET, "/pets", headers: ["X-Mock-Variant": "serverError"]) { res async in
+            #expect(res.status == .internalServerError)
+            let body = String(buffer: res.body)
+            #expect(body.contains("fail"))
+        }
+    }
+
     @Test("Admin override takes precedence over default")
     func adminOverrideSelection() async throws {
         let store = InMemoryMockStore()

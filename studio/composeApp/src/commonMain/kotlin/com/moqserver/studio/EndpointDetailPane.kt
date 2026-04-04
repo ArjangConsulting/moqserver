@@ -500,9 +500,13 @@ private fun VariantDetailCard(
                 )
 
                 VariantDetailTab.CRITERIA -> CriteriaTab(
+                    variant = variant,
                     requestRules = requestRules,
                     auth = endpoint.auth,
                     network = endpoint.network,
+                    onUpdateVariant = { updatedVariant ->
+                        onUpdateEndpoint(endpoint.updateVariant(activeVariantIndex, updatedVariant))
+                    },
                     onUpdate = { updatedRules ->
                         onUpdateEndpoint(endpoint.copy(requestRules = updatedRules.normalize()))
                     },

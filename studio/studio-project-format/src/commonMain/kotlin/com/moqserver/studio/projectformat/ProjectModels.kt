@@ -124,11 +124,21 @@ data class ProjectVariant(
     val isDefault: Boolean? = null,
     val status: Int,
     val headers: Map<String, String>? = null,
+    @SerialName("request_match")
+    val requestMatch: VariantRequestMatch? = null,
     val body: YamlValue? = null,
     @SerialName("body_file")
     val bodyFile: String? = null,
     @SerialName("delay_ms")
     val delayMs: Int? = null,
+)
+
+@Serializable
+data class VariantRequestMatch(
+    val query: Map<String, String>? = null,
+    val headers: Map<String, String>? = null,
+    @SerialName("body_contains")
+    val bodyContains: String? = null,
 )
 
 /** Request validation rules for an endpoint in the .moqproj format. */

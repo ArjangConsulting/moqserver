@@ -415,6 +415,42 @@ class ProjectRepositoryTest {
     }
 
     @Test
+    fun `save and reload preserves variant request match`() {
+        val project = repo.load(sampleProjectPath)
+        val endpoint = project.endpoints.first().copy(
+            id = "variant-request-match-regression",
+            variants = listOf(
+                project.endpoints.first().variants.first().copy(
+                    requestMatch = VariantRequestMatch(
+                        query = mapOf("type" to "active"),
+                        headers = mapOf("X-Role" to "admin"),
+                        bodyContains = "currentUser",
+                    ),
+                    body = YamlValue.Str("ok"),
+                    bodyFile = null,
+                )
+            ),
+        )
+        val tempDir = kotlin.io.path.createTempDirectory("moqproj-variant-request-match").toFile()
+
+        try {
+            repo.save(project.copy(endpoints = listOf(endpoint)), tempDir.absolutePath)
+
+            val yaml = File(tempDir, "endpoints/variant-request-match-regression.yml").readText()
+            assertTrue(yaml.contains("request_match:"))
+            assertTrue(yaml.contains("body_contains: \"currentUser\""))
+
+            val reloaded = repo.load(tempDir.absolutePath)
+            val requestMatch = reloaded.endpoints.single().variants.single().requestMatch
+            assertEquals(mapOf("type" to "active"), requestMatch?.query)
+            assertEquals(mapOf("X-Role" to "admin"), requestMatch?.headers)
+            assertEquals("currentUser", requestMatch?.bodyContains)
+        } finally {
+            tempDir.deleteRecursively()
+        }
+    }
+
+    @Test
     fun `load fails when project manifest is missing`() {
         val tempDir = kotlin.io.path.createTempDirectory("moqproj-missing-manifest").toFile()
 
