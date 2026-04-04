@@ -11,16 +11,17 @@ Canonical note: This is the single source of truth for AI agent guidance in this
 - UI routing: `composeApp/src/commonMain/kotlin/com/moqserver/studio/App.kt` switches `ImportReviewScreen` vs landing vs workspace from `StudioState`.
 - State owner: `studio-domain/src/commonMain/kotlin/com/moqserver/studio/domain/StudioRootViewModel.kt` is the single source of truth (`StateFlow<StudioState>`).
 - Project format boundary: `studio-project-format/` owns `.moqproj` schema, YAML codec, validation, and disk I/O (`ProjectRepository`).
-- Data/adapters boundary: `studio-data/` owns import parsers and local settings/credential adapters; do not move project-format semantics here.
+- Data/adapters boundary: `studio-data/` owns settings/credential adapters only; `studio-import/` owns import parsers; do not move project-format semantics here.
 
 ## Module Boundaries You Should Preserve
-- `composeApp -> studio-domain + studio-project-format + studio-data + studio-ai + studio-ui + studio-code-editor + studio-logging`.
-- `studio-domain` stays pure workflow logic (no desktop/Compose/IO concerns).
-- `studio-data` depends on `studio-domain` + `studio-project-format` for adapter integration only.
+- `composeApp -> studio-domain + studio-project-format + studio-data + studio-import + studio-ai + studio-ui + studio-code-editor + studio-logging`.
+- `studio-domain` stays pure workflow logic (no desktop/Compose/IO concerns). Owns `ImportModels`, `ImportConverter`, and `VariantReferenceSyncPreference`.
+- `studio-data` depends on `studio-domain` + `studio-project-format` for adapter integration only. Owns settings/preferences repositories only (no import parsers).
+- `studio-import` owns `OpenAPIImportParser` and `HARImportParser` (JVM-only). Depends on `studio-domain` + `studio-project-format` + `studio-logging`.
 
 ## Core Data Flows (Examples)
 - Open/save project: file dialog -> `ProjectRepository.load/save` -> `StudioRootViewModel.projectLoaded/projectSaved`.
-- Import OpenAPI/HAR: parser in `studio-data` -> `startImport` -> review UI -> `confirmImport` -> persisted `.moqproj`.
+- Import OpenAPI/HAR: parser in `studio-import` -> `startImport` -> review UI -> `confirmImport` -> persisted `.moqproj`.
 - AI action: UI trigger -> `AIActionHandler.executeAIAction` -> provider registry call -> `aiAction` state update.
 
 ## AI Integration
@@ -32,7 +33,7 @@ Canonical note: This is the single source of truth for AI agent guidance in this
 - Build desktop compile: `./gradlew :composeApp:compileKotlinDesktop`
 - Run app: `./gradlew :composeApp:run`
 - Full tests: `./gradlew test`
-- Focused tests: `./gradlew :composeApp:desktopTest` / `./gradlew :studio-domain:jvmTest` / `./gradlew :studio-project-format:jvmTest` / `./gradlew :studio-data:test`
+- Focused tests: `./gradlew :composeApp:desktopTest` / `./gradlew :studio-domain:jvmTest` / `./gradlew :studio-project-format:jvmTest` / `./gradlew :studio-data:test` / `./gradlew :studio-import:test`
 - Lint all modules: `./gradlew detektAll`
 - Detekt nuance: KMP modules need target-specific tasks (e.g. `:composeApp:detektDesktopMain`), while JVM modules use plain `detekt`.
 
