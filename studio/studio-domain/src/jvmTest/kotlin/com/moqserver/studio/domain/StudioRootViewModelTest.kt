@@ -65,6 +65,8 @@ class StudioRootViewModelTest {
                 kind = ProviderKind.LOCAL,
                 available = true,
                 capabilities = setOf("GENERATE_VARIANTS"),
+                defaultModel = "llama3.2:latest",
+                baseUrl = "http://localhost:11434",
             ),
         )
 
@@ -75,6 +77,8 @@ class StudioRootViewModelTest {
         assertNull(state.error)
         assertEquals("ollama", state.selectedProviderId)
         assertTrue(state.isReady)
+        assertEquals("llama3.2:latest", state.selectedProvider?.defaultModel)
+        assertEquals("http://localhost:11434", state.selectedProvider?.baseUrl)
     }
 
     @Test
@@ -162,6 +166,29 @@ class StudioRootViewModelTest {
 
         assertEquals("openai", viewModel.state.value.ai.selectedProviderId)
         assertFalse(viewModel.state.value.ai.isReady)
+    }
+
+    @Test
+    fun `selected provider exposes connection details`() {
+        val viewModel = StudioRootViewModel()
+        val providers = listOf(
+            AIProviderInfo(
+                id = "openai",
+                displayName = "OpenAI",
+                kind = ProviderKind.HOSTED,
+                available = true,
+                capabilities = setOf("ANALYZE_SPEC", "GENERATE_VARIANTS"),
+                defaultModel = "gpt-4o",
+                baseUrl = "https://api.openai.com/v1",
+            )
+        )
+
+        viewModel.aiProvidersLoaded(providers)
+
+        val selectedProvider = viewModel.state.value.ai.selectedProvider
+        assertEquals("OpenAI", selectedProvider?.displayName)
+        assertEquals("gpt-4o", selectedProvider?.defaultModel)
+        assertEquals("https://api.openai.com/v1", selectedProvider?.baseUrl)
     }
 
     @Test
