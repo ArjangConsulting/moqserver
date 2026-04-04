@@ -289,12 +289,15 @@ internal fun StudioWorkspaceScreen(
                 }
             }
 
-            if (state.diagnostics.isNotEmpty()) {
+            val diagnostics = state.transientDiagnostic?.let { listOf(it) + state.diagnostics } ?: state.diagnostics
+            if (diagnostics.isNotEmpty()) {
                 ValidationPanel(
-                    diagnostics = state.diagnostics,
+                    diagnostics = diagnostics,
+                    transientDiagnostic = state.transientDiagnostic,
                     onDiagnosticClick = { diagnostic ->
                         diagnostic.endpointId?.let { viewModel.selectEndpoint(it, diagnostic.variantName) }
                     },
+                    onDismissTransientDiagnostic = { viewModel.dismissError() },
                 )
             }
 
