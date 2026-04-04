@@ -1,5 +1,6 @@
 package com.moqserver.studio.data
 
+import com.moqserver.studio.domain.VariantReferenceSyncPreference
 import java.io.File
 import kotlin.test.Test
 import kotlin.test.assertEquals

@@ -1,6 +1,6 @@
 package com.moqserver.studio.endpointdetail
 
-import com.moqserver.studio.data.VariantReferenceSyncPreference
+import com.moqserver.studio.domain.VariantReferenceSyncPreference
 import com.moqserver.studio.projectformat.suggestedVariantReferenceName
 
 internal fun shouldPromptToSyncVariantReferenceName(

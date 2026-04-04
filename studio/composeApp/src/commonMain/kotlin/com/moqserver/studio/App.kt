@@ -42,7 +42,7 @@ import androidx.compose.ui.input.pointer.PointerIcon
 import androidx.compose.ui.input.pointer.pointerHoverIcon
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
-import com.moqserver.studio.data.VariantReferenceSyncPreference
+import com.moqserver.studio.domain.VariantReferenceSyncPreference
 import com.moqserver.studio.domain.AIAction
 import com.moqserver.studio.domain.AIState
 import com.moqserver.studio.domain.StudioRootViewModel

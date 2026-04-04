@@ -1,4 +1,4 @@
-package com.moqserver.studio.data
+package com.moqserver.studio.imports
 
 import com.moqserver.studio.projectformat.MatchType
 import kotlin.test.Test
@@ -8,11 +8,11 @@ import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 
 class HARImportParserTest {
-    private val parser = HARImportParser()
+	private val parser = HARImportParser()
 
-    @Test
-    fun `parses entries, skips malformed urls, and survives invalid base64 bodies`() {
-        val har = """
+	@Test
+	fun `parses entries, skips malformed urls, and survives invalid base64 bodies`() {
+		val har = """
             {
               "log": {
                 "version": "1.2",
@@ -76,31 +76,31 @@ class HARImportParserTest {
             }
         """.trimIndent()
 
-        val spec = parser.parse(har)
+		val spec = parser.parse(har)
 
-        assertEquals("Browser HAR Import", spec.title)
-        assertEquals("1.0", spec.version)
-        assertEquals(1, spec.endpoints.size)
+		assertEquals("Browser HAR Import", spec.title)
+		assertEquals("1.0", spec.version)
+		assertEquals(1, spec.endpoints.size)
 
-        val endpoint = spec.endpoints.single()
-        assertEquals("GET", endpoint.method)
-        assertEquals("/users", endpoint.path)
-        assertEquals("List Users", endpoint.alias)
-        assertEquals(null, endpoint.description)
-        assertEquals(null, endpoint.referenceName)
-        assertEquals(2, endpoint.responses.size)
+		val endpoint = spec.endpoints.single()
+		assertEquals("GET", endpoint.method)
+		assertEquals("/users", endpoint.path)
+		assertEquals("List Users", endpoint.alias)
+		assertEquals(null, endpoint.description)
+		assertEquals(null, endpoint.referenceName)
+		assertEquals(2, endpoint.responses.size)
 
-        val jsonResponse = endpoint.responses.first { it.statusCode == 200 }
-        assertNotNull(jsonResponse.body)
-        assertTrue(jsonResponse.body!!.contains("\"users\""))
+		val jsonResponse = endpoint.responses.first { it.statusCode == 200 }
+		assertNotNull(jsonResponse.body)
+		assertTrue(jsonResponse.body!!.contains("\"users\""))
 
-        val invalidBase64Response = endpoint.responses.first { it.statusCode == 500 }
-        assertEquals("@@@", invalidBase64Response.body)
-    }
+		val invalidBase64Response = endpoint.responses.first { it.statusCode == 500 }
+		assertEquals("@@@", invalidBase64Response.body)
+	}
 
-    @Test
-    fun `parses request cookies from har cookies and cookie header`() {
-        val har = """
+	@Test
+	fun `parses request cookies from har cookies and cookie header`() {
+		val har = """
             {
               "log": {
                 "version": "1.2",
@@ -139,23 +139,23 @@ class HARImportParserTest {
             }
         """.trimIndent()
 
-        val spec = parser.parse(har)
+		val spec = parser.parse(har)
 
-        val users = spec.endpoints.first { it.path == "/users" }
-        assertEquals(1, users.cookies.size)
-        assertEquals("session_id", users.cookies.single().name)
-        assertEquals("abc123", users.cookies.single().match)
+		val users = spec.endpoints.first { it.path == "/users" }
+		assertEquals(1, users.cookies.size)
+		assertEquals("session_id", users.cookies.single().name)
+		assertEquals("abc123", users.cookies.single().match)
 
-        val profile = spec.endpoints.first { it.path == "/profile" }
-        assertEquals(2, profile.cookies.size)
-        assertEquals("dark", profile.cookies.first { it.name == "theme" }.match)
-        assertEquals("en-US", profile.cookies.first { it.name == "locale" }.match)
-        assertEquals(MatchType.EQUAL_TO, profile.cookies.first { it.name == "theme" }.matchType)
-    }
+		val profile = spec.endpoints.first { it.path == "/profile" }
+		assertEquals(2, profile.cookies.size)
+		assertEquals("dark", profile.cookies.first { it.name == "theme" }.match)
+		assertEquals("en-US", profile.cookies.first { it.name == "locale" }.match)
+		assertEquals(MatchType.EQUAL_TO, profile.cookies.first { it.name == "theme" }.matchType)
+	}
 
-    @Test
-    fun `parses request query params from har queryString and url`() {
-        val har = """
+	@Test
+	fun `parses request query params from har queryString and url`() {
+		val har = """
             {
               "log": {
                 "version": "1.2",
@@ -193,20 +193,20 @@ class HARImportParserTest {
             }
         """.trimIndent()
 
-        val spec = parser.parse(har)
+		val spec = parser.parse(har)
 
-        val endpoint = spec.endpoints.single()
-        assertEquals(3, endpoint.queryParameters.size)
-        assertEquals("popular", endpoint.queryParameters.first { it.name == "sort" }.match)
-        assertEquals("2", endpoint.queryParameters.first { it.name == "page" }.match)
-        assertEquals(null, endpoint.queryParameters.first { it.name == "q" }.match)
-        assertEquals(true, endpoint.queryParameters.first { it.name == "q" }.required)
-        assertEquals(MatchType.EQUAL_TO, endpoint.queryParameters.first { it.name == "sort" }.matchType)
-    }
+		val endpoint = spec.endpoints.single()
+		assertEquals(3, endpoint.queryParameters.size)
+		assertEquals("popular", endpoint.queryParameters.first { it.name == "sort" }.match)
+		assertEquals("2", endpoint.queryParameters.first { it.name == "page" }.match)
+		assertEquals(null, endpoint.queryParameters.first { it.name == "q" }.match)
+		assertEquals(true, endpoint.queryParameters.first { it.name == "q" }.required)
+		assertEquals(MatchType.EQUAL_TO, endpoint.queryParameters.first { it.name == "sort" }.matchType)
+	}
 
-    @Test
-    fun `skips malformed har entries and surfaces warnings instead of failing import`() {
-        val har = """
+	@Test
+	fun `skips malformed har entries and surfaces warnings instead of failing import`() {
+		val har = """
             {
               "log": {
                 "version": "1.2",
@@ -241,17 +241,17 @@ class HARImportParserTest {
             }
         """.trimIndent()
 
-        val spec = parser.parse(har)
+		val spec = parser.parse(har)
 
-        assertEquals(1, spec.endpoints.size)
-        assertEquals(1, spec.warnings.size)
-        assertEquals("Skipped HAR entry 1: missing request method.", spec.warnings.single())
-        assertEquals("/users", spec.endpoints.single().path)
-    }
+		assertEquals(1, spec.endpoints.size)
+		assertEquals(1, spec.warnings.size)
+		assertEquals("Skipped HAR entry 1: missing request method.", spec.warnings.single())
+		assertEquals("/users", spec.endpoints.single().path)
+	}
 
-    @Test
-    fun `reports useful error when har contains no importable entries`() {
-        val har = """
+	@Test
+	fun `reports useful error when har contains no importable entries`() {
+		val har = """
             {
               "log": {
                 "version": "1.2",
@@ -273,13 +273,13 @@ class HARImportParserTest {
             }
         """.trimIndent()
 
-        val error = assertFailsWith<IllegalArgumentException> {
-            parser.parse(har)
-        }
+		val error = assertFailsWith<IllegalArgumentException> {
+			parser.parse(har)
+		}
 
-        assertEquals(
-            "HAR file does not contain any importable HTTP entries. Skipped HAR entry 1: missing request method.",
-            error.message,
-        )
-    }
+		assertEquals(
+			"HAR file does not contain any importable HTTP entries. Skipped HAR entry 1: missing request method.",
+			error.message,
+		)
+	}
 }

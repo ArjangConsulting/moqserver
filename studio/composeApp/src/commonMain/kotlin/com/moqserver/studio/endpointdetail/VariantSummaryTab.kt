@@ -14,7 +14,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 
 import com.moqserver.studio.StudioDimens
-import com.moqserver.studio.data.VariantReferenceSyncPreference
+import com.moqserver.studio.domain.VariantReferenceSyncPreference
 import com.moqserver.studio.projectformat.EndpointDocument
 import com.moqserver.studio.projectformat.ProjectVariant
 import com.moqserver.studio.projectformat.isValidReferenceName
@@ -43,9 +43,11 @@ private object VariantSummaryStrings {
     const val DEFAULT = "Default"
     const val DEFAULT_TOOLTIP = "When enabled, this variant is returned by default when no matching criteria exist."
     const val ONLY_VARIANT = "Only variant"
-    const val DELAY_LABEL = "Delay (ms)"
-    const val DELAY_TOOLTIP = "Artificial delay in milliseconds before the response is sent."
-    const val REMOVE_VARIANT = "Remove Variant"
+	const val DELAY_LABEL = "Delay (ms)"
+	const val DELAY_TOOLTIP = "Artificial delay in milliseconds before the response is sent."
+	const val DESCRIPTION = "Description"
+	const val DESCRIPTION_TOOLTIP = "Optional description for this variant, included in exported references when enabled."
+	const val REMOVE_VARIANT = "Remove Variant"
 }
 
 @Composable
@@ -276,6 +278,21 @@ private fun VariantEditingControls(
 			modifier = Modifier.width(130.dp),
 		)
 	}
+
+	OutlinedTextField(
+		value = variant.description ?: "",
+		onValueChange = { onUpdate(variant.copy(description = it.ifBlank { null })) },
+		label = {
+			Row(verticalAlignment = Alignment.CenterVertically) {
+				Text(VariantSummaryStrings.DESCRIPTION)
+				InfoTooltip(VariantSummaryStrings.DESCRIPTION_TOOLTIP)
+			}
+		},
+		singleLine = false,
+		minLines = 1,
+		maxLines = 3,
+		modifier = Modifier.fillMaxWidth(),
+	)
 
 	if (showReferenceSyncDialog && pendingReferenceUpdate != null) {
 		AlertDialog(

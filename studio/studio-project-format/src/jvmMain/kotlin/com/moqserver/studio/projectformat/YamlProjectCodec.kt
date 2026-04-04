@@ -182,6 +182,7 @@ class YamlProjectCodec {
             name = name,
             referenceName = map.str("reference_name")?.takeIf { it.isNotBlank() }
                 ?: defaultReferenceNameForVariantName(name),
+            description = map.str("description")?.takeIf { it.isNotBlank() },
             isDefault = map.bool("default"),
             status = map.int("status") ?: throw missing("status", "variant"),
             headers = (map["headers"] as? Map<*, *>)?.entries?.associate { (k, v) -> k.toString() to v.toString() },
@@ -306,6 +307,7 @@ class YamlProjectCodec {
 
         lines += "${pad}- name: ${yamlQuote(variant.name)}"
         lines += "${pad}  reference_name: ${yamlQuote(variant.referenceName)}"
+        variant.description?.let { lines += "${pad}  description: ${yamlQuote(it)}" }
         if (variant.isDefault == true) {
             lines += "${pad}  default: true"
         }
