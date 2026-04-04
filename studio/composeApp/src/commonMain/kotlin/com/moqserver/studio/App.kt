@@ -14,7 +14,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.DarkMode
 import androidx.compose.material.icons.filled.FolderOpen
@@ -56,8 +55,6 @@ import org.jetbrains.compose.resources.Font
 private object AppStrings {
     const val APP_TITLE = "moq studio"
     const val TOGGLE_THEME = "Toggle theme"
-    const val CLOSE_AI_PANEL = "Close AI panel"
-    const val OPEN_AI_PANEL = "Open AI panel"
     const val CONNECT_REFRESH_AI = "Connect or refresh AI companion"
     const val CLEAR_PROJECT = "Clear Project"
     const val SAVE_AS = "Save As"
@@ -77,6 +74,8 @@ private object AppStrings {
     const val AI_READY = "AI ready"
     const val AI_NOT_CONFIGURED = "AI not configured"
     const val NO_AI_PROVIDER = "No AI provider available"
+    const val AI_SETTINGS = "AI Settings"
+    const val AI_PROVIDER_PREFIX = "AI: "
     const val VERSION_PREFIX = "Version "
     const val ENDPOINTS_SUFFIX = " endpoints"
 }
@@ -87,7 +86,6 @@ fun App(
     appViewModel: StudioRootViewModel,
     themeMode: StudioThemeMode,
     onThemeModeChange: (StudioThemeMode) -> Unit,
-    onToggleAiPanel: () -> Unit = {},
     onOpenProject: () -> Unit = {},
     onCloseProject: () -> Unit = {},
     onSaveProject: (MoqProject) -> Unit = {},
@@ -98,10 +96,11 @@ fun App(
     onOpenRecentProject: (String) -> Unit = {},
     onRemoveRecentProject: (String) -> Unit = {},
     onRefreshCompanion: () -> Unit = {},
+    onOpenAISettings: () -> Unit = {},
     onAIAction: (AIAction) -> Unit = {},
+    onGenerateBody: (String, String, String) -> Unit = { _, _, _ -> },
 ) {
     val state by appViewModel.state.collectAsState()
-    val showAiPanel = state.aiPanelVisible
     val systemInDarkTheme = isSystemInDarkTheme()
 
     Scaffold(
@@ -118,13 +117,11 @@ fun App(
                     )
                 },
                 systemInDarkTheme = systemInDarkTheme,
-                showAiPanel = showAiPanel,
-                onToggleAiPanel = onToggleAiPanel,
                 onCloseProject = onCloseProject,
                 onSaveProject = onSaveProject,
                 onSaveProjectAs = onSaveProjectAs,
                 onRefreshCompanion = onRefreshCompanion,
-                onAIAction = onAIAction,
+                onOpenAISettings = onOpenAISettings,
             )
         }
     ) { innerPadding ->
@@ -154,8 +151,8 @@ fun App(
                     state = state,
                     onRefreshCompanion = onRefreshCompanion,
                     onAIAction = onAIAction,
-                    showAiPanel = showAiPanel,
-                    onCloseAiPanel = { appViewModel.setAiPanelVisible(false) },
+                    onOpenAISettings = onOpenAISettings,
+                    onGenerateBody = onGenerateBody,
                     viewModel = appViewModel,
                 )
             }
@@ -170,13 +167,11 @@ private fun StudioTopBar(
     themeMode: StudioThemeMode,
     systemInDarkTheme: Boolean,
     onThemeModeToggle: () -> Unit,
-    showAiPanel: Boolean,
-    onToggleAiPanel: () -> Unit,
     onCloseProject: () -> Unit,
     onSaveProject: (MoqProject) -> Unit,
     onSaveProjectAs: (MoqProject) -> Unit,
     onRefreshCompanion: () -> Unit,
-    onAIAction: (AIAction) -> Unit,
+    onOpenAISettings: () -> Unit,
 ) {
     val calligraphyFont = FontFamily(Font(Res.font.GreatVibes_Regular))
     val darkTheme = resolveDarkTheme(themeMode, systemInDarkTheme)
@@ -195,12 +190,6 @@ private fun StudioTopBar(
                     Icon(
                         imageVector = if (darkTheme) Icons.Filled.LightMode else Icons.Filled.DarkMode,
                         contentDescription = AppStrings.TOGGLE_THEME,
-                    )
-                }
-                IconButton(onClick = onToggleAiPanel, enabled = state.project != null) {
-                    Icon(
-                        imageVector = Icons.Filled.AutoAwesome,
-                        contentDescription = if (showAiPanel) AppStrings.CLOSE_AI_PANEL else AppStrings.OPEN_AI_PANEL,
                     )
                 }
             },
@@ -227,6 +216,9 @@ private fun StudioTopBar(
                 ) {
                     IconButton(onClick = onRefreshCompanion) {
                         Icon(Icons.Filled.Refresh, contentDescription = AppStrings.CONNECT_REFRESH_AI)
+                    }
+                    OutlinedButton(onClick = onOpenAISettings) {
+                        Text(AppStrings.AI_SETTINGS)
                     }
                     OutlinedButton(onClick = onCloseProject) {
                         Text(AppStrings.CLEAR_PROJECT)
@@ -297,8 +289,8 @@ internal fun StudioWorkspaceScreen(
     state: StudioState,
     onRefreshCompanion: () -> Unit,
     onAIAction: (AIAction) -> Unit,
-    showAiPanel: Boolean,
-    onCloseAiPanel: () -> Unit,
+    onOpenAISettings: () -> Unit,
+    onGenerateBody: (String, String, String) -> Unit,
     viewModel: StudioRootViewModel,
 ) {
     Box(modifier = Modifier.fillMaxSize()) {
@@ -334,7 +326,11 @@ internal fun StudioWorkspaceScreen(
                                     onDeleteEndpoint = { viewModel.removeEndpoint(endpoint.id) },
                                     projectPath = state.project?.projectPath.orEmpty(),
                                     companionConnected = state.ai.isReady,
+                                    aiProvider = state.ai.selectedProvider,
                                     onGenerateVariants = { onAIAction(AIAction.GENERATE_VARIANTS) },
+                                    onGenerateBody = { variant, prompt ->
+									onGenerateBody(endpoint.id, variant.referenceName, prompt)
+								},
                                     initialVariantName = state.pendingVariantName,
                                 )
                             }
@@ -352,40 +348,10 @@ internal fun StudioWorkspaceScreen(
                 )
             }
 
-            WorkspaceStatusBar(state)
-        }
-
-        if (showAiPanel) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(Color.Black.copy(alpha = 0.4f))
-                    .clickable { onCloseAiPanel() },
+            WorkspaceStatusBar(
+                state = state,
+                onOpenAI = onOpenAISettings,
             )
-            Card(
-                modifier = Modifier
-                    .align(Alignment.TopEnd)
-                    .padding(StudioDimens.xl)
-                    .width(380.dp),
-            ) {
-                Column(modifier = Modifier.padding(StudioDimens.xl), verticalArrangement = Arrangement.spacedBy(StudioDimens.l)) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Text(AppStrings.AI_COMPANION, style = MaterialTheme.typography.titleMedium)
-                        OutlinedButton(onClick = onCloseAiPanel) {
-                            Text(AppStrings.CLOSE)
-                        }
-                    }
-                    ProviderSettingsPanel(
-                        ai = state.ai,
-                        onRefresh = onRefreshCompanion,
-                        onSelectProvider = { viewModel.selectProvider(it) },
-                    )
-                }
-            }
         }
     }
 }
@@ -444,11 +410,15 @@ internal fun RecentProjectsCard(
 internal fun recentProjectLabel(path: String): String = path.substringAfterLast("/")
 
 @Composable
-internal fun WorkspaceStatusBar(state: StudioState) {
+internal fun WorkspaceStatusBar(
+    state: StudioState,
+    onOpenAI: () -> Unit,
+) {
     val project = state.project ?: return
     val dirtyText = if (state.isDirty) AppStrings.UNSAVED_CHANGES else AppStrings.NO_UNSAVED_CHANGES
     val dirtyColor = if (state.isDirty) MaterialTheme.colorScheme.error else StudioColors.success
     val aiStatus = aiStatusPresentation(state.ai)
+    val providerLabel = state.ai.selectedProvider?.displayName ?: aiStatus.label
 
     Column(modifier = Modifier.fillMaxWidth()) {
         HorizontalDivider()
@@ -456,9 +426,12 @@ internal fun WorkspaceStatusBar(state: StudioState) {
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = StudioDimens.xl, vertical = StudioDimens.m),
-            horizontalArrangement = Arrangement.End,
+            horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically,
         ) {
+            OutlinedButton(onClick = onOpenAI) {
+                Text("${AppStrings.AI_PROVIDER_PREFIX}$providerLabel")
+            }
             Row(
                 horizontalArrangement = Arrangement.spacedBy(StudioDimens.l),
                 verticalAlignment = Alignment.CenterVertically,

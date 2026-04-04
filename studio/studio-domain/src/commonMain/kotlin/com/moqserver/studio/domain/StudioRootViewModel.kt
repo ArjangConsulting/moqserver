@@ -200,10 +200,6 @@ class StudioRootViewModel(
         _state.update { it.copy(aiAction = AIActionState()) }
     }
 
-    fun setAiPanelVisible(visible: Boolean) {
-        _state.update { it.copy(aiPanelVisible = visible) }
-    }
-
     fun applyGeneratedVariant(variant: GeneratedVariant) {
         val current = _state.value.project ?: return
         // Find the endpoint matching the generated variant's key (e.g. "GET /pets")
@@ -314,7 +310,6 @@ data class StudioState(
     val importState: ImportState? = null,
     val ai: AIState = AIState(),
     val aiAction: AIActionState = AIActionState(),
-    val aiPanelVisible: Boolean = false,
 ) {
     val isImporting: Boolean get() = importState != null
     val selectedEndpoint: EndpointDocument?

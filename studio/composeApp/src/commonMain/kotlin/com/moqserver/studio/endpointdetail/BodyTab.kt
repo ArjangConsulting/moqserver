@@ -6,6 +6,7 @@ import androidx.compose.foundation.relocation.BringIntoViewRequester
 import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.AutoAwesome
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material.icons.outlined.Save
@@ -30,9 +31,18 @@ private object BodyTabStrings {
     const val NO_BODY = "This variant has no response body yet."
     const val VALIDATE_JSON = "Validate JSON"
     const val FORMAT_JSON = "Format JSON"
-    const val CANCEL_BODY_EDIT = "Cancel body edit"
-    const val SAVE_BODY_EDIT = "Save body edit"
-    const val EDIT_BODY = "Edit body"
+	const val CANCEL_BODY_EDIT = "Cancel body edit"
+	const val SAVE_BODY_EDIT = "Save body edit"
+	const val EDIT_BODY = "Edit body"
+	const val GENERATE_BODY = "Generate body"
+	const val AI_PROMPT_TITLE = "Generate response body"
+	const val AI_PROMPT_LABEL = "Prompt"
+	const val AI_PROMPT_HELP = "AI can use the current status code, variant name, and API URL to generate this response body."
+	const val AI_CONTEXT_ENDPOINT = "Endpoint"
+	const val AI_CONTEXT_VARIANT = "Variant"
+	const val AI_CONTEXT_STATUS = "Status"
+	const val AI_CONTEXT_PROVIDER = "AI"
+	const val AI_GENERATE_ACTION = "Generate"
 }
 
 private val bodyPanelColor = StudioColors.editorPanelBackground.copy(alpha = 0.97f)
@@ -45,12 +55,19 @@ private val bodyEditorForegroundColor = AwtColor(0xE6, 0xED, 0xF3)
 
 @Composable
 internal fun BodyTab(
+	endpointMethod: String,
+	endpointPath: String,
 	variant: ProjectVariant,
+	aiProviderLabel: String?,
+	canGenerateWithAi: Boolean,
+	onGenerateBody: (String) -> Unit,
 	projectPath: String = "",
 	onUpdate: (ProjectVariant) -> Unit,
 ) {
 	val bodyFile = variant.bodyFile
 	val body = variant.body
+	var showAiPrompt by remember(variant.referenceName) { mutableStateOf(false) }
+	var aiPrompt by remember(variant.referenceName) { mutableStateOf("") }
 
 	val fileContent = if (bodyFile != null) {
 		remember(projectPath, bodyFile) {
@@ -82,6 +99,22 @@ internal fun BodyTab(
 	var formatBeforeEdit by remember(variant.name) { mutableStateOf(if (body != null && variant.isJsonBody()) BodyFormat.JSON else BodyFormat.RAW) }
 	var validationError by remember(variant.name, selectedFormat, bodyFile, body) { mutableStateOf<String?>(null) }
 	val validationErrorRequester = remember { BringIntoViewRequester() }
+
+	if (showAiPrompt) {
+		AIBodyPromptDialog(
+			endpointMethod = endpointMethod,
+			endpointPath = endpointPath,
+			variant = variant,
+			providerLabel = aiProviderLabel,
+			prompt = aiPrompt,
+			onPromptChange = { aiPrompt = it },
+			onDismiss = { showAiPrompt = false },
+			onConfirm = {
+				onGenerateBody(aiPrompt.trim())
+				showAiPrompt = false
+			},
+		)
+	}
 
 	fun setValidationError(message: String?) {
 		validationError = message
@@ -164,6 +197,7 @@ internal fun BodyTab(
 					isEditing = isEditing,
 					isJsonBody = isJsonBody,
 					draftText = draftText,
+					canGenerateWithAi = canGenerateWithAi,
 					onDraftTextChange = { updated ->
 						draftText = updated
 						if (validationError != null && isJsonBody) {
@@ -172,6 +206,10 @@ internal fun BodyTab(
 					},
 					selectedFormat = selectedFormat,
 					onEdit = ::startEditing,
+					onGenerateBody = {
+						validationError = null
+						showAiPrompt = true
+					},
 					onCancel = ::cancelEditing,
 					onSave = ::saveEdits,
 					onValidateJson = ::validateJson,
@@ -219,9 +257,11 @@ private fun BodyEditorPanel(
 	isEditing: Boolean,
 	isJsonBody: Boolean,
 	draftText: String,
+	canGenerateWithAi: Boolean,
 	onDraftTextChange: (String) -> Unit,
 	selectedFormat: BodyFormat,
 	onEdit: () -> Unit,
+	onGenerateBody: () -> Unit,
 	onCancel: () -> Unit,
 	onSave: () -> Unit,
 	onValidateJson: () -> Unit,
@@ -253,8 +293,10 @@ private fun BodyEditorPanel(
 				BodyTabActions(
 					isEditing = isEditing,
 					canEdit = true,
+					canGenerateWithAi = canGenerateWithAi,
 					isJsonBody = isJsonBody,
 					onEdit = onEdit,
+					onGenerateBody = onGenerateBody,
 					onCancel = onCancel,
 					onSave = onSave,
 					onValidateJson = onValidateJson,
@@ -326,8 +368,10 @@ private fun bodyEditorFieldColors() = OutlinedTextFieldDefaults.colors(
 private fun BodyTabActions(
 	isEditing: Boolean,
 	canEdit: Boolean,
+	canGenerateWithAi: Boolean,
 	isJsonBody: Boolean,
 	onEdit: () -> Unit,
+	onGenerateBody: () -> Unit,
 	onCancel: () -> Unit,
 	onSave: () -> Unit,
 	onValidateJson: () -> Unit,
@@ -356,10 +400,86 @@ private fun BodyTabActions(
 				}
 			}
 			canEdit -> {
+				if (canGenerateWithAi) {
+					FilledTonalButton(
+						onClick = onGenerateBody,
+						contentPadding = PaddingValues(horizontal = StudioDimens.l, vertical = StudioDimens.m),
+					) {
+						Icon(Icons.Outlined.AutoAwesome, contentDescription = BodyTabStrings.GENERATE_BODY)
+						Spacer(modifier = Modifier.width(StudioDimens.s))
+						Text(BodyTabStrings.GENERATE_BODY)
+					}
+				}
 				FilledTonalIconButton(onClick = onEdit) {
 					Icon(Icons.Outlined.Edit, contentDescription = BodyTabStrings.EDIT_BODY)
 				}
 			}
 		}
+	}
+}
+
+@Composable
+private fun AIBodyPromptDialog(
+	endpointMethod: String,
+	endpointPath: String,
+	variant: ProjectVariant,
+	providerLabel: String?,
+	prompt: String,
+	onPromptChange: (String) -> Unit,
+	onDismiss: () -> Unit,
+	onConfirm: () -> Unit,
+) {
+	AlertDialog(
+		onDismissRequest = onDismiss,
+		title = { Text(BodyTabStrings.AI_PROMPT_TITLE) },
+		text = {
+			Column(verticalArrangement = Arrangement.spacedBy(StudioDimens.l)) {
+				Text(
+					text = BodyTabStrings.AI_PROMPT_HELP,
+					style = MaterialTheme.typography.bodySmall,
+					color = MaterialTheme.colorScheme.onSurfaceVariant,
+				)
+				AIBodyContextRow(BodyTabStrings.AI_CONTEXT_ENDPOINT, "$endpointMethod $endpointPath")
+				AIBodyContextRow(BodyTabStrings.AI_CONTEXT_VARIANT, variant.name)
+				AIBodyContextRow(BodyTabStrings.AI_CONTEXT_STATUS, variant.status.toString())
+				providerLabel?.let { AIBodyContextRow(BodyTabStrings.AI_CONTEXT_PROVIDER, it) }
+				OutlinedTextField(
+					value = prompt,
+					onValueChange = onPromptChange,
+					label = { Text(BodyTabStrings.AI_PROMPT_LABEL) },
+					minLines = 4,
+					maxLines = 8,
+					modifier = Modifier.fillMaxWidth(),
+				)
+			}
+		},
+		confirmButton = {
+			TextButton(onClick = onConfirm, enabled = prompt.isNotBlank()) {
+				Text(BodyTabStrings.AI_GENERATE_ACTION)
+			}
+		},
+		dismissButton = {
+			TextButton(onClick = onDismiss) {
+				Text("Cancel")
+			}
+		},
+	)
+}
+
+@Composable
+private fun AIBodyContextRow(
+	label: String,
+	value: String,
+) {
+	Column(verticalArrangement = Arrangement.spacedBy(StudioDimens.xxs)) {
+		Text(
+			text = label,
+			style = MaterialTheme.typography.labelSmall,
+			color = MaterialTheme.colorScheme.onSurfaceVariant,
+		)
+		Text(
+			text = value,
+			style = MaterialTheme.typography.bodyMedium,
+		)
 	}
 }

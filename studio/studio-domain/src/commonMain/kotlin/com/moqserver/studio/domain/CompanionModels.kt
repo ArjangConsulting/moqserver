@@ -237,5 +237,6 @@ data class AIActionState(
 enum class AIAction {
     ANALYZE_SPEC,
     GENERATE_VARIANTS,
+    GENERATE_BODY,
     REFINE_PROJECT,
 }
