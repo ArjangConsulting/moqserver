@@ -61,7 +61,7 @@ internal fun BodyTab(
 	} else {
 		null
 	}
-	var selectedFormat by remember(variant.name) { mutableStateOf(BodyFormat.RAW) }
+	var selectedFormat by remember(variant.name) { mutableStateOf(if (body != null && variant.isJsonBody()) BodyFormat.JSON else BodyFormat.RAW) }
 	val currentText = when {
 		fileContent != null -> fileContent
 		body != null -> when (selectedFormat) {
@@ -79,7 +79,7 @@ internal fun BodyTab(
 	val isJsonBody = variant.isJsonBody(editableText)
 	var isEditing by remember(variant.name, selectedFormat, bodyFile, body) { mutableStateOf(false) }
 	var draftText by remember(variant.name, bodyFile, body) { mutableStateOf(editableText.orEmpty()) }
-	var formatBeforeEdit by remember(variant.name) { mutableStateOf(BodyFormat.RAW) }
+	var formatBeforeEdit by remember(variant.name) { mutableStateOf(if (body != null && variant.isJsonBody()) BodyFormat.JSON else BodyFormat.RAW) }
 	var validationError by remember(variant.name, selectedFormat, bodyFile, body) { mutableStateOf<String?>(null) }
 	val validationErrorRequester = remember { BringIntoViewRequester() }
 

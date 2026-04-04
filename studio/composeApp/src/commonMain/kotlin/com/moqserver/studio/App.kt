@@ -1,8 +1,8 @@
 package com.moqserver.studio
 
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -40,6 +40,8 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.PointerIcon
+import androidx.compose.ui.input.pointer.pointerHoverIcon
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import com.moqserver.studio.domain.AIAction
@@ -354,6 +356,12 @@ internal fun StudioWorkspaceScreen(
         }
 
         if (showAiPanel) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color.Black.copy(alpha = 0.4f))
+                    .clickable { onCloseAiPanel() },
+            )
             Card(
                 modifier = Modifier
                     .align(Alignment.TopEnd)
@@ -403,6 +411,7 @@ internal fun RecentProjectsCard(
                         modifier = Modifier
                             .weight(1f)
                             .clickable { onOpenProject(path) }
+                            .pointerHoverIcon(PointerIcon.Hand)
                             .padding(vertical = StudioDimens.xs),
                         verticalArrangement = Arrangement.spacedBy(StudioDimens.xxs),
                     ) {
