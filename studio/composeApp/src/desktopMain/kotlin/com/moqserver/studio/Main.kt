@@ -20,12 +20,15 @@ import androidx.compose.ui.window.WindowPosition
 import androidx.compose.ui.window.application
 import androidx.compose.ui.window.rememberWindowState
 import com.moqserver.studio.data.AISettingsRepository
-import com.moqserver.studio.data.HARImportParser
-import com.moqserver.studio.data.OpenAPIImportParser
 import com.moqserver.studio.data.RecentProjectsRepository
 import com.moqserver.studio.data.ThemePreference
+import com.moqserver.studio.imports.HARImportParser
+import com.moqserver.studio.imports.OpenAPIImportParser
 import com.moqserver.studio.domain.ImportSourceType
 import com.moqserver.studio.domain.StudioRootViewModel
+import com.moqserver.studio.export.ExportCatalogBuilder
+import com.moqserver.studio.export.ExportOptions
+import com.moqserver.studio.export.ExportRegistry
 import com.moqserver.studio.logging.loggerFor
 import com.moqserver.studio.projectformat.ProjectRepository
 import kotlinx.coroutines.CoroutineExceptionHandler
@@ -60,6 +63,8 @@ fun main(args: Array<String>) {
         val aiSettings = remember { mutableStateOf(settingsRepo.load()) }
         val aiRegistry = remember(aiSettings.value) { buildAIRegistry(aiSettings.value) }
         val showSettings = remember { mutableStateOf(false) }
+        val showExport = remember { mutableStateOf(false) }
+        val exportState = remember { mutableStateOf(ExportReferencesState()) }
         val appViewModel = remember { StudioRootViewModel() }
         val scope = rememberCoroutineScope()
         val themeMode = remember { mutableStateOf(aiSettings.value.themeMode.toStudioThemeMode()) }
@@ -392,6 +397,15 @@ fun main(args: Array<String>) {
                     Separator()
                     Item("Import OpenAPI", onClick = ::requestImportOpenAPI)
                     Item("Import HAR", onClick = ::requestImportHAR)
+                    Separator()
+                    Item(
+                        "Export References...",
+                        enabled = state.project != null,
+                        onClick = {
+                            exportState.value = ExportReferencesState()
+                            showExport.value = true
+                        },
+                    )
                 }
                 if (showPreferencesInMenuBar) {
                     Menu("Edit") {
@@ -577,6 +591,68 @@ fun main(args: Array<String>) {
                                 refreshAIProviders(updatedRegistry, appViewModel, Dispatchers.IO)
                             }
                         },
+                    )
+                }
+            }
+        }
+
+        if (showExport.value) {
+            Window(
+                onCloseRequest = { showExport.value = false },
+                title = "Export References",
+                state = rememberWindowState(width = 640.dp, height = 720.dp),
+            ) {
+                StudioTheme(themeMode = themeMode.value) {
+                    ExportReferencesScreen(
+                        state = exportState.value,
+                        onStateChange = { exportState.value = it },
+                        onChooseFolder = {
+                            val folder = chooseDirectory(window, "Export Destination", lastFileDirectory.value)
+                            if (folder != null) {
+                                exportState.value = exportState.value.copy(destinationFolder = folder)
+                                lastFileDirectory.value = folder
+                            }
+                        },
+                        onExport = {
+                            val project = state.project ?: return@ExportReferencesScreen
+                            val currentExportState = exportState.value
+                            val destFolder = currentExportState.destinationFolder ?: return@ExportReferencesScreen
+                            scope.launch(exceptionHandler) {
+                                try {
+                                    val catalog = ExportCatalogBuilder.build(project)
+                                    val options = ExportOptions(
+                                        languages = currentExportState.selectedLanguages,
+                                        includeApiDescriptions = currentExportState.includeApiDescriptions,
+                                        includeVariantDescriptions = currentExportState.includeVariantDescriptions,
+                                        kotlinPackage = currentExportState.kotlinPackage
+                                            .ifBlank { null },
+                                        javaPackage = currentExportState.javaPackage
+                                            .ifBlank { null },
+                                    )
+                                    val files = ExportRegistry.generate(catalog, options)
+                                    withContext(Dispatchers.IO) {
+                                        val destDir = File(destFolder)
+                                        destDir.mkdirs()
+                                        files.forEach { generated ->
+                                            File(destDir, generated.fileName).writeText(generated.content)
+                                        }
+                                    }
+                                    logger.info(
+                                        "Exported {} file(s) to {}",
+                                        files.size,
+                                        destFolder,
+                                    )
+                                    showExport.value = false
+                                } catch (e: Exception) {
+                                    reportRecoverable(
+                                        context = "Failed to export references",
+                                        throwable = e,
+                                        onUserMessage = appViewModel::setError,
+                                    )
+                                }
+                            }
+                        },
+                        onCancel = { showExport.value = false },
                     )
                 }
             }

@@ -186,9 +186,61 @@ class ProjectRepositoryTest {
                 assertEquals(ep.operation?.name, reloadedEp.operation?.name)
                 assertEquals(ep.variants.size, reloadedEp.variants.size)
                 assertEquals(ep.variants.map(ProjectVariant::referenceName), reloadedEp.variants.map(ProjectVariant::referenceName))
+                assertEquals(ep.variants.map(ProjectVariant::description), reloadedEp.variants.map(ProjectVariant::description))
                 assertEquals(ep.network?.latencyMs, reloadedEp.network?.latencyMs)
                 assertEquals(ep.network?.jitterMs, reloadedEp.network?.jitterMs)
             }
+        } finally {
+            tempDir.deleteRecursively()
+        }
+    }
+
+    @Test
+    fun `round-trip - save and reload preserves variant descriptions`() {
+        val project = MoqProject(
+            manifest = ProjectManifest(
+                name = "Variant Description Test",
+                defaults = ProjectDefaults(
+                    auth = ProjectAuthConfig(type = AuthType.NONE, verify = false),
+                    network = NetworkBehavior(),
+                ),
+            ),
+            endpoints = listOf(
+                EndpointDocument(
+                    id = "get-items",
+                    method = "GET",
+                    path = "/api/items",
+                    variants = listOf(
+                        ProjectVariant(
+                            name = "success",
+                            description = "Returns a list of items",
+                            isDefault = true,
+                            status = 200,
+                            body = YamlValue.Str("ok"),
+                        ),
+                        ProjectVariant(
+                            name = "empty",
+                            description = null,
+                            status = 200,
+                            body = YamlValue.Str("[]"),
+                        ),
+                    ),
+                )
+            ),
+            projectPath = "/tmp/variant-description-test",
+        )
+        val tempDir = kotlin.io.path.createTempDirectory("moqproj-variant-description").toFile()
+
+        try {
+            repo.save(project, tempDir.absolutePath)
+
+            val yaml = File(tempDir, "endpoints/get-items.yml").readText()
+            assertTrue(yaml.contains("description: \"Returns a list of items\""))
+
+            val reloaded = repo.load(tempDir.absolutePath)
+            val variants = reloaded.endpoints.single().variants
+            assertEquals("Returns a list of items", variants[0].description)
+            assertNull(variants[1].description)
         } finally {
             tempDir.deleteRecursively()
         }

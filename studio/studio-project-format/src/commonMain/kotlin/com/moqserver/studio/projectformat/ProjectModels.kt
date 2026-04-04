@@ -120,6 +120,7 @@ data class ProjectVariant(
     val name: String,
     @SerialName("reference_name")
     val referenceName: String = defaultReferenceNameForVariantName(name),
+    val description: String? = null,
     @SerialName("default")
     val isDefault: Boolean? = null,
     val status: Int,

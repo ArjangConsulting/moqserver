@@ -1,5 +1,6 @@
 package com.moqserver.studio.data
 
+import com.moqserver.studio.domain.VariantReferenceSyncPreference
 import kotlinx.serialization.Serializable
 
 @Serializable
@@ -7,12 +8,6 @@ enum class ThemePreference {
     SYSTEM,
     LIGHT,
     DARK,
-}
-
-@Serializable
-enum class VariantReferenceSyncPreference {
-    ALWAYS_UPDATE,
-    NEVER_UPDATE,
 }
 
 @Serializable

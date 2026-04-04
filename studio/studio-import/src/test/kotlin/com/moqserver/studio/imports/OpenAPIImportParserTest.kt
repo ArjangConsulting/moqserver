@@ -1,4 +1,4 @@
-package com.moqserver.studio.data
+package com.moqserver.studio.imports
 
 import com.moqserver.studio.projectformat.MatchType
 import kotlin.test.Test
@@ -7,11 +7,11 @@ import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 
 class OpenAPIImportParserTest {
-    private val parser = OpenAPIImportParser()
+	private val parser = OpenAPIImportParser()
 
-    @Test
-    fun `parses recursive schemas without stack overflow`() {
-        val spec = """
+	@Test
+	fun `parses recursive schemas without stack overflow`() {
+		val spec = """
             openapi: 3.0.3
             info:
               title: Recursive API
@@ -39,24 +39,24 @@ class OpenAPIImportParserTest {
                         ${'$'}ref: '#/components/schemas/Node'
         """.trimIndent()
 
-        val parsed = parser.parse(spec)
+		val parsed = parser.parse(spec)
 
-        assertEquals("Recursive API", parsed.title)
-        assertEquals("1.0.0", parsed.version)
-        assertEquals(1, parsed.endpoints.size)
+		assertEquals("Recursive API", parsed.title)
+		assertEquals("1.0.0", parsed.version)
+		assertEquals(1, parsed.endpoints.size)
 
-        val endpoint = parsed.endpoints.single()
-        assertEquals("GET", endpoint.method)
-        assertEquals("/nodes", endpoint.path)
+		val endpoint = parsed.endpoints.single()
+		assertEquals("GET", endpoint.method)
+		assertEquals("/nodes", endpoint.path)
 
-        val body = endpoint.responses.firstOrNull()?.body
-        assertNotNull(body)
-        assertTrue(body.contains("\"children\""))
-    }
+		val body = endpoint.responses.firstOrNull()?.body
+		assertNotNull(body)
+		assertTrue(body.contains("\"children\""))
+	}
 
-    @Test
-    fun `uses summary or operation id for aliases`() {
-        val spec = """
+	@Test
+	fun `uses summary or operation id for aliases`() {
+		val spec = """
             openapi: 3.0.3
             info:
               title: Alias API
@@ -78,21 +78,21 @@ class OpenAPIImportParserTest {
                       description: OK
         """.trimIndent()
 
-        val parsed = parser.parse(spec)
+		val parsed = parser.parse(spec)
 
-        val listPets = parsed.endpoints.first { it.path == "/pets" }
-        assertEquals("Browse Pets", listPets.alias)
-        assertEquals("Browse all pets", listPets.description)
-        assertEquals("listPets", listPets.referenceName)
+		val listPets = parsed.endpoints.first { it.path == "/pets" }
+		assertEquals("Browse Pets", listPets.alias)
+		assertEquals("Browse all pets", listPets.description)
+		assertEquals("listPets", listPets.referenceName)
 
-        val getPet = parsed.endpoints.first { it.path == "/pets/{petId}" }
-        assertEquals("Get Pet By Id", getPet.alias)
-        assertEquals("getPetById", getPet.referenceName)
-    }
+		val getPet = parsed.endpoints.first { it.path == "/pets/{petId}" }
+		assertEquals("Get Pet By Id", getPet.alias)
+		assertEquals("getPetById", getPet.referenceName)
+	}
 
-    @Test
-    fun `uses response description as variant name`() {
-        val spec = """
+	@Test
+	fun `uses response description as variant name`() {
+		val spec = """
             openapi: 3.0.3
             info:
               title: Named Responses API
@@ -109,17 +109,17 @@ class OpenAPIImportParserTest {
                       description: Internal Server Error
         """.trimIndent()
 
-        val parsed = parser.parse(spec)
-        val responses = parsed.endpoints.single().responses
+		val parsed = parser.parse(spec)
+		val responses = parsed.endpoints.single().responses
 
-        assertEquals("Order Created", responses.first { it.statusCode == 201 }.name)
-        assertEquals("Validation Failed", responses.first { it.statusCode == 422 }.name)
-        assertEquals("Internal Server Error", responses.first { it.statusCode == 500 }.name)
-    }
+		assertEquals("Order Created", responses.first { it.statusCode == 201 }.name)
+		assertEquals("Validation Failed", responses.first { it.statusCode == 422 }.name)
+		assertEquals("Internal Server Error", responses.first { it.statusCode == 500 }.name)
+	}
 
-    @Test
-    fun `falls back to status-based variant name when description is absent`() {
-        val spec = """
+	@Test
+	fun `falls back to status-based variant name when description is absent`() {
+		val spec = """
             openapi: 3.0.3
             info:
               title: No Description API
@@ -140,16 +140,16 @@ class OpenAPIImportParserTest {
                             type: object
         """.trimIndent()
 
-        val parsed = parser.parse(spec)
-        val responses = parsed.endpoints.single().responses
+		val parsed = parser.parse(spec)
+		val responses = parsed.endpoints.single().responses
 
-        assertEquals("default", responses.first { it.statusCode == 200 }.name)
-        assertEquals("error-404", responses.first { it.statusCode == 404 }.name)
-    }
+		assertEquals("default", responses.first { it.statusCode == 200 }.name)
+		assertEquals("error-404", responses.first { it.statusCode == 404 }.name)
+	}
 
-    @Test
-    fun `parses required cookie parameters with example values`() {
-        val spec = """
+	@Test
+	fun `parses required cookie parameters with example values`() {
+		val spec = """
             openapi: 3.0.3
             info:
               title: Cookie API
@@ -175,18 +175,18 @@ class OpenAPIImportParserTest {
                       description: OK
         """.trimIndent()
 
-        val parsed = parser.parse(spec)
+		val parsed = parser.parse(spec)
 
-        val endpoint = parsed.endpoints.single()
-        assertEquals(2, endpoint.cookies.size)
-        assertEquals("abc123", endpoint.cookies.first { it.name == "session_id" }.match)
-        assertEquals("dark", endpoint.cookies.first { it.name == "theme" }.match)
-        assertEquals(MatchType.EQUAL_TO, endpoint.cookies.first { it.name == "theme" }.matchType)
-    }
+		val endpoint = parsed.endpoints.single()
+		assertEquals(2, endpoint.cookies.size)
+		assertEquals("abc123", endpoint.cookies.first { it.name == "session_id" }.match)
+		assertEquals("dark", endpoint.cookies.first { it.name == "theme" }.match)
+		assertEquals(MatchType.EQUAL_TO, endpoint.cookies.first { it.name == "theme" }.matchType)
+	}
 
-    @Test
-    fun `parses query parameters with required flags and example values`() {
-        val spec = """
+	@Test
+	fun `parses query parameters with required flags and example values`() {
+		val spec = """
             openapi: 3.0.3
             info:
               title: Search API
@@ -217,15 +217,15 @@ class OpenAPIImportParserTest {
                       description: OK
         """.trimIndent()
 
-        val parsed = parser.parse(spec)
+		val parsed = parser.parse(spec)
 
-        val endpoint = parsed.endpoints.single()
-        assertEquals(listOf("q", "sort"), endpoint.requiredQueryParameters)
-        assertEquals(3, endpoint.queryParameters.size)
-        assertEquals("laptop", endpoint.queryParameters.first { it.name == "q" }.match)
-        assertEquals(true, endpoint.queryParameters.first { it.name == "q" }.required)
-        assertEquals("1", endpoint.queryParameters.first { it.name == "page" }.match)
-        assertEquals(null, endpoint.queryParameters.first { it.name == "page" }.required)
-        assertEquals(MatchType.EQUAL_TO, endpoint.queryParameters.first { it.name == "sort" }.matchType)
-    }
+		val endpoint = parsed.endpoints.single()
+		assertEquals(listOf("q", "sort"), endpoint.requiredQueryParameters)
+		assertEquals(3, endpoint.queryParameters.size)
+		assertEquals("laptop", endpoint.queryParameters.first { it.name == "q" }.match)
+		assertEquals(true, endpoint.queryParameters.first { it.name == "q" }.required)
+		assertEquals("1", endpoint.queryParameters.first { it.name == "page" }.match)
+		assertEquals(null, endpoint.queryParameters.first { it.name == "page" }.required)
+		assertEquals(MatchType.EQUAL_TO, endpoint.queryParameters.first { it.name == "sort" }.matchType)
+	}
 }

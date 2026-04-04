@@ -13,7 +13,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.dp
 
-import com.moqserver.studio.data.VariantReferenceSyncPreference
+import com.moqserver.studio.domain.VariantReferenceSyncPreference
 import com.moqserver.studio.domain.AIProviderInfo
 import com.moqserver.studio.endpointdetail.*
 import com.moqserver.studio.projectformat.*
