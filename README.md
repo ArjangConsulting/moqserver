@@ -43,7 +43,7 @@ The AI layer is being designed around multiple provider modes:
 - generic `openai-compatible` endpoints for self-hosted or gateway-based providers
 - future enterprise adapters such as Azure OpenAI and Claude on Vertex AI
 
-For Studio, environment-variable secrets should be read by a local Swift/Vapor companion process or user-managed gateway rather than being mixed directly into UI code.
+In Studio, provider settings are configured directly by the user and used for bounded authoring tasks such as generating mock bodies, variants, and error cases.
 
 ## Quick Start
 

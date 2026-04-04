@@ -32,7 +32,7 @@ import com.moqserver.studio.domain.AIProviderInfo
 import com.moqserver.studio.domain.AIState
 import com.moqserver.studio.domain.ProviderKind
 
-private object CompanionPanelStrings {
+private object AIStatusBarStrings {
     const val CHECKING_PROVIDERS = "Checking providers..."
     const val AI_READY = "AI ready"
     const val AI_NOT_CONFIGURED = "AI not configured"
@@ -42,7 +42,7 @@ private object CompanionPanelStrings {
     const val AI_PROVIDERS = "AI Providers"
     const val NO_PROVIDERS_CONFIGURED = "No providers configured"
     const val NO_PROVIDERS_HELP =
-            "Open Settings to add API keys for OpenAI, Anthropic, or Google Gemini. " +
+            "Open AI Settings to add API keys for OpenAI, Anthropic, or Google Gemini. " +
             "Ollama is available locally with no API key required."
     const val CHECK_OLLAMA = "Check Ollama"
     const val ERROR_CHECKING = "Error checking providers"
@@ -95,10 +95,10 @@ fun CompanionStatusBar(
             )
             Text(
                 text = when {
-                    ai.loading -> CompanionPanelStrings.CHECKING_PROVIDERS
-                    ai.isReady -> CompanionPanelStrings.AI_READY
-                    ai.providers.isEmpty() && ai.error == null -> CompanionPanelStrings.AI_NOT_CONFIGURED
-                    else -> CompanionPanelStrings.NO_PROVIDER
+                    ai.loading -> AIStatusBarStrings.CHECKING_PROVIDERS
+                    ai.isReady -> AIStatusBarStrings.AI_READY
+                    ai.providers.isEmpty() && ai.error == null -> AIStatusBarStrings.AI_NOT_CONFIGURED
+                    else -> AIStatusBarStrings.NO_PROVIDER
                 },
                 style = MaterialTheme.typography.labelSmall,
             )
@@ -124,7 +124,7 @@ fun CompanionStatusBar(
         if (!ai.loading) {
             androidx.compose.material3.TextButton(onClick = onRefresh) {
                 Text(
-                    if (ai.providers.isEmpty() && ai.error == null) CompanionPanelStrings.CHECK else CompanionPanelStrings.REFRESH,
+                    if (ai.providers.isEmpty() && ai.error == null) AIStatusBarStrings.CHECK else AIStatusBarStrings.REFRESH,
                     style = MaterialTheme.typography.labelSmall,
                 )
             }
@@ -162,9 +162,9 @@ private fun ProviderSelector(
                             Text(provider.displayName)
                             Text(
                                 text = if (provider.kind == ProviderKind.LOCAL) {
-                                    CompanionPanelStrings.LOCAL
+                                    AIStatusBarStrings.LOCAL
                                 } else {
-                                    CompanionPanelStrings.HOSTED
+                                    AIStatusBarStrings.HOSTED
                                 },
                                 style = MaterialTheme.typography.labelSmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -193,18 +193,18 @@ fun ProviderSettingsPanel(
         modifier = modifier.padding(StudioDimens.xxxl),
         verticalArrangement = Arrangement.spacedBy(StudioDimens.xl),
     ) {
-        Text(CompanionPanelStrings.AI_PROVIDERS, style = MaterialTheme.typography.titleLarge)
+        Text(AIStatusBarStrings.AI_PROVIDERS, style = MaterialTheme.typography.titleLarge)
 
         if (ai.providers.isEmpty() && !ai.loading && ai.error == null) {
             Card(modifier = Modifier.fillMaxWidth()) {
                 Column(modifier = Modifier.padding(StudioDimens.xl), verticalArrangement = Arrangement.spacedBy(StudioDimens.m)) {
-                    Text(CompanionPanelStrings.NO_PROVIDERS_CONFIGURED, style = MaterialTheme.typography.titleSmall)
+                    Text(AIStatusBarStrings.NO_PROVIDERS_CONFIGURED, style = MaterialTheme.typography.titleSmall)
                     Text(
-                        CompanionPanelStrings.NO_PROVIDERS_HELP,
+                        AIStatusBarStrings.NO_PROVIDERS_HELP,
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
-                    OutlinedButton(onClick = onRefresh) { Text(CompanionPanelStrings.CHECK_OLLAMA) }
+                    OutlinedButton(onClick = onRefresh) { Text(AIStatusBarStrings.CHECK_OLLAMA) }
                 }
             }
             return
@@ -213,13 +213,13 @@ fun ProviderSettingsPanel(
         if (ai.error != null && ai.providers.isEmpty()) {
             Card(modifier = Modifier.fillMaxWidth()) {
                 Column(modifier = Modifier.padding(StudioDimens.xl), verticalArrangement = Arrangement.spacedBy(StudioDimens.m)) {
-                    Text(CompanionPanelStrings.ERROR_CHECKING, style = MaterialTheme.typography.titleSmall)
+                    Text(AIStatusBarStrings.ERROR_CHECKING, style = MaterialTheme.typography.titleSmall)
                     Text(
                         ai.error.orEmpty(),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
-                    OutlinedButton(onClick = onRefresh) { Text(CompanionPanelStrings.RETRY) }
+                    OutlinedButton(onClick = onRefresh) { Text(AIStatusBarStrings.RETRY) }
                 }
             }
             return
@@ -234,7 +234,7 @@ fun ProviderSettingsPanel(
                     modifier = Modifier.size(StudioDimens.smallIconSize),
                     strokeWidth = StudioDimens.spinnerStrokeWidth,
                 )
-                Text(CompanionPanelStrings.CHECKING_PROVIDERS, style = MaterialTheme.typography.bodyMedium)
+                Text(AIStatusBarStrings.CHECKING_PROVIDERS, style = MaterialTheme.typography.bodyMedium)
             }
             return
         }
@@ -286,16 +286,16 @@ private fun ProviderCard(
                 Row(horizontalArrangement = Arrangement.spacedBy(StudioDimens.m)) {
                     Text(
                         text = if (provider.kind == ProviderKind.LOCAL) {
-                            CompanionPanelStrings.LOCAL_TITLE
+                            AIStatusBarStrings.LOCAL_TITLE
                         } else {
-                            CompanionPanelStrings.HOSTED_TITLE
+                            AIStatusBarStrings.HOSTED_TITLE
                         },
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                     if (isSelected) {
                         Text(
-                            text = CompanionPanelStrings.SELECTED,
+                            text = AIStatusBarStrings.SELECTED,
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.primary,
                         )
@@ -318,7 +318,7 @@ private fun ProviderCard(
                 }
             } else {
                 Text(
-                    CompanionPanelStrings.UNAVAILABLE,
+                    AIStatusBarStrings.UNAVAILABLE,
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.error,
                 )
@@ -328,8 +328,8 @@ private fun ProviderCard(
 }
 
 private fun capabilityLabel(cap: String): String = when (cap) {
-    CompanionPanelStrings.CAP_ANALYZE_SPEC -> CompanionPanelStrings.CAP_ANALYZE
-    CompanionPanelStrings.CAP_GENERATE_VARIANTS -> CompanionPanelStrings.CAP_GENERATE
-    CompanionPanelStrings.CAP_REFINE_PROJECT -> CompanionPanelStrings.CAP_REFINE
+    AIStatusBarStrings.CAP_ANALYZE_SPEC -> AIStatusBarStrings.CAP_ANALYZE
+    AIStatusBarStrings.CAP_GENERATE_VARIANTS -> AIStatusBarStrings.CAP_GENERATE
+    AIStatusBarStrings.CAP_REFINE_PROJECT -> AIStatusBarStrings.CAP_REFINE
     else -> cap.lowercase().replace("_", " ")
 }

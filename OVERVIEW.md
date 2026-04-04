@@ -28,7 +28,7 @@ The planned AI layer is provider-agnostic and supports multiple operating modes:
 - generic OpenAI-compatible endpoints for self-hosted or gateway-based deployments
 - future enterprise-managed providers such as Azure OpenAI and Claude on Vertex AI
 
-The planned authoring surface is a desktop Studio app. Provider secrets should still be handled through a local companion process or secure gateway rather than being scattered through UI code.
+The planned authoring surface is a desktop Studio app. Provider settings live in Studio and are used for bounded authoring tasks such as generating mock data, variants, and error cases.
 
 ## Architecture at 10,000 Feet
 

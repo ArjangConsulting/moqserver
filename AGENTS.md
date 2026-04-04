@@ -10,7 +10,7 @@ Do not duplicate those product guides in new files unless the repo structure cha
 
 ## Repo Shape
 - This is a mono-repo with two separate products.
-- `server/` is the Swift/Vapor mock server and AI companion service.
+- `server/` is the Swift/Vapor mock server that loads and serves `.moqproj` bundles.
 - `studio/` is the Kotlin/Compose desktop app for authoring `.moqproj` projects.
 - Shared artifact: `.moqproj` directory bundles consumed by both products.
 - If a user request is ambiguous, confirm whether the change belongs to `server/` or `studio/` before editing code.
@@ -39,7 +39,6 @@ Do not duplicate those product guides in new files unless the repo structure cha
 - Server smoke tests: `make smoke`
 - Server end-to-end tests: `make e2e`
 - Server run sample spec: `make run`
-- Server companion: `make companion`
 - Server release build: `make release`
 - Docker image: `make docker-build`
 - Docker compose run: `make docker-run`
@@ -58,7 +57,6 @@ Do not duplicate those product guides in new files unless the repo structure cha
 - Single test target: `cd server && swift test --filter MoqRuntimeTests`
 - Single test case: `cd server && swift test --filter "testAdminAPI"`
 - Run server: `cd server && swift run moqserver serve --spec ../samples/server/openapi.yaml --port 8080`
-- Run companion: `cd server && swift run moqserver companion --port 8081`
 - Validate OpenAPI spec: `cd server && swift run moqserver validate-spec ../samples/server/openapi.yaml`
 - Validate project bundle: `cd server && swift run moqserver validate path/to/project.moqproj`
 
@@ -67,7 +65,6 @@ Do not duplicate those product guides in new files unless the repo structure cha
 - `MoqParsingTests`
 - `MoqFormatTests`
 - `MoqRuntimeTests`
-- `MoqCompanionAITests`
 - `MoqIntegrationTests`
 
 ## Server Testing Notes
@@ -140,7 +137,7 @@ Do not duplicate those product guides in new files unless the repo structure cha
 - Preserve existing section markers like `// MARK:` in Swift where they are already used.
 
 ## Naming and Types
-- Use domain terms already established in the repo: endpoint, variant, manifest, project, companion, provider.
+ - Use domain terms already established in the repo: endpoint, variant, manifest, project, provider.
 - Prefer clear names that encode behavior instead of abbreviations.
 - Do not introduce alternate names for existing concepts without a concrete reason.
 - Prefer small helper functions over deeply nested control flow when it clarifies intent.

@@ -59,19 +59,18 @@ Goal:
 
 - imported projects should be reproducible and editable
 
-## Layer 5: Companion Contract Tests
+## Layer 5: AI Provider Contract Tests
 
 Focus:
 
-- DTO compatibility
-- provider list behavior
+- provider configuration validation
 - config validation behavior
 - error normalization
-- redaction pipeline behavior
+- prompt/result normalization behavior
 
 Goal:
 
-- Studio and companion must agree on the same shapes and failure semantics
+- Studio AI actions and provider modules must agree on request/response handling and failure semantics
 
 ## Layer 6: Studio Use-Case Tests
 
@@ -93,7 +92,7 @@ Focus:
 - import or open project
 - save/export project
 - run through moqserver
-- optionally invoke a companion endpoint in a mocked environment
+- optionally exercise a mocked provider integration path
 
 Goal:
 
@@ -125,8 +124,7 @@ Do not make real hosted provider calls part of normal automated tests.
 
 Instead:
 
-- mock provider responses at the companion boundary
-- test redaction logic independently
+- mock provider responses at the Studio provider boundary
 - test result normalization independently
 - keep provider integration smoke tests optional and manually controlled
 
@@ -137,4 +135,4 @@ Before implementation is considered ready for broader testing:
 1. format tests pass
 2. runtime tests pass
 3. Studio use-case tests pass for the current slice
-4. companion contract tests pass when companion work is present
+4. AI provider contract tests pass when AI work is present

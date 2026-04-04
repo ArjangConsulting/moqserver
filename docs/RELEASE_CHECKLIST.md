@@ -8,7 +8,6 @@
 - [ ] Docker image builds: `make docker-build`
 - [ ] Run smoke test against Docker image manually
 - [ ] Review spec validation warnings for bundled examples
-- [ ] Verify companion starts and `/health` responds
 
 ## Version Bump
 
@@ -19,7 +18,6 @@
 ## Validation
 
 - [ ] `swift run moqserver serve --spec ./openapi.yaml --port 8080` starts without errors
-- [ ] `swift run moqserver companion --port 8081` starts and lists providers
 - [ ] `swift run moqserver init --spec ./openapi.yaml --output ./mocks` scaffolds files
 - [ ] `swift run moqserver validate-spec --spec ./openapi.yaml` reports no errors
 - [ ] Admin API (`GET /_admin/endpoints`) returns registered endpoints
@@ -31,6 +29,7 @@
 
 - [ ] Studio builds: `make studio-build`
 - [ ] Studio runs: `make studio-run`
+- [ ] Verify AI provider settings and Test Connection succeed for configured providers
 - [ ] Package macOS DMG: `make studio-dmg`
 - [ ] Package Linux deb: `make studio-deb` (on Linux)
 - [ ] Verify .app opens and can load a `.moqproj` project

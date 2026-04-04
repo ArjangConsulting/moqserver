@@ -2,9 +2,9 @@
 
 ## Purpose
 
-This document is the execution roadmap for evolving moqserver from a single Swift mock server into a two-part system:
+This document is the execution roadmap for evolving moqserver from a single Swift mock server into a two-product system:
 
-1. `moqserver` runtime and local companion in Swift/Vapor
+1. `moqserver` runtime in Swift/Vapor
 2. `moqserver studio` desktop authoring tool in Compose Multiplatform
 
 Product and architecture context lives in:
@@ -12,7 +12,6 @@ Product and architecture context lives in:
 - `docs/PROJECT_SPEC.md`
 - `docs/STUDIO_ARCHITECTURE.md`
 - `docs/STUDIO_IMPLEMENTATION_PLAN.md`
-- `docs/COMPANION_API.md`
 
 ## Delivery Principles
 
@@ -20,7 +19,7 @@ Product and architecture context lives in:
 2. Validate the `.moqproj` format before expanding feature breadth.
 3. Prefer thin vertical slices over broad framework work.
 4. Keep runtime behavior model-independent and AI-free.
-5. Treat the local companion as a trust boundary, not an application brain.
+5. Keep AI provider integrations inside Studio, where authoring workflows live.
 
 ---
 
@@ -29,7 +28,6 @@ Product and architecture context lives in:
 - [x] `docs/V1_SCOPE.md`
 - [x] `docs/FORMAT_IMPLEMENTATION.md`
 - [x] `docs/STUDIO_IMPLEMENTATION_PLAN.md`
-- [x] `docs/COMPANION_API.md`
 - [x] `docs/SERVER_MODULARIZATION_PLAN.md`
 - [x] `docs/TEST_STRATEGY.md`
 - [x] `docs/PROJECT_SPEC.md`
@@ -74,7 +72,7 @@ Goal: Ship the first useful desktop workflow without AI. A user can open, browse
 - [x] Compose Multiplatform project structure (`studio/`)
 - [x] `composeApp` — entry point, window, navigation shell
 - [x] `studio-domain` — StudioRootViewModel with StateFlow
-- [x] `studio-data` — YamlProjectCodec (SnakeYAML), LocalCompanionClient (Ktor)
+- [x] `studio-data` — YamlProjectCodec (SnakeYAML) and import/settings adapters
 - [x] `studio-code-editor` — JsonCodeEditor (RSyntaxTextArea/Swing interop)
 - [x] MaterialTheme + NavigationBar with Dashboard/Project routes
 
@@ -192,51 +190,30 @@ Wire YamlProjectCodec to actually read/write .moqproj directories.
 
 ---
 
-## Phase 5: Companion and AI Integration — COMPLETE
+## Phase 5: Studio AI Integration — COMPLETE
 
-### 5.1 Companion Server (Swift/Vapor)
-
-- [x] Create `MoqCompanionAI` target in Package.swift
-- [x] `GET /health` — companion reachability check
-- [x] `GET /ai/providers` — provider discovery and capabilities
-- [x] `POST /ai/validate-config` — validate provider settings
-- [x] `POST /ai/analyze-spec` — analyze spec/project, return structured findings
-- [x] `POST /ai/generate-variants` — generate draft variants for endpoints
-- [x] `POST /ai/refine-project` — propose structural improvements
-- [x] Common request/response envelope DTOs (per COMPANION_API.md)
-- [x] Error model with standard codes (provider_unavailable, provider_auth_invalid, etc.)
-- [x] `companion` CLI subcommand to start the companion on port 8081
-
-### 5.2 Provider Abstraction
+### 5.1 Provider Abstraction
 
 - [x] Provider protocol/interface for AI backends
 - [x] Ollama local provider implementation
 - [x] OpenAI hosted provider implementation
 - [x] Anthropic hosted provider implementation
-- [x] Provider config loading from disk/env
+- [x] Gemini hosted provider implementation
+- [x] Provider config loading from Studio settings
 - [x] Provider capability reporting
 
-### 5.3 Redaction Engine
+### 5.2 Studio AI Integration — DONE
 
-- [x] Redaction policy rules (per COMPANION_API.md)
-- [x] Strip bearer tokens, API keys, cookies from payloads
-- [x] Preserve structural usefulness while masking values
-- [x] Redaction summary in response metadata
-- [x] Logging policy enforcement (no raw secrets in logs)
-
-### 5.4 Studio Companion Integration — DONE
-
-- [x] Wire LocalCompanionClient to real companion endpoints
 - [x] Provider settings screen (list providers, status, configure)
 - [x] AI action entry points in endpoint/variant editor
 - [x] Preview/accept/reject flow for AI-generated changes
-- [x] Error handling: companion unreachable, provider unavailable
+- [x] Error handling: provider unavailable, auth invalid, malformed responses
 
 ### Phase 5 Exit Criteria
 
-- [x] Studio can discover providers from the local companion
+- [x] Studio can validate configured providers directly
 - [x] AI results return structured drafts, not freeform text
-- [x] hosted calls respect redaction and secret handling policy
+- [x] hosted and local provider calls stay scoped to bounded authoring tasks
 
 ---
 
@@ -245,14 +222,13 @@ Wire YamlProjectCodec to actually read/write .moqproj directories.
 - [x] Tighten validation and error reporting across all layers
 - [x] Studio packaging: macOS .app bundle (DMG), Linux deb, Windows MSI
 - [x] Installer metadata and signing (macOS code signing + notarization via env vars)
-- [x] Operational docs for companion mode
 - [x] Release checklist and smoke tests
 - [x] End-to-end test: import → edit → save → serve → verify responses
 
 ### Phase 6 Exit Criteria
 
 - [x] Studio packages for current OS (`make studio-package`)
-- [x] server runtime and companion are documented and testable locally
+- [x] server runtime and Studio authoring flows are documented and testable locally
 
 ---
 

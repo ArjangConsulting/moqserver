@@ -58,17 +58,6 @@ let package = Package(
             path: "Sources/MoqRuntime"
         ),
 
-        // MARK: - MoqCompanionAI
-        // AI companion server: provider abstraction, redaction, and companion API routes.
-        .target(
-            name: "MoqCompanionAI",
-            dependencies: [
-                .target(name: "MoqCore"),
-                .product(name: "Vapor", package: "vapor"),
-            ],
-            path: "Sources/MoqCompanionAI"
-        ),
-
         // MARK: - MoqCLI
         // CLI command definitions and composition root.
         .target(
@@ -78,7 +67,6 @@ let package = Package(
                 .target(name: "MoqFormat"),
                 .target(name: "MoqParsing"),
                 .target(name: "MoqRuntime"),
-                .target(name: "MoqCompanionAI"),
                 .product(name: "ArgumentParser", package: "swift-argument-parser"),
                 .product(name: "Vapor", package: "vapor"),
             ],
@@ -136,16 +124,6 @@ let package = Package(
             resources: [
                 .copy("Fixtures"),
             ]
-        ),
-        .testTarget(
-            name: "MoqCompanionAITests",
-            dependencies: [
-                .target(name: "MoqCore"),
-                .target(name: "MoqCompanionAI"),
-                .product(name: "VaporTesting", package: "vapor"),
-                .product(name: "XCTVapor", package: "vapor"),
-            ],
-            path: "Tests/MoqCompanionAITests"
         ),
         .testTarget(
             name: "MoqIntegrationTests",

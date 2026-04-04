@@ -37,7 +37,6 @@ private object EndpointDetailStrings {
     const val PATH_TOOLTIP = "URL path this endpoint responds to (e.g. /users/{id})."
     const val VARIANTS_PREFIX = "Variants ("
     const val VARIANTS_SUFFIX = ")"
-    const val AI_GENERATE = "AI Variants"
     const val VARIANT_DEFAULT_MARKER = " *"
     const val ADD_VARIANT = "+"
     const val DELETE_VARIANT_TITLE = "Delete variant?"
@@ -58,9 +57,10 @@ fun EndpointDetailPane(
     onUpdateEndpoint: (EndpointDocument) -> Unit,
     onDeleteEndpoint: () -> Unit = {},
     projectPath: String = "",
-    companionConnected: Boolean = false,
+    aiAvailable: Boolean = false,
     aiProvider: AIProviderInfo? = null,
-    onGenerateVariants: () -> Unit = {},
+    aiBodyGenerating: Boolean = false,
+    aiBodyError: String? = null,
     onGenerateBody: (ProjectVariant, String) -> Unit = { _, _ -> },
     initialVariantName: String? = null,
 ) {
@@ -104,9 +104,10 @@ fun EndpointDetailPane(
             originalEndpoint = originalEndpoint,
             onUpdateEndpoint = onUpdateEndpoint,
             projectPath = projectPath,
-            companionConnected = companionConnected,
+            aiAvailable = aiAvailable,
             aiProvider = aiProvider,
-            onGenerateVariants = onGenerateVariants,
+            aiBodyGenerating = aiBodyGenerating,
+            aiBodyError = aiBodyError,
             onGenerateBody = onGenerateBody,
             initialVariantName = initialVariantName,
         )
@@ -246,9 +247,10 @@ private fun VariantSection(
     originalEndpoint: EndpointDocument? = null,
     onUpdateEndpoint: (EndpointDocument) -> Unit,
     projectPath: String = "",
-    companionConnected: Boolean = false,
+    aiAvailable: Boolean = false,
     aiProvider: AIProviderInfo? = null,
-    onGenerateVariants: () -> Unit = {},
+    aiBodyGenerating: Boolean = false,
+    aiBodyError: String? = null,
     onGenerateBody: (ProjectVariant, String) -> Unit = { _, _ -> },
     initialVariantName: String? = null,
 ) {
@@ -288,8 +290,6 @@ private fun VariantSection(
 
     VariantSectionHeader(
         variantCount = endpoint.variants.size,
-        companionConnected = companionConnected,
-        onGenerateVariants = onGenerateVariants,
     )
 
     VariantTabs(
@@ -334,7 +334,9 @@ private fun VariantSection(
             requestRules = requestRules,
             projectPath = projectPath,
             aiProvider = aiProvider,
-            companionConnected = companionConnected,
+            aiAvailable = aiAvailable,
+            aiBodyGenerating = aiBodyGenerating,
+            aiBodyError = aiBodyError,
             selectedTab = selectedTab,
             onSelectTab = { selectedTab = it },
             onUpdateEndpoint = onUpdateEndpoint,
@@ -347,23 +349,16 @@ private fun VariantSection(
 @Composable
 private fun VariantSectionHeader(
     variantCount: Int,
-    companionConnected: Boolean,
-    onGenerateVariants: () -> Unit,
 ) {
     Row(
         modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.SpaceBetween,
+        horizontalArrangement = Arrangement.Start,
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(
             "${EndpointDetailStrings.VARIANTS_PREFIX}${variantCount}${EndpointDetailStrings.VARIANTS_SUFFIX}",
             style = MaterialTheme.typography.titleMedium,
         )
-        if (companionConnected) {
-            FilledTonalButton(onClick = onGenerateVariants) {
-                Text(EndpointDetailStrings.AI_GENERATE)
-            }
-        }
     }
 }
 
@@ -438,7 +433,9 @@ private fun VariantDetailCard(
     requestRules: RequestRules,
     projectPath: String,
     aiProvider: AIProviderInfo?,
-    companionConnected: Boolean,
+    aiAvailable: Boolean,
+    aiBodyGenerating: Boolean,
+    aiBodyError: String?,
     selectedTab: VariantDetailTab,
     onSelectTab: (VariantDetailTab) -> Unit,
     onUpdateEndpoint: (EndpointDocument) -> Unit,
@@ -489,9 +486,11 @@ private fun VariantDetailCard(
                 VariantDetailTab.BODY -> BodyTab(
 					endpointMethod = endpoint.method,
 					endpointPath = endpoint.path,
-                    variant = variant,
+					variant = variant,
 					aiProviderLabel = aiProvider?.displayName,
-					canGenerateWithAi = companionConnected,
+					canGenerateWithAi = aiAvailable,
+					isGeneratingWithAi = aiBodyGenerating,
+					generationError = aiBodyError,
 					onGenerateBody = onGenerateBody,
                     projectPath = projectPath,
                     onUpdate = { updated ->

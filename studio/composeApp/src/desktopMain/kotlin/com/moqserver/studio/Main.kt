@@ -511,7 +511,7 @@ fun main(args: Array<String>) {
                                 onStatus(ProviderConnectionStatus.Checking)
                                 val provider = buildAIProviderForTesting(testSettings, providerId)
                                 if (provider == null) {
-                                    onStatus(ProviderConnectionStatus.Failure("Unknown provider."))
+                                    onStatus(ProviderConnectionStatus.Failure("Unknown AI provider."))
                                     return@launch
                                 }
 
@@ -521,13 +521,12 @@ fun main(args: Array<String>) {
                                     return@launch
                                 }
 
-                                onStatus(ProviderConnectionStatus.Success("Connection looks good"))
+                                onStatus(ProviderConnectionStatus.Success("Connection successful"))
                             }
                         },
                         onSaveAISettings = { updatedAISettings ->
                             scope.launch(exceptionHandler) {
                                 val settingsToSave = updatedAISettings.copy(
-                                    selectedProviderId = appViewModel.state.value.ai.selectedProviderId,
                                     themeMode = themeMode.value.toThemePreference(),
                                 )
                                 val updatedRegistry = buildAIRegistry(settingsToSave)

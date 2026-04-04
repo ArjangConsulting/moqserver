@@ -138,6 +138,33 @@ class StudioRootViewModelTest {
     }
 
     @Test
+    fun `aiProvidersLoaded preserves existing selection when provider is temporarily unavailable`() {
+        val viewModel = StudioRootViewModel()
+        val providers = listOf(
+            AIProviderInfo(
+                id = "openai",
+                displayName = "OpenAI",
+                kind = ProviderKind.HOSTED,
+                available = false,
+                capabilities = emptySet(),
+            ),
+            AIProviderInfo(
+                id = "ollama",
+                displayName = "Ollama",
+                kind = ProviderKind.LOCAL,
+                available = true,
+                capabilities = emptySet(),
+            ),
+        )
+
+        viewModel.selectProvider("openai")
+        viewModel.aiProvidersLoaded(providers)
+
+        assertEquals("openai", viewModel.state.value.ai.selectedProviderId)
+        assertFalse(viewModel.state.value.ai.isReady)
+    }
+
+    @Test
     fun `projectClosed clears project but preserves recent projects`() {
         val viewModel = StudioRootViewModel()
 

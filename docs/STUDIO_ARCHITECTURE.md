@@ -79,7 +79,7 @@ Should not contain:
 
 - file parsing logic
 - YAML emitters
-- companion networking details
+- provider networking details
 - raw Swing editor setup
 
 ### `studio-domain`
@@ -89,7 +89,7 @@ Responsibilities:
 - root app state
 - screen models
 - selected project / selected endpoint / dirty-state models
-- companion DTOs
+- AI action DTOs
 - domain events and use-case interfaces
 
 Rules:
@@ -105,13 +105,20 @@ This should remain the cleanest module in the Studio build.
 
 Responsibilities:
 
-- local companion client
 - YAML parsing and stable emission
 - JSON formatting helpers
 - file open/save and future file watching
 - schema-backed validation adapters
 
 This is the correct place for JVM-only dependencies.
+
+### `studio-ai`
+
+Responsibilities:
+
+- AI provider integrations
+- prompt building and result parsing
+- provider configuration validation
 
 ### `studio-code-editor`
 
@@ -142,7 +149,7 @@ This keeps the unavoidable Swing dependency boxed away from the rest of the app.
 - `ktor-serialization-kotlinx-json:3.4.1`
 - `ktor-client-cio:3.4.1`
 
-Use these for all traffic between Studio and the local Swift/Vapor companion.
+Use these for provider integrations and other local Studio networking needs.
 
 ### YAML and project formatting
 

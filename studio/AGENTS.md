@@ -11,7 +11,7 @@ Canonical note: This is the single source of truth for AI agent guidance in this
 - UI routing: `composeApp/src/commonMain/kotlin/com/moqserver/studio/App.kt` switches `ImportReviewScreen` vs landing vs workspace from `StudioState`.
 - State owner: `studio-domain/src/commonMain/kotlin/com/moqserver/studio/domain/StudioRootViewModel.kt` is the single source of truth (`StateFlow<StudioState>`).
 - Project format boundary: `studio-project-format/` owns `.moqproj` schema, YAML codec, validation, and disk I/O (`ProjectRepository`).
-- Data/adapters boundary: `studio-data/` owns import parsers and local companion HTTP client; do not move project-format semantics here.
+- Data/adapters boundary: `studio-data/` owns import parsers and local settings/credential adapters; do not move project-format semantics here.
 
 ## Module Boundaries You Should Preserve
 - `composeApp -> studio-domain + studio-project-format + studio-data + studio-ai + studio-ui + studio-code-editor + studio-logging`.
@@ -23,9 +23,9 @@ Canonical note: This is the single source of truth for AI agent guidance in this
 - Import OpenAPI/HAR: parser in `studio-data` -> `startImport` -> review UI -> `confirmImport` -> persisted `.moqproj`.
 - AI action: UI trigger -> `AIActionHandler.executeAIAction` -> provider registry call -> `aiAction` state update.
 
-## AI/Companion Integration
-- Local companion default endpoint is `http://127.0.0.1:8081` (`studio-data/.../LocalCompanionClient.kt`).
+## AI Integration
 - Provider registry is built in `composeApp/.../AIActionHandler.kt` from persisted settings.
+- AI providers are called directly from Studio via `studio-ai`; no separate localhost companion process is required.
 - For AI debugging, use checked-in run config `studio/.run/Studio Debug.run.xml` (`-Dstudio.debug.failFast=true`, package debug logging).
 
 ## Build/Test/Lint Commands
@@ -47,5 +47,3 @@ Canonical note: This is the single source of truth for AI agent guidance in this
 - If behavior changes in viewmodel or project-format code, add module-local tests near that logic.
 - Keep save/dirty invariants intact (`StudioState.isDirty`, `hasErrors`, `windowTitle`), since UI enablement depends on them.
 - When touching `.moqproj` persistence, preserve fixture migration/cleanup behavior in `ProjectRepository.save()`.
-
-
