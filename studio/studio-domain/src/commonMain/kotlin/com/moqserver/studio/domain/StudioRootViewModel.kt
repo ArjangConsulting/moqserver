@@ -20,6 +20,39 @@ class StudioRootViewModel(
     private val _state = MutableStateFlow(StudioState())
     val state: StateFlow<StudioState> = _state.asStateFlow()
 
+    private fun duplicateDefaultVariantDiagnostic(
+        existing: EndpointDocument,
+        updated: EndpointDocument,
+    ): ValidationDiagnostic? {
+        val existingDefaultCount = existing.variants.count { it.isDefault == true }
+        val updatedDefaultCount = updated.variants.count { it.isDefault == true }
+        if (existingDefaultCount != 1 || updatedDefaultCount <= 1 || updatedDefaultCount <= existingDefaultCount) {
+            return null
+        }
+
+        val currentDefault = existing.variants.firstOrNull { it.isDefault == true } ?: return null
+        val newlyMarkedDefault = updated.variants
+            .withIndex()
+            .firstOrNull { (index, variant) ->
+                variant.isDefault == true && existing.variants.getOrNull(index)?.isDefault != true
+            }
+        val newlyMarkedDefaultVariant = newlyMarkedDefault?.value
+        val message = if (newlyMarkedDefaultVariant != null) {
+            "\"${currentDefault.name}\" is already the default variant. Clear it before marking \"${newlyMarkedDefaultVariant.name}\" as default."
+        } else {
+            "Only one variant may be marked as default."
+        }
+
+        return ValidationDiagnostic(
+            severity = ValidationDiagnostic.Severity.ERROR,
+            message = message,
+            endpointId = existing.id,
+            endpointLabel = "${updated.method} ${updated.path}",
+            variantName = newlyMarkedDefaultVariant?.name,
+            field = newlyMarkedDefault?.let { (index, _) -> "variants[$index].default" },
+        )
+    }
+
     private fun revalidate(project: MoqProject?): List<ValidationDiagnostic> {
         return if (project != null) validator.validate(project) else emptyList()
     }
@@ -32,6 +65,7 @@ class StudioRootViewModel(
                 isDirty = false,
                 importState = null,
                 statusLine = "Project loaded",
+                transientDiagnostic = null,
                 selectedEndpointId = project.endpoints.firstOrNull()?.id,
                 diagnostics = revalidate(project),
             )
@@ -42,17 +76,27 @@ class StudioRootViewModel(
         val current = _state.value.project ?: return
         if (current.manifest == manifest) return
         val updated = current.copy(manifest = manifest)
-        _state.update { it.copy(project = updated, isDirty = true, diagnostics = revalidate(updated)) }
+        _state.update { it.copy(project = updated, isDirty = true, diagnostics = revalidate(updated), transientDiagnostic = null) }
     }
 
     fun updateEndpoint(endpoint: EndpointDocument) {
         val current = _state.value.project ?: return
         val existing = current.endpoints.find { it.id == endpoint.id } ?: return
         if (existing == endpoint) return
+        val duplicateDefaultVariantDiagnostic = duplicateDefaultVariantDiagnostic(existing, endpoint)
+        if (duplicateDefaultVariantDiagnostic != null) {
+            _state.update {
+                it.copy(
+                    statusLine = "Error: ${duplicateDefaultVariantDiagnostic.message}",
+                    transientDiagnostic = duplicateDefaultVariantDiagnostic,
+                )
+            }
+            return
+        }
         val updated = current.copy(
             endpoints = current.endpoints.map { if (it.id == endpoint.id) endpoint else it }
         )
-        _state.update { it.copy(project = updated, isDirty = true, diagnostics = revalidate(updated)) }
+        _state.update { it.copy(project = updated, isDirty = true, diagnostics = revalidate(updated), transientDiagnostic = null) }
     }
 
     fun addEndpoint(endpoint: EndpointDocument) {
@@ -62,6 +106,7 @@ class StudioRootViewModel(
             it.copy(
                 project = updated,
                 isDirty = true,
+                transientDiagnostic = null,
                 selectedEndpointId = endpoint.id,
                 diagnostics = revalidate(updated),
             )
@@ -80,6 +125,7 @@ class StudioRootViewModel(
                 } else {
                     it.selectedEndpointId
                 },
+                transientDiagnostic = null,
                 diagnostics = revalidate(updated),
             )
         }
@@ -97,6 +143,7 @@ class StudioRootViewModel(
                 originalProject = updated,
                 isDirty = false,
                 statusLine = "All changes saved",
+                transientDiagnostic = null,
             )
         }
     }
@@ -127,11 +174,23 @@ class StudioRootViewModel(
     }
 
     fun setError(message: String) {
-        _state.update { it.copy(statusLine = "Error: $message") }
+        _state.update {
+            it.copy(
+                statusLine = "Error: $message",
+                transientDiagnostic = ValidationDiagnostic(
+                    severity = ValidationDiagnostic.Severity.ERROR,
+                    message = message,
+                ),
+            )
+        }
     }
 
     fun setStatus(message: String) {
-        _state.update { it.copy(statusLine = message) }
+        _state.update { it.copy(statusLine = message, transientDiagnostic = null) }
+    }
+
+    fun dismissError() {
+        _state.update { it.copy(transientDiagnostic = null) }
     }
 
     // -- AI --
@@ -285,6 +344,7 @@ class StudioRootViewModel(
                 isDirty = true, // New import needs saving
                 importState = null,
                 statusLine = "Imported ${accepted.size} endpoints from ${importState.sourceFileName}",
+                transientDiagnostic = null,
                 selectedEndpointId = project.endpoints.firstOrNull()?.id,
                 diagnostics = revalidate(project),
             )
@@ -303,6 +363,7 @@ data class StudioState(
     val originalProject: MoqProject? = null,
     val isDirty: Boolean = false,
     val statusLine: String = "No project loaded. Open a .moqproj directory to get started.",
+    val transientDiagnostic: ValidationDiagnostic? = null,
     val selectedEndpointId: String? = null,
     val pendingVariantName: String? = null,
     val recentProjects: List<String> = emptyList(),

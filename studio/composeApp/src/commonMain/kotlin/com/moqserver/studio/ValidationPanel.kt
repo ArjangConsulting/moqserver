@@ -11,7 +11,11 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -31,12 +35,15 @@ private object ValidationPanelStrings {
     const val NAVIGATE_ARROW = "→"
     const val VARIANT_PREFIX = "Variant: "
     const val FIELD_SEPARATOR = " · "
+    const val DISMISS_ERROR = "Dismiss error"
 }
 
 @Composable
 fun ValidationPanel(
     diagnostics: List<ValidationDiagnostic>,
+    transientDiagnostic: ValidationDiagnostic? = null,
     onDiagnosticClick: (ValidationDiagnostic) -> Unit,
+    onDismissTransientDiagnostic: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val errors = diagnostics.filter { it.severity == ValidationDiagnostic.Severity.ERROR }
@@ -87,7 +94,9 @@ fun ValidationPanel(
                 items(diagnostics) { diagnostic ->
                     DiagnosticRow(
                         diagnostic = diagnostic,
+                        dismissible = diagnostic == transientDiagnostic,
                         onClick = { onDiagnosticClick(diagnostic) },
+                        onDismiss = onDismissTransientDiagnostic,
                     )
                 }
             }
@@ -98,7 +107,9 @@ fun ValidationPanel(
 @Composable
 private fun DiagnosticRow(
     diagnostic: ValidationDiagnostic,
+    dismissible: Boolean,
     onClick: () -> Unit,
+    onDismiss: () -> Unit,
 ) {
     Row(
         modifier = Modifier
@@ -139,6 +150,18 @@ private fun DiagnosticRow(
                     text = location,
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+        if (dismissible) {
+            IconButton(
+                onClick = onDismiss,
+                modifier = Modifier.align(Alignment.Top).padding(top = StudioDimens.xxs),
+            ) {
+                Icon(
+                    imageVector = Icons.Filled.Close,
+                    contentDescription = ValidationPanelStrings.DISMISS_ERROR,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
         }

@@ -239,4 +239,50 @@ class StudioRootViewModelTest {
         assertFalse(state.isDirty)
         assertEquals(project, state.project)
     }
+
+    @Test
+    fun `updateEndpoint rejects marking second default variant and preserves current state`() {
+        val viewModel = StudioRootViewModel()
+        val project = sampleProject().copy(
+            endpoints = listOf(
+                sampleProject().endpoints.single().copy(
+                    variants = listOf(
+                        ProjectVariant(name = "Success", status = 200, isDefault = true),
+                        ProjectVariant(name = "Failure", status = 500),
+                    ),
+                ),
+            ),
+        )
+
+        viewModel.projectLoaded(project)
+        viewModel.updateEndpoint(
+            project.endpoints.single().copy(
+                variants = listOf(
+                    ProjectVariant(name = "Success", status = 200, isDefault = true),
+                    ProjectVariant(name = "Failure", status = 500, isDefault = true),
+                ),
+            ),
+        )
+
+        val state = viewModel.state.value
+        assertEquals(project, state.project)
+        assertFalse(state.isDirty)
+        assertEquals(
+            "\"Success\" is already the default variant. Clear it before marking \"Failure\" as default.",
+            state.transientDiagnostic?.message,
+        )
+        assertEquals("get-users", state.transientDiagnostic?.endpointId)
+        assertEquals("Failure", state.transientDiagnostic?.variantName)
+    }
+
+    @Test
+    fun `dismissError clears transient workspace error`() {
+        val viewModel = StudioRootViewModel()
+
+        viewModel.setError("Something went wrong")
+        viewModel.dismissError()
+
+        assertNull(viewModel.state.value.transientDiagnostic)
+        assertEquals("Error: Something went wrong", viewModel.state.value.statusLine)
+    }
 }
