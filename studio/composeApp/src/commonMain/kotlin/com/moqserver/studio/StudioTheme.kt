@@ -32,20 +32,36 @@ object StudioColors {
     /** Light text/content color on dark editor panels. */
     val editorPanelContent = Color(0xFFE6EDF3)
 
-    /** HTTP 2xx status badge color — green. */
-    val httpSuccess = Color(0xFF2E7D32)
+    // HTTP status badge container/on-container pairs — keep in sync with StatusBadgeColors in studio-ui.
+    /** HTTP 2xx badge: container bg / foreground text. */
+    val httpSuccessContainerLight = Color(0xFFC8E6C9)
+    val httpSuccessOnContainerLight = Color(0xFF1B5E20)
+    val httpSuccessContainerDark = Color(0xFF1B5E20)
+    val httpSuccessOnContainerDark = Color(0xFFA5D6A7)
 
-    /** HTTP 3xx status badge color — amber. */
-    val httpRedirect = Color(0xFF7B5E00)
+    /** HTTP 3xx badge: container bg / foreground text. */
+    val httpRedirectContainerLight = Color(0xFFFFF8E1)
+    val httpRedirectOnContainerLight = Color(0xFF6D4C00)
+    val httpRedirectContainerDark = Color(0xFF3D2B00)
+    val httpRedirectOnContainerDark = Color(0xFFFFE082)
 
-    /** HTTP 4xx status badge color — deep orange-red. */
-    val httpClientError = Color(0xFFBF360C)
+    /** HTTP 4xx badge: container bg / foreground text. */
+    val httpClientErrorContainerLight = Color(0xFFFFCCBC)
+    val httpClientErrorOnContainerLight = Color(0xFFBF360C)
+    val httpClientErrorContainerDark = Color(0xFF3E1200)
+    val httpClientErrorOnContainerDark = Color(0xFFFFAB91)
 
-    /** HTTP 5xx status badge color — red. */
-    val httpServerError = Color(0xFFC62828)
+    /** HTTP 5xx badge: container bg / foreground text. */
+    val httpServerErrorContainerLight = Color(0xFFFFCDD2)
+    val httpServerErrorOnContainerLight = Color(0xFFB71C1C)
+    val httpServerErrorContainerDark = Color(0xFF400000)
+    val httpServerErrorOnContainerDark = Color(0xFFEF9A9A)
 
-    /** HTTP status badge color for unknown codes — gray. */
-    val httpUnknown = Color(0xFF616161)
+    /** HTTP unknown badge: container bg / foreground text. */
+    val httpUnknownContainerLight = Color(0xFFEEEEEE)
+    val httpUnknownOnContainerLight = Color(0xFF424242)
+    val httpUnknownContainerDark = Color(0xFF212121)
+    val httpUnknownOnContainerDark = Color(0xFFB0BEC5)
 }
 
 /**

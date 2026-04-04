@@ -1,6 +1,7 @@
 package com.moqserver.studio
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -25,6 +26,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.input.pointer.PointerIcon
+import androidx.compose.ui.input.pointer.pointerHoverIcon
 import com.moqserver.studio.domain.AIAction
 import com.moqserver.studio.domain.AIActionState
 import com.moqserver.studio.domain.AnalyzeSpecResult
@@ -290,6 +293,9 @@ private fun RefineResultView(
                                 text = key,
                                 style = MaterialTheme.typography.labelSmall,
                                 color = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier
+                                    .clickable { onNavigateToEndpoint(key) }
+                                    .pointerHoverIcon(PointerIcon.Hand),
                             )
                         }
                     }
