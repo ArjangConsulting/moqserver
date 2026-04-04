@@ -20,6 +20,9 @@ class AISettingsRepositoryTest {
         repository.save(
             AISettings(
                 themeMode = ThemePreference.DARK,
+                variantReferenceSyncByProject = mapOf(
+                    "/tmp/test.moqproj" to VariantReferenceSyncPreference.ALWAYS_UPDATE,
+                ),
                 openai = OpenAISettings(apiKey = "openai-secret"),
                 anthropic = AnthropicSettings(apiKey = "anthropic-secret"),
                 gemini = GeminiSettings(apiKey = "gemini-secret"),
@@ -31,6 +34,7 @@ class AISettingsRepositoryTest {
         assertFalse(persisted.contains("anthropic-secret"))
         assertFalse(persisted.contains("gemini-secret"))
         assertTrue(persisted.contains("\"themeMode\": \"DARK\""))
+        assertTrue(persisted.contains("/tmp/test.moqproj"))
         assertEquals("openai-secret", credentialStore.read("openai.api-key"))
         assertEquals("anthropic-secret", credentialStore.read("anthropic.api-key"))
         assertEquals("gemini-secret", credentialStore.read("gemini.api-key"))
@@ -56,6 +60,9 @@ class AISettingsRepositoryTest {
             {
               "selectedProviderId": "openai",
               "themeMode": "LIGHT",
+              "variantReferenceSyncByProject": {
+                "/tmp/test.moqproj": "NEVER_UPDATE"
+              },
               "openai": { "apiKey": "", "baseUrl": "https://example.com/openai", "defaultModel": "gpt-test" },
               "anthropic": { "apiKey": "", "baseUrl": "https://example.com/anthropic", "defaultModel": "claude-test" },
               "gemini": { "apiKey": "", "baseUrl": "https://example.com/gemini", "defaultModel": "gemini-test" }
@@ -70,6 +77,10 @@ class AISettingsRepositoryTest {
         assertEquals("gemini-secret", loaded.gemini.apiKey)
         assertEquals("openai", loaded.selectedProviderId)
         assertEquals(ThemePreference.LIGHT, loaded.themeMode)
+        assertEquals(
+            VariantReferenceSyncPreference.NEVER_UPDATE,
+            loaded.variantReferenceSyncByProject["/tmp/test.moqproj"],
+        )
         assertEquals("https://example.com/openai", loaded.openai.baseUrl)
         assertEquals("claude-test", loaded.anthropic.defaultModel)
 
