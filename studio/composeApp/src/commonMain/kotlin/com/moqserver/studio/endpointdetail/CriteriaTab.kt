@@ -35,17 +35,50 @@ private object CriteriaTabStrings {
     const val PARAMETER_NAME = "Parameter Name"
     const val NO_QUERY_PARAMS = "No query parameters configured."
     const val DELETE_QUERY_PARAM = "Delete query parameter"
+    const val VARIANT_MATCH_QUERY = "Variant Match Query"
+    const val VARIANT_MATCH_HEADERS = "Variant Match Headers"
+    const val HEADER_NAME = "Header Name"
+    const val NO_VARIANT_MATCH_QUERY = "No query criteria configured for this variant."
+    const val NO_VARIANT_MATCH_HEADERS = "No header criteria configured for this variant."
+    const val DELETE_VARIANT_QUERY = "Delete variant query criteria"
+    const val DELETE_VARIANT_HEADER = "Delete variant header criteria"
+    const val BODY_CONTAINS = "Body Contains"
+    const val BODY_CONTAINS_TOOLTIP = "Optional request body substring that must be present before this variant is selected."
 }
 
 @Composable
 internal fun CriteriaTab(
+	variant: ProjectVariant,
 	requestRules: RequestRules,
 	auth: ProjectAuthConfig?,
 	network: NetworkBehavior?,
+	onUpdateVariant: (ProjectVariant) -> Unit,
 	onUpdate: (RequestRules) -> Unit,
 	onUpdateAuth: (ProjectAuthConfig?) -> Unit,
 	onUpdateNetwork: (NetworkBehavior?) -> Unit,
 ) {
+	val variantRequestMatch = variant.requestMatch ?: VariantRequestMatch()
+	val variantQueryRules = variantRequestMatch.query.orEmpty().entries
+		.sortedBy { it.key }
+		.map { RuleMatcher(name = it.key, match = it.value, matchType = MatchType.EQUAL_TO) }
+	val variantHeaderRules = variantRequestMatch.headers.orEmpty().entries
+		.sortedBy { it.key }
+		.map { RuleMatcher(name = it.key, match = it.value, matchType = MatchType.EQUAL_TO) }
+
+	fun updateVariantQueryRules(rules: List<RuleMatcher>) {
+		val query = rules
+			.filter { it.name.isNotBlank() }
+			.associate { it.name to (it.match ?: "") }
+		onUpdateVariant(variant.withNormalizedRequestMatch(variantRequestMatch.copy(query = query.ifEmpty { null })))
+	}
+
+	fun updateVariantHeaderRules(rules: List<RuleMatcher>) {
+		val headers = rules
+			.filter { it.name.isNotBlank() }
+			.associate { it.name to (it.match ?: "") }
+		onUpdateVariant(variant.withNormalizedRequestMatch(variantRequestMatch.copy(headers = headers.ifEmpty { null })))
+	}
+
 	Column(verticalArrangement = Arrangement.spacedBy(StudioDimens.xl)) {
 		AuthConfigSection(auth = auth, onUpdate = onUpdateAuth)
 		NetworkSection(network = network, onUpdate = onUpdateNetwork)
@@ -55,6 +88,48 @@ internal fun CriteriaTab(
 			onUpdate = { queryParams ->
 				onUpdate(requestRules.copy(queryParams = queryParams.ifEmpty { null }))
 			},
+		)
+		HorizontalDivider()
+		RuleMatcherTableEditor(
+			title = CriteriaTabStrings.VARIANT_MATCH_QUERY,
+			nameColumnLabel = CriteriaTabStrings.PARAMETER_NAME,
+			emptyText = CriteriaTabStrings.NO_VARIANT_MATCH_QUERY,
+			items = variantQueryRules,
+			onUpdate = ::updateVariantQueryRules,
+			onAdd = {
+				updateVariantQueryRules(variantQueryRules + RuleMatcher(name = "", matchType = MatchType.EQUAL_TO))
+			},
+			onClear = { updateVariantQueryRules(emptyList()) },
+			deleteContentDescription = CriteriaTabStrings.DELETE_VARIANT_QUERY,
+			availableMatchTypes = listOf(MatchType.EQUAL_TO),
+			fallbackMatchType = MatchType.EQUAL_TO,
+		)
+		RuleMatcherTableEditor(
+			title = CriteriaTabStrings.VARIANT_MATCH_HEADERS,
+			nameColumnLabel = CriteriaTabStrings.HEADER_NAME,
+			emptyText = CriteriaTabStrings.NO_VARIANT_MATCH_HEADERS,
+			items = variantHeaderRules,
+			onUpdate = ::updateVariantHeaderRules,
+			onAdd = {
+				updateVariantHeaderRules(variantHeaderRules + RuleMatcher(name = "", matchType = MatchType.EQUAL_TO))
+			},
+			onClear = { updateVariantHeaderRules(emptyList()) },
+			deleteContentDescription = CriteriaTabStrings.DELETE_VARIANT_HEADER,
+			availableMatchTypes = listOf(MatchType.EQUAL_TO),
+			fallbackMatchType = MatchType.EQUAL_TO,
+		)
+		OutlinedTextField(
+			value = variantRequestMatch.bodyContains.orEmpty(),
+			onValueChange = {
+				onUpdateVariant(variant.withNormalizedRequestMatch(variantRequestMatch.copy(bodyContains = it.ifBlank { null })))
+			},
+			label = {
+				Row(verticalAlignment = Alignment.CenterVertically) {
+					Text(CriteriaTabStrings.BODY_CONTAINS)
+					InfoTooltip(CriteriaTabStrings.BODY_CONTAINS_TOOLTIP)
+				}
+			},
+			modifier = Modifier.fillMaxWidth(),
 		)
 	}
 }

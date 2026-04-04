@@ -3,6 +3,7 @@ package com.moqserver.studio.endpointdetail
 import com.moqserver.studio.projectformat.MatchType
 import com.moqserver.studio.projectformat.ProjectVariant
 import com.moqserver.studio.projectformat.RequestRules
+import com.moqserver.studio.projectformat.VariantRequestMatch
 import com.moqserver.studio.projectformat.YamlValue
 import kotlinx.serialization.json.*
 
@@ -40,6 +41,7 @@ private fun ProjectVariant.isPristine(): Boolean =
 		body == null &&
 		bodyFile == null &&
 		(headers == null || headers!!.isEmpty()) &&
+		requestMatch == null &&
 		(delayMs == null || delayMs == 0) &&
 		isDefault != true
 
@@ -78,5 +80,16 @@ internal fun RequestRules.normalize(): RequestRules? {
 		!it.headers.isNullOrEmpty() ||
 			!it.queryParams.isNullOrEmpty() ||
 			!it.cookies.isNullOrEmpty()
+	}
+}
+
+internal fun VariantRequestMatch.normalize(): VariantRequestMatch? {
+	val normalizedQuery = query?.filterKeys { it.isNotBlank() }?.takeIf { it.isNotEmpty() }
+	val normalizedHeaders = headers?.filterKeys { it.isNotBlank() }?.takeIf { it.isNotEmpty() }
+	val normalizedBodyContains = bodyContains?.takeIf { it.isNotBlank() }
+	return if (normalizedQuery == null && normalizedHeaders == null && normalizedBodyContains == null) {
+		null
+	} else {
+		copy(query = normalizedQuery, headers = normalizedHeaders, bodyContains = normalizedBodyContains)
 	}
 }

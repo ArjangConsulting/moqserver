@@ -2,6 +2,7 @@ package com.moqserver.studio
 
 import com.moqserver.studio.endpointdetail.hasSessionEdits
 import com.moqserver.studio.projectformat.ProjectVariant
+import com.moqserver.studio.projectformat.VariantRequestMatch
 import kotlin.test.Test
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
@@ -39,5 +40,13 @@ class VariantEditTrackingTest {
         )
 
         assertTrue(variant.hasSessionEdits(emptyList()))
+    }
+
+    @Test
+    fun `variant request match counts as an edit`() {
+        val original = ProjectVariant(name = "Success", referenceName = "success", status = 200)
+        val updated = original.copy(requestMatch = VariantRequestMatch(headers = mapOf("X-Role" to "admin")))
+
+        assertTrue(updated.hasSessionEdits(listOf(original)))
     }
 }

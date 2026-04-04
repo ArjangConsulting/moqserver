@@ -56,12 +56,12 @@ public struct AdminHandler: Sendable {
         let (endpoint, keyString) = try await resolveEndpoint(req: req)
         let body = try req.content.decode(SetVariantRequest.self)
 
-        guard endpoint.variants.contains(where: { $0.name == body.variant }) else {
+        guard let variant = endpoint.variants.first(where: { $0.matchesIdentifier(body.variant) }) else {
             throw Abort(.badRequest, reason: "Variant '\(body.variant)' not found for \(keyString)")
         }
 
-        await store.setVariantOverride(for: keyString, variant: body.variant)
-        return MessageResponse(message: "Active variant set to '\(body.variant)' for \(keyString)")
+        await store.setVariantOverride(for: keyString, variant: variant.name)
+        return MessageResponse(message: "Active variant set to '\(variant.name)' for \(keyString)")
     }
 
     /// DELETE /_admin/endpoints/:method/**/variant — reset to default.

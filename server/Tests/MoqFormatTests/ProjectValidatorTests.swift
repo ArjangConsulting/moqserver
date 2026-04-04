@@ -50,6 +50,16 @@ struct ProjectValidatorTests {
         #expect(errors.contains { $0.message.contains("Duplicate endpoint id") })
     }
 
+    @Test("Rejects duplicate endpoint reference names")
+    func rejectsDuplicateEndpointReferenceNames() {
+        let project = makeProject(endpoints: [
+            EndpointDocument(id: "pets", referenceName: "petsApi", method: "GET", path: "/pets", variants: [ProjectVariant(name: "default", status: 200)]),
+            EndpointDocument(id: "pets-2", referenceName: "petsApi", method: "GET", path: "/pets-2", variants: [ProjectVariant(name: "default", status: 200)]),
+        ])
+        let errors = validator.validate(project).filter { $0.severity == .error }
+        #expect(errors.contains { $0.message.contains("Duplicate endpoint reference_name") })
+    }
+
     @Test("Rejects reserved paths")
     func rejectsReservedPaths() {
         let project = makeProject(endpoints: [
@@ -69,6 +79,32 @@ struct ProjectValidatorTests {
         ])
         let errors = validator.validate(project).filter { $0.severity == .error }
         #expect(errors.contains { $0.message.contains("Only one variant") })
+    }
+
+    @Test("Rejects invalid and duplicate variant reference names")
+    func rejectsInvalidAndDuplicateVariantReferenceNames() {
+        let project = makeProject(endpoints: [
+            sampleEndpoint(variants: [
+                ProjectVariant(name: "default", referenceName: "bad name", status: 200),
+                ProjectVariant(name: "error", referenceName: "bad_name", status: 500),
+                ProjectVariant(name: "error-2", referenceName: "bad_name", status: 502),
+            ]),
+        ])
+        let errors = validator.validate(project).filter { $0.severity == .error }
+        #expect(errors.contains { $0.message.contains("must start with a letter or underscore") })
+        #expect(errors.contains { $0.message.contains("Duplicate variant reference_name") })
+    }
+
+    @Test("Rejects empty variant request_match")
+    func rejectsEmptyVariantRequestMatch() {
+        let project = makeProject(endpoints: [
+            sampleEndpoint(variants: [
+                ProjectVariant(name: "default", status: 200, requestMatch: RequestMatch()),
+            ]),
+        ])
+
+        let errors = validator.validate(project).filter { $0.severity == .error }
+        #expect(errors.contains { $0.message.contains("request_match must define query, headers, or body_contains") })
     }
 
     @Test("Rejects body and body_file together")

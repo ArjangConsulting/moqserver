@@ -76,6 +76,10 @@ public struct ProjectWriter: ProjectWriting {
             operation: endpoint.operation
         )
         lines.append("alias: \(yamlQuote(alias))")
+        if let description = endpoint.description {
+            lines.append("description: \(yamlQuote(description))")
+        }
+        lines.append("reference_name: \(yamlQuote(endpoint.referenceName))")
         lines.append("method: \(endpoint.method)")
         lines.append("path: \(endpoint.path)")
         if let tags = endpoint.tags, !tags.isEmpty {
@@ -153,6 +157,7 @@ public struct ProjectWriter: ProjectWriting {
         var lines: [String] = []
 
         lines.append("\(pad)- name: \(variant.name)")
+        lines.append("\(pad)  reference_name: \(yamlQuote(variant.referenceName))")
         if let isDefault = variant.isDefault, isDefault {
             lines.append("\(pad)  default: true")
         }
@@ -162,6 +167,26 @@ public struct ProjectWriter: ProjectWriting {
             lines.append("\(pad)  headers:")
             for (key, value) in headers.sorted(by: { $0.key < $1.key }) {
                 lines.append("\(pad)    \(key): \(value)")
+            }
+        }
+
+        if let requestMatch = variant.requestMatch,
+           !requestMatch.query.isEmpty || !requestMatch.headers.isEmpty || requestMatch.bodyContains != nil {
+            lines.append("\(pad)  request_match:")
+            if !requestMatch.query.isEmpty {
+                lines.append("\(pad)    query:")
+                for (key, value) in requestMatch.query.sorted(by: { $0.key < $1.key }) {
+                    lines.append("\(pad)      \(key): \(yamlQuote(value))")
+                }
+            }
+            if !requestMatch.headers.isEmpty {
+                lines.append("\(pad)    headers:")
+                for (key, value) in requestMatch.headers.sorted(by: { $0.key < $1.key }) {
+                    lines.append("\(pad)      \(key): \(yamlQuote(value))")
+                }
+            }
+            if let bodyContains = requestMatch.bodyContains {
+                lines.append("\(pad)    body_contains: \(yamlQuote(bodyContains))")
             }
         }
 
@@ -220,6 +245,9 @@ public struct ProjectWriter: ProjectWriting {
         let pad = String(repeating: " ", count: indent)
         var lines: [String] = []
         lines.append("\(pad)- name: \(matcher.name)")
+        if let matchType = matcher.matchType {
+            lines.append("\(pad)  match_type: \(matchType.rawValue)")
+        }
         if let match = matcher.match {
             lines.append("\(pad)  match: \(yamlQuote(match))")
         }

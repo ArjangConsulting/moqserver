@@ -2,12 +2,16 @@
 public struct ProjectVariant: Codable, Sendable, Equatable {
     /// Variant name used for selection.
     public let name: String
+    /// Stable code-friendly identifier used by Studio and automation.
+    public let referenceName: String
     /// Whether this is the default variant.
     public let isDefault: Bool?
     /// HTTP status code.
     public let status: Int
     /// Response headers.
     public let headers: [String: String]?
+    /// Optional request match criteria used to auto-select this variant.
+    public let requestMatch: RequestMatch?
     /// Inline response body (arbitrary YAML/JSON value).
     public let body: AnyCodableValue?
     /// Path to external fixture file (relative to project root, must start with "fixtures/").
@@ -17,17 +21,23 @@ public struct ProjectVariant: Codable, Sendable, Equatable {
 
     public init(
         name: String,
+        referenceName: String? = nil,
         isDefault: Bool? = nil,
         status: Int,
         headers: [String: String]? = nil,
+        requestMatch: RequestMatch? = nil,
         body: AnyCodableValue? = nil,
         bodyFile: String? = nil,
         delayMs: Int? = nil
     ) {
+        let normalizedReferenceName = referenceName?.trimmingCharacters(in: .whitespacesAndNewlines)
         self.name = name
+        self.referenceName = normalizedReferenceName.flatMap { $0.isEmpty ? nil : $0 }
+            ?? defaultReferenceNameForVariantName(name)
         self.isDefault = isDefault
         self.status = status
         self.headers = headers
+        self.requestMatch = requestMatch
         self.body = body
         self.bodyFile = bodyFile
         self.delayMs = delayMs
@@ -35,9 +45,26 @@ public struct ProjectVariant: Codable, Sendable, Equatable {
 
     enum CodingKeys: String, CodingKey {
         case name
+        case referenceName = "reference_name"
         case isDefault = "default"
-        case status, headers, body
+        case status, headers, body, requestMatch = "request_match"
         case bodyFile = "body_file"
         case delayMs = "delay_ms"
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        let name = try container.decode(String.self, forKey: .name)
+        self.init(
+            name: name,
+            referenceName: try container.decodeIfPresent(String.self, forKey: .referenceName),
+            isDefault: try container.decodeIfPresent(Bool.self, forKey: .isDefault),
+            status: try container.decode(Int.self, forKey: .status),
+            headers: try container.decodeIfPresent([String: String].self, forKey: .headers),
+            requestMatch: try container.decodeIfPresent(RequestMatch.self, forKey: .requestMatch),
+            body: try container.decodeIfPresent(AnyCodableValue.self, forKey: .body),
+            bodyFile: try container.decodeIfPresent(String.self, forKey: .bodyFile),
+            delayMs: try container.decodeIfPresent(Int.self, forKey: .delayMs)
+        )
     }
 }

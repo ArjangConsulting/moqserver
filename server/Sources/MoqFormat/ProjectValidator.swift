@@ -9,6 +9,7 @@ public struct ProjectValidator: ProjectValidating {
 
     public func validate(_ project: MoqProject) -> [ValidationDiagnostic] {
         var diagnostics: [ValidationDiagnostic] = []
+        var seenEndpointReferenceNames: [String: String] = [:]
 
         // Rule 1: project.yml must exist (already enforced by loader, but validate version)
         if project.manifest.version != "1" {
@@ -53,6 +54,31 @@ public struct ProjectValidator: ProjectValidating {
                 ))
             }
 
+            if endpoint.referenceName.isEmpty {
+                diagnostics.append(.init(
+                    severity: .error,
+                    message: "Endpoint reference_name is required.",
+                    file: fileName,
+                    field: "reference_name"
+                ))
+            } else if !isValidReferenceName(endpoint.referenceName) {
+                diagnostics.append(.init(
+                    severity: .error,
+                    message: "Endpoint reference_name \"\(endpoint.referenceName)\" must start with a letter or underscore and contain only letters, numbers, or underscores.",
+                    file: fileName,
+                    field: "reference_name"
+                ))
+            } else if let existingReferenceNameFile = seenEndpointReferenceNames[endpoint.referenceName] {
+                diagnostics.append(.init(
+                    severity: .error,
+                    message: "Duplicate endpoint reference_name \"\(endpoint.referenceName)\" (also in \(existingReferenceNameFile)).",
+                    file: fileName,
+                    field: "reference_name"
+                ))
+            } else {
+                seenEndpointReferenceNames[endpoint.referenceName] = fileName
+            }
+
             // Rule 5: Reserved paths
             if reservedPaths.contains(endpoint.path) {
                 diagnostics.append(.init(
@@ -86,6 +112,7 @@ public struct ProjectValidator: ProjectValidating {
 
             // Per-variant validation
             var seenVariantNames: Set<String> = []
+            var seenVariantReferenceNames: Set<String> = []
             for (index, variant) in endpoint.variants.enumerated() {
                 let variantField = "variants[\(index)]"
 
@@ -99,6 +126,58 @@ public struct ProjectValidator: ProjectValidating {
                     ))
                 }
                 seenVariantNames.insert(variant.name)
+
+                if variant.referenceName.isEmpty {
+                    diagnostics.append(.init(
+                        severity: .error,
+                        message: "Variant reference_name is required.",
+                        file: fileName,
+                        field: "\(variantField).reference_name"
+                    ))
+                } else if !isValidReferenceName(variant.referenceName) {
+                    diagnostics.append(.init(
+                        severity: .error,
+                        message: "Variant reference_name \"\(variant.referenceName)\" must start with a letter or underscore and contain only letters, numbers, or underscores.",
+                        file: fileName,
+                        field: "\(variantField).reference_name"
+                    ))
+                } else if !seenVariantReferenceNames.insert(variant.referenceName).inserted {
+                    diagnostics.append(.init(
+                        severity: .error,
+                        message: "Duplicate variant reference_name \"\(variant.referenceName)\".",
+                        file: fileName,
+                        field: "\(variantField).reference_name"
+                    ))
+                }
+
+                if let requestMatch = variant.requestMatch {
+                    if requestMatch.query.keys.contains(where: { $0.isEmpty }) {
+                        diagnostics.append(.init(
+                            severity: .error,
+                            message: "Variant request_match query names must not be blank.",
+                            file: fileName,
+                            field: "\(variantField).request_match.query"
+                        ))
+                    }
+
+                    if requestMatch.headers.keys.contains(where: { $0.isEmpty }) {
+                        diagnostics.append(.init(
+                            severity: .error,
+                            message: "Variant request_match header names must not be blank.",
+                            file: fileName,
+                            field: "\(variantField).request_match.headers"
+                        ))
+                    }
+
+                    if requestMatch.query.isEmpty && requestMatch.headers.isEmpty && (requestMatch.bodyContains?.isEmpty ?? true) {
+                        diagnostics.append(.init(
+                            severity: .error,
+                            message: "Variant request_match must define query, headers, or body_contains.",
+                            file: fileName,
+                            field: "\(variantField).request_match"
+                        ))
+                    }
+                }
 
                 // Rule 8: body and body_file are mutually exclusive
                 if variant.body != nil && variant.bodyFile != nil {

@@ -50,15 +50,15 @@ public struct Endpoint: Sendable {
         headerRules.filter { Self.isRequiredRule($0) }.map(\.name)
     }
 
-    /// Returns the default variant (first in the list).
+    /// Returns the explicit default variant, or the first variant if none is marked.
     public var defaultVariant: ResponseVariant? {
-        variants.first
+        variants.first(where: \.isDefault) ?? variants.first
     }
 
     /// Returns a variant by name, or the default if not found.
     public func variant(named name: String?) -> ResponseVariant? {
         guard let name else { return defaultVariant }
-        return variants.first { $0.name == name } ?? defaultVariant
+        return variants.first { $0.matchesIdentifier(name) } ?? defaultVariant
     }
 
     private static func mergedRules(explicit: [RuleMatcher], requiredNames: [String]) -> [RuleMatcher] {

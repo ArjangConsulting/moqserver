@@ -53,6 +53,29 @@ class ProjectValidatorTest {
         assertTrue(diagnostics.any { "Duplicate variant reference_name" in it.message })
     }
 
+    @Test
+    fun `rejects empty variant request match`() {
+        val diagnostics = validator.validate(
+            projectWithEndpoints(
+                EndpointDocument(
+                    id = "get-pets",
+                    method = "GET",
+                    path = "/pets",
+                    variants = listOf(
+                        ProjectVariant(
+                            name = "Success",
+                            referenceName = "success",
+                            status = 200,
+                            requestMatch = VariantRequestMatch(),
+                        )
+                    ),
+                ),
+            )
+        )
+
+        assertTrue(diagnostics.any { it.field?.endsWith("request_match") == true && "must define query, headers, or body_contains" in it.message })
+    }
+
     private fun projectWithEndpoints(vararg endpoints: EndpointDocument): MoqProject {
         return MoqProject(
             manifest = ProjectManifest(
