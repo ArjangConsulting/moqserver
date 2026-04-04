@@ -296,6 +296,145 @@ struct AuthValidationTests {
         }
     }
 
+    @Test("Token endpoint rejects missing grant_type")
+    func tokenRejectsMissingGrantType() async throws {
+        let store = InMemoryMockStore()
+        let app = try await buildApp(store: store, config: config)
+        defer { Task { try? await app.asyncShutdown() } }
+
+        try await app.testing().test(
+            .POST, "/_auth/token",
+            headers: ["Content-Type": "application/x-www-form-urlencoded"],
+            body: ByteBuffer(string: "client_id=client1&client_secret=secret1")
+        ) { res async in
+            #expect(res.status == .badRequest)
+            #expect(res.body.string.contains("unsupported_grant_type"))
+            #expect(res.body.string.contains("Missing grant_type"))
+        }
+    }
+
+    @Test("Token endpoint rejects unsupported grant types")
+    func tokenRejectsUnsupportedGrantType() async throws {
+        let store = InMemoryMockStore()
+        let app = try await buildApp(store: store, config: config)
+        defer { Task { try? await app.asyncShutdown() } }
+
+        try await app.testing().test(
+            .POST, "/_auth/token",
+            headers: ["Content-Type": "application/x-www-form-urlencoded"],
+            body: ByteBuffer(string: "grant_type=device_code")
+        ) { res async in
+            #expect(res.status == .badRequest)
+            #expect(res.body.string.contains("unsupported_grant_type"))
+            #expect(res.body.string.contains("device_code"))
+        }
+    }
+
+    @Test("Token endpoint accepts client credentials from Basic auth header")
+    func tokenClientCredentialsFromBasicHeader() async throws {
+        let store = InMemoryMockStore()
+        let app = try await buildApp(store: store, config: config)
+        defer { Task { try? await app.asyncShutdown() } }
+
+        let creds = Data("client1:secret1".utf8).base64EncodedString()
+        try await app.testing().test(
+            .POST, "/_auth/token",
+            headers: [
+                "Content-Type": "application/x-www-form-urlencoded",
+                "Authorization": "Basic \(creds)",
+            ],
+            body: ByteBuffer(string: "grant_type=client_credentials&scope=read")
+        ) { res async in
+            #expect(res.status == .ok)
+            let body = res.body.string
+            #expect(body.contains("valid-oauth-token"))
+            #expect(body.contains("\"scope\":\"read\""))
+        }
+    }
+
+    @Test("Token endpoint returns scoped configured token when scopes match")
+    func tokenReturnsScopedConfiguredToken() async throws {
+        let scopedConfig = ServerConfig(
+            auth: .init(
+                bearerTokens: ["valid-bearer"],
+                basicCredentials: [.init(username: "admin", password: "pass")],
+                apiKeys: ["X-API-Key": "valid-key"],
+                oauth2Tokens: ["token-read", "token-admin"],
+                oauth2Clients: [.init(clientId: "client1", clientSecret: "secret1")],
+                oauth2TokenScopes: [
+                    "token-read": ["read"],
+                    "token-admin": ["read", "admin"],
+                ]
+            )
+        )
+
+        let store = InMemoryMockStore()
+        let app = try await buildApp(store: store, config: scopedConfig)
+        defer { Task { try? await app.asyncShutdown() } }
+
+        try await app.testing().test(
+            .POST, "/_auth/token",
+            headers: ["Content-Type": "application/x-www-form-urlencoded"],
+            body: ByteBuffer(string: "grant_type=client_credentials&client_id=client1&client_secret=secret1&scope=admin%20read")
+        ) { res async in
+            #expect(res.status == .ok)
+            let body = res.body.string
+            #expect(body.contains("token-admin"))
+            #expect(body.contains("\"scope\":\"admin read\""))
+        }
+    }
+
+    @Test("Token endpoint rejects invalid password grant credentials")
+    func tokenRejectsInvalidPasswordGrant() async throws {
+        let store = InMemoryMockStore()
+        let app = try await buildApp(store: store, config: config)
+        defer { Task { try? await app.asyncShutdown() } }
+
+        try await app.testing().test(
+            .POST, "/_auth/token",
+            headers: ["Content-Type": "application/x-www-form-urlencoded"],
+            body: ByteBuffer(string: "grant_type=password&username=admin&password=wrong")
+        ) { res async in
+            #expect(res.status == .badRequest)
+            #expect(res.body.string.contains("invalid_grant"))
+        }
+    }
+
+    @Test("Token endpoint rejects missing authorization code")
+    func tokenRejectsMissingAuthorizationCode() async throws {
+        let store = InMemoryMockStore()
+        let app = try await buildApp(store: store, config: config)
+        defer { Task { try? await app.asyncShutdown() } }
+
+        try await app.testing().test(
+            .POST, "/_auth/token",
+            headers: ["Content-Type": "application/x-www-form-urlencoded"],
+            body: ByteBuffer(string: "grant_type=authorization_code")
+        ) { res async in
+            #expect(res.status == .badRequest)
+            #expect(res.body.string.contains("invalid_grant"))
+            #expect(res.body.string.contains("Missing authorization code"))
+        }
+    }
+
+    @Test("Token endpoint supports refresh_token grant")
+    func tokenRefreshTokenGrant() async throws {
+        let store = InMemoryMockStore()
+        let app = try await buildApp(store: store, config: config)
+        defer { Task { try? await app.asyncShutdown() } }
+
+        try await app.testing().test(
+            .POST, "/_auth/token",
+            headers: ["Content-Type": "application/x-www-form-urlencoded"],
+            body: ByteBuffer(string: "grant_type=refresh_token")
+        ) { res async in
+            #expect(res.status == .ok)
+            let body = res.body.string
+            #expect(body.contains("access_token"))
+            #expect(!body.contains("\"scope\":"))
+        }
+    }
+
     @Test("Authorize endpoint redirects with code")
     func authorizeRedirects() async throws {
         let store = InMemoryMockStore()
@@ -308,6 +447,20 @@ struct AuthValidationTests {
             #expect(location != nil)
             #expect(location?.contains("http://example.com/cb?code=mock-auth-code-") == true)
             #expect(location?.contains("state=xyz") == true)
+        }
+    }
+
+    @Test("Authorize endpoint uses default redirect URI when omitted")
+    func authorizeUsesDefaultRedirectUri() async throws {
+        let store = InMemoryMockStore()
+        let app = try await buildApp(store: store, config: config)
+        defer { Task { try? await app.asyncShutdown() } }
+
+        try await app.testing().test(.GET, "/_auth/authorize") { res async in
+            #expect(res.status == .found)
+            let location = res.headers.first(name: "Location")
+            #expect(location?.contains("http://localhost/callback?code=mock-auth-code-") == true)
+            #expect(location?.contains("state=") == false)
         }
     }
 }

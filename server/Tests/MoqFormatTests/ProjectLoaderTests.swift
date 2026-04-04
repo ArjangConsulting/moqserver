@@ -10,6 +10,62 @@ struct ProjectLoaderTests {
         return url.path
     }
 
+    func makeTempProject(
+        manifestYAML: String? = nil,
+        endpointFiles: [String: String] = [:],
+        createEndpointsDirectory: Bool = true
+    ) throws -> String {
+        let root = (NSTemporaryDirectory() as NSString).appendingPathComponent("loader-test-\(UUID().uuidString).moqproj")
+        try FileManager.default.createDirectory(atPath: root, withIntermediateDirectories: true)
+
+        if let manifestYAML {
+            let manifestPath = (root as NSString).appendingPathComponent("project.yml")
+            try manifestYAML.write(toFile: manifestPath, atomically: true, encoding: .utf8)
+        }
+
+        if createEndpointsDirectory {
+            let endpointsPath = (root as NSString).appendingPathComponent("endpoints")
+            try FileManager.default.createDirectory(atPath: endpointsPath, withIntermediateDirectories: true)
+            for (name, yaml) in endpointFiles {
+                let filePath = (endpointsPath as NSString).appendingPathComponent(name)
+                try yaml.write(toFile: filePath, atomically: true, encoding: .utf8)
+            }
+        }
+
+        return root
+    }
+
+    var validManifestYAML: String {
+        """
+        version: "1"
+        name: "Temp"
+        defaults:
+          delay_ms: 0
+          auth:
+            type: none
+            verify: false
+            header_name: null
+          network:
+            latency_ms: 0
+            jitter_ms: 0
+            packet_loss_percent: 0
+        """
+    }
+
+    func endpointYAML(id: String, method: String = "GET", path: String = "/\(UUID().uuidString.lowercased())") -> String {
+        """
+        id: \(id)
+        alias: "\(id)"
+        reference_name: "\(id.replacingOccurrences(of: "-", with: ""))"
+        method: \(method)
+        path: \(path)
+        variants:
+          - name: default
+            reference_name: "default"
+            status: 200
+        """
+    }
+
     @Test("Loads sample project successfully")
     func loadsSampleProject() throws {
         let loader = ProjectLoader()
@@ -125,5 +181,99 @@ struct ProjectLoaderTests {
         #expect(throws: ProjectLoadError.self) {
             try loader.load(from: "/nonexistent/path.moqproj")
         }
+    }
+
+    @Test("Rejects paths that are not directories")
+    func rejectsNonDirectoryPath() throws {
+        let filePath = (NSTemporaryDirectory() as NSString).appendingPathComponent("loader-file-\(UUID().uuidString).txt")
+        try "test".write(toFile: filePath, atomically: true, encoding: .utf8)
+        defer { try? FileManager.default.removeItem(atPath: filePath) }
+
+        do {
+            _ = try ProjectLoader().load(from: filePath)
+            Issue.record("Expected notADirectory error")
+        } catch let error as ProjectLoadError {
+            #expect(error.description.contains("Not a directory"))
+        }
+    }
+
+    @Test("Rejects missing manifest file")
+    func rejectsMissingManifest() throws {
+        let projectPath = try makeTempProject(manifestYAML: nil, endpointFiles: ["a.yml": endpointYAML(id: "a")])
+        defer { try? FileManager.default.removeItem(atPath: projectPath) }
+
+        do {
+            _ = try ProjectLoader().load(from: projectPath)
+            Issue.record("Expected missingManifest error")
+        } catch let error as ProjectLoadError {
+            #expect(error.description.contains("Missing project.yml"))
+        }
+    }
+
+    @Test("Rejects invalid manifest YAML")
+    func rejectsInvalidManifest() throws {
+        let projectPath = try makeTempProject(manifestYAML: "defaults: [", endpointFiles: ["a.yml": endpointYAML(id: "a")])
+        defer { try? FileManager.default.removeItem(atPath: projectPath) }
+
+        do {
+            _ = try ProjectLoader().load(from: projectPath)
+            Issue.record("Expected invalidManifest error")
+        } catch let error as ProjectLoadError {
+            #expect(error.description.contains("Invalid project.yml"))
+        }
+    }
+
+    @Test("Rejects missing endpoints directory")
+    func rejectsMissingEndpointsDirectory() throws {
+        let projectPath = try makeTempProject(manifestYAML: validManifestYAML, createEndpointsDirectory: false)
+        defer { try? FileManager.default.removeItem(atPath: projectPath) }
+
+        do {
+            _ = try ProjectLoader().load(from: projectPath)
+            Issue.record("Expected missingEndpointsDirectory error")
+        } catch let error as ProjectLoadError {
+            #expect(error.description.contains("Missing endpoints/ directory"))
+        }
+    }
+
+    @Test("Rejects empty endpoints directory")
+    func rejectsEmptyEndpointsDirectory() throws {
+        let projectPath = try makeTempProject(manifestYAML: validManifestYAML)
+        defer { try? FileManager.default.removeItem(atPath: projectPath) }
+
+        do {
+            _ = try ProjectLoader().load(from: projectPath)
+            Issue.record("Expected noEndpointFiles error")
+        } catch let error as ProjectLoadError {
+            #expect(error.description.contains("No endpoint files found"))
+        }
+    }
+
+    @Test("Rejects invalid endpoint YAML")
+    func rejectsInvalidEndpointYAML() throws {
+        let projectPath = try makeTempProject(manifestYAML: validManifestYAML, endpointFiles: ["broken.yml": "variants: ["])
+        defer { try? FileManager.default.removeItem(atPath: projectPath) }
+
+        do {
+            _ = try ProjectLoader().load(from: projectPath)
+            Issue.record("Expected invalidEndpointFile error")
+        } catch let error as ProjectLoadError {
+            #expect(error.description.contains("Invalid endpoint file"))
+        }
+    }
+
+    @Test("Loads yml and yaml endpoint files in sorted filename order")
+    func loadsMixedExtensionsInSortedOrder() throws {
+        let projectPath = try makeTempProject(
+            manifestYAML: validManifestYAML,
+            endpointFiles: [
+                "b.yml": endpointYAML(id: "b", path: "/b"),
+                "a.yaml": endpointYAML(id: "a", path: "/a"),
+            ]
+        )
+        defer { try? FileManager.default.removeItem(atPath: projectPath) }
+
+        let project = try ProjectLoader().load(from: projectPath)
+        #expect(project.endpoints.map(\.id) == ["a", "b"])
     }
 }

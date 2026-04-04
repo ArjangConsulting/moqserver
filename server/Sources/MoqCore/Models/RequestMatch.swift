@@ -17,4 +17,13 @@ public struct RequestMatch: Codable, Equatable, Sendable {
         self.headers = headers
         self.bodyContains = bodyContains
     }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.init(
+            query: try container.decodeIfPresent([String: String].self, forKey: .query) ?? [:],
+            headers: try container.decodeIfPresent([String: String].self, forKey: .headers) ?? [:],
+            bodyContains: try container.decodeIfPresent(String.self, forKey: .bodyContains)
+        )
+    }
 }

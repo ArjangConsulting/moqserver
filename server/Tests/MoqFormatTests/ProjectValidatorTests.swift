@@ -40,6 +40,33 @@ struct ProjectValidatorTests {
         #expect(errors.isEmpty)
     }
 
+    @Test("Rejects unsupported manifest version")
+    func rejectsUnsupportedManifestVersion() {
+        let project = MoqProject(
+            manifest: ProjectManifest(
+                version: "2",
+                name: "Test",
+                defaults: ProjectDefaults(
+                    delayMs: 0,
+                    auth: ProjectAuthConfig(type: .none, verify: false),
+                    network: NetworkBehavior()
+                )
+            ),
+            endpoints: [sampleEndpoint()],
+            projectPath: "/tmp/test.moqproj"
+        )
+
+        let errors = validator.validate(project).filter { $0.severity == .error }
+        #expect(errors.contains { $0.file == "project.yml" && $0.field == "version" })
+    }
+
+    @Test("Rejects projects with no endpoints")
+    func rejectsProjectsWithNoEndpoints() {
+        let project = makeProject(endpoints: [])
+        let errors = validator.validate(project).filter { $0.severity == .error }
+        #expect(errors.contains { $0.message.contains("No endpoint files found") })
+    }
+
     @Test("Detects duplicate endpoint IDs")
     func detectsDuplicateIds() {
         let project = makeProject(endpoints: [
@@ -105,6 +132,23 @@ struct ProjectValidatorTests {
 
         let errors = validator.validate(project).filter { $0.severity == .error }
         #expect(errors.contains { $0.message.contains("request_match must define query, headers, or body_contains") })
+    }
+
+    @Test("Rejects blank query and header names in variant request_match")
+    func rejectsBlankRequestMatchNames() {
+        let project = makeProject(endpoints: [
+            sampleEndpoint(variants: [
+                ProjectVariant(
+                    name: "default",
+                    status: 200,
+                    requestMatch: RequestMatch(query: ["": "pets"], headers: ["": "admin"])
+                ),
+            ]),
+        ])
+
+        let errors = validator.validate(project).filter { $0.severity == .error }
+        #expect(errors.contains { $0.message.contains("query names must not be blank") })
+        #expect(errors.contains { $0.message.contains("header names must not be blank") })
     }
 
     @Test("Rejects body and body_file together")
@@ -195,6 +239,49 @@ struct ProjectValidatorTests {
         ])
         let errors = validator.validate(project).filter { $0.severity == .error }
         #expect(errors.contains { $0.message.contains("at least one of") })
+    }
+
+    @Test("Warns when endpoint operation is used outside /graphql")
+    func graphQLOperationOutsideGraphQLPathWarns() {
+        let project = makeProject(endpoints: [
+            EndpointDocument(
+                id: "users-query",
+                method: "POST",
+                path: "/users/query",
+                operation: EndpointOperation(type: .query, name: "UsersQuery"),
+                variants: [ProjectVariant(name: "default", status: 200)]
+            ),
+        ])
+
+        let warnings = validator.validate(project).filter { $0.severity == .warning }
+        #expect(warnings.contains { $0.message.contains("path is not /graphql") })
+    }
+
+    @Test("Rejects GraphQL document that is blank after trimming")
+    func graphQLDocumentMustNotBeBlank() {
+        let project = makeProject(endpoints: [
+            EndpointDocument(
+                id: "graphql-test",
+                method: "POST",
+                path: "/graphql",
+                operation: EndpointOperation(type: .query, document: "  \n  "),
+                variants: [ProjectVariant(name: "default", status: 200)]
+            ),
+        ])
+
+        let errors = validator.validate(project).filter { $0.severity == .error }
+        #expect(errors.contains { $0.message.contains("non-empty after normalization") })
+    }
+
+    @Test("Rejects invalid HTTP method and non-absolute path")
+    func rejectsInvalidMethodAndPath() {
+        let project = makeProject(endpoints: [
+            sampleEndpoint(method: "TRACE", path: "pets"),
+        ])
+
+        let errors = validator.validate(project).filter { $0.severity == .error }
+        #expect(errors.contains { $0.message.contains("Invalid HTTP method") })
+        #expect(errors.contains { $0.message.contains("Path must start with") })
     }
 
     @Test("Rejects duplicate variant names")

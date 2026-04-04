@@ -28,7 +28,7 @@ public struct MockFileLoader: MockFileLoading {
 
     public func load(from directory: String) throws -> [Endpoint] {
         let expandedPath = (directory as NSString).expandingTildeInPath
-        let baseURL = URL(fileURLWithPath: expandedPath, isDirectory: true)
+        let baseURL = URL(fileURLWithPath: expandedPath, isDirectory: true).resolvingSymlinksInPath()
         let fm = FileManager.default
 
         guard fm.fileExists(atPath: baseURL.path) else {
@@ -49,7 +49,9 @@ public struct MockFileLoader: MockFileLoading {
             guard fileURL.pathExtension == "json" else { continue }
             guard !fileURL.lastPathComponent.hasSuffix(".meta.json") else { continue }
 
-            let relativePath = fileURL.path
+            let resolvedFileURL = fileURL.resolvingSymlinksInPath()
+
+            let relativePath = resolvedFileURL.path
                 .replacingOccurrences(of: baseURL.path, with: "")
                 .trimmingCharacters(in: CharacterSet(charactersIn: "/"))
 
@@ -57,9 +59,9 @@ public struct MockFileLoader: MockFileLoading {
                 continue
             }
 
-            let data = try Data(contentsOf: fileURL)
+            let data = try Data(contentsOf: resolvedFileURL)
             let key = EndpointKey(method: HTTPMethodValue(rawValue: method), path: apiPath)
-            let metadata = try Self.loadMeta(for: fileURL)
+            let metadata = try Self.loadMeta(for: resolvedFileURL)
             let statusCode = metadata?.statusCode.map { HTTPStatusCode(code: UInt($0)) }
                 ?? Self.statusCodeFromVariantName(variantName)
             var headers = metadata?.headers?.map { ($0.key, $0.value) } ?? []

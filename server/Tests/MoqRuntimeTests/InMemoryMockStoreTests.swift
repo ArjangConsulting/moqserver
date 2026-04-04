@@ -191,4 +191,60 @@ struct InMemoryMockStoreTests {
         let regular = await store.lookup(method: .post, path: "/graphql")
         #expect(regular == nil)
     }
+
+    @Test("Merging variants updates existing names and appends new ones")
+    func mergeVariants() async throws {
+        let store = InMemoryMockStore()
+        await store.register(Endpoint(
+            key: EndpointKey(method: .get, path: "/pets"),
+            authRequirement: .none,
+            variants: [
+                ResponseVariant(name: "default", statusCode: .ok, body: Data("old".utf8)),
+            ]
+        ))
+
+        await store.mergeVariants(from: Endpoint(
+            key: EndpointKey(method: .get, path: "/pets"),
+            authRequirement: .none,
+            variants: [
+                ResponseVariant(name: "default", statusCode: .ok, body: Data("new".utf8)),
+                ResponseVariant(name: "error-404", statusCode: .notFound, body: Data("missing".utf8)),
+            ]
+        ))
+
+        let endpoint = await store.lookup(method: .get, path: "/pets")
+        #expect(endpoint?.variants.count == 2)
+        let defaultBody = try #require(endpoint?.variants.first { $0.name == "default" }?.body)
+        #expect(String(data: defaultBody, encoding: .utf8) == "new")
+        #expect(endpoint?.variants.contains { $0.name == "error-404" } == true)
+    }
+
+    @Test("Variant override persistence survives store recreation")
+    func variantOverridePersistence() async {
+        let persistencePath = (NSTemporaryDirectory() as NSString).appendingPathComponent("variant-overrides-\(UUID().uuidString).json")
+        defer { try? FileManager.default.removeItem(atPath: persistencePath) }
+
+        let firstStore = InMemoryMockStore()
+        await firstStore.configureVariantOverridePersistence(path: persistencePath)
+        await firstStore.setVariantOverride(for: "GET /pets", variant: "error-500")
+
+        let secondStore = InMemoryMockStore()
+        await secondStore.configureVariantOverridePersistence(path: persistencePath)
+        #expect(await secondStore.activeVariantOverride(for: "GET /pets") == "error-500")
+
+        await secondStore.resetVariantOverride(for: "GET /pets")
+        #expect(await secondStore.activeVariantOverride(for: "GET /pets") == nil)
+    }
+
+    @Test("Registering GraphQL endpoint with same operation name replaces prior entry")
+    func graphQLRegistrationReplacesSameOperationName() async throws {
+        let store = InMemoryMockStore()
+        await store.register(makeGraphQLEndpoint(operationName: "GetUser", body: "first"))
+        await store.register(makeGraphQLEndpoint(operationName: "GetUser", body: "second"))
+
+        let endpoint = await store.lookupGraphQL(method: .post, path: "/graphql", operationName: "GetUser", operationType: .query, normalizedDocument: nil)
+        let body = try #require(endpoint?.variants.first?.body)
+        #expect(String(data: body, encoding: .utf8) == "second")
+        #expect((await store.allEndpoints()).count == 1)
+    }
 }

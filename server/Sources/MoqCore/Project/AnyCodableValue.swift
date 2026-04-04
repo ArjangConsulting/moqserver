@@ -82,7 +82,11 @@ extension AnyCodableValue {
         guard JSONSerialization.isValidJSONObject(obj) || obj is String || obj is NSNumber else {
             return nil
         }
-        let options: JSONSerialization.WritingOptions = prettyPrinted ? [.prettyPrinted, .sortedKeys] : [.sortedKeys]
+        let isFragment = !JSONSerialization.isValidJSONObject(obj)
+        var options: JSONSerialization.WritingOptions = prettyPrinted ? [.prettyPrinted, .sortedKeys] : [.sortedKeys]
+        if isFragment {
+            options.insert(.fragmentsAllowed)
+        }
         return try? JSONSerialization.data(withJSONObject: obj, options: options)
     }
 }

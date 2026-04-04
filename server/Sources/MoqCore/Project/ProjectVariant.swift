@@ -55,6 +55,14 @@ public struct ProjectVariant: Codable, Sendable, Equatable {
     public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         let name = try container.decode(String.self, forKey: .name)
+        let body: AnyCodableValue?
+        if container.contains(.body) {
+            let bodyContainer = try container.superDecoder(forKey: .body)
+            body = try AnyCodableValue(from: bodyContainer)
+        } else {
+            body = nil
+        }
+
         self.init(
             name: name,
             referenceName: try container.decodeIfPresent(String.self, forKey: .referenceName),
@@ -62,7 +70,7 @@ public struct ProjectVariant: Codable, Sendable, Equatable {
             status: try container.decode(Int.self, forKey: .status),
             headers: try container.decodeIfPresent([String: String].self, forKey: .headers),
             requestMatch: try container.decodeIfPresent(RequestMatch.self, forKey: .requestMatch),
-            body: try container.decodeIfPresent(AnyCodableValue.self, forKey: .body),
+            body: body,
             bodyFile: try container.decodeIfPresent(String.self, forKey: .bodyFile),
             delayMs: try container.decodeIfPresent(Int.self, forKey: .delayMs)
         )
