@@ -28,6 +28,7 @@ out/
 *.log
 *.pid
 *.pid.lock
+*.profraw
 
 # Environment and secrets
 .env
