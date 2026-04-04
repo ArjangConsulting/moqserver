@@ -674,11 +674,11 @@ Support direct provider access for:
 
 However, the product architecture should be explicit about secret handling:
 
-- API keys should come from environment variables owned by the user, such as `OPENAI_API_KEY` and `ANTHROPIC_API_KEY`.
-- Those environment variables should be read by a local companion process, local CLI bridge, or user-managed gateway.
-- The Studio app should call that local bridge, not the upstream provider directly with raw secrets.
+- API keys should come from user-managed Studio settings or another secure local credential source.
+- The Studio app may call upstream providers directly for bounded authoring tasks.
+- Teams that prefer a gateway or proxy can still use an OpenAI-compatible endpoint instead of direct hosted access.
 
-This design keeps Studio desktop-first while still supporting env-based secrets cleanly.
+This design keeps Studio desktop-first while still supporting local and hosted providers cleanly.
 
 #### 3. Generic OpenAI-compatible endpoint
 
@@ -727,62 +727,9 @@ Use a layered provider design:
 
 3. `CredentialSource` abstraction
   - no-auth local mode
-  - env-var via local companion
+  - Studio-managed settings or secure local storage
   - OS keychain/secure local storage if a desktop wrapper is added later
   - ephemeral user session token if a team runs its own gateway
-
-4. `LocalAIProxy` or companion process
-  - optional, but strongly recommended for env-var-backed hosted providers in a desktop-first app
-  - reads env vars locally
-  - injects provider-specific auth headers
-  - enforces redaction and request logging policy before outbound calls
-
-### Local AI companion decision
-
-The local AI companion should be implemented in **Swift**, using Vapor inside the existing moqserver codebase, rather than as a separate Node or Kotlin service.
-
-Recommended shape:
-
-- a new CLI mode such as `moqserver ai-proxy` or `moqserver studio-bridge`
-- lightweight localhost HTTP endpoints used by Studio
-- provider adapters implemented in Swift
-- request redaction, provider routing, and usage logging handled in one place
-
-#### Why Swift is the right choice here
-
-- The repository already centers on Swift and Vapor.
-- The team can reuse existing project structure, packaging, logging, Docker setup patterns, and operational knowledge.
-- It avoids introducing a second backend runtime just to read env vars and proxy AI requests.
-- It keeps responsibilities clean: the Compose desktop app owns authoring UX, while Swift/Vapor handles secrets, provider calls, and local service integration.
-
-#### Why not a separate Node service
-
-Node would also work technically, but it would create an unnecessary second backend stack in this monorepo. That is hard to justify when the core runtime is already Swift and the companion service is mostly a local trust-boundary and provider-routing layer.
-
-### Local AI companion responsibilities
-
-The companion process should be responsible for:
-
-- reading env vars such as `OPENAI_API_KEY` and `ANTHROPIC_API_KEY`
-- validating provider configuration received from Studio
-- redacting or rejecting unsafe payloads before remote provider calls
-- forwarding structured requests to Ollama, OpenAI, Anthropic, or compatible endpoints
-- normalizing provider responses into one internal result shape
-- surfacing provider errors, rate limits, usage, and request ids back to Studio
-
-The companion should not own project editing logic. It should be a secure transport and policy boundary, not another application brain.
-
-### Studio-to-companion contract
-
-The desktop app should call a narrow local HTTP API or local IPC surface, for example:
-
-- `POST /ai/generate-variants`
-- `POST /ai/analyze-spec`
-- `POST /ai/refine-project`
-- `GET /ai/providers`
-- `POST /ai/validate-config`
-
-Studio sends redacted project context and a structured intent. The companion chooses the provider adapter, executes the request, and returns normalized structured results.
 
 ### Implementation blueprint
 
@@ -802,12 +749,15 @@ The desktop Studio should start as a small Gradle multi-project build with expli
   - project/session state
   - undo/redo contracts
   - selection, navigation, dirty-state tracking
-  - companion DTOs and editor-facing models
+  - AI action DTOs and editor-facing models
 - `studio-data`
-  - local companion HTTP client
   - filesystem IO
   - YAML parsing/emission
   - schema/validation adapters
+- `studio-ai`
+  - provider integrations
+  - prompt building and response parsing
+  - provider configuration validation
 - `studio-code-editor`
   - Compose-to-Swing interop wrapper for structured text editing
   - JSON/YAML editor widgets based on `RSyntaxTextArea`
@@ -993,49 +943,9 @@ Example:
 }
 ```
 
-#### Concrete endpoints
+#### Example validation schema
 
-Recommended v1 endpoints:
-
-- `GET /ai/providers`
-  - returns available provider kinds, configured presets, and health state
-- `POST /ai/validate-config`
-  - validates provider config before saving or use
-- `POST /ai/analyze-spec`
-  - analyzes imported OpenAPI/HAR or current project state
-- `POST /ai/generate-variants`
-  - returns draft variants for one or more endpoints
-- `POST /ai/refine-project`
-  - returns structural suggestions such as aliases, grouping, fixture extraction, and cleanup actions
-
-#### Example endpoint schemas
-
-`GET /ai/providers` response:
-
-```json
-{
-  "providers": [
-    {
-      "id": "local-ollama-default",
-      "kind": "ollama",
-      "display_name": "Local Ollama",
-      "model": "qwen3:8b",
-      "healthy": true,
-      "capabilities": ["analyze_spec", "generate_variants", "refine_project"]
-    },
-    {
-      "id": "openai-env",
-      "kind": "openai",
-      "display_name": "OpenAI via OPENAI_API_KEY",
-      "model": "gpt-5.4",
-      "healthy": false,
-      "capabilities": ["analyze_spec", "generate_variants", "refine_project"]
-    }
-  ]
-}
-```
-
-`POST /ai/validate-config` request:
+`validate-config` request:
 
 ```json
 {
@@ -1044,14 +954,13 @@ Recommended v1 endpoints:
     "base_url": "https://api.anthropic.com",
     "model": "claude-sonnet-4-6",
     "auth": {
-      "mode": "env_var",
-      "env_var_name": "ANTHROPIC_API_KEY"
+      "mode": "settings"
     }
   }
 }
 ```
 
-`POST /ai/validate-config` response:
+`validate-config` response:
 
 ```json
 {
@@ -1155,18 +1064,6 @@ Example:
 }
 ```
 
-### Transport and security rules
-
-For v1, localhost HTTP is acceptable as the transport boundary between Studio and the Swift companion, provided that:
-
-- the companion binds to localhost only
-- requests are accepted only from the local machine
-- mutating endpoints require a short-lived session token or equivalent local trust check
-- request bodies are size-limited
-- redaction happens before remote provider calls
-
-If later needed, this can evolve to a stronger local IPC approach without changing the high-level contract.
-
 ### Configuration model
 
 Studio should let users configure AI backends with a small, explicit config model.
@@ -1184,15 +1081,15 @@ Example fields:
 
 This config should be separate from the `.moqproj` runtime contract. It is authoring configuration, not mock-server behavior.
 
-For v1, this configuration can live in Studio-local settings and companion-process configuration. It does not need to be checked into the `.moqproj` unless the team later decides some non-secret defaults should travel with a project.
+For v1, this configuration can live in Studio-local settings. It does not need to be checked into the `.moqproj` unless the team later decides some non-secret defaults should travel with a project.
 
 ### Recommended support matrix
 
 For initial implementation, the best pragmatic support matrix is:
 
 - `ollama` as the zero-secret local default
-- `openai` via local companion reading `OPENAI_API_KEY`
-- `anthropic` via local companion reading `ANTHROPIC_API_KEY`
+- `openai` via direct Studio configuration
+- `anthropic` via direct Studio configuration
 - `openai-compatible` for everything that behaves like the OpenAI API
 
 That combination gives strong coverage with limited complexity.

@@ -24,11 +24,11 @@ data class OllamaSettings(
     val baseUrl: String = DEFAULT_BASE_URL,
     val defaultModel: String = DEFAULT_MODEL,
 ) {
-    companion object {
-        /** Keep in sync with OllamaAIProvider defaults in studio-ai. */
-        const val DEFAULT_BASE_URL = "http://localhost:11434"
-        const val DEFAULT_MODEL = "Qwen3.5-coder"
-    }
+	companion object {
+		/** Keep in sync with OllamaAIProvider defaults in studio-ai. */
+		const val DEFAULT_BASE_URL = "http://localhost:11434"
+		const val DEFAULT_MODEL = "llama3.2:latest"
+	}
 }
 
 @Serializable

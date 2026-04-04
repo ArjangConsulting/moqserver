@@ -26,8 +26,13 @@ Build a desktop-first authoring tool that can reliably create, inspect, edit, va
 - filesystem IO
 - YAML load/save
 - validation adapters
-- companion API client
 - import pipelines
+
+### `studio-ai`
+
+- AI provider integrations
+- prompt building and response parsing
+- provider configuration validation
 
 ### `studio-code-editor`
 
@@ -154,21 +159,21 @@ Exit criteria:
 
 - noisy captures become editable draft endpoints
 
-## Slice 7: Companion Connectivity
+## Slice 7: AI Provider Configuration
 
 User outcome:
 
-- Studio can discover the local companion and available providers
+- Studio can configure a default AI provider and validate provider connectivity
 
 Required work:
 
-- health endpoint
-- provider list endpoint
-- config validation flow
+- settings UI for provider selection and credentials
+- direct provider validation flow
+- provider availability/status handling
 
 Exit criteria:
 
-- Studio shows provider availability and meaningful failures
+- Studio shows provider availability and meaningful failures without requiring a separate local server
 
 ## Slice 8: AI-Assisted Actions
 
@@ -195,7 +200,7 @@ Exit criteria:
 - variant JSON editor pane
 - validation panel
 - import entry points
-- companion/provider settings screen
+- AI provider settings screen
 
 ## Risks
 

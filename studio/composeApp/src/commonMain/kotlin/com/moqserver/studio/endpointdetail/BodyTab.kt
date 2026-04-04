@@ -38,6 +38,8 @@ private object BodyTabStrings {
 	const val AI_PROMPT_TITLE = "Generate response body"
 	const val AI_PROMPT_LABEL = "Prompt"
 	const val AI_PROMPT_HELP = "AI can use the current status code, variant name, and API URL to generate this response body."
+	const val AI_GENERATING = "Generating body with AI..."
+	const val AI_ERROR_PREFIX = "AI error: "
 	const val AI_CONTEXT_ENDPOINT = "Endpoint"
 	const val AI_CONTEXT_VARIANT = "Variant"
 	const val AI_CONTEXT_STATUS = "Status"
@@ -60,6 +62,8 @@ internal fun BodyTab(
 	variant: ProjectVariant,
 	aiProviderLabel: String?,
 	canGenerateWithAi: Boolean,
+	isGeneratingWithAi: Boolean,
+	generationError: String?,
 	onGenerateBody: (String) -> Unit,
 	projectPath: String = "",
 	onUpdate: (ProjectVariant) -> Unit,
@@ -192,12 +196,36 @@ internal fun BodyTab(
 			}
 			currentText != null -> {
 				BodyFormatTabs(selectedFormat = selectedFormat, onSelect = { selectedFormat = it })
+				if (isGeneratingWithAi) {
+					Row(
+						verticalAlignment = Alignment.CenterVertically,
+						horizontalArrangement = Arrangement.spacedBy(StudioDimens.m),
+					) {
+						CircularProgressIndicator(
+							modifier = Modifier.size(StudioDimens.smallSpinnerSize),
+							strokeWidth = StudioDimens.thinSpinnerStroke,
+						)
+						Text(
+							text = BodyTabStrings.AI_GENERATING,
+							style = MaterialTheme.typography.bodySmall,
+							color = MaterialTheme.colorScheme.onSurfaceVariant,
+						)
+					}
+				}
+				generationError?.let { error ->
+					Text(
+						text = BodyTabStrings.AI_ERROR_PREFIX + error,
+						style = MaterialTheme.typography.bodySmall,
+						color = MaterialTheme.colorScheme.error,
+					)
+				}
 				BodyEditorPanel(
 					currentText = currentText,
 					isEditing = isEditing,
 					isJsonBody = isJsonBody,
 					draftText = draftText,
 					canGenerateWithAi = canGenerateWithAi,
+					isGeneratingWithAi = isGeneratingWithAi,
 					onDraftTextChange = { updated ->
 						draftText = updated
 						if (validationError != null && isJsonBody) {
@@ -258,6 +286,7 @@ private fun BodyEditorPanel(
 	isJsonBody: Boolean,
 	draftText: String,
 	canGenerateWithAi: Boolean,
+	isGeneratingWithAi: Boolean,
 	onDraftTextChange: (String) -> Unit,
 	selectedFormat: BodyFormat,
 	onEdit: () -> Unit,
@@ -294,6 +323,7 @@ private fun BodyEditorPanel(
 					isEditing = isEditing,
 					canEdit = true,
 					canGenerateWithAi = canGenerateWithAi,
+					isGeneratingWithAi = isGeneratingWithAi,
 					isJsonBody = isJsonBody,
 					onEdit = onEdit,
 					onGenerateBody = onGenerateBody,
@@ -369,6 +399,7 @@ private fun BodyTabActions(
 	isEditing: Boolean,
 	canEdit: Boolean,
 	canGenerateWithAi: Boolean,
+	isGeneratingWithAi: Boolean,
 	isJsonBody: Boolean,
 	onEdit: () -> Unit,
 	onGenerateBody: () -> Unit,
@@ -403,6 +434,7 @@ private fun BodyTabActions(
 				if (canGenerateWithAi) {
 					FilledTonalButton(
 						onClick = onGenerateBody,
+						enabled = !isGeneratingWithAi,
 						contentPadding = PaddingValues(horizontal = StudioDimens.l, vertical = StudioDimens.m),
 					) {
 						Icon(Icons.Outlined.AutoAwesome, contentDescription = BodyTabStrings.GENERATE_BODY)

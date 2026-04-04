@@ -22,7 +22,6 @@ swift test
 swift test --filter MoqRuntimeTests   # single test target
 swift test --filter "testAdminAPI"    # single test case
 swift run moqserver serve --spec ../samples/server/openapi.yaml --port 8080
-swift run moqserver companion --port 8081
 swift run moqserver validate-spec ../samples/server/openapi.yaml
 swift run moqserver validate path/to/project.moqproj
 ```
@@ -37,11 +36,10 @@ The server is split into focused Swift package targets:
 | `MoqParsing` | OpenAPI 3.0/3.1 + HAR parsing, spec validation |
 | `MoqFormat` | `.moqproj` file loading, writing, validation, runtime conversion |
 | `MoqRuntime` | Vapor app, routing, mock storage, admin API, auth |
-| `MoqCompanionAI` | AI companion server (Vapor), provider abstraction, redaction |
 | `MoqCLI` | ArgumentParser subcommands wiring everything together |
 | `Run` | `@main` entry point only |
 
-Dependency direction: `Run → MoqCLI → MoqRuntime / MoqCompanionAI → MoqFormat → MoqParsing → MoqCore`
+Dependency direction: `Run → MoqCLI → MoqRuntime → MoqFormat → MoqParsing → MoqCore`
 
 ## Architecture
 
@@ -67,10 +65,6 @@ Incoming request
 - **`SchemaParser` protocol** — extensible for AsyncAPI/Postman/etc.
 - **ArgumentParser CLI** — not tied to Vapor's command system, so the lifecycle is controlled independently
 
-### AI Companion
-
-The `companion` subcommand starts a separate Vapor app (`CompanionBootstrap`) that proxies AI requests to configured providers. It strips secrets via `RedactionEngine` before forwarding to hosted providers (OpenAI, Anthropic). `ProviderRegistry` resolves the active provider from config.
-
 ## Test Targets
 
 | Target | Coverage |
@@ -79,7 +73,6 @@ The `companion` subcommand starts a separate Vapor app (`CompanionBootstrap`) th
 | `MoqParsingTests` | OpenAPIParser (3.0+3.1), HARParser, SpecValidator |
 | `MoqFormatTests` | ProjectLoader, ProjectValidator, ProjectWriter |
 | `MoqRuntimeTests` | Admin API, auth integration, content negotiation |
-| `MoqCompanionAITests` | Provider registry, redaction engine, companion handler |
 | `MoqIntegrationTests` | End-to-end: spec → serve → request → verify |
 
 ## Code Style

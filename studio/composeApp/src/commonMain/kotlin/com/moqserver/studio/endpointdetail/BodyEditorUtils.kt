@@ -21,19 +21,8 @@ internal fun yamlValueToDisplayString(value: YamlValue, indent: Int = 0): String
 		is YamlValue.Int -> "${value.value}"
 		is YamlValue.Double -> "${value.value}"
 		is YamlValue.Str -> "\"${value.value}\""
-		is YamlValue.Array -> {
-			if (value.value.isEmpty()) "[]"
-			else "[${value.value.joinToString(", ") { yamlValueToDisplayString(it) }}]"
-		}
-		is YamlValue.Obj -> {
-			if (value.value.isEmpty()) "{}"
-			else value.value.entries.joinToString("\n") { (key, itemValue) ->
-				when (itemValue) {
-					is YamlValue.Obj -> "$pad$key:\n${yamlValueToDisplayString(itemValue, indent + 2)}"
-					else -> "$pad$key: ${yamlValueToDisplayString(itemValue)}"
-				}
-			}
-		}
+		is YamlValue.Array -> yamlValueToJsonString(value, indent)
+		is YamlValue.Obj -> yamlValueToJsonString(value, indent)
 	}
 }
 

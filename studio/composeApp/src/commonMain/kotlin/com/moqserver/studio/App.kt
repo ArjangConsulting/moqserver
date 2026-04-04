@@ -218,7 +218,7 @@ internal fun StudioWorkspaceScreen(
     Box(modifier = Modifier.fillMaxSize()) {
         Column(modifier = Modifier.fillMaxSize()) {
             Box(modifier = Modifier.weight(1f)) {
-                if (state.aiAction.action != null || state.aiAction.loading) {
+                if ((state.aiAction.action != null || state.aiAction.loading) && state.aiAction.action != AIAction.GENERATE_BODY) {
                     AIResultsPanel(
                         aiAction = state.aiAction,
                         onDismiss = { viewModel.dismissAIAction() },
@@ -247,12 +247,13 @@ internal fun StudioWorkspaceScreen(
                                     onUpdateEndpoint = { viewModel.updateEndpoint(it) },
                                     onDeleteEndpoint = { viewModel.removeEndpoint(endpoint.id) },
                                     projectPath = state.project?.projectPath.orEmpty(),
-                                    companionConnected = state.ai.isReady,
+                                    aiAvailable = state.ai.isReady,
                                     aiProvider = state.ai.selectedProvider,
-                                    onGenerateVariants = { onAIAction(AIAction.GENERATE_VARIANTS) },
+                                    aiBodyGenerating = state.aiAction.loading && state.aiAction.action == AIAction.GENERATE_BODY,
+                                    aiBodyError = state.aiAction.takeIf { it.action == AIAction.GENERATE_BODY }?.error,
                                     onGenerateBody = { variant, prompt ->
-									onGenerateBody(endpoint.id, variant.referenceName, prompt)
-								},
+							onGenerateBody(endpoint.id, variant.referenceName, prompt)
+						},
                                     initialVariantName = state.pendingVariantName,
                                 )
                             }

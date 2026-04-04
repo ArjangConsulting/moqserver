@@ -55,22 +55,28 @@ private object PreferencesStrings {
 	const val LIGHT = "Light"
 	const val DARK = "Dark"
 	const val AI_TITLE = "AI Providers"
-	const val AI_SUBTITLE = "Configure local and hosted AI providers used for variants and body generation."
+	const val AI_SUBTITLE = "Configure the provider used for AI-assisted variant, body, and error-case generation."
 	const val OLLAMA_TITLE = "Ollama"
 	const val OLLAMA_SUBTITLE = "Local - no API key required"
+	const val OLLAMA_HINT = "Tip: use a model tag installed locally, such as llama3.2:latest."
 	const val OPENAI_TITLE = "OpenAI"
 	const val OPENAI_SUBTITLE = "Hosted - requires API key"
+	const val OPENAI_HINT = "Recommended default: gpt-4o."
 	const val ANTHROPIC_TITLE = "Anthropic (Claude)"
 	const val ANTHROPIC_SUBTITLE = "Hosted - requires API key"
+	const val ANTHROPIC_HINT = "Recommended default: claude-sonnet-4-6."
 	const val GEMINI_TITLE = "Google Gemini"
 	const val GEMINI_SUBTITLE = "Hosted - requires API key"
+	const val GEMINI_HINT = "Recommended default: gemini-1.5-flash."
 	const val BASE_URL = "Base URL"
 	const val DEFAULT_MODEL = "Default Model"
 	const val API_KEY = "API Key"
 	const val TEST_CONNECTION = "Test Connection"
+	const val TEST_CONNECTION_DISABLED = "Complete the required fields to test this provider."
 	const val NOT_TESTED = "Not tested yet"
 	const val TESTING = "Checking connection..."
-	const val CONNECTION_OK = "Connection looks good"
+	const val CONNECTION_OK = "Connection successful"
+	const val TEST_CONNECTION_HELP = "Tests the current unsaved settings for this provider."
 	const val SHOW = "Show"
 	const val HIDE = "Hide"
 }
@@ -104,14 +110,16 @@ data class PreferencesState(
 
 @Composable
 fun PreferencesScreen(
-	state: PreferencesState,
-	onThemeModeChange: (StudioThemeMode) -> Unit,
-	onSaveAISettings: (AISettings) -> Unit,
-	onTestAIProvider: (String, AISettings, (ProviderConnectionStatus) -> Unit) -> Unit,
+    state: PreferencesState,
+    onThemeModeChange: (StudioThemeMode) -> Unit,
+    onSaveAISettings: (AISettings) -> Unit,
+    onTestAIProvider: (String, AISettings, (ProviderConnectionStatus) -> Unit) -> Unit,
 	modifier: Modifier = Modifier,
 ) {
 	var selectedSection by remember { mutableStateOf(PreferencesSection.GENERAL) }
-	var selectedProviderTab by remember { mutableStateOf(AIProviderTab.OLLAMA) }
+	var selectedProviderTab by remember(state.aiSettings.selectedProviderId) {
+		mutableStateOf(state.aiSettings.selectedProviderId?.let(::providerTabForId) ?: AIProviderTab.OLLAMA)
+	}
 	var ollama by remember(state) { mutableStateOf(state.aiSettings.ollama) }
 	var openai by remember(state) { mutableStateOf(state.aiSettings.openai) }
 	var anthropic by remember(state) { mutableStateOf(state.aiSettings.anthropic) }
@@ -184,13 +192,23 @@ fun PreferencesScreen(
 									connectionStatus = it
 								}
 							},
-							onSave = { onSaveAISettings(unsavedAISettings) },
+							onSave = {
+								onSaveAISettings(unsavedAISettings.copy(selectedProviderId = selectedProviderTab.id))
+							},
 						)
 					}
 				}
 			}
 		}
 	}
+}
+
+private fun providerTabForId(providerId: String): AIProviderTab? = when (providerId) {
+	AIProviderTab.OLLAMA.id -> AIProviderTab.OLLAMA
+	AIProviderTab.OPENAI.id -> AIProviderTab.OPENAI
+	AIProviderTab.ANTHROPIC.id -> AIProviderTab.ANTHROPIC
+	AIProviderTab.GEMINI.id -> AIProviderTab.GEMINI
+	else -> null
 }
 
 @Composable
@@ -360,7 +378,9 @@ private fun AIPreferencesPane(
 			AIProviderTab.OLLAMA -> ProviderSettingsCard(
 				title = PreferencesStrings.OLLAMA_TITLE,
 				subtitle = PreferencesStrings.OLLAMA_SUBTITLE,
+				hint = PreferencesStrings.OLLAMA_HINT,
 				connectionStatus = connectionStatus,
+				canTestConnection = ollama.baseUrl.isNotBlank() && ollama.defaultModel.isNotBlank(),
 				onTestConnection = onTestConnection,
 			) {
 				OutlinedTextField(
@@ -382,7 +402,9 @@ private fun AIPreferencesPane(
 			AIProviderTab.OPENAI -> ProviderSettingsCard(
 				title = PreferencesStrings.OPENAI_TITLE,
 				subtitle = PreferencesStrings.OPENAI_SUBTITLE,
+				hint = PreferencesStrings.OPENAI_HINT,
 				connectionStatus = connectionStatus,
+				canTestConnection = openai.apiKey.isNotBlank() && openai.baseUrl.isNotBlank() && openai.defaultModel.isNotBlank(),
 				onTestConnection = onTestConnection,
 			) {
 				ApiKeyField(value = openai.apiKey, onValueChange = { onOpenAIChange(openai.copy(apiKey = it)) })
@@ -405,7 +427,9 @@ private fun AIPreferencesPane(
 			AIProviderTab.ANTHROPIC -> ProviderSettingsCard(
 				title = PreferencesStrings.ANTHROPIC_TITLE,
 				subtitle = PreferencesStrings.ANTHROPIC_SUBTITLE,
+				hint = PreferencesStrings.ANTHROPIC_HINT,
 				connectionStatus = connectionStatus,
+				canTestConnection = anthropic.apiKey.isNotBlank() && anthropic.baseUrl.isNotBlank() && anthropic.defaultModel.isNotBlank(),
 				onTestConnection = onTestConnection,
 			) {
 				ApiKeyField(value = anthropic.apiKey, onValueChange = { onAnthropicChange(anthropic.copy(apiKey = it)) })
@@ -428,7 +452,9 @@ private fun AIPreferencesPane(
 			AIProviderTab.GEMINI -> ProviderSettingsCard(
 				title = PreferencesStrings.GEMINI_TITLE,
 				subtitle = PreferencesStrings.GEMINI_SUBTITLE,
+				hint = PreferencesStrings.GEMINI_HINT,
 				connectionStatus = connectionStatus,
+				canTestConnection = gemini.apiKey.isNotBlank() && gemini.baseUrl.isNotBlank() && gemini.defaultModel.isNotBlank(),
 				onTestConnection = onTestConnection,
 			) {
 				ApiKeyField(value = gemini.apiKey, onValueChange = { onGeminiChange(gemini.copy(apiKey = it)) })
@@ -503,7 +529,9 @@ private fun ApiKeyField(
 private fun ProviderSettingsCard(
 	title: String,
 	subtitle: String,
+	hint: String,
 	connectionStatus: ProviderConnectionStatus,
+	canTestConnection: Boolean,
 	onTestConnection: () -> Unit,
 	content: @Composable () -> Unit,
 ) {
@@ -528,17 +556,36 @@ private fun ProviderSettingsCard(
 						color = MaterialTheme.colorScheme.onSurfaceVariant,
 					)
 					Text(
+						PreferencesStrings.TEST_CONNECTION_HELP,
+						style = MaterialTheme.typography.bodySmall,
+						color = MaterialTheme.colorScheme.onSurfaceVariant,
+					)
+					Text(
+						hint,
+						style = MaterialTheme.typography.bodySmall,
+						color = MaterialTheme.colorScheme.onSurfaceVariant,
+					)
+					Text(
 						text = connectionStatusLabel(connectionStatus),
 						style = MaterialTheme.typography.bodySmall,
 						color = connectionStatusColor(connectionStatus),
 					)
 				}
 				Spacer(modifier = Modifier.width(StudioDimens.l))
-				OutlinedButton(
-					onClick = onTestConnection,
-					enabled = connectionStatus !is ProviderConnectionStatus.Checking,
-				) {
+				Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(StudioDimens.xxs)) {
+					OutlinedButton(
+						onClick = onTestConnection,
+						enabled = canTestConnection && connectionStatus !is ProviderConnectionStatus.Checking,
+					) {
 					Text(PreferencesStrings.TEST_CONNECTION)
+					}
+					if (!canTestConnection) {
+						Text(
+							PreferencesStrings.TEST_CONNECTION_DISABLED,
+							style = MaterialTheme.typography.labelSmall,
+							color = MaterialTheme.colorScheme.onSurfaceVariant,
+						)
+					}
 				}
 			}
 			content()

@@ -78,7 +78,6 @@ The Studio modules target Java 17.
 
 1. Set IntelliJ's Gradle JVM and Project SDK to Java 17 or 21.
 2. Run `0. Studio Debug`.
-3. Start the Swift companion separately from the repo root with `make companion` when you need AI actions.
 
 `0. Studio Debug` now launches the desktop app as a real JVM application instead of a Gradle task, and enables:
 
@@ -103,7 +102,8 @@ The repository root contains other products and tooling, so Studio-specific Inte
 - `composeApp` — desktop executable shell and screens
 - `studio-project-format` — canonical `.moqproj` library: models, validation, YAML codec, and repository I/O
 - `studio-domain` — shared state, DTOs, and app workflow logic
-- `studio-data` — local companion client plus OpenAPI/HAR import adapters
+- `studio-data` — local settings/credential adapters plus OpenAPI/HAR import adapters
+- `studio-ai` — provider abstractions, prompt building, and direct AI integrations
 - `studio-code-editor` — Swing-backed JSON/YAML editor wrappers
 - `studio-logging` — logging helpers
 

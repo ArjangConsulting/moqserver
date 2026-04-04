@@ -17,9 +17,6 @@ e2e:
 run:
 	cd server && swift run moqserver serve --spec ../samples/server/openapi.yaml --port 8080
 
-companion:
-	cd server && swift run moqserver companion --port 8081
-
 clean:
 	cd server && swift package clean
 	cd studio && ./gradlew clean

@@ -4,7 +4,7 @@
 
 V1 should prove that moqserver can be authored as a local-first project, edited in a desktop app, and executed deterministically by the Swift runtime.
 
-V1 is not the full product vision. It is the smallest version that validates the format, Studio workflow, and local companion architecture.
+V1 is not the full product vision. It is the smallest version that validates the format, Studio workflow, and direct AI provider integration inside Studio.
 
 ## In Scope
 
@@ -42,16 +42,15 @@ V1 is not the full product vision. It is the smallest version that validates the
 - normalization into `.moqproj` models
 - user review/edit before save
 
-### Companion and AI
+### AI-Assisted Authoring
 
-- local companion implemented in Swift/Vapor
-- provider discovery endpoint
-- provider config validation endpoint
+- direct provider integrations inside Studio
+- provider configuration and validation in Studio settings
 - structured AI actions for a narrow set of authoring workflows:
   - analyze spec/project
   - generate variants
   - refine project structure
-- redaction before remote provider calls
+- bounded use of local or hosted providers for authoring assistance
 
 ## Explicitly Out of Scope
 

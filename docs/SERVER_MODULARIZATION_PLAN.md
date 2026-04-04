@@ -8,7 +8,6 @@ That is workable for a small runtime, but it is the wrong long-term shape for:
 
 - `.moqproj` support
 - import pipelines
-- local companion AI support
 - shared domain logic
 
 ## Target State
@@ -19,9 +18,8 @@ Recommended target layout:
 2. `MoqFormat`
 3. `MoqParsing`
 4. `MoqRuntime`
-5. `MoqCompanionAI`
-6. `MoqCLI`
-7. `Run`
+5. `MoqCLI`
+6. `Run`
 
 ## Responsibilities
 
@@ -54,17 +52,10 @@ Recommended target layout:
 - variant selection
 - admin/runtime endpoints
 
-### `MoqCompanionAI`
-
-- AI provider abstractions
-- provider registry
-- request redaction
-- local AI routes and DTOs
-
 ### `MoqCLI`
 
 - command definitions
-- wiring for serve, validate, import, and companion-related modes
+- wiring for serve, validate, and import-related modes
 
 ### `Run`
 
@@ -77,8 +68,7 @@ Recommended direction:
 - `MoqFormat` depends on `MoqCore`
 - `MoqParsing` depends on `MoqCore`
 - `MoqRuntime` depends on `MoqCore` and `MoqFormat`
-- `MoqCompanionAI` depends on `MoqCore` and optionally `MoqFormat`
-- `MoqCLI` depends on `MoqRuntime`, `MoqParsing`, `MoqCompanionAI`, and `MoqFormat`
+- `MoqCLI` depends on `MoqRuntime`, `MoqParsing`, and `MoqFormat`
 - `Run` depends on `MoqCLI`
 
 Forbidden direction:
@@ -94,9 +84,8 @@ Forbidden direction:
 3. Move runtime-only code into `MoqRuntime`
 4. Move command code into `MoqCLI`
 5. Extract `MoqParsing`
-6. Add `MoqCompanionAI`
 
-This order minimizes risk because it separates domain and format first, before companion and import complexity are introduced.
+This order minimizes risk because it separates domain and format first, before import complexity is introduced.
 
 ## Test Migration Rules
 
@@ -110,5 +99,5 @@ The modularization is complete when:
 
 1. targets have clear dependency direction
 2. existing behavior is preserved
-3. `.moqproj` support and companion support have clear homes
-4. future Studio-facing contracts do not need to live in the runtime target
+3. `.moqproj` support has a clear home
+4. future Studio-facing authoring concerns do not need to live in the runtime target

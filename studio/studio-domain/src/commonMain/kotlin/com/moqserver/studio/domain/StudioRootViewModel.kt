@@ -145,7 +145,7 @@ class StudioRootViewModel(
         _state.update {
             val selectedProviderId = it.ai.selectedProviderId
             val preservedSelection = providers.firstOrNull { provider ->
-                provider.id == selectedProviderId && provider.available
+                provider.id == selectedProviderId
             }?.id
             it.copy(
                 ai = it.ai.copy(

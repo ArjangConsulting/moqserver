@@ -5,6 +5,7 @@ import com.moqserver.studio.ai.AIProvider
 import com.moqserver.studio.ai.AIProviderCapability
 import com.moqserver.studio.ai.AIProviderException
 import com.moqserver.studio.ai.AIProviderKind
+import com.moqserver.studio.logging.loggerFor
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
 import io.ktor.client.engine.cio.CIO
@@ -23,11 +24,13 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 
 class OpenAIAIProvider(
-    val apiKey: String,
-    val baseUrl: String = DEFAULT_BASE_URL,
-    val defaultModel: String = DEFAULT_MODEL,
-    private val httpClient: HttpClient = defaultClient(),
+	val apiKey: String,
+	val baseUrl: String = DEFAULT_BASE_URL,
+	val defaultModel: String = DEFAULT_MODEL,
+	private val httpClient: HttpClient = defaultClient(),
 ) : AIProvider {
+
+	private val logger = loggerFor<OpenAIAIProvider>()
 
     override val id = PROVIDER_ID
     override val displayName = DISPLAY_NAME
@@ -44,8 +47,11 @@ class OpenAIAIProvider(
             val response = httpClient.get("$baseUrl$MODELS_PATH") {
                 header(HttpHeaders.Authorization, "Bearer $apiKey")
             }
-            response.status.isSuccess()
-        } catch (_: Exception) {
+            val available = response.status.isSuccess()
+            logger.debug("OpenAI availability check: {}", available)
+            available
+        } catch (e: Exception) {
+            logger.warn("OpenAI not reachable: {}", e.message)
             false
         }
     }
@@ -65,6 +71,7 @@ class OpenAIAIProvider(
     override suspend fun complete(prompt: String, model: String?, temperature: Double?): AICompletionResult {
         val effectiveModel = model ?: defaultModel
         val start = System.currentTimeMillis()
+        logger.info("Sending completion request to OpenAI model {}", effectiveModel)
 
         val bodyMap = buildMap<String, Any> {
             put("model", effectiveModel)
@@ -79,30 +86,45 @@ class OpenAIAIProvider(
                 setBody(bodyMap)
             }
         } catch (e: Exception) {
+            logger.error("OpenAI request failed: {}", e.message, e)
             throw AIProviderException.Unavailable(DISPLAY_NAME, e.message ?: "network error", retryable = true)
         }
 
         when (response.status.value) {
-            401 -> throw AIProviderException.AuthInvalid(DISPLAY_NAME)
-            429 -> throw AIProviderException.Unavailable(DISPLAY_NAME, "rate limit exceeded", retryable = true)
-            !in 200..299 -> throw AIProviderException.Unavailable(
-                DISPLAY_NAME,
-                "HTTP ${response.status.value}",
-                retryable = response.status.value >= 500,
-            )
+            401 -> {
+                logger.error("OpenAI authentication failed (401)")
+                throw AIProviderException.AuthInvalid(DISPLAY_NAME)
+            }
+            429 -> {
+                logger.warn("OpenAI rate limit exceeded (429)")
+                throw AIProviderException.Unavailable(DISPLAY_NAME, "rate limit exceeded", retryable = true)
+            }
+            !in 200..299 -> {
+                logger.error("OpenAI returned HTTP {}", response.status.value)
+                throw AIProviderException.Unavailable(
+                    DISPLAY_NAME,
+                    "HTTP ${response.status.value}",
+                    retryable = response.status.value >= 500,
+                )
+            }
         }
 
         val result = response.body<OpenAIChatResponse>()
         val text = result.choices.firstOrNull()?.message?.content
             ?: throw AIProviderException.ParseFailure(DISPLAY_NAME)
 
+        val latency = System.currentTimeMillis() - start
+        logger.debug(
+            "OpenAI completion received in {}ms (prompt={}, completion={}, total={} tokens)",
+            latency, result.usage?.promptTokens, result.usage?.completionTokens, result.usage?.totalTokens,
+        )
         return AICompletionResult(
             text = text,
             model = result.model ?: effectiveModel,
             promptTokens = result.usage?.promptTokens,
             completionTokens = result.usage?.completionTokens,
             totalTokens = result.usage?.totalTokens,
-            latencyMs = System.currentTimeMillis() - start,
+            latencyMs = latency,
         )
     }
 
