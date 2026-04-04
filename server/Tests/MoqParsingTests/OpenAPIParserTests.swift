@@ -214,6 +214,29 @@ struct OpenAPIParserTests {
         #expect(!spec.endpoints.isEmpty)
     }
 
+    @Test("Parses OpenAPI 3.1 JSON format directly")
+    func parsesOpenAPI31JSONFormatDirectly() throws {
+        let json = """
+        {
+            "openapi": "3.1.0",
+            "info": {"title": "JSON 3.1 API", "version": "1.0"},
+            "paths": {
+                "/direct": {
+                    "get": {
+                        "responses": {
+                            "200": {"description": "OK"}
+                        }
+                    }
+                }
+            }
+        }
+        """.data(using: .utf8)!
+
+        let spec = try parser.parse(data: json)
+        #expect(spec.title == "JSON 3.1 API")
+        #expect(spec.endpoints.first?.path == "/direct")
+    }
+
     @Test("Invalid data throws error")
     func invalidDataThrows() {
         let data = Data("not a spec".utf8)
@@ -256,5 +279,508 @@ struct OpenAPIParserTests {
         // The default response uses the example directly, so check the schema-generated ones
         // Pet schema has status enum, check it through the 200 response with example
         #expect(defaultResponse?.body != nil)
+    }
+
+    @Test("Parses referenced parameters, request bodies, responses, and advanced security")
+    func parsesReferencedComponentsAndAdvancedSecurity() throws {
+        let yaml = """
+        openapi: 3.0.3
+        info:
+          title: Component API
+          version: 1.0.0
+        security:
+          - oauthGlobal:
+              - read:all
+          - oidcGlobal:
+              - profile
+        paths:
+          /reports:
+            get:
+              security:
+                - apiHeader: []
+              parameters:
+                - $ref: '#/components/parameters/RequiredHeader'
+                - $ref: '#/components/parameters/RequiredQuery'
+              responses:
+                "2XX":
+                  $ref: '#/components/responses/BinaryRangeResponse'
+          /sessions:
+            post:
+              requestBody:
+                $ref: '#/components/requestBodies/FormRequest'
+              responses:
+                default:
+                  description: Session accepted
+          /login:
+            post:
+              security:
+                - basicAuth: []
+                - oauthGlobal:
+                    - write:all
+              responses:
+                "200":
+                  description: OK
+        components:
+          parameters:
+            RequiredHeader:
+              name: X-Trace-Id
+              in: header
+              required: true
+              schema:
+                type: string
+            RequiredQuery:
+              name: page
+              in: query
+              required: true
+              schema:
+                type: integer
+          requestBodies:
+            FormRequest:
+              required: true
+              content:
+                application/x-www-form-urlencoded:
+                  schema:
+                    type: object
+                    properties:
+                      name:
+                        type: string
+          responses:
+            BinaryRangeResponse:
+              description: Binary success
+              headers:
+                X-Mode:
+                  content:
+                    text/plain:
+                      example: bulk
+              content:
+                application/octet-stream:
+                  schema:
+                    type: string
+                    format: binary
+          securitySchemes:
+            apiHeader:
+              type: apiKey
+              in: header
+              name: X-API-Key
+            basicAuth:
+              type: http
+              scheme: basic
+            oauthGlobal:
+              type: oauth2
+              flows:
+                clientCredentials:
+                  tokenUrl: https://example.com/token
+                  scopes:
+                    read:all: Read all
+                    write:all: Write all
+            oidcGlobal:
+              type: openIdConnect
+              openIdConnectUrl: https://example.com/.well-known/openid-configuration
+        """
+
+        let spec = try parser.parse(data: Data(yaml.utf8))
+
+        let reports = try #require(spec.endpoints.first { $0.method == "GET" && $0.path == "/reports" })
+        #expect(reports.requiredHeaders == ["X-Trace-Id"])
+        #expect(reports.requiredQueryParameters == ["page"])
+        #expect(reports.responses.count == 1)
+        #expect(reports.responses.first?.statusCode == 200)
+        #expect(reports.responses.first?.name == "2XX")
+        #expect(reports.responses.first?.headers.contains { $0.0 == "X-Mode" && $0.1 == "bulk" } == true)
+        #expect(reports.responses.first?.headers.contains { $0.0 == "Content-Type" && $0.1 == "application/octet-stream" } == true)
+        #expect(reports.responses.first?.body?.isEmpty == true)
+        #expect(reports.authRequirement == .apiKey(headerName: "X-API-Key"))
+
+        let sessions = try #require(spec.endpoints.first { $0.method == "POST" && $0.path == "/sessions" })
+        #expect(sessions.requiresBody)
+        #expect(sessions.acceptedContentTypes == ["application/x-www-form-urlencoded"])
+        #expect(sessions.responses.first?.name == "default")
+
+        let login = try #require(spec.endpoints.first { $0.method == "POST" && $0.path == "/login" })
+        #expect(login.authRequirement == .anyOf([.basic, .oauth2(scopes: ["write:all"])]))
+
+        let globalOnlyYAML = """
+        openapi: 3.0.3
+        info:
+          title: Global Security API
+          version: 1.0.0
+        security:
+          - oauthGlobal:
+              - read:all
+          - oidcGlobal:
+              - profile
+        paths:
+          /me:
+            get:
+              responses:
+                "200":
+                  description: OK
+        components:
+          securitySchemes:
+            oauthGlobal:
+              type: oauth2
+              flows:
+                clientCredentials:
+                  tokenUrl: https://example.com/token
+                  scopes:
+                    read:all: Read all
+            oidcGlobal:
+              type: openIdConnect
+              openIdConnectUrl: https://example.com/.well-known/openid-configuration
+        """
+
+        let globalOnlySpec = try parser.parse(data: Data(globalOnlyYAML.utf8))
+        let me = try #require(globalOnlySpec.endpoints.first { $0.path == "/me" })
+        #expect(me.authRequirement == .anyOf([
+            .oauth2(scopes: ["read:all"]),
+            .openIdConnect(scopes: ["profile"]),
+        ]))
+    }
+
+    @Test("Parses response ranges and duplicate success names uniquely")
+    func parsesResponseRangesAndUniqueNames() throws {
+        let yaml = """
+        openapi: 3.0.3
+        info:
+          title: Range API
+          version: 1.0.0
+        paths:
+          /range:
+            get:
+              responses:
+                "2XX":
+                  description: Any success
+                "4XX":
+                  description: Any client error
+                "5XX":
+                  description: Any server error
+          /duplicates:
+            get:
+              responses:
+                "200":
+                  description: JSON result
+                  content:
+                    application/json:
+                      schema:
+                        type: object
+                "201":
+                  description: Created result
+                  content:
+                    application/json:
+                      schema:
+                        type: object
+                default:
+                  description: Fallback
+        """
+
+        let spec = try parser.parse(data: Data(yaml.utf8))
+
+        let rangeEndpoint = try #require(spec.endpoints.first { $0.path == "/range" })
+        #expect(rangeEndpoint.responses.map(\.statusCode) == [200, 400, 500])
+        #expect(rangeEndpoint.responses.map(\.name) == ["2XX", "4XX", "5XX"])
+
+        let duplicates = try #require(spec.endpoints.first { $0.path == "/duplicates" })
+        #expect(duplicates.responses.map(\.name).contains("default"))
+        #expect(duplicates.responses.map(\.name).contains("success-201"))
+        #expect(duplicates.responses.map(\.name).contains("default-fallback"))
+    }
+
+    @Test("Parses allOf security requirements and ignores unsupported schemes")
+    func parsesAllOfSecurityAndUnsupportedSchemes() throws {
+        let yaml = """
+        openapi: 3.1.0
+        info:
+          title: Security API
+          version: 1.0.0
+        paths:
+          /secure:
+            get:
+              security:
+                - bearerAuth: []
+                  apiHeader: []
+              responses:
+                "200":
+                  description: OK
+          /ignored:
+            get:
+              security:
+                - digestAuth: []
+                - mtlsAuth: []
+              responses:
+                "200":
+                  description: OK
+        components:
+          securitySchemes:
+            bearerAuth:
+              type: http
+              scheme: bearer
+            apiHeader:
+              type: apiKey
+              in: header
+              name: X-API-Key
+            digestAuth:
+              type: http
+              scheme: digest
+            mtlsAuth:
+              type: mutualTLS
+        """
+
+        let spec = try parser.parse(data: Data(yaml.utf8))
+
+        let secure = try #require(spec.endpoints.first { $0.path == "/secure" })
+        if case .allOf(let requirements) = secure.authRequirement {
+            #expect(requirements.count == 2)
+            #expect(requirements.contains(.bearer))
+            #expect(requirements.contains(.apiKey(headerName: "X-API-Key")))
+        } else {
+            Issue.record("Expected allOf auth requirement")
+        }
+
+        let ignored = try #require(spec.endpoints.first { $0.path == "/ignored" })
+        #expect(ignored.authRequirement == .none)
+    }
+
+    @Test("Parses rich media responses with deterministic ordering and generated bodies")
+    func parsesRichMediaResponses() throws {
+        let yaml = """
+        openapi: 3.0.3
+        info:
+          title: Rich Media API
+          version: 1.0.0
+        paths:
+          /rich:
+            get:
+              responses:
+                "200":
+                  description: OK
+                  headers:
+                    X-Count:
+                      content:
+                        text/plain:
+                          schema:
+                            type: integer
+                  content:
+                    text/html:
+                      schema:
+                        type: object
+                        properties:
+                          title:
+                            type: string
+                          count:
+                            type: integer
+                    application/problem+json:
+                      example:
+                        message: hello
+                    application/custom+xml:
+                      schema:
+                        type: object
+                        properties:
+                          title:
+                            type: string
+                    image/svg+xml:
+                      schema:
+                        type: string
+                    text/csv: {}
+                    text/plain:
+                      schema:
+                        type: string
+        """
+
+        let spec = try parser.parse(data: Data(yaml.utf8))
+        let rich = try #require(spec.endpoints.first { $0.path == "/rich" })
+
+        #expect(rich.responses.count == 6)
+        let orderedContentTypes = rich.responses.compactMap {
+            $0.headers.first { $0.0 == "Content-Type" }?.1
+        }
+        #expect(orderedContentTypes == [
+            "application/custom+xml",
+            "application/problem+json",
+            "image/svg+xml",
+            "text/csv",
+            "text/html",
+            "text/plain",
+        ])
+
+        let jsonVariant = try #require(rich.responses.first {
+            $0.headers.contains { $0.0 == "Content-Type" && $0.1 == "application/problem+json" }
+        })
+        #expect(jsonVariant.headers.contains { $0.0 == "Content-Type" && $0.1 == "application/problem+json" })
+        #expect(jsonVariant.headers.contains { $0.0 == "X-Count" && $0.1 == "0" })
+        #expect(String(data: try #require(jsonVariant.body), encoding: .utf8)?.contains("\"message\":\"hello\"") == true)
+
+        let xmlVariant = try #require(rich.responses.first { $0.headers.contains { $0.1 == "application/custom+xml" } })
+        #expect(String(data: try #require(xmlVariant.body), encoding: .utf8)?.contains("<?xml version=\"1.0\"") == true)
+
+        let svgVariant = try #require(rich.responses.first { $0.headers.contains { $0.1 == "image/svg+xml" } })
+        #expect(String(data: try #require(svgVariant.body), encoding: .utf8)?.contains("<svg") == true)
+
+        let csvVariant = try #require(rich.responses.first { $0.headers.contains { $0.1 == "text/csv" } })
+        #expect(String(data: try #require(csvVariant.body), encoding: .utf8)?.contains("column1,column2") == true)
+
+        let htmlVariant = try #require(rich.responses.first { $0.headers.contains { $0.1 == "text/html" } })
+        #expect(String(data: try #require(htmlVariant.body), encoding: .utf8)?.contains("<table>") == true)
+
+        let textVariant = try #require(rich.responses.first { $0.headers.contains { $0.1 == "text/plain" } })
+        #expect(String(data: try #require(textVariant.body), encoding: .utf8) == "string")
+    }
+
+    @Test("Creates unique XML variant names and preserves informational and redirect names")
+    func createsUniqueXmlVariantNamesAndSpecialStatusNames() throws {
+        let yaml = """
+        openapi: 3.0.3
+        info:
+          title: Variant Names API
+          version: 1.0.0
+        paths:
+          /collisions:
+            get:
+              responses:
+                "200":
+                  description: XML collisions
+                  content:
+                    application/atom+xml:
+                      schema:
+                        type: object
+                        properties:
+                          a:
+                            type: string
+                    application/problem+xml:
+                      schema:
+                        type: object
+                        properties:
+                          b:
+                            type: string
+                    application/xml:
+                      schema:
+                        type: object
+                        properties:
+                          c:
+                            type: string
+                    text/xml:
+                      schema:
+                        type: object
+                        properties:
+                          d:
+                            type: string
+          /statuses:
+            get:
+              responses:
+                "101":
+                  description: Switching Protocols
+                "302":
+                  description: Found
+        """
+
+        let spec = try parser.parse(data: Data(yaml.utf8))
+
+        let collisions = try #require(spec.endpoints.first { $0.path == "/collisions" })
+        #expect(collisions.responses.map(\.name) == ["default", "default-xml", "default-xml-200", "default-xml-200-2"])
+
+        let statuses = try #require(spec.endpoints.first { $0.path == "/statuses" })
+        #expect(statuses.responses.first { $0.statusCode == 101 }?.name == "101")
+        #expect(statuses.responses.first { $0.statusCode == 302 }?.name == "302")
+    }
+
+    @Test("Parses default bodies scalar examples and schema stubs across media types")
+    func parsesDefaultBodiesScalarExamplesAndSchemaStubs() throws {
+        let yaml = """
+        openapi: 3.1.0
+        info:
+          title: Coverage API
+          version: 1.0.0
+        paths:
+          /defaults:
+            get:
+              responses:
+                "200":
+                  description: Defaults
+                  content:
+                    application/json: {}
+                    application/xml: {}
+                    text/html: {}
+                    text/plain: {}
+          /examples:
+            get:
+              responses:
+                "200":
+                  description: Examples
+                  headers:
+                    X-Trace:
+                      example: trace-123
+                      schema:
+                        type: string
+                  content:
+                    application/custom+json:
+                      example: 7
+                    application/bool+json:
+                      example: true
+                    application/xml:
+                      example:
+                        nested:
+                          flag: true
+                          items:
+                            - 1
+                            - 2
+          /schemas:
+            get:
+              responses:
+                "200":
+                  description: Schemas
+                  content:
+                    application/json:
+                      schema:
+                        type: object
+                        properties:
+                          name:
+                            type: string
+                    text/x-number:
+                      schema:
+                        type: number
+                    text/x-bool:
+                      schema:
+                        type: boolean
+                    text/x-array:
+                      schema:
+                        type: array
+                    application/problem+xml:
+                      schema:
+                        type: object
+                        properties:
+                          value:
+                            type: number
+                          enabled:
+                            type: boolean
+                    text/xml:
+                      schema:
+                        type: array
+        """
+
+        let spec = try parser.parse(data: Data(yaml.utf8))
+
+        let defaults = try #require(spec.endpoints.first { $0.path == "/defaults" })
+        #expect(String(data: try #require(defaults.responses.first { $0.headers.contains { $0.1 == "application/json" } }?.body), encoding: .utf8) == "{}")
+        #expect(String(data: try #require(defaults.responses.first { $0.headers.contains { $0.1 == "application/xml" } }?.body), encoding: .utf8)?.contains("<root/>") == true)
+        #expect(String(data: try #require(defaults.responses.first { $0.headers.contains { $0.1 == "text/html" } }?.body), encoding: .utf8)?.contains("<!DOCTYPE html>") == true)
+        #expect(String(data: try #require(defaults.responses.first { $0.headers.contains { $0.1 == "text/plain" } }?.body), encoding: .utf8) == "mock-response")
+
+        let examples = try #require(spec.endpoints.first { $0.path == "/examples" })
+        #expect(examples.responses.contains { response in
+            response.headers.contains { $0.0 == "X-Trace" && $0.1 == "trace-123" }
+        })
+        #expect(String(data: try #require(examples.responses.first { $0.headers.contains { $0.1 == "application/custom+json" } }?.body), encoding: .utf8) == "7")
+        #expect(String(data: try #require(examples.responses.first { $0.headers.contains { $0.1 == "application/bool+json" } }?.body), encoding: .utf8) == "1")
+        let xmlExampleBody = String(data: try #require(examples.responses.first { $0.headers.contains { $0.1 == "application/xml" } }?.body), encoding: .utf8)
+        #expect(xmlExampleBody?.contains("<nested>") == true)
+        #expect(xmlExampleBody?.contains("<item>1</item>") == true)
+
+        let schemas = try #require(spec.endpoints.first { $0.path == "/schemas" })
+        let jsonBody = String(data: try #require(schemas.responses.first { $0.headers.contains { $0.1 == "application/json" } }?.body), encoding: .utf8)
+        #expect(jsonBody == "{}" || jsonBody == #"{"name":"string"}"#)
+        #expect(String(data: try #require(schemas.responses.first { $0.headers.contains { $0.1 == "text/x-number" } }?.body), encoding: .utf8) == "0.0")
+        #expect(String(data: try #require(schemas.responses.first { $0.headers.contains { $0.1 == "text/x-bool" } }?.body), encoding: .utf8) == "false")
+        #expect(String(data: try #require(schemas.responses.first { $0.headers.contains { $0.1 == "text/x-array" } }?.body), encoding: .utf8) == "[]")
+        #expect(String(data: try #require(schemas.responses.first { $0.headers.contains { $0.1 == "application/problem+xml" } }?.body), encoding: .utf8)?.contains("<value>0.0</value>") == true)
+        #expect(String(data: try #require(schemas.responses.first { $0.headers.contains { $0.1 == "text/xml" } }?.body), encoding: .utf8)?.contains("<root/>") == true)
     }
 }

@@ -279,4 +279,189 @@ struct OpenAPISpecValidatorTests {
         let withField = diagnostics.filter { $0.field != nil }
         #expect(!withField.isEmpty)
     }
+
+    @Test("OpenAPI 3.1 operation-level undefined security schemes produce errors")
+    func operationLevelUndefinedSchemeInOpenAPI31() {
+        let yaml = """
+        openapi: "3.1.0"
+        info:
+          title: "Test"
+          version: "1.0"
+        paths:
+          /secured:
+            get:
+              operationId: getSecured
+              security:
+                - missingScheme: []
+              responses:
+                "200":
+                  description: OK
+        components:
+          securitySchemes:
+            knownScheme:
+              type: http
+              scheme: bearer
+        """.data(using: .utf8)!
+
+        let diagnostics = validator.validate(data: yaml)
+        let errors = diagnostics.filter { $0.severity == .error }
+        #expect(!errors.isEmpty)
+        #expect(errors.contains { $0.message.contains("Failed to parse") || $0.message.contains("undefined security scheme") })
+    }
+
+    @Test("Warns when OpenAPI 3.1 spec defines many component schemas")
+    func largeSchemaCountWarning() {
+        let schemaLines = (1...51).flatMap { index in
+            [
+                "    Schema\(index):",
+                "      type: object",
+                "      properties:",
+                "        id:",
+                "          type: integer",
+            ]
+        }
+        let yamlLines = [
+            "openapi: \"3.1.0\"",
+            "info:",
+            "  title: \"Large\"",
+            "  version: \"1.0\"",
+            "paths:",
+            "  /test:",
+            "    get:",
+            "      operationId: getTest",
+            "      responses:",
+            "        \"200\":",
+            "          description: OK",
+            "components:",
+            "  schemas:",
+        ] + schemaLines
+        let data = Data(yamlLines.joined(separator: "\n").utf8)
+
+        let diagnostics = validator.validate(data: data)
+        let warnings = diagnostics.filter { $0.severity == .warning }
+        #expect(warnings.contains { $0.message.contains("51 component schemas") })
+    }
+
+    @Test("Valid OpenAPI 3.1 JSON spec produces no errors")
+    func validOpenAPI31JSONSpec() {
+        let json = """
+        {
+            "openapi": "3.1.0",
+            "info": {
+                "title": "JSON 3.1",
+                "version": "1.0.0"
+            },
+            "paths": {
+                "/items": {
+                    "get": {
+                        "operationId": "listItems",
+                        "responses": {
+                            "200": {
+                                "description": "OK",
+                                "content": {
+                                    "application/json": {
+                                        "example": {
+                                            "items": []
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        """.data(using: .utf8)!
+
+        let diagnostics = validator.validate(data: json)
+        let errors = diagnostics.filter { $0.severity == .error }
+        #expect(errors.isEmpty)
+    }
+
+    @Test("OpenAPI 3.1 global security references are validated after parsing")
+    func globalSecurityReferencesInOpenAPI31() {
+        let json = """
+        {
+            "openapi": "3.1.0",
+            "info": {
+                "title": "Secured",
+                "version": "1.0.0"
+            },
+            "security": [
+                { "bearerAuth": [] }
+            ],
+            "paths": {
+                "/items": {
+                    "get": {
+                        "operationId": "listItems",
+                        "responses": {
+                            "200": {
+                                "description": "OK"
+                            }
+                        }
+                    }
+                }
+            },
+            "components": {
+                "securitySchemes": {
+                    "bearerAuth": {
+                        "type": "http",
+                        "scheme": "bearer"
+                    }
+                }
+            }
+        }
+        """.data(using: .utf8)!
+
+        let diagnostics = validator.validate(data: json)
+
+        #expect(!diagnostics.contains {
+            $0.field == "security" && $0.severity == .error
+        })
+        #expect(!diagnostics.contains { $0.message.contains("Failed to parse") })
+    }
+
+    @Test("OpenAPI 3.1 operation security references are validated after parsing")
+    func operationSecurityReferencesInOpenAPI31() {
+        let json = """
+        {
+            "openapi": "3.1.0",
+            "info": {
+                "title": "Secured",
+                "version": "1.0.0"
+            },
+            "paths": {
+                "/items": {
+                    "get": {
+                        "operationId": "listItems",
+                        "security": [
+                            { "apiKeyAuth": [] }
+                        ],
+                        "responses": {
+                            "200": {
+                                "description": "OK"
+                            }
+                        }
+                    }
+                }
+            },
+            "components": {
+                "securitySchemes": {
+                    "apiKeyAuth": {
+                        "type": "apiKey",
+                        "name": "X-API-Key",
+                        "in": "header"
+                    }
+                }
+            }
+        }
+        """.data(using: .utf8)!
+
+        let diagnostics = validator.validate(data: json)
+
+        #expect(!diagnostics.contains {
+            $0.field == "security" && $0.severity == .error
+        })
+        #expect(!diagnostics.contains { $0.message.contains("Failed to parse") })
+    }
 }
