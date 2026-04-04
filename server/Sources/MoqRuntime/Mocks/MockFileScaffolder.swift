@@ -1,5 +1,9 @@
 import Foundation
+
+import Logging
 import MoqCore
+
+private let logger = Logger(label: "moqserver.runtime.MockFileScaffolder")
 
 public enum MockFileScaffolder {
     private struct VariantMeta: Encodable {
@@ -9,6 +13,7 @@ public enum MockFileScaffolder {
     }
 
     public static func scaffold(from parsedSpec: ParsedSpec, output: String) throws -> Int {
+        logger.info("Scaffolding mock files to \(output)")
         let outputPath = (output as NSString).expandingTildeInPath
         let fm = FileManager.default
         var filesCreated = 0
@@ -42,6 +47,7 @@ public enum MockFileScaffolder {
             }
         }
 
+        logger.info("Scaffolding complete: \(filesCreated) file(s) created")
         return filesCreated
     }
 

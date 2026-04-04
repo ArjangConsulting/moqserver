@@ -1,6 +1,9 @@
 import ArgumentParser
 import Foundation
+import Logging
 import MoqParsing
+
+private let logger = Logger(label: "moqserver.cli.ValidateSpecCommand")
 
 /// `moqserver validate-spec` — validates an OpenAPI spec for compliance and mock-readiness.
 public struct ValidateSpecCommand: ParsableCommand {
@@ -15,6 +18,7 @@ public struct ValidateSpecCommand: ParsableCommand {
     public init() {}
 
     public mutating func run() throws {
+        logger.info("Validating spec", metadata: ["source": "\(spec)"])
         let specLoader = SpecLoader()
         let validator = OpenAPISpecValidator()
 
@@ -29,8 +33,10 @@ public struct ValidateSpecCommand: ParsableCommand {
         }
 
         if errors.isEmpty && warnings.isEmpty {
+            logger.info("Spec is valid with no issues")
             print("Spec is valid with no issues.")
         } else {
+            logger.warning("Spec validation issues", metadata: ["errors": "\(errors.count)", "warnings": "\(warnings.count)"])
             print("\n\(errors.count) error(s), \(warnings.count) warning(s)")
         }
 

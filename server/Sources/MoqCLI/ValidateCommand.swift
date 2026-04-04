@@ -1,7 +1,10 @@
 import ArgumentParser
 import Foundation
+import Logging
 import MoqCore
 import MoqFormat
+
+private let logger = Logger(label: "moqserver.cli.ValidateCommand")
 
 /// `moqserver validate` — validates a .moqproj directory for correctness.
 public struct ValidateCommand: ParsableCommand {
@@ -16,6 +19,7 @@ public struct ValidateCommand: ParsableCommand {
     public init() {}
 
     public mutating func run() throws {
+        logger.info("Validating project", metadata: ["path": "\(project)"])
         let loader = ProjectLoader()
         let validator = ProjectValidator()
 
@@ -30,8 +34,10 @@ public struct ValidateCommand: ParsableCommand {
         }
 
         if errors.isEmpty && warnings.isEmpty {
+            logger.info("Project is valid", metadata: ["name": "\(moqProject.manifest.name)"])
             print("Project \"\(moqProject.manifest.name)\" is valid.")
         } else {
+            logger.warning("Project validation issues", metadata: ["errors": "\(errors.count)", "warnings": "\(warnings.count)"])
             print("\n\(errors.count) error(s), \(warnings.count) warning(s)")
         }
 

@@ -1,11 +1,14 @@
 package com.moqserver.studio
 
+import com.moqserver.studio.logging.loggerFor
 import java.awt.FileDialog
 import java.io.File
 import java.io.FilenameFilter
 import javax.swing.JFileChooser
 import javax.swing.filechooser.FileFilter
 import java.awt.Window as AwtWindow
+
+private val logger = loggerFor<FileDialog>()
 
 internal const val MOQ_PROJECT_EXTENSION = "moqproj"
 private const val MAC_FILE_DIALOG_PACKAGES_PROPERTY = "apple.awt.use-file-dialog-packages"
@@ -25,6 +28,7 @@ internal fun chooseFile(
     treatPackagesAsFiles: Boolean = false,
     allowDirectories: Boolean = false,
 ): File? {
+    logger.debug("Opening file chooser: title={}, extensions={}", title, extensions)
     val isMac = System.getProperty("os.name").lowercase().contains("mac")
     // On non-Mac, FileDialog cannot select directories — use JFileChooser instead
     if (allowDirectories && !isMac) {
@@ -43,7 +47,9 @@ internal fun chooseFile(
                 }
             }
         }
-        return if (chooser.showOpenDialog(parent) == JFileChooser.APPROVE_OPTION) chooser.selectedFile else null
+        return (if (chooser.showOpenDialog(parent) == JFileChooser.APPROVE_OPTION) chooser.selectedFile else null).also {
+            logger.info("File chooser result: {}", it?.name ?: "cancelled")
+        }
     }
     return withMacFileDialogPackages(treatPackagesAsFiles) {
         val dialog = createFileDialog(parent, title, FileDialog.LOAD).apply {
@@ -60,8 +66,10 @@ internal fun chooseFile(
         val directory = dialog.directory
         val file = dialog.file
         if (directory == null || file == null) {
+            logger.info("File chooser cancelled")
             null
         } else {
+            logger.info("File selected: {}", file)
             File(directory, file)
         }
     }
@@ -71,6 +79,7 @@ internal fun chooseFile(
  * Shows a native directory-picker and returns the chosen path, or `null` if cancelled.
  */
 internal fun chooseDirectory(parent: AwtWindow?, title: String, initialDirectory: String?): String? {
+    logger.debug("Opening directory chooser: title={}", title)
     if (System.getProperty("os.name").lowercase().contains("mac")) {
         val previous = System.getProperty("apple.awt.fileDialogForDirectories")
         return try {
@@ -105,6 +114,7 @@ internal fun chooseDirectory(parent: AwtWindow?, title: String, initialDirectory
  * Presents a file-open dialog filtered to `.moqproj` packages / directories.
  */
 internal fun chooseOpenProjectPath(parent: AwtWindow?, title: String, initialDirectory: String?): String? {
+    logger.debug("Opening project picker")
     return chooseFile(
         parent,
         title,
@@ -124,6 +134,7 @@ internal fun chooseProjectDirectory(
     initialDirectory: String?,
     projectName: String,
 ): String? {
+    logger.debug("Opening save-project dialog for {}", projectName)
     val defaultFileName = buildProjectPackageName(projectName)
     val dialogDirectory = projectPickerInitialDirectory(initialDirectory)
 

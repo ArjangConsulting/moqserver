@@ -1,5 +1,9 @@
 import Foundation
+
+import Logging
 import Vapor
+
+private let logger = Logger(label: "moqserver.runtime.AuthRouter")
 
 /// Mock OAuth2/auth endpoints under `/_auth/*`.
 /// Provides a token endpoint that issues mock access tokens for testing.
@@ -11,6 +15,7 @@ public struct AuthRouter {
     }
 
     public func registerRoutes(on app: Application) {
+        logger.info("Registering auth routes under /_auth")
         let auth = app.grouped("_auth")
 
         auth.post("token") { req async throws -> Response in
@@ -23,24 +28,31 @@ public struct AuthRouter {
     }
 
     private func handleToken(req: Request) async throws -> Response {
+        logger.info("Token request received")
         let grantType: String
 
         if let formGrant = try? req.content.get(String.self, at: "grant_type") {
             grantType = formGrant
         } else {
+            logger.warning("Token request missing grant_type")
             return oauthErrorResponse(error: "unsupported_grant_type", description: "Missing grant_type parameter")
         }
 
         switch grantType {
         case "client_credentials":
+            logger.debug("Handling client_credentials grant")
             return handleClientCredentials(req: req)
         case "password":
+            logger.debug("Handling password grant")
             return handlePasswordGrant(req: req)
         case "authorization_code":
+            logger.debug("Handling authorization_code grant")
             return handleAuthorizationCodeGrant(req: req)
         case "refresh_token":
+            logger.debug("Handling refresh_token grant")
             return handleRefreshTokenGrant()
         default:
+            logger.warning("Unsupported grant type: \(grantType)")
             return oauthErrorResponse(error: "unsupported_grant_type", description: "Grant type '\(grantType)' is not supported")
         }
     }

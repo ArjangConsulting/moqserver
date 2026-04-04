@@ -1,5 +1,8 @@
+import Logging
 import MoqCore
 import Vapor
+
+private let logger = Logger(label: "moqserver.runtime.MockErrorMiddleware")
 
 /// Middleware that converts thrown errors into structured `ErrorResponse` JSON.
 struct MockErrorMiddleware: Middleware {
@@ -14,12 +17,17 @@ struct MockErrorMiddleware: Middleware {
                     error: abortError.reason,
                     code: statusToCode(abortError.status)
                 )
+                logger.warning("Request error \(status.code): \(abortError.reason)", metadata: [
+                    "path": "\(request.url.path)",
+                    "status": "\(status.code)",
+                ])
             } else {
                 status = .internalServerError
                 body = ErrorResponse(
                     error: "An unexpected error occurred.",
                     code: "internal_error"
                 )
+                logger.error("Unexpected error handling \(request.method) \(request.url.path): \(error)")
             }
 
             let response = Response(status: status)

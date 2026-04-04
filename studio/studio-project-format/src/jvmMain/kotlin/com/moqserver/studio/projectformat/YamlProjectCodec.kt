@@ -1,9 +1,11 @@
 package com.moqserver.studio.projectformat
 
+import com.moqserver.studio.logging.loggerFor
 import org.snakeyaml.engine.v2.api.Load
 import org.snakeyaml.engine.v2.api.LoadSettings
 
 class YamlProjectCodec {
+    private val logger = loggerFor<YamlProjectCodec>()
     private val loader = Load(LoadSettings.builder().build())
 
     fun parseDocument(source: String): Any? {
@@ -11,12 +13,14 @@ class YamlProjectCodec {
     }
 
     fun decodeManifest(yaml: String): ProjectManifest {
+        logger.debug("Decoding manifest ({} bytes)", yaml.length)
         val map = loader.loadFromString(yaml) as? Map<*, *>
             ?: throw IllegalArgumentException("${MoqProjectFormat.MANIFEST_FILE} must be a YAML mapping")
         return parseManifest(map)
     }
 
     fun decodeEndpoint(yaml: String): EndpointDocument {
+        logger.debug("Decoding endpoint ({} bytes)", yaml.length)
         val map = loader.loadFromString(yaml) as? Map<*, *>
             ?: throw IllegalArgumentException("Endpoint file must be a YAML mapping")
         return parseEndpoint(map)
@@ -197,6 +201,7 @@ class YamlProjectCodec {
     }
 
     fun encodeManifest(manifest: ProjectManifest): String {
+        logger.debug("Encoding manifest: {}", manifest.name)
         val lines = mutableListOf<String>()
         lines += """version: "${manifest.version}""""
         lines += "name: ${yamlQuote(manifest.name)}"
@@ -226,6 +231,7 @@ class YamlProjectCodec {
     }
 
     fun encodeEndpoint(endpoint: EndpointDocument): String {
+        logger.debug("Encoding endpoint: {} {}", endpoint.method, endpoint.path)
         val lines = mutableListOf<String>()
 
         lines += "id: ${yamlQuote(endpoint.id)}"

@@ -1,8 +1,11 @@
 import ArgumentParser
 import Foundation
+import Logging
 import MoqCore
 import MoqParsing
 import MoqRuntime
+
+private let logger = Logger(label: "moqserver.cli.InitCommand")
 
 /// `moqserver init` — scaffolds a mocks directory from an OpenAPI spec.
 public struct InitCommand: AsyncParsableCommand {
@@ -23,19 +26,23 @@ public struct InitCommand: AsyncParsableCommand {
     public init() {}
 
     public mutating func run() async throws {
+        logger.info("Scaffolding mocks", metadata: ["source": "\(spec)", "format": "\(format)", "output": "\(output)"])
         let specLoader = SpecLoader()
         let specData = try specLoader.loadData(from: spec)
         let inputFormat = resolveFormat(format)
         let parsedSpecLoader = ParsedSpecLoader()
         let parsedSpec = try parsedSpecLoader.parse(data: specData, source: spec, format: inputFormat)
+        logger.debug("Parsed spec", metadata: ["endpoints": "\(parsedSpec.endpoints.count)"])
 
         if inputFormat == .har || parsedSpec.endpoints.contains(where: { endpoint in
             endpoint.responses.contains(where: { $0.requestMatch != nil })
         }) {
             do {
                 let filesCreated = try MockFileScaffolder.scaffold(from: parsedSpec, output: output)
+                logger.info("Scaffolded mock files via MockFileScaffolder", metadata: ["count": "\(filesCreated)"])
                 print("Scaffolded \(filesCreated) mock file(s) in \((output as NSString).expandingTildeInPath)")
             } catch {
+                logger.error("Failed to scaffold mock files", metadata: ["output": "\(output)", "error": "\(error.localizedDescription)"])
                 throw ValidationError("Failed to scaffold mock files to \(output): \(error.localizedDescription)")
             }
             return
@@ -80,6 +87,7 @@ public struct InitCommand: AsyncParsableCommand {
             }
         }
 
+        logger.info("Scaffolding complete", metadata: ["filesCreated": "\(filesCreated)", "outputPath": "\(outputPath)"])
         print("Scaffolded \(filesCreated) mock file(s) in \(outputPath)")
     }
 

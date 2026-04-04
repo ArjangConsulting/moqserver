@@ -1,5 +1,9 @@
 import Foundation
+
+import Logging
 import MoqCore
+
+private let logger = Logger(label: "moqserver.runtime.MockFileLoader")
 
 /// Loads mock response files from a directory structure.
 ///
@@ -27,6 +31,7 @@ public struct MockFileLoader: MockFileLoading {
     public init() {}
 
     public func load(from directory: String) throws -> [Endpoint] {
+        logger.info("Loading mock files from \(directory)")
         let expandedPath = (directory as NSString).expandingTildeInPath
         let baseURL = URL(fileURLWithPath: expandedPath, isDirectory: true).resolvingSymlinksInPath()
         let fm = FileManager.default
@@ -89,7 +94,8 @@ public struct MockFileLoader: MockFileLoading {
         }
 
         return grouped.map { key, variants in
-            Endpoint(
+            logger.debug("Loaded endpoint \(key.method.rawValue) \(key.path) with \(variants.count) variant(s)")
+            return Endpoint(
                 key: key,
                 authRequirement: .none,
                 variants: variants

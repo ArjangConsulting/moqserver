@@ -1,13 +1,19 @@
 import Foundation
+
+import Logging
 import MoqCore
+
+private let logger = Logger(label: "moqserver.parsing.HARParser")
 
 /// Parses HAR 1.2 files into ParsedSpec for mock generation.
 public struct HARParser: SpecParsing {
     public init() {}
 
     public func parse(data: Data) throws -> ParsedSpec {
+        logger.info("Parsing HAR file (\(data.count) bytes)")
         let decoder = JSONDecoder()
         let har = try decoder.decode(HARFile.self, from: data)
+        logger.debug("HAR file contains \(har.log.entries.count) entries")
 
         var grouped: [HARGroupKey: [CapturedExchange]] = [:]
 
@@ -51,6 +57,8 @@ public struct HARParser: SpecParsing {
 
         let title = har.log.creator?.name.map { "\($0) HAR Import" } ?? "HAR Import"
         let version = har.log.creator?.version ?? har.log.version
+
+        logger.info("Parsed \(endpoints.count) endpoint(s) from HAR file grouped from \(har.log.entries.count) entries")
 
         return ParsedSpec(
             title: title,

@@ -1,8 +1,11 @@
 import Foundation
+
+import Logging
 import MoqCore
 
 /// Thread-safe in-memory endpoint storage using Swift concurrency.
 public actor InMemoryMockStore: MockStoring {
+    private let logger = Logger(label: "moqserver.runtime.InMemoryMockStore")
     private var endpoints: [EndpointKey: Endpoint] = [:]
     /// GraphQL endpoints stored separately: multiple endpoints can share the same key (POST /graphql).
     private var graphqlEndpoints: [EndpointKey: [Endpoint]] = [:]
@@ -13,6 +16,7 @@ public actor InMemoryMockStore: MockStoring {
 
     public func register(_ endpoint: Endpoint) {
         let key = endpoint.key
+        logger.debug("Registering endpoint \(key.method.rawValue) \(key.path)")
 
         if endpoint.operation != nil {
             var list = graphqlEndpoints[key] ?? []
@@ -50,6 +54,7 @@ public actor InMemoryMockStore: MockStoring {
 
     public func lookup(method: HTTPMethodValue, path: String) -> Endpoint? {
         let normalizedPath = path.hasPrefix("/") ? path : "/\(path)"
+        logger.trace("Looking up endpoint \(method.rawValue) \(normalizedPath)")
 
         let exactKey = EndpointKey(method: method, path: normalizedPath)
         if let endpoint = endpoints[exactKey] {
@@ -151,6 +156,7 @@ public actor InMemoryMockStore: MockStoring {
     private var variantOverrides: [String: String] = [:]
 
     public func setVariantOverride(for key: String, variant: String) {
+        logger.info("Setting variant override '\(variant)' for \(key)")
         variantOverrides[key] = variant
         persistVariantOverridesIfNeeded()
     }
@@ -160,6 +166,7 @@ public actor InMemoryMockStore: MockStoring {
     }
 
     public func resetVariantOverride(for key: String) {
+        logger.info("Resetting variant override for \(key)")
         variantOverrides.removeValue(forKey: key)
         persistVariantOverridesIfNeeded()
     }
@@ -169,6 +176,7 @@ public actor InMemoryMockStore: MockStoring {
     }
 
     public func clear() {
+        logger.info("Clearing all endpoints and overrides")
         endpoints.removeAll()
         graphqlEndpoints.removeAll()
         patterns.removeAll()
@@ -178,12 +186,14 @@ public actor InMemoryMockStore: MockStoring {
 
     public func configureVariantOverridePersistence(path: String?) {
         guard let path else {
+            logger.debug("Variant override persistence disabled")
             overridesPersistencePath = nil
             return
         }
 
         let expanded = (path as NSString).expandingTildeInPath
         overridesPersistencePath = expanded
+        logger.debug("Variant override persistence configured at \(expanded)")
         loadPersistedOverridesIfAvailable()
     }
 

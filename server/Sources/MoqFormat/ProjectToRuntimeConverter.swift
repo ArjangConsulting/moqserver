@@ -1,12 +1,18 @@
 import Foundation
+
+import Logging
+
 import MoqCore
+
+private let logger = Logger(label: "moqserver.format.ProjectToRuntimeConverter")
 
 /// Converts .moqproj domain models to runtime Endpoint models for serving.
 public enum ProjectToRuntimeConverter {
 
     /// Convert an entire MoqProject to runtime endpoints.
     public static func convert(_ project: MoqProject) throws -> [Endpoint] {
-        try project.endpoints.map { doc in
+        logger.info("Converting project '\(project.manifest.name)' to runtime endpoints")
+        let endpoints = try project.endpoints.map { doc in
             try convertEndpoint(
                 doc,
                 defaults: project.manifest.defaults,
@@ -14,6 +20,8 @@ public enum ProjectToRuntimeConverter {
                 projectPath: project.projectPath
             )
         }
+        logger.info("Conversion complete: \(endpoints.count) endpoint(s)")
+        return endpoints
     }
 
     /// Convert a single EndpointDocument to a runtime Endpoint.
@@ -23,6 +31,7 @@ public enum ProjectToRuntimeConverter {
         globalRules: GlobalRules? = nil,
         projectPath: String
     ) throws -> Endpoint {
+        logger.debug("Converting endpoint \(doc.method) \(doc.path)")
         let method = HTTPMethodValue(rawValue: doc.method)
         let key = EndpointKey(method: method, path: doc.path)
 

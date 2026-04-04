@@ -1,5 +1,6 @@
 package com.moqserver.studio.projectformat
 
+import com.moqserver.studio.logging.loggerFor
 import java.io.File
 import java.util.Base64
 import kotlinx.serialization.json.Json
@@ -12,18 +13,21 @@ import kotlinx.serialization.json.JsonPrimitive
 class ProjectRepository(
     private val codec: YamlProjectCodec = YamlProjectCodec(),
 ) {
+    private val logger = loggerFor<ProjectRepository>()
     private val fixtureJson = Json {
         prettyPrint = true
         prettyPrintIndent = "  "
     }
 
     fun load(projectPath: String): MoqProject {
+        logger.info("Loading project from {}", projectPath)
         val dir = File(projectPath)
         require(dir.isDirectory) { "Not a directory: $projectPath" }
 
         val manifestFile = File(dir, MoqProjectFormat.MANIFEST_FILE)
         require(manifestFile.isFile) { "Missing ${MoqProjectFormat.MANIFEST_FILE} at: ${manifestFile.absolutePath}" }
         val manifest = codec.decodeManifest(manifestFile.readText())
+        logger.debug("Loaded manifest: {}", manifest.name)
 
         val endpointsDir = File(dir, MoqProjectFormat.ENDPOINTS_DIR)
         require(endpointsDir.isDirectory) {
@@ -35,15 +39,18 @@ class ProjectRepository(
         }?.sortedBy { it.name } ?: emptyList()
 
         require(endpointFiles.isNotEmpty()) { "No endpoint files found in: ${endpointsDir.absolutePath}" }
+        logger.debug("Found {} endpoint files", endpointFiles.size)
 
         val endpoints = endpointFiles.map { file ->
             try {
                 codec.decodeEndpoint(file.readText())
             } catch (e: Exception) {
+                logger.error("Invalid endpoint file {}: {}", file.name, e.message)
                 throw IllegalStateException("Invalid endpoint file ${file.absolutePath}: ${e.message}", e)
             }
         }
 
+        logger.info("Project loaded: {} with {} endpoints", manifest.name, endpoints.size)
         return MoqProject(
             manifest = manifest,
             endpoints = endpoints,
@@ -52,6 +59,7 @@ class ProjectRepository(
     }
 
     fun save(project: MoqProject, path: String) {
+        logger.info("Saving project {} to {}", project.manifest.name, path)
         val dir = File(path)
         val endpointsDir = File(dir, MoqProjectFormat.ENDPOINTS_DIR)
         val fixturesDir = File(dir, MoqProjectFormat.FIXTURES_DIR)
@@ -98,6 +106,7 @@ class ProjectRepository(
                     file.isDirectory && file.listFiles().isNullOrEmpty() -> file.delete()
                 }
             }
+        logger.debug("Project saved with {} endpoints and {} fixtures", persistedEndpoints.size, referencedFixtures.size)
     }
 
     fun readFixture(projectPath: String, bodyFile: String): String? {

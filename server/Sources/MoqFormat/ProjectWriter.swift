@@ -1,12 +1,18 @@
 import Foundation
+
+import Logging
+
 import MoqCore
 import Yams
+
+private let logger = Logger(label: "moqserver.format.ProjectWriter")
 
 /// Writes a MoqProject to a .moqproj directory with deterministic output.
 public struct ProjectWriter: ProjectWriting {
     public init() {}
 
     public func write(_ project: MoqProject, to path: String) throws {
+        logger.info("Writing project '\(project.manifest.name)' to \(path)")
         let fm = FileManager.default
         let projectPath = (path as NSString).standardizingPath
 
@@ -27,8 +33,10 @@ public struct ProjectWriter: ProjectWriting {
             let endpointYAML = try encodeEndpoint(endpoint)
             let fileName = "\(endpoint.id).yml"
             let filePath = (endpointsDir as NSString).appendingPathComponent(fileName)
+            logger.debug("Writing endpoint file \(fileName)")
             try endpointYAML.write(toFile: filePath, atomically: true, encoding: .utf8)
         }
+        logger.info("Project written: \(sortedEndpoints.count) endpoint file(s)")
     }
 
     // MARK: - Deterministic Encoding

@@ -1,16 +1,22 @@
 import Foundation
+
+import Logging
 import MoqCore
 import OpenAPIKit
 import OpenAPIKit30
 import OpenAPIKitCompat
 import Yams
 
+private let logger = Logger(label: "moqserver.parsing.OpenAPIParser")
+
 /// Parses OpenAPI 3.0.x and 3.1.x specs into ParsedSpec.
 public struct OpenAPIParser: SpecParsing {
     public init() {}
 
     public func parse(data: Data) throws -> ParsedSpec {
+        logger.info("Parsing OpenAPI spec (\(data.count) bytes)")
         let document = try parseDocument(data: data)
+        logger.debug("Document parsed: \(document.info.title) v\(document.info.version)")
         let securitySchemes = extractSecuritySchemes(from: document)
         let parameterComponents = extractParameters(from: document)
         let requestBodyComponents = extractRequestBodies(from: document)
@@ -51,6 +57,7 @@ public struct OpenAPIParser: SpecParsing {
             }
         }
 
+        logger.info("Parsed \(endpoints.count) endpoint(s) from OpenAPI spec")
         return ParsedSpec(
             title: document.info.title,
             version: document.info.version,
@@ -60,19 +67,24 @@ public struct OpenAPIParser: SpecParsing {
 
     private func parseDocument(data: Data) throws -> OpenAPIKit.OpenAPI.Document {
         if let doc = try? JSONDecoder().decode(OpenAPIKit.OpenAPI.Document.self, from: data) {
+            logger.debug("Parsed as OpenAPI 3.1 JSON")
             return doc
         }
         if let doc = try? YAMLDecoder().decode(OpenAPIKit.OpenAPI.Document.self, from: data) {
+            logger.debug("Parsed as OpenAPI 3.1 YAML")
             return doc
         }
 
         if let doc30 = try? JSONDecoder().decode(OpenAPIKit30.OpenAPI.Document.self, from: data) {
+            logger.debug("Parsed as OpenAPI 3.0 JSON, converting to 3.1")
             return doc30.convert(to: .v3_1_0)
         }
         if let doc30 = try? YAMLDecoder().decode(OpenAPIKit30.OpenAPI.Document.self, from: data) {
+            logger.debug("Parsed as OpenAPI 3.0 YAML, converting to 3.1")
             return doc30.convert(to: .v3_1_0)
         }
 
+        logger.error("Failed to parse spec as OpenAPI 3.0 or 3.1")
         throw OpenAPIParserError.unsupportedFormat
     }
 

@@ -1,5 +1,8 @@
+import Logging
 import MoqCore
 import Vapor
+
+private let logger = Logger(label: "moqserver.runtime.AdminHandler")
 
 /// Handles admin API requests for managing mock endpoints at runtime.
 public struct AdminHandler: Sendable {
@@ -14,6 +17,7 @@ public struct AdminHandler: Sendable {
     /// GET /_admin/endpoints — list all endpoints with variants and active variant.
     public func listEndpoints(req: Request) async throws -> [EndpointListItem] {
         try requireAdminAuth(req: req)
+        logger.info("Listing all endpoints")
         let endpoints = await store.allEndpoints()
         let overrides = await store.allVariantOverrides()
 
@@ -32,6 +36,7 @@ public struct AdminHandler: Sendable {
     public func getEndpoint(req: Request) async throws -> EndpointDetail {
         try requireAdminAuth(req: req)
         let (endpoint, keyString) = try await resolveEndpoint(req: req)
+        logger.info("Getting endpoint details for \(keyString)")
         let activeVariant = await store.activeVariantOverride(for: keyString)
 
         return EndpointDetail(
@@ -61,6 +66,7 @@ public struct AdminHandler: Sendable {
         }
 
         await store.setVariantOverride(for: keyString, variant: variant.name)
+        logger.info("Active variant set to '\(variant.name)' for \(keyString)")
         return MessageResponse(message: "Active variant set to '\(variant.name)' for \(keyString)")
     }
 
@@ -69,6 +75,7 @@ public struct AdminHandler: Sendable {
         try requireAdminAuth(req: req)
         let (_, keyString) = try await resolveEndpoint(req: req)
         await store.resetVariantOverride(for: keyString)
+        logger.info("Variant reset to default for \(keyString)")
         return MessageResponse(message: "Variant reset to default for \(keyString)")
     }
 
@@ -148,6 +155,7 @@ public struct AdminHandler: Sendable {
             return
         }
 
+        logger.warning("Admin auth failed for \(req.method) \(req.url.path)")
         var headers = HTTPHeaders()
         for challenge in challenges {
             headers.add(name: "WWW-Authenticate", value: challenge)
