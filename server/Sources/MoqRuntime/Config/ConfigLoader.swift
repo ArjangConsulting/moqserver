@@ -1,11 +1,16 @@
 import Foundation
+
+import Logging
 import Yams
+
+private let logger = Logger(label: "moqserver.runtime.ConfigLoader")
 
 /// Loads server configuration from YAML or JSON files.
 public struct ConfigLoader: Sendable {
     public init() {}
 
     public func load(from path: String) throws -> ServerConfig {
+        logger.info("Loading config from \(path)")
         let expandedPath = (path as NSString).expandingTildeInPath
         let url = URL(fileURLWithPath: expandedPath)
 
@@ -17,8 +22,11 @@ public struct ConfigLoader: Sendable {
 
         let decoder = YAMLDecoder()
         do {
-            return try decoder.decode(ServerConfig.self, from: data)
+            let config = try decoder.decode(ServerConfig.self, from: data)
+            logger.debug("Config loaded as YAML")
+            return config
         } catch {
+            logger.debug("YAML decode failed, trying JSON fallback")
             return try JSONDecoder().decode(ServerConfig.self, from: data)
         }
     }

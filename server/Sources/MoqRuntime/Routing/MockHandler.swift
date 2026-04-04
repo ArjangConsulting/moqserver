@@ -1,6 +1,10 @@
 import Foundation
+
+import Logging
 import MoqCore
 import Vapor
+
+private let logger = Logger(label: "moqserver.runtime.MockHandler")
 
 /// Handles incoming requests by matching them to registered endpoints
 /// and selecting the appropriate response variant.
@@ -25,12 +29,14 @@ public struct MockHandler: Sendable {
     public func handle(req: Request) async throws -> Response {
         let method = HTTPMethodValue(rawValue: req.method.rawValue)
         let path = req.url.path
+        logger.debug("Handling request \(req.method) \(path)")
 
         // Try GraphQL lookup first for POST requests to GraphQL-like paths
         let endpoint: Endpoint
         if let resolved = try await resolveEndpoint(method: method, path: path, req: req) {
             endpoint = resolved
         } else {
+            logger.warning("No endpoint found for \(req.method) \(req.url.path)")
             let errorResponse = ErrorResponse(
                 error: "No mock endpoint found for \(req.method) \(req.url.path)",
                 code: "endpoint_not_found",
@@ -50,6 +56,7 @@ public struct MockHandler: Sendable {
         )
         let authOutcome = authValidator.evaluate(endpoint.authRequirement, context: authContext)
         if let authError = authResponseFromOutcome(authOutcome) {
+            logger.warning("Auth failed for \(req.method) \(req.url.path)")
             return authError
         }
 
@@ -60,6 +67,7 @@ public struct MockHandler: Sendable {
             )
             let apiKeyOutcome = authValidator.evaluate(endpoint.authRequirement, context: apiKeyContext)
             if let apiKeyError = authResponseFromOutcome(apiKeyOutcome) {
+                logger.warning("API key auth failed for \(req.method) \(req.url.path)")
                 return apiKeyError
             }
         }
@@ -92,6 +100,7 @@ public struct MockHandler: Sendable {
             adminOverride: await store.activeVariantOverride(for: endpointKeyString),
             configOverride: config?.variantOverride(for: endpointKeyString)
         )
+        logger.debug("Variant selection for \(endpointKeyString): requested=\(variantName ?? "default")")
 
         guard let variant = selectVariant(endpoint: endpoint, named: variantName, req: req) else {
             let availableNames = endpoint.variants.map(\.name).joined(separator: ", ")
@@ -117,12 +126,14 @@ public struct MockHandler: Sendable {
         }
 
         if let packetLossResponse = simulatedPacketLossResponse(for: endpoint) {
+            logger.info("Simulated packet loss for \(endpointKeyString)")
             return packetLossResponse
         }
 
         // Apply delay
         let delay = effectiveDelay(for: endpoint, variant: variant, endpointKeyString: endpointKeyString)
         if let delay, delay > 0 {
+            logger.debug("Applying \(delay)s delay for \(endpointKeyString)")
             try await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
         }
 
@@ -139,6 +150,7 @@ public struct MockHandler: Sendable {
             body = .empty
         }
 
+        logger.debug("Responding \(variant.statusCode.code) for \(endpointKeyString) variant=\(variant.name)")
         return Response(
             status: Vapor.HTTPResponseStatus(statusCode: Int(variant.statusCode.code)),
             headers: headers,

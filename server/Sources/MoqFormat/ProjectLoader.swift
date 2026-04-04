@@ -1,12 +1,18 @@
 import Foundation
+
+import Logging
+
 import MoqCore
 import Yams
+
+private let logger = Logger(label: "moqserver.format.ProjectLoader")
 
 /// Loads a .moqproj directory from disk into domain models.
 public struct ProjectLoader: ProjectLoading {
     public init() {}
 
     public func load(from path: String) throws -> MoqProject {
+        logger.info("Loading project from \(path)")
         let fm = FileManager.default
         let projectPath = (path as NSString).standardizingPath
 
@@ -25,6 +31,7 @@ public struct ProjectLoader: ProjectLoading {
         let manifest: ProjectManifest
         do {
             manifest = try YAMLDecoder().decode(ProjectManifest.self, from: manifestYAML)
+            logger.debug("Manifest loaded: \(manifest.name)")
         } catch {
             throw ProjectLoadError.invalidManifest(manifestPath, error)
         }
@@ -39,6 +46,8 @@ public struct ProjectLoader: ProjectLoading {
             .filter { $0.hasSuffix(".yml") || $0.hasSuffix(".yaml") }
             .sorted()
 
+        logger.debug("Found \(endpointFiles.count) endpoint file(s) in \(endpointsDir)")
+
         guard !endpointFiles.isEmpty else {
             throw ProjectLoadError.noEndpointFiles(endpointsDir)
         }
@@ -51,10 +60,12 @@ public struct ProjectLoader: ProjectLoading {
                 let endpoint = try YAMLDecoder().decode(EndpointDocument.self, from: yaml)
                 endpoints.append(endpoint)
             } catch {
+                logger.error("Failed to parse endpoint file \(filePath): \(error)")
                 throw ProjectLoadError.invalidEndpointFile(filePath, error)
             }
         }
 
+        logger.info("Project loaded: \(manifest.name) with \(endpoints.count) endpoint(s)")
         return MoqProject(manifest: manifest, endpoints: endpoints, projectPath: projectPath)
     }
 }

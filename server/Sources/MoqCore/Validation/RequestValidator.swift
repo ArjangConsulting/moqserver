@@ -1,5 +1,9 @@
 import Foundation
 
+import Logging
+
+private let logger = Logger(label: "moqserver.core.RequestValidator")
+
 /// Default implementation of request validation logic.
 /// Unit-testable without any web framework dependency.
 public struct RequestValidator: RequestValidating {
@@ -7,23 +11,28 @@ public struct RequestValidator: RequestValidating {
 
     public func validate(endpoint: Endpoint, context: RequestContext) -> RequestValidationError? {
         if let error = validateRules(endpoint.queryParamRules, values: context.queryParameters, kind: .queryParam) {
+            logger.debug("Request validation failed: \(error.message)")
             return error
         }
 
         if let error = validateRules(endpoint.headerRules, values: context.headers, kind: .header) {
+            logger.debug("Request validation failed: \(error.message)")
             return error
         }
 
         let cookieValues = endpoint.verifyCookies ? mergedCookieValues(endpoint.cookieRules, cookies: context.cookies) : context.cookies
         if let error = validateRules(endpoint.cookieRules, values: cookieValues, kind: .cookie) {
+            logger.debug("Request validation failed: \(error.message)")
             return error
         }
         if endpoint.verifyCookies,
            let error = validateCookiePresence(context.cookies, explicitRules: endpoint.cookieRules) {
+            logger.debug("Request validation failed: \(error.message)")
             return error
         }
 
         if endpoint.requiresBody && !context.hasBody {
+            logger.debug("Request validation failed: missing required body")
             return RequestValidationError(
                 statusCode: .badRequest,
                 code: .missingRequestBody,
@@ -40,6 +49,7 @@ public struct RequestValidator: RequestValidating {
             let supported = endpoint.acceptedContentTypes.map { $0.lowercased() }
             let matches = supported.contains { matchesContentType(request: requestType, expected: $0) }
             if !matches {
+                logger.debug("Unsupported content type '\(requestType)' for endpoint")
                 return RequestValidationError(
                     statusCode: .unsupportedMediaType,
                     code: .unsupportedContentType,

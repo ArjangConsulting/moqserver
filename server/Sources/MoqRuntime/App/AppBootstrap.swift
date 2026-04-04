@@ -1,5 +1,8 @@
+import Logging
 import MoqCore
 import Vapor
+
+private let bootstrapLogger = Logger(label: "moqserver.runtime.AppBootstrap")
 
 /// Configures and returns a Vapor Application ready to serve mock endpoints.
 public func buildApp(
@@ -10,6 +13,7 @@ public func buildApp(
     hostname: String = "127.0.0.1",
     port: Int = 8080
 ) async throws -> Application {
+    bootstrapLogger.info("Building app on \(hostname):\(port)")
     let executable = ProcessInfo.processInfo.arguments.first ?? "moqserver"
     let environment = Environment(name: "development", arguments: [executable])
     let app = try await Application.make(environment)
@@ -19,6 +23,7 @@ public func buildApp(
     // Use structured error responses for all unhandled errors
     app.middleware = Middlewares()
     app.middleware.use(MockErrorMiddleware())
+    bootstrapLogger.debug("Registered MockErrorMiddleware")
 
     let handler = MockHandler(
         store: store,
@@ -37,5 +42,6 @@ public func buildApp(
     let router = MockRouter(handler: handler)
     router.registerRoutes(on: app)
 
+    bootstrapLogger.info("App configured: auth, admin, and mock routes registered")
     return app
 }

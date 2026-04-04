@@ -1,4 +1,7 @@
+import Logging
 import Vapor
+
+private let logger = Logger(label: "moqserver.runtime.AdminRouter")
 
 /// Registers admin API routes under /_admin/*.
 /// Must be registered BEFORE catch-all mock routes.
@@ -10,6 +13,7 @@ public struct AdminRouter {
     }
 
     public func registerRoutes(on app: Application) {
+        logger.info("Registering admin API routes under /_admin")
         let admin = app.grouped("_admin")
 
         admin.get("endpoints") { req async throws -> [EndpointListItem] in

@@ -16,6 +16,7 @@ kotlin {
 
         val jvmMain by getting {
             dependencies {
+                implementation(project(":studio-logging"))
                 implementation(libs.snakeyaml.engine)
             }
         }

@@ -1,5 +1,9 @@
 import Foundation
 
+import Logging
+
+private let logger = Logger(label: "moqserver.core.RuleEvaluator")
+
 /// Evaluates request validation rules against actual request values.
 public enum RuleEvaluator {
     public enum Failure: Sendable, Equatable {
@@ -9,6 +13,7 @@ public enum RuleEvaluator {
 
     public static func evaluate(_ rule: RuleMatcher, actualValue: String?) -> Failure? {
         let matchType = resolvedMatchType(for: rule)
+        logger.trace("Evaluating rule '\(rule.name)' with matchType=\(matchType) against value=\(actualValue ?? "<nil>")")
 
         switch matchType {
         case .require:

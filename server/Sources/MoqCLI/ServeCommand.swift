@@ -1,10 +1,13 @@
 import ArgumentParser
 import Foundation
+import Logging
 import MoqCore
 import MoqFormat
 import MoqParsing
 import MoqRuntime
 import Vapor
+
+private let logger = Logger(label: "moqserver.cli.ServeCommand")
 
 /// `moqserver serve` — loads an OpenAPI spec, HAR file, or .moqproj directory and starts the mock server.
 public struct ServeCommand: AsyncParsableCommand {
@@ -53,21 +56,26 @@ public struct ServeCommand: AsyncParsableCommand {
         var serverConfig: ServerConfig?
         if let configPath = config {
             serverConfig = try configLoader.load(from: configPath)
+            logger.info("Loaded config from \(configPath)")
             print("Loaded config from \(configPath)")
         }
 
         await store.configureVariantOverridePersistence(path: serverConfig?.overridesPersistencePath)
 
         if let projectPath = project {
+            logger.info("Loading project from \(projectPath)")
             try await loadProject(from: projectPath, into: store)
         } else if let specPath = spec {
+            logger.info("Loading spec from \(specPath)", metadata: ["format": "\(format)"])
             try await loadSpec(from: specPath, into: store, serverConfig: serverConfig)
         }
 
         let endpointCount = await store.allEndpoints().count
         let source = project != nil ? "project" : (format == "auto" ? "input" : format)
+        logger.info("Loaded \(endpointCount) endpoint(s) from \(source)")
         print("Loaded \(endpointCount) endpoint(s) from \(source)")
         print("Starting mock server on \(hostname):\(port)")
+        logger.info("Starting mock server", metadata: ["hostname": "\(hostname)", "port": "\(port)"])
 
         let app = try await buildApp(store: store, config: serverConfig, hostname: hostname, port: port)
 
@@ -89,6 +97,7 @@ public struct ServeCommand: AsyncParsableCommand {
         for endpoint in endpoints {
             await store.register(endpoint)
         }
+        logger.info("Loaded project", metadata: ["name": "\(project.manifest.name)", "path": "\(path)", "endpoints": "\(endpoints.count)"])
         print("Loaded project \"\(project.manifest.name)\" from \(path)")
     }
 
@@ -105,6 +114,7 @@ public struct ServeCommand: AsyncParsableCommand {
         // Load and parse the spec
         let specData = try specLoader.loadData(from: specPath)
         let inputFormat = resolveFormat(format)
+        logger.debug("Resolved input format", metadata: ["format": "\(inputFormat)"])
         let parsedSpecLoader = ParsedSpecLoader()
         let parsedSpec = try parsedSpecLoader.parse(data: specData, source: specPath, format: inputFormat)
 
@@ -121,6 +131,7 @@ public struct ServeCommand: AsyncParsableCommand {
         }
 
         if !errors.isEmpty {
+            logger.error("Spec validation failed", metadata: ["errors": "\(errors.count)"])
             throw CleanExit.message("Aborting: spec has \(errors.count) validation error(s). Fix them or use --spec with a valid spec.")
         }
 
@@ -133,10 +144,12 @@ public struct ServeCommand: AsyncParsableCommand {
         // Load mock files if provided (overrides spec variants)
         let mocksDir = mocks ?? serverConfig?.mocksDirectory
         if let mocksDir {
+            logger.info("Loading mock files from \(mocksDir)")
             let mockEndpoints = try mockFileLoader.load(from: mocksDir)
             for mockEndpoint in mockEndpoints {
                 await store.mergeVariants(from: mockEndpoint)
             }
+            logger.debug("Merged \(mockEndpoints.count) mock endpoint(s) from files")
             print("Loaded mock files from \(mocksDir)")
         }
     }

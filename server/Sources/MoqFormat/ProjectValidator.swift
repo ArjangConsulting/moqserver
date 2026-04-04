@@ -1,5 +1,10 @@
 import Foundation
+
+import Logging
+
 import MoqCore
+
+private let logger = Logger(label: "moqserver.format.ProjectValidator")
 
 /// Validates a MoqProject against schema-level and semantic rules.
 public struct ProjectValidator: ProjectValidating {
@@ -8,6 +13,7 @@ public struct ProjectValidator: ProjectValidating {
     public init() {}
 
     public func validate(_ project: MoqProject) -> [ValidationDiagnostic] {
+        logger.info("Validating project '\(project.manifest.name)'")
         var diagnostics: [ValidationDiagnostic] = []
         var seenEndpointReferenceNames: [String: String] = [:]
 
@@ -264,6 +270,10 @@ public struct ProjectValidator: ProjectValidating {
             file: "project.yml",
             field: "defaults.auth"
         ))
+
+        let errors = diagnostics.filter { $0.severity == .error }
+        let warnings = diagnostics.filter { $0.severity == .warning }
+        logger.info("Validation complete: \(errors.count) error(s), \(warnings.count) warning(s)")
 
         return diagnostics
     }

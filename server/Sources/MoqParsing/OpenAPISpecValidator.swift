@@ -1,9 +1,13 @@
 import Foundation
+
+import Logging
 import MoqCore
 import OpenAPIKit
 import OpenAPIKit30
 import OpenAPIKitCompat
 import Yams
+
+private let logger = Logger(label: "moqserver.parsing.OpenAPISpecValidator")
 
 /// Validates an OpenAPI spec for compliance and mock-readiness.
 /// Reports both structural issues and warnings about mock quality.
@@ -12,6 +16,7 @@ public struct OpenAPISpecValidator: Sendable {
 
     /// Validates raw spec data and returns diagnostics.
     public func validate(data: Data) -> [ValidationDiagnostic] {
+        logger.info("Validating OpenAPI spec (\(data.count) bytes)")
         var diagnostics: [ValidationDiagnostic] = []
 
         // Try to parse the document
@@ -30,6 +35,10 @@ public struct OpenAPISpecValidator: Sendable {
         diagnostics.append(contentsOf: validatePaths(document))
         diagnostics.append(contentsOf: validateSecuritySchemes(document))
         diagnostics.append(contentsOf: validateComponents(document))
+
+        let errors = diagnostics.filter { $0.severity == .error }
+        let warnings = diagnostics.filter { $0.severity == .warning }
+        logger.info("Spec validation complete: \(errors.count) error(s), \(warnings.count) warning(s)")
 
         return diagnostics
     }
