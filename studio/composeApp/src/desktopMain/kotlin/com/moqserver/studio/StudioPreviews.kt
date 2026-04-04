@@ -2,6 +2,7 @@ package com.moqserver.studio
 
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.tooling.preview.Preview
+import com.moqserver.studio.data.AISettings
 import com.moqserver.studio.domain.AIActionState
 import com.moqserver.studio.domain.AIProviderInfo
 import com.moqserver.studio.domain.AIState
@@ -174,9 +175,7 @@ private fun WorkspacePreview() {
     StudioTheme(StudioThemeMode.DARK) {
         StudioWorkspaceScreen(
             state = previewState(),
-            onRefreshCompanion = {},
             onAIAction = {},
-            onOpenAISettings = {},
             onGenerateBody = { _, _, _ -> },
             viewModel = StudioRootViewModel(),
         )
@@ -228,4 +227,20 @@ private fun AIResultsPreview() {
             onNavigateToEndpoint = {},
         )
     }
+}
+
+@Preview
+@Composable
+private fun PreferencesPreview() {
+	StudioTheme(StudioThemeMode.DARK) {
+		PreferencesScreen(
+			state = PreferencesState(
+				themeMode = StudioThemeMode.SYSTEM,
+				aiSettings = AISettings(),
+			),
+			onThemeModeChange = {},
+			onSaveAISettings = {},
+			onTestAIProvider = { _, _, _ -> },
+		)
+	}
 }

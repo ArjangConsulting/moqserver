@@ -54,6 +54,10 @@ class AnthropicAIProvider(
         val issues = mutableListOf<String>()
         if (apiKey.isBlank()) {
             issues += "$DISPLAY_NAME API key is not configured."
+            return issues
+        }
+        if (!checkAvailability()) {
+            issues += "Could not reach $DISPLAY_NAME API. Check your API key and network."
         }
         return issues
     }
