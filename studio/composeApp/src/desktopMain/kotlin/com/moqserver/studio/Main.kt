@@ -107,11 +107,6 @@ fun main(args: Array<String>) {
                             confirmProjectTransition(
                                 owner = null,
                                 state = state,
-                                repo = repo,
-                                appViewModel = appViewModel,
-                                lastFileDirectory = lastFileDirectory,
-                                recentProjectsRepo = recentProjectsRepo,
-                                ioDispatcher = Dispatchers.IO,
                             )
                         ) {
                             appViewModel.projectClosed()
@@ -150,11 +145,6 @@ fun main(args: Array<String>) {
                 confirmProjectTransition(
                     owner = window,
                     state = appViewModel.state.value,
-                    repo = repo,
-                    appViewModel = appViewModel,
-                    lastFileDirectory = lastFileDirectory,
-                    recentProjectsRepo = recentProjectsRepo,
-                    ioDispatcher = Dispatchers.IO,
                 )
 
             LaunchedEffect(pendingProjectOpenPath.value) {
