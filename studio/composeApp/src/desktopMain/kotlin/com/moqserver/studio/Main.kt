@@ -399,7 +399,7 @@ fun main(args: Array<String>) {
                     Item("Import HAR", onClick = ::requestImportHAR)
                     Separator()
                     Item(
-                        "Export References...",
+                        "Generate Client Code...",
                         enabled = state.project != null,
                         onClick = {
                             exportState.value = ExportReferencesState()
@@ -599,7 +599,7 @@ fun main(args: Array<String>) {
         if (showExport.value) {
             Window(
                 onCloseRequest = { showExport.value = false },
-                title = "Export References",
+                title = "Generate Client Code",
                 state = rememberWindowState(width = 640.dp, height = 720.dp),
             ) {
                 StudioTheme(themeMode = themeMode.value) {
