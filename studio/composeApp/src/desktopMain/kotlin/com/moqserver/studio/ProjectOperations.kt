@@ -75,67 +75,29 @@ internal suspend fun openProject(
 }
 
 /**
- * If the current project has unsaved changes, prompts the user to save/discard/cancel.
- * Returns `true` when the transition may proceed (saved or discarded), `false` on cancel.
+ * If the current project has unsaved changes, prompts the user to confirm closing.
+ * Returns `true` when the transition may proceed (user confirmed), `false` on cancel.
  */
 internal fun confirmProjectTransition(
     owner: AwtWindow?,
     state: StudioState,
-    repo: ProjectRepository,
-    appViewModel: StudioRootViewModel,
-    lastFileDirectory: androidx.compose.runtime.MutableState<String?>,
-    recentProjectsRepo: RecentProjectsRepository,
-    ioDispatcher: CoroutineDispatcher,
 ): Boolean {
     if (state.project == null || !state.isDirty) return true
 
     val result = JOptionPane.showConfirmDialog(
         owner,
-        "You have unsaved changes. Save before continuing?",
-        "Unsaved Changes",
-        JOptionPane.YES_NO_CANCEL_OPTION,
+        "Are you sure you want to close the project? You have unsaved changes that you'd lose.",
+        "Close Project",
+        JOptionPane.YES_NO_OPTION,
     )
 
     return when (result) {
         JOptionPane.YES_OPTION -> {
-            val project = state.project ?: return true
-            val path = if (project.projectPath.isBlank()) {
-                chooseProjectDirectory(
-                    parent = owner,
-                    title = "Save Project",
-                    initialDirectory = null,
-                    projectName = project.manifest.name,
-                ) ?: return false
-            } else {
-                project.projectPath
-            }
-
-            logger.info("Saving project before continuing: {}", path)
-            try {
-                runBlocking {
-                    runOnIo(ioDispatcher) { repo.save(project, path) }
-                }
-                appViewModel.projectSaved(path)
-                appViewModel.addRecentProject(path)
-                runBlocking {
-                    runOnIo(ioDispatcher) { recentProjectsRepo.save(appViewModel.state.value.recentProjects) }
-                }
-                lastFileDirectory.value = File(path).parentFile?.canonicalPath ?: path
-                true
-            } catch (throwable: Throwable) {
-                if (isFailFastEnabled()) {
-                    throw propagateFailure("Failed to save before closing", throwable)
-                }
-                reportFatal("Failed to save before closing", throwable)
-                false
-            }
-        }
-        JOptionPane.NO_OPTION -> {
-            logger.info("User chose to continue without saving")
+            logger.info("User chose to close project without saving")
             true
         }
         else -> {
-            logger.debug("Project transition cancelled by user")
+            logger.debug("Project close cancelled by user")
             false
         }
     }
