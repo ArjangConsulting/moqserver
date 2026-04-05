@@ -43,8 +43,8 @@ import com.moqserver.studio.export.ExportLanguage
 import org.jetbrains.compose.resources.painterResource
 
 private object ExportStrings {
-    const val TITLE = "Export References"
-    const val SUBTITLE = "Generate source code constants from your project's endpoint and variant reference names."
+	const val TITLE = "Generate Client Code"
+	const val SUBTITLE = "Generate source code references from your project's endpoints and variants."
     const val SELECT_LANGUAGES = "Languages"
     const val KOTLIN_PACKAGE = "Kotlin Package"
     const val KOTLIN_PACKAGE_PLACEHOLDER = "e.g. com.example.api"
