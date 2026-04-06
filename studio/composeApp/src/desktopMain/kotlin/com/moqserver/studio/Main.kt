@@ -11,7 +11,13 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.KeyShortcut
+import androidx.compose.ui.input.key.isCtrlPressed
+import androidx.compose.ui.input.key.isMetaPressed
+import androidx.compose.ui.input.key.isShiftPressed
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.type
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.MenuBar
 import androidx.compose.ui.window.Window
@@ -50,6 +56,20 @@ private fun StudioThemeMode.toThemePreference(): ThemePreference = when (this) {
     StudioThemeMode.DARK -> ThemePreference.DARK
 }
 
+private fun isUndoShortcut(event: androidx.compose.ui.input.key.KeyEvent, isMac: Boolean): Boolean {
+    if (event.type != KeyEventType.KeyDown || event.key != Key.Z || event.isShiftPressed) return false
+    return if (isMac) event.isMetaPressed else event.isCtrlPressed
+}
+
+private fun isRedoShortcut(event: androidx.compose.ui.input.key.KeyEvent, isMac: Boolean): Boolean {
+    if (event.type != KeyEventType.KeyDown) return false
+    return if (isMac) {
+        event.isMetaPressed && event.isShiftPressed && event.key == Key.Z
+    } else {
+        event.isCtrlPressed && event.key == Key.Y
+    }
+}
+
 fun main(args: Array<String>) {
     System.setProperty("apple.awt.application.name", STUDIO_APP_DISPLAY_NAME)
     logger.info("moqserver studio starting (args={})", args.toList())
@@ -70,6 +90,7 @@ fun main(args: Array<String>) {
         val themeMode = remember { mutableStateOf(aiSettings.value.themeMode.toStudioThemeMode()) }
         val lastFileDirectory = remember { mutableStateOf<String?>(null) }
         val pendingProjectOpenPath = remember { mutableStateOf(resolveInitialProjectPath(args)) }
+        val isMac = isMacOs()
         val exceptionHandler = remember {
             CoroutineExceptionHandler { _, throwable ->
                 if (isFailFastEnabled()) {
@@ -122,6 +143,21 @@ fun main(args: Array<String>) {
             },
             title = STUDIO_APP_DISPLAY_NAME,
             state = windowState,
+            onPreviewKeyEvent = { event ->
+                when {
+                    isUndoShortcut(event, isMac) && state.canUndo -> {
+                        appViewModel.undo()
+                        true
+                    }
+
+                    isRedoShortcut(event, isMac) && state.canRedo -> {
+                        appViewModel.redo()
+                        true
+                    }
+
+                    else -> false
+                }
+            },
         ) {
             window.title = state.windowTitle
 
@@ -311,7 +347,6 @@ fun main(args: Array<String>) {
                 lastFileDirectory.value = File(path).parentFile?.canonicalPath ?: path
             }
 
-            val isMac = isMacOs()
             val saveShortcut = if (isMac) {
                 KeyShortcut(key = Key.S, meta = true)
             } else {
@@ -328,6 +363,8 @@ fun main(args: Array<String>) {
                 null
             }
             val showPreferencesInMenuBar = !isMac
+            val undoShortcut = if (isMac) KeyShortcut(key = Key.Z, meta = true) else KeyShortcut(key = Key.Z, ctrl = true)
+            val redoShortcut = if (isMac) KeyShortcut(key = Key.Z, meta = true, shift = true) else KeyShortcut(key = Key.Y, ctrl = true)
 
             MenuBar {
                 Menu("File") {
@@ -397,8 +434,21 @@ fun main(args: Array<String>) {
                         },
                     )
                 }
-                if (showPreferencesInMenuBar) {
-                    Menu("Edit") {
+                Menu("Edit") {
+                    Item(
+                        "Undo",
+                        enabled = state.canUndo,
+                        shortcut = undoShortcut,
+                        onClick = { appViewModel.undo() },
+                    )
+                    Item(
+                        "Redo",
+                        enabled = state.canRedo,
+                        shortcut = redoShortcut,
+                        onClick = { appViewModel.redo() },
+                    )
+                    if (showPreferencesInMenuBar) {
+                        Separator()
                         Item(
                             "Preferences...",
                             shortcut = preferencesShortcut,

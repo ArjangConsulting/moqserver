@@ -241,6 +241,48 @@ class StudioRootViewModelTest {
     }
 
     @Test
+    fun `undo after rapid description edits restores original state in one step`() {
+        val viewModel = StudioRootViewModel()
+        val project = sampleProject().copy(
+            endpoints = listOf(
+                sampleProject().endpoints.single().copy(description = "alpha beta"),
+            ),
+        )
+
+        viewModel.projectLoaded(project)
+        val endpoint = project.endpoints.single()
+
+        viewModel.updateEndpoint(endpoint.copy(description = "alpha "))
+        viewModel.updateEndpoint(endpoint.copy(description = "alpha"))
+        viewModel.undo()
+
+        val restoredEndpoint = viewModel.state.value.project?.endpoints?.single()
+        assertEquals("alpha beta", restoredEndpoint?.description)
+        assertTrue(viewModel.state.value.canRedo)
+    }
+
+    @Test
+    fun `edit after undo creates a fresh undo step`() {
+        val viewModel = StudioRootViewModel()
+        val project = sampleProject().copy(
+            endpoints = listOf(
+                sampleProject().endpoints.single().copy(description = "alpha beta"),
+            ),
+        )
+
+        viewModel.projectLoaded(project)
+        val endpoint = project.endpoints.single()
+
+        viewModel.updateEndpoint(endpoint.copy(description = "alpha"))
+        viewModel.undo()
+        viewModel.updateEndpoint(endpoint.copy(description = "gamma"))
+        viewModel.undo()
+
+        val restoredEndpoint = viewModel.state.value.project?.endpoints?.single()
+        assertEquals("alpha beta", restoredEndpoint?.description)
+    }
+
+    @Test
     fun `updateEndpoint rejects marking second default variant and preserves current state`() {
         val viewModel = StudioRootViewModel()
         val project = sampleProject().copy(

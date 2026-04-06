@@ -10,15 +10,102 @@ import com.moqserver.studio.projectformat.ValidationDiagnostic
 import com.moqserver.studio.projectformat.YamlValue
 import com.moqserver.studio.projectformat.suggestedVariantName
 import com.moqserver.studio.projectformat.suggestedVariantReferenceName
+import kotlin.time.Duration.Companion.milliseconds
+import kotlin.time.TimeSource
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
+
+private val HISTORY_DEBOUNCE_DURATION = 500.milliseconds
+private data class HistoryEntry(
+    val project: MoqProject,
+    val selectedEndpointId: String?,
+)
+
 class StudioRootViewModel(
     private val validator: ProjectValidator = ProjectValidator(),
 ) : ViewModel() {
     private val _state = MutableStateFlow(StudioState())
     val state: StateFlow<StudioState> = _state.asStateFlow()
+
+    private val undoStack = ArrayDeque<HistoryEntry>()
+    private val redoStack = ArrayDeque<HistoryEntry>()
+    private var lastContinuousEditMark: TimeSource.Monotonic.ValueTimeMark? = null
+
+    private fun resetContinuousHistoryWindow() {
+        lastContinuousEditMark = null
+    }
+
+    /**
+     * Snapshots current state onto the undo stack.
+     *
+     * [isContinuousEdit] should be true for field-level edits (text, status, delay) where
+     * rapid keystrokes should coalesce into a single undo step. Structural operations
+     * (add/remove endpoint) pass false so they are always recorded immediately.
+     */
+    private fun recordHistory(isContinuousEdit: Boolean = false) {
+        val s = _state.value
+        val project = s.project ?: return
+        val entry = HistoryEntry(project, s.selectedEndpointId)
+        val now = TimeSource.Monotonic.markNow()
+        val lastMark = lastContinuousEditMark
+        if (isContinuousEdit && lastMark != null && (now - lastMark) < HISTORY_DEBOUNCE_DURATION) {
+            lastContinuousEditMark = now
+            return
+        }
+        if (undoStack.lastOrNull() == entry) {
+            redoStack.clear()
+            _state.update { it.copy(canUndo = undoStack.isNotEmpty(), canRedo = false) }
+            lastContinuousEditMark = if (isContinuousEdit) now else null
+            return
+        }
+        if (undoStack.size >= 100) undoStack.removeFirst()
+        undoStack.addLast(entry)
+        redoStack.clear()
+        _state.update { it.copy(canUndo = true, canRedo = false) }
+        lastContinuousEditMark = if (isContinuousEdit) now else null
+    }
+
+    fun undo() {
+        val entry = undoStack.removeLastOrNull() ?: return
+        resetContinuousHistoryWindow()
+        val s = _state.value
+        val current = s.project ?: return
+        redoStack.addLast(HistoryEntry(current, s.selectedEndpointId))
+        val restored = entry.project
+        _state.update {
+            it.copy(
+                project = restored,
+                selectedEndpointId = entry.selectedEndpointId,
+                isDirty = restored != it.originalProject,
+                diagnostics = revalidate(restored),
+                transientDiagnostic = null,
+                canUndo = undoStack.isNotEmpty(),
+                canRedo = true,
+            )
+        }
+    }
+
+    fun redo() {
+        val entry = redoStack.removeLastOrNull() ?: return
+        resetContinuousHistoryWindow()
+        val s = _state.value
+        val current = s.project ?: return
+        undoStack.addLast(HistoryEntry(current, s.selectedEndpointId))
+        val restored = entry.project
+        _state.update {
+            it.copy(
+                project = restored,
+                selectedEndpointId = entry.selectedEndpointId,
+                isDirty = restored != it.originalProject,
+                diagnostics = revalidate(restored),
+                transientDiagnostic = null,
+                canUndo = true,
+                canRedo = redoStack.isNotEmpty(),
+            )
+        }
+    }
 
     private fun duplicateDefaultVariantDiagnostic(
         existing: EndpointDocument,
@@ -58,6 +145,9 @@ class StudioRootViewModel(
     }
 
     fun projectLoaded(project: MoqProject) {
+        resetContinuousHistoryWindow()
+        undoStack.clear()
+        redoStack.clear()
         _state.update {
             it.copy(
                 project = project,
@@ -68,6 +158,8 @@ class StudioRootViewModel(
                 transientDiagnostic = null,
                 selectedEndpointId = project.endpoints.firstOrNull()?.id,
                 diagnostics = revalidate(project),
+                canUndo = false,
+                canRedo = false,
             )
         }
     }
@@ -75,6 +167,7 @@ class StudioRootViewModel(
     fun updateManifest(manifest: ProjectManifest) {
         val current = _state.value.project ?: return
         if (current.manifest == manifest) return
+        recordHistory(isContinuousEdit = true)
         val updated = current.copy(manifest = manifest)
         _state.update { it.copy(project = updated, isDirty = true, diagnostics = revalidate(updated), transientDiagnostic = null) }
     }
@@ -93,6 +186,7 @@ class StudioRootViewModel(
             }
             return
         }
+        recordHistory(isContinuousEdit = true)
         val updated = current.copy(
             endpoints = current.endpoints.map { if (it.id == endpoint.id) endpoint else it }
         )
@@ -101,6 +195,7 @@ class StudioRootViewModel(
 
     fun addEndpoint(endpoint: EndpointDocument) {
         val current = _state.value.project ?: return
+        recordHistory()
         val updated = current.copy(endpoints = current.endpoints + endpoint)
         _state.update {
             it.copy(
@@ -115,6 +210,7 @@ class StudioRootViewModel(
 
     fun removeEndpoint(endpointId: String) {
         val current = _state.value.project ?: return
+        recordHistory()
         val updated = current.copy(endpoints = current.endpoints.filter { it.id != endpointId })
         _state.update {
             it.copy(
@@ -149,6 +245,9 @@ class StudioRootViewModel(
     }
 
     fun projectClosed() {
+        resetContinuousHistoryWindow()
+        undoStack.clear()
+        redoStack.clear()
         _state.update {
             StudioState(
                 statusLine = "Project closed. Open a .moqproj directory to get started.",
@@ -371,6 +470,8 @@ data class StudioState(
     val importState: ImportState? = null,
     val ai: AIState = AIState(),
     val aiAction: AIActionState = AIActionState(),
+    val canUndo: Boolean = false,
+    val canRedo: Boolean = false,
 ) {
     val isImporting: Boolean get() = importState != null
     val selectedEndpoint: EndpointDocument?
