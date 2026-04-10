@@ -53,7 +53,7 @@ object PromptBuilder {
         appendLine("""- "name": variant name, e.g. "not-found", "server-error", "empty-list"""")
         appendLine("""- "statusCode": HTTP status code (integer)""")
         appendLine("""- "contentType": e.g. "application/json"""")
-        appendLine("""- "body": the mock response body as a string""")
+        appendLine("""- "body": the mock response body (JSON object, array, or string)""")
         appendLine("""- "description": optional, what this variant represents""")
 
         request.projectContext?.let { ctx ->
@@ -86,14 +86,21 @@ object PromptBuilder {
 
         if (request.intent?.type == "body-generation") {
             appendLine()
-            appendLine("This request is for an existing response body.")
+            appendLine("This request is to generate or update the response body for an existing variant.")
             appendLine("Return exactly one variant object that matches the selected endpoint and current variant context.")
+            appendLine("If the intent includes a current body, treat it as the baseline:")
+            appendLine("  - Preserve the exact same JSON schema and structure.")
+            appendLine("  - Keep all existing items and fields unless the user explicitly asks to remove or replace them.")
+            appendLine("  - If the user asks to add items, append them to the existing collection.")
+            appendLine("The \"body\" field in your response should be the actual JSON value (object or array), not a stringified version.")
         }
 
         val maxVariants = request.options?.maxVariants ?: DEFAULT_MAX_VARIANTS
-        appendLine()
-        appendLine("Generate up to $maxVariants variants per endpoint.")
-        appendLine("Include error cases (4xx, 5xx) alongside success cases.")
+        if (request.intent?.type != "body-generation") {
+            appendLine()
+            appendLine("Generate up to $maxVariants variants per endpoint.")
+            appendLine("Include error cases (4xx, 5xx) alongside success cases.")
+        }
         append("Respond with ONLY the JSON array, no markdown fences or explanation.")
     }
 

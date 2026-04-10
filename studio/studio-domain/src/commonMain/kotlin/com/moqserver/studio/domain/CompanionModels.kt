@@ -1,7 +1,15 @@
 package com.moqserver.studio.domain
 
+import kotlinx.serialization.KSerializer
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.descriptors.PrimitiveKind
+import kotlinx.serialization.descriptors.PrimitiveSerialDescriptor
+import kotlinx.serialization.descriptors.SerialDescriptor
+import kotlinx.serialization.encoding.Decoder
+import kotlinx.serialization.encoding.Encoder
+import kotlinx.serialization.json.JsonDecoder
+import kotlinx.serialization.json.JsonPrimitive
 
 // ── Provider Discovery ─────────────────────────────────────────────────────
 
@@ -161,9 +169,35 @@ data class GeneratedVariant(
     val name: String,
     val statusCode: Int,
     val contentType: String,
+    @Serializable(with = JsonBodyAsStringSerializer::class)
     val body: String,
     val description: String? = null,
 )
+
+/**
+ * Accepts both a JSON string (`"body": "{\"key\":\"value\"}"`) and a raw JSON value
+ * (`"body": {"key":"value"}` or `"body": [1,2,3]`). AI models frequently return the
+ * body as a raw JSON object/array rather than a stringified value.
+ */
+object JsonBodyAsStringSerializer : KSerializer<String> {
+    override val descriptor: SerialDescriptor =
+        PrimitiveSerialDescriptor("JsonBodyAsString", PrimitiveKind.STRING)
+
+    override fun serialize(encoder: Encoder, value: String) {
+        encoder.encodeString(value)
+    }
+
+    override fun deserialize(decoder: Decoder): String {
+        val jsonDecoder = decoder as? JsonDecoder
+            ?: return decoder.decodeString()
+        val element = jsonDecoder.decodeJsonElement()
+        return if (element is JsonPrimitive && element.isString) {
+            element.content
+        } else {
+            element.toString()
+        }
+    }
+}
 
 // ── Refine Project ──────────────────────────────────────────────────────────
 

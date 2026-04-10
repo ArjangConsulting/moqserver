@@ -87,7 +87,6 @@ internal fun BodyTab(
 		fileContent != null -> fileContent
 		body != null -> when (selectedFormat) {
 			BodyFormat.JSON -> yamlValueToJsonString(body)
-			BodyFormat.PLAIN_TEXT -> yamlValueToPlainText(body)
 			BodyFormat.RAW -> yamlValueToDisplayString(body)
 		}
 		else -> null
@@ -115,6 +114,7 @@ internal fun BodyTab(
 			onDismiss = { showAiPrompt = false },
 			onConfirm = {
 				onGenerateBody(aiPrompt.trim())
+				aiPrompt = ""
 				showAiPrompt = false
 			},
 		)
@@ -361,7 +361,7 @@ private fun BodyEditorPanel(
 							foregroundColor = bodyEditorForegroundColor,
 						)
 					}
-					BodyFormat.PLAIN_TEXT, BodyFormat.RAW -> {
+					BodyFormat.RAW -> {
 						OutlinedTextField(
 							value = currentText,
 							onValueChange = {},
