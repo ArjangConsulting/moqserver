@@ -30,7 +30,6 @@ internal enum class VariantDetailTab(val title: String) {
 internal enum class BodyFormat(val label: String) {
 	RAW("Raw"),
 	JSON("JSON"),
-	PLAIN_TEXT("Plain Text"),
 }
 
 private val autoNameRegex = Regex("^(Variant|Success|Error)( \\d+)?$")

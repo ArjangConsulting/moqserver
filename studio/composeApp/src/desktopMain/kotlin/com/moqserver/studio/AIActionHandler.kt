@@ -334,6 +334,11 @@ internal suspend fun generateBodyForVariant(
 			options = RequestOptions(maxVariants = 1),
 		)
 
+		logger.info(
+			"=== AI BODY GENERATION INTENT ===\n{}\n=== END INTENT ===",
+			request.intent?.description,
+		)
+
 		val result = runOnIo(ioDispatcher) { registry.generateVariants(provider, request) }
 		val normalizedResult = result.withResolvedEndpointFallback("${endpoint.method} ${endpoint.path}")
 		val generated = normalizedResult.result.variants.firstOrNull()
@@ -341,6 +346,13 @@ internal suspend fun generateBodyForVariant(
 			viewModel.aiActionFailed("AI did not return any response content for ${endpoint.method} ${endpoint.path}.")
 			return
 		}
+
+		logger.info(
+			"=== AI GENERATED BODY for variant={}: contentType={}, body preview={} ===",
+			variant.referenceName,
+			generated.contentType,
+			generated.body.take(500),
+		)
 
 		val latestState = viewModel.state.value
 		val latestEndpoint = latestState.project?.endpoints?.find { it.id == endpointId }
@@ -350,7 +362,7 @@ internal suspend fun generateBodyForVariant(
 			return
 		}
 
-		viewModel.updateEndpoint(applyGeneratedBody(latestEndpoint, latestVariant, generated.body, generated.contentType))
+		viewModel.updateEndpoint(applyGeneratedBody(latestEndpoint, latestVariant, generated.body, prompt, generated.contentType))
 		viewModel.dismissAIAction()
 		viewModel.setStatus("AI generated body for ${latestVariant.name} (${latestEndpoint.method} ${latestEndpoint.path})")
 	} catch (e: Exception) {
@@ -417,14 +429,37 @@ private fun buildBodyGenerationIntent(
 	prompt: String,
 ): String {
 	val contentType = variant.contentType()
+	val currentBody = variant.body?.let(::serializeBodyForPrompt)
 	return buildString {
-		appendLine("Generate a single response body for the selected mock variant.")
+		appendLine("Generate a response body for the selected mock variant.")
 		appendLine("Endpoint: ${endpoint.method} ${endpoint.path}")
 		appendLine("Variant name: ${variant.name}")
 		appendLine("HTTP status code: ${variant.status}")
 		contentType?.let { appendLine("Content-Type: $it") }
+		if (currentBody != null) {
+			appendLine()
+			appendLine("Current body (this is the existing response body for this variant — use its exact schema):")
+			appendLine("```")
+			appendLine(currentBody)
+			appendLine("```")
+			appendLine()
+			appendLine(
+				"IMPORTANT: Modify the existing body according to the user prompt below. " +
+					"Preserve all existing items and fields unless the user explicitly asks to remove or replace them. " +
+					"If the user asks to add items, append them to the existing collection while keeping every existing entry intact. " +
+					"The returned body MUST use the exact same JSON schema/structure as the current body shown above.",
+			)
+		}
 		appendLine("Use the current variant name and status code in the returned object.")
 		append("User prompt: $prompt")
+	}
+}
+
+private fun serializeBodyForPrompt(body: YamlValue): String? {
+	return when (body) {
+		is YamlValue.Null -> null
+		is YamlValue.Str -> body.value.takeIf { it.isNotBlank() }
+		else -> com.moqserver.studio.endpointdetail.yamlValueToJsonString(body)
 	}
 }
 
@@ -432,12 +467,18 @@ private fun applyGeneratedBody(
 	endpoint: EndpointDocument,
 	variant: ProjectVariant,
 	body: String,
+	userPrompt: String,
 	contentType: String,
 ): EndpointDocument {
 	val normalizedContentType = contentType.trim()
 	val parsedBody = parseJsonBodyText(body).getOrElse { YamlValue.Str(body) }
+	val resolvedBody = mergeGeneratedBodyIfNeeded(
+		existingBody = variant.body,
+		generatedBody = parsedBody,
+		userPrompt = userPrompt,
+	)
 	val updatedVariant = variant.copy(
-		body = parsedBody,
+		body = resolvedBody,
 		bodyFile = null,
 		headers = updatedHeaders(variant.headers, normalizedContentType),
 	)
@@ -445,6 +486,64 @@ private fun applyGeneratedBody(
 		variants = endpoint.variants.map { existing ->
 			if (existing.referenceName == variant.referenceName) updatedVariant else existing
 		},
+	)
+}
+
+internal fun mergeGeneratedBodyIfNeeded(
+	existingBody: YamlValue?,
+	generatedBody: YamlValue,
+	userPrompt: String,
+): YamlValue {
+	if (!shouldAttemptAdditiveMerge(userPrompt)) return generatedBody
+
+	return when {
+		existingBody is YamlValue.Array && generatedBody is YamlValue.Array -> {
+			mergeArrays(existingBody, generatedBody)
+		}
+		existingBody is YamlValue.Array && generatedBody !is YamlValue.Array -> {
+			if (existingBody.value.contains(generatedBody)) existingBody else YamlValue.Array(existingBody.value + generatedBody)
+		}
+		existingBody is YamlValue.Obj && generatedBody is YamlValue.Obj -> {
+			mergeObjectWrappedArrays(existingBody, generatedBody) ?: generatedBody
+		}
+		else -> generatedBody
+	}
+}
+
+private fun shouldAttemptAdditiveMerge(userPrompt: String): Boolean {
+	val normalized = userPrompt.lowercase()
+	return listOf("add", "append", "include", "insert", "more", "additional", "generate up to").any { phrase ->
+		normalized.contains(phrase)
+	}
+}
+
+private fun mergeArrays(
+	existingBody: YamlValue.Array,
+	generatedBody: YamlValue.Array,
+): YamlValue.Array {
+	return if (generatedBody.value.take(existingBody.value.size) == existingBody.value) {
+		generatedBody
+	} else {
+		YamlValue.Array(existingBody.value + generatedBody.value.filterNot(existingBody.value::contains))
+	}
+}
+
+private fun mergeObjectWrappedArrays(
+	existingBody: YamlValue.Obj,
+	generatedBody: YamlValue.Obj,
+): YamlValue? {
+	val sharedArrayKeys = existingBody.value.keys.intersect(generatedBody.value.keys).filter { key ->
+		existingBody.value[key] is YamlValue.Array && generatedBody.value[key] is YamlValue.Array
+	}
+	if (sharedArrayKeys.size != 1) return null
+
+	val arrayKey = sharedArrayKeys.single()
+	val existingArray = existingBody.value.getValue(arrayKey) as YamlValue.Array
+	val generatedArray = generatedBody.value.getValue(arrayKey) as YamlValue.Array
+	return YamlValue.Obj(
+		existingBody.value + mapOf(
+			arrayKey to mergeArrays(existingArray, generatedArray),
+		),
 	)
 }
 

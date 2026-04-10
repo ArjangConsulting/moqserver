@@ -92,6 +92,56 @@ class ResponseParserTest {
 	}
 
 	@Test
+	fun `parseGenerateVariantsResponse handles body as raw json object`() {
+		val response = """
+			[
+			  {
+			    "endpointKey": "GET /videos",
+			    "name": "success",
+			    "statusCode": 200,
+			    "contentType": "application/json",
+			    "body": {"items": [{"id": "abc123", "title": "Video One"}]},
+			    "description": "Success with one video"
+			  }
+			]
+		""".trimIndent()
+
+		val result = ResponseParser.parseGenerateVariantsResponse(response)
+
+		assertEquals(1, result.variants.size)
+		assertEquals("GET /videos", result.variants.single().endpointKey)
+		assertTrue(result.variants.single().body.contains("abc123"))
+		assertTrue(result.variants.single().body.contains("items"))
+		// Body should be a valid JSON string, not missing braces
+		assertTrue(result.variants.single().body.startsWith("{"))
+		assertTrue(result.variants.single().body.endsWith("}"))
+	}
+
+	@Test
+	fun `parseGenerateVariantsResponse handles body as raw json array`() {
+		val response = """
+			[
+			  {
+			    "endpointKey": "GET /tags",
+			    "name": "success",
+			    "statusCode": 200,
+			    "contentType": "application/json",
+			    "body": ["tag1", "tag2", "tag3"],
+			    "description": "Tag list"
+			  }
+			]
+		""".trimIndent()
+
+		val result = ResponseParser.parseGenerateVariantsResponse(response)
+
+		assertEquals(1, result.variants.size)
+		val body = result.variants.single().body
+		assertTrue(body.startsWith("["))
+		assertTrue(body.endsWith("]"))
+		assertTrue(body.contains("tag1"))
+	}
+
+	@Test
 	fun `parseAnalyzeResponse unwraps findings object`() {
 		val response = """
 			{
