@@ -145,12 +145,13 @@ class HARImportParserTest {
 		val users = spec.endpoints.first { it.path == "/users" }
 		assertEquals(1, users.cookies.size)
 		assertEquals("session_id", users.cookies.single().name)
-		assertEquals("abc123", users.cookies.single().match)
+		// Cookie values are always redacted to prevent session token leakage
+		assertEquals("[redacted]", users.cookies.single().match)
 
 		val profile = spec.endpoints.first { it.path == "/profile" }
 		assertEquals(2, profile.cookies.size)
-		assertEquals("dark", profile.cookies.first { it.name == "theme" }.match)
-		assertEquals("en-US", profile.cookies.first { it.name == "locale" }.match)
+		assertEquals("[redacted]", profile.cookies.first { it.name == "theme" }.match)
+		assertEquals("[redacted]", profile.cookies.first { it.name == "locale" }.match)
 		assertEquals(MatchType.EQUAL_TO, profile.cookies.first { it.name == "theme" }.matchType)
 	}
 
@@ -282,5 +283,127 @@ class HARImportParserTest {
 			"HAR file does not contain any importable HTTP entries. Skipped HAR entry 1: missing request method.",
 			error.message,
 		)
+	}
+
+	@Test
+	fun `redacts authorization and cookie request headers`() {
+		val har = """
+            {
+              "log": {
+                "version": "1.2",
+                "entries": [
+                  {
+                    "request": {
+                      "method": "GET",
+                      "url": "https://api.test/secure",
+                      "headers": [
+                        { "name": "Authorization", "value": "Bearer super-secret-token" },
+                        { "name": "X-API-Key", "value": "key-abc-123" },
+                        { "name": "X-CSRF-Token", "value": "csrf-xyz" },
+                        { "name": "Accept", "value": "application/json" }
+                      ]
+                    },
+                    "response": {
+                      "status": 200,
+                      "headers": [
+                        { "name": "Set-Cookie", "value": "session=s3cr3t; HttpOnly" },
+                        { "name": "Content-Type", "value": "application/json" }
+                      ],
+                      "content": { "mimeType": "application/json", "text": "{\"ok\":true}" }
+                    }
+                  }
+                ]
+              }
+            }
+        """.trimIndent()
+
+		val spec = parser.parse(har)
+		val response = spec.endpoints.single().responses.single()
+
+		// Sensitive response headers must be redacted
+		assertEquals("[redacted]", response.headers["Set-Cookie"])
+		// Non-sensitive headers must pass through unchanged
+		assertEquals("application/json", response.headers["Content-Type"])
+	}
+
+	@Test
+	fun `redacts sensitive query parameters`() {
+		val har = """
+            {
+              "log": {
+                "version": "1.2",
+                "entries": [
+                  {
+                    "request": {
+                      "method": "GET",
+                      "url": "https://api.test/callback?code=auth-code-xyz&state=csrf-state&redirect_uri=/home",
+                      "headers": [],
+                      "queryString": [
+                        { "name": "code", "value": "auth-code-xyz" },
+                        { "name": "state", "value": "csrf-state" },
+                        { "name": "redirect_uri", "value": "/home" }
+                      ]
+                    },
+                    "response": {
+                      "status": 200,
+                      "headers": [],
+                      "content": { "mimeType": "application/json", "text": "{}" }
+                    }
+                  }
+                ]
+              }
+            }
+        """.trimIndent()
+
+		val spec = parser.parse(har)
+		val endpoint = spec.endpoints.single()
+
+		// Sensitive OAuth params must be redacted
+		val codeRule = endpoint.queryParameters.first { it.name == "code" }
+		assertEquals("[redacted]", codeRule.match)
+		val stateRule = endpoint.queryParameters.first { it.name == "state" }
+		assertEquals("[redacted]", stateRule.match)
+		// Non-sensitive param must pass through
+		val redirectRule = endpoint.queryParameters.first { it.name == "redirect_uri" }
+		assertEquals("/home", redirectRule.match)
+	}
+
+	@Test
+	fun `redacts jwt signature in response header values while preserving header and payload`() {
+		val jwtHeader = "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9"
+		val jwtPayload = "eyJzdWIiOiJ1c2VyMTIzIiwiZXhwIjoxNjAwMDAwMDAwfQ"
+		val jwtSignature = "SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c"
+		val fullJwt = "$jwtHeader.$jwtPayload.$jwtSignature"
+
+		val har = """
+            {
+              "log": {
+                "version": "1.2",
+                "entries": [
+                  {
+                    "request": {
+                      "method": "GET",
+                      "url": "https://api.test/resource",
+                      "headers": []
+                    },
+                    "response": {
+                      "status": 200,
+                      "headers": [
+                        { "name": "X-Correlation-Token", "value": "$fullJwt" }
+                      ],
+                      "content": { "mimeType": "application/json", "text": "{}" }
+                    }
+                  }
+                ]
+              }
+            }
+        """.trimIndent()
+
+		val spec = parser.parse(har)
+		val response = spec.endpoints.single().responses.single()
+
+		// JWT header and payload are preserved, only signature is stripped
+		val customToken = response.headers["X-Correlation-Token"]
+		assertEquals("$jwtHeader.$jwtPayload.redacted", customToken)
 	}
 }

@@ -16,6 +16,11 @@ import java.util.Base64
  * Parses HAR 1.2 files into ParsedSpec for import into Studio.
  * Mirrors the Swift HARParser logic: groups entries by method+path,
  * deduplicates, and generates variant names.
+ *
+ * Security: all sensitive values (auth headers, cookies, tokens, JWTs) are
+ * redacted at parse time following the same approach as Cloudflare's HAR Sanitizer
+ * (https://github.com/cloudflare/har-sanitizer). Values are replaced with
+ * "[redacted]" so they never reach the parsed spec or the persisted .moqproj.
  */
 class HARImportParser {
 
@@ -33,14 +38,56 @@ class HARImportParser {
 		private const val SUCCESS_VARIANT_PREFIX = "success"
 		private const val REDIRECT_VARIANT_PREFIX = "redirect"
 		private const val ERROR_VARIANT_PREFIX = "error"
-		private val SENSITIVE_HEADER_PATTERNS = listOf(
+		private const val REDACTED = "[redacted]"
+
+		/**
+		 * Header names (case-insensitive) whose values are always redacted.
+		 * Covers auth credentials, session tokens, and CSRF tokens.
+		 * Mirrors the Cloudflare HAR Sanitizer default word list.
+		 */
+		private val SENSITIVE_HEADER_PATTERNS = setOf(
 			"authorization",
 			"cookie",
 			"set-cookie",
 			"x-api-key",
 			"x-auth-token",
 			"x-csrf-token",
+			"x-forwarded-for",
+			"proxy-authorization",
+			"www-authenticate",
 		)
+
+		/**
+		 * Query parameter / post-data parameter names (case-insensitive) whose
+		 * values are redacted.  Based on the Cloudflare default word list.
+		 */
+		private val SENSITIVE_PARAM_NAMES = setOf(
+			"access_token",
+			"assertion",
+			"auth",
+			"authenticity_token",
+			"challenge",
+			"client_id",
+			"client_secret",
+			"code",
+			"code_challenge",
+			"code_verifier",
+			"email",
+			"id_token",
+			"password",
+			"refresh_token",
+			"samlrequest",
+			"samlresponse",
+			"state",
+			"token",
+		)
+
+		/**
+		 * Regex that matches a full JWT (header.payload.signature).
+		 * Captures header and payload in groups 1 and 2 so the signature can
+		 * be replaced while leaving the decodable parts intact.
+		 */
+		private val JWT_REGEX = Regex("""(ey[A-Za-z0-9\-_=]+)\.(ey[A-Za-z0-9\-_=]+)\.[A-Za-z0-9\-_.+/=]+""")
 	}
 
 	@Suppress("LongMethod", "CyclomaticComplexMethod")
@@ -149,30 +196,6 @@ class HARImportParser {
 		}
 	}
 
-	/** Detect potentially sensitive headers in HAR entries. */
-	fun detectSensitiveHeaders(content: String): List<String> {
-		val har = json.decodeFromString<HarFile>(content)
-		val found = mutableSetOf<String>()
-		for (entry in har.log?.entries.orEmpty()) {
-			for (header in entry.request?.headers.orEmpty()) {
-				val name = header.name.orEmpty()
-				if (SENSITIVE_HEADER_PATTERNS.any { name.lowercase().contains(it) }) {
-					found.add(name)
-				}
-			}
-			for (header in entry.response?.headers.orEmpty()) {
-				val name = header.name.orEmpty()
-				if (SENSITIVE_HEADER_PATTERNS.any { name.lowercase().contains(it) }) {
-					found.add(name)
-				}
-			}
-		}
-		if (found.isNotEmpty()) {
-			logger.warn("Detected {} sensitive header(s) in HAR: {}", found.size, found.sorted())
-		}
-		return found.sorted()
-	}
-
 	private fun normalizedPath(uri: URI): String {
 		val path = uri.path ?: "/"
 		return if (path.isEmpty()) "/" else if (path.startsWith("/")) path else "/$path"
@@ -182,12 +205,17 @@ class HARImportParser {
 		return status?.takeIf { it in VALID_STATUS_RANGE } ?: DEFAULT_STATUS_CODE
 	}
 
+	/**
+	 * Extracts response headers, redacting values for any header whose name
+	 * matches a known-sensitive pattern.  JWT signatures in non-redacted
+	 * header values are also stripped.
+	 */
 	private fun responseHeaders(response: HarResponse): Map<String, String> {
 		val headers = mutableMapOf<String, String>()
 		for (header in response.headers) {
 			val name = header.name.orEmpty()
 			if (name.isNotEmpty()) {
-				headers[name] = header.value.orEmpty()
+				headers[name] = sanitizeHeaderValue(name, header.value.orEmpty())
 			}
 		}
 		val mimeType = response.content.mimeType
@@ -215,12 +243,17 @@ class HARImportParser {
 		return text
 	}
 
+	/**
+	 * Extracts request cookies, replacing every value with "[redacted]".
+	 * Cookie values are session credentials and must never appear in the
+	 * persisted project.
+	 */
 	@Suppress("UnusedPrivateMember")
 	private fun requestCookies(request: HarRequest): Map<String, String> {
 		if (request.cookies.isNotEmpty()) {
 			return request.cookies
 				.asSequence()
-				.map { it.name.orEmpty().trim() to it.value.orEmpty() }
+				.map { it.name.orEmpty().trim() to REDACTED }
 				.filter { (name, _) -> name.isNotEmpty() }
 				.associate { it }
 		}
@@ -235,8 +268,8 @@ class HARImportParser {
 				if (separatorIndex <= 0) return@mapNotNull null
 				val name = pair.substring(0, separatorIndex).trim()
 				if (name.isEmpty()) return@mapNotNull null
-				val value = pair.substring(separatorIndex + 1).trim()
-				name to value
+				// Always redact cookie values regardless of name
+				name to REDACTED
 			}
 			.toMap()
 	}
@@ -300,7 +333,7 @@ class HARImportParser {
 
 		return queryItems
 			.asSequence()
-			.map { it.name.orEmpty().trim() to it.value.orEmpty() }
+			.map { it.name.orEmpty().trim() to sanitizeParamValue(it.name.orEmpty().trim(), it.value.orEmpty()) }
 			.filter { (name, _) -> name.isNotEmpty() }
 			.associate { it }
 	}
@@ -337,6 +370,40 @@ class HARImportParser {
 		val firstWarning = warnings.firstOrNull() ?: return prefix
 		return "$prefix $firstWarning"
 	}
+
+	// -- Sanitization helpers --
+
+	/**
+	 * Returns [REDACTED] if the header name is sensitive, otherwise strips any
+	 * JWT signatures from the value and returns the result.
+	 */
+	private fun sanitizeHeaderValue(name: String, value: String): String {
+		if (name.lowercase() in SENSITIVE_HEADER_PATTERNS) {
+			logger.debug("Redacting sensitive header: {}", name)
+			return REDACTED
+		}
+		return redactJwt(value)
+	}
+
+	/**
+	 * Returns [REDACTED] if the param name matches a known-sensitive token
+	 * name, otherwise strips JWT signatures from the value.
+	 */
+	private fun sanitizeParamValue(name: String, value: String): String {
+		if (SENSITIVE_PARAM_NAMES.contains(name.lowercase())) {
+			logger.debug("Redacting sensitive query/post param: {}", name)
+			return REDACTED
+		}
+		return redactJwt(value)
+	}
+
+	/**
+	 * Replaces the cryptographic signature in any JWT found in [value] with
+	 * "redacted", leaving the header and payload decodable for debugging.
+	 * If no JWT is present the value is returned unchanged.
+	 */
+	private fun redactJwt(value: String): String =
+		JWT_REGEX.replace(value) { match -> "${match.groupValues[1]}.${match.groupValues[2]}.redacted" }
 
 	// -- HAR data model --
 
