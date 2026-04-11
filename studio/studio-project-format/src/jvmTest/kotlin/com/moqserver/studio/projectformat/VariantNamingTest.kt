@@ -37,7 +37,13 @@ class VariantNamingTest {
     @Test
     fun `preserves spaces in custom display names`() {
         assertEquals("Not Found", suggestedVariantName(status = 404, preferredName = "Not Found"))
-        assertEquals("Internal Server Error", suggestedVariantName(status = 500, preferredName = "Internal Server Error"))
+        assertEquals(
+            "Internal Server Error",
+            suggestedVariantName(
+                status = 500,
+                preferredName = "Internal Server Error",
+            ),
+        )
     }
 
     @Test

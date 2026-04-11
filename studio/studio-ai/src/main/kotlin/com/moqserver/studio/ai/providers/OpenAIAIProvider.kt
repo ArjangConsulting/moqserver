@@ -116,7 +116,10 @@ class OpenAIAIProvider(
         val latency = System.currentTimeMillis() - start
         logger.debug(
             "OpenAI completion received in {}ms (prompt={}, completion={}, total={} tokens)",
-            latency, result.usage?.promptTokens, result.usage?.completionTokens, result.usage?.totalTokens,
+            latency,
+            result.usage?.promptTokens,
+            result.usage?.completionTokens,
+            result.usage?.totalTokens,
         )
         return AICompletionResult(
             text = text,

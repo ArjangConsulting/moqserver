@@ -10,6 +10,7 @@ import kotlin.test.assertTrue
 class HARImportParserTest {
 	private val parser = HARImportParser()
 
+	@Suppress("LongMethod")
 	@Test
 	fun `parses entries, skips malformed urls, and survives invalid base64 bodies`() {
 		val har = """

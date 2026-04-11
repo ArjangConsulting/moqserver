@@ -26,8 +26,14 @@ class AIActionHandlerTest {
 
 		val mergedArray = assertIs<YamlValue.Array>(merged)
 		assertEquals(4, mergedArray.value.size)
-		assertEquals("existing-1", (mergedArray.value[0] as YamlValue.Obj).value.getValue("id").let { it as YamlValue.Str }.value)
-		assertEquals("new-2", (mergedArray.value[3] as YamlValue.Obj).value.getValue("id").let { it as YamlValue.Str }.value)
+		assertEquals(
+			"existing-1",
+			(mergedArray.value[0] as YamlValue.Obj).value.getValue("id").let { it as YamlValue.Str }.value,
+		)
+		assertEquals(
+			"new-2",
+			(mergedArray.value[3] as YamlValue.Obj).value.getValue("id").let { it as YamlValue.Str }.value,
+		)
 	}
 
 	@Test

@@ -84,24 +84,7 @@ class GeminiAIProvider(
             throw AIProviderException.Unavailable(DISPLAY_NAME, e.message ?: "network error", retryable = true)
         }
 
-        when (response.status.value) {
-            401, 403 -> {
-                logger.error("Gemini authentication failed ({})", response.status.value)
-                throw AIProviderException.AuthInvalid(DISPLAY_NAME)
-            }
-            429 -> {
-                logger.warn("Gemini rate limit exceeded (429)")
-                throw AIProviderException.Unavailable(DISPLAY_NAME, "rate limit exceeded", retryable = true)
-            }
-            !in 200..299 -> {
-                logger.error("Gemini returned HTTP {}", response.status.value)
-                throw AIProviderException.Unavailable(
-                    DISPLAY_NAME,
-                    "HTTP ${response.status.value}",
-                    retryable = response.status.value >= 500,
-                )
-            }
-        }
+        checkResponseStatus(response.status.value)
 
         val result = response.body<GeminiGenerateResponse>()
         val text = result.candidates
@@ -115,8 +98,10 @@ class GeminiAIProvider(
         val latency = System.currentTimeMillis() - start
         logger.debug(
             "Gemini completion received in {}ms (prompt={}, completion={}, total={} tokens)",
-            latency, result.usageMetadata?.promptTokenCount,
-            result.usageMetadata?.candidatesTokenCount, result.usageMetadata?.totalTokenCount,
+            latency,
+            result.usageMetadata?.promptTokenCount,
+            result.usageMetadata?.candidatesTokenCount,
+            result.usageMetadata?.totalTokenCount,
         )
         return AICompletionResult(
             text = text,
@@ -126,6 +111,28 @@ class GeminiAIProvider(
             totalTokens = result.usageMetadata?.totalTokenCount,
             latencyMs = latency,
         )
+    }
+
+    @Suppress("ThrowsCount")
+    private fun checkResponseStatus(statusCode: Int) {
+        when (statusCode) {
+            401, 403 -> {
+                logger.error("Gemini authentication failed ({})", statusCode)
+                throw AIProviderException.AuthInvalid(DISPLAY_NAME)
+            }
+            429 -> {
+                logger.warn("Gemini rate limit exceeded (429)")
+                throw AIProviderException.Unavailable(DISPLAY_NAME, "rate limit exceeded", retryable = true)
+            }
+            !in 200..299 -> {
+                logger.error("Gemini returned HTTP {}", statusCode)
+                throw AIProviderException.Unavailable(
+                    DISPLAY_NAME,
+                    "HTTP $statusCode",
+                    retryable = statusCode >= 500,
+                )
+            }
+        }
     }
 
     @Serializable

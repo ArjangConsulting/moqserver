@@ -241,7 +241,11 @@ class ProjectValidator(
                             variantName = variant.name,
                         )
                     }
-                    if (requestMatch.query.isNullOrEmpty() && requestMatch.headers.isNullOrEmpty() && requestMatch.bodyContains.isNullOrBlank()) {
+                    if (
+                        requestMatch.query.isNullOrEmpty() &&
+                        requestMatch.headers.isNullOrEmpty() &&
+                        requestMatch.bodyContains.isNullOrBlank()
+                    ) {
                         diagnostics += ValidationDiagnostic(
                             severity = ValidationDiagnostic.Severity.ERROR,
                             message = "Variant request_match must define query, headers, or body_contains.",

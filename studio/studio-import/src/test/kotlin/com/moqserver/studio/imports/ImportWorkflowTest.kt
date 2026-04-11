@@ -1,6 +1,7 @@
 package com.moqserver.studio.imports
 
 import com.moqserver.studio.domain.ImportConverter
+import com.moqserver.studio.domain.ImportEndpointEntry
 import com.moqserver.studio.domain.ParsedEndpoint
 import com.moqserver.studio.domain.ParsedResponse
 import com.moqserver.studio.domain.ParsedSpec
@@ -29,7 +30,7 @@ class ImportWorkflowTest {
 
 		val project = ImportConverter.convert(
 			spec = ParsedSpec(title = "Notes", version = "1.0.0", endpoints = listOf(endpoint)),
-			acceptedEndpoints = listOf(endpoint),
+			acceptedEntries = listOf(ImportEndpointEntry(endpoint = endpoint)),
 			projectName = "Notes",
 			projectPath = "/tmp/notes",
 		)
@@ -68,7 +69,7 @@ class ImportWorkflowTest {
                 ]
               }
             }
-            """.trimIndent()
+            """.trimIndent(),
 		)
 
 		val endpoint = parsed.endpoints.single()
@@ -103,7 +104,7 @@ class ImportWorkflowTest {
                 ]
               }
             }
-            """.trimIndent()
+            """.trimIndent(),
 		)
 
 		val endpoint = parsed.endpoints.single()
@@ -111,6 +112,7 @@ class ImportWorkflowTest {
 		assertEquals("/9j/4AAQSkZJRg==", endpoint.responses.single().body)
 	}
 
+	@Suppress("LongMethod")
 	@Test
 	fun `har import round trips through project save and load with special headers and binary bodies`() {
 		val parsed = HARImportParser().parse(
@@ -143,13 +145,13 @@ class ImportWorkflowTest {
                 ]
               }
             }
-            """.trimIndent()
+            """.trimIndent(),
 		)
 
 		val endpoint = parsed.endpoints.single()
 		val project = ImportConverter.convert(
 			spec = ParsedSpec(title = parsed.title, version = parsed.version, endpoints = parsed.endpoints),
-			acceptedEndpoints = listOf(endpoint),
+			acceptedEntries = listOf(ImportEndpointEntry(endpoint = endpoint)),
 			projectName = "HAR Import Regression",
 			projectPath = "/tmp/har-import-regression",
 		)

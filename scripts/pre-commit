@@ -1,0 +1,27 @@
+#!/usr/bin/env bash
+# Git pre-commit hook: runs detekt on staged Kotlin files in studio/.
+# Install with: make install-hooks
+
+set -euo pipefail
+
+# Only lint if Kotlin files under studio/ are staged.
+STAGED_KT=$(git diff --cached --name-only --diff-filter=ACM -- 'studio/**.kt' || true)
+if [ -z "$STAGED_KT" ]; then
+	exit 0
+fi
+
+echo "pre-commit: running detekt on staged studio changes..."
+
+# Resolve JAVA_HOME for Gradle (macOS).
+if command -v /usr/libexec/java_home &>/dev/null; then
+	export JAVA_HOME=$(/usr/libexec/java_home -v 21 2>/dev/null || true)
+fi
+
+cd "$(git rev-parse --show-toplevel)/studio"
+
+if ! ./gradlew detektAll --quiet 2>&1; then
+	echo ""
+	echo "detekt found issues. Fix them before committing."
+	echo "Run: make studio-lint"
+	exit 1
+fi

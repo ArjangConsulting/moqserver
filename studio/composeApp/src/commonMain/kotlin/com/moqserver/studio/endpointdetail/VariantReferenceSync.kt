@@ -51,7 +51,9 @@ internal fun applyVariantNameChange(
 			),
 		)
 
-		preference == VariantReferenceSyncPreference.NEVER_UPDATE -> VariantNameChangeResult(newReferenceName = currentReferenceName)
+		preference == VariantReferenceSyncPreference.NEVER_UPDATE -> VariantNameChangeResult(
+			newReferenceName = currentReferenceName,
+		)
 		else -> VariantNameChangeResult(
 			newReferenceName = currentReferenceName,
 			shouldPrompt = true,

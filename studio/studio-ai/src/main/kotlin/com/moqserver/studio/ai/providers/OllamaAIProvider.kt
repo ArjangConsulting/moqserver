@@ -9,8 +9,8 @@ import com.moqserver.studio.logging.loggerFor
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
 import io.ktor.client.engine.cio.CIO
-import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.client.plugins.HttpTimeout
+import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.client.request.get
 import io.ktor.client.request.post
 import io.ktor.client.request.setBody
@@ -96,7 +96,7 @@ class OllamaAIProvider(
 
         if (!response.status.isSuccess()) {
             val errorDetail = runCatching { parseErrorDetail(response.bodyAsText()) }.getOrNull()
-            logger.error("Ollama returned HTTP {}{}", response.status.value, errorDetail?.let { ": $it" } ?: "")
+            logger.error("Ollama returned HTTP {}{}", response.status.value, errorDetail?.let { ": $it" }.orEmpty())
             throw AIProviderException.Unavailable(
                 DISPLAY_NAME,
                 errorDetail ?: "HTTP ${response.status.value}",
@@ -121,7 +121,7 @@ class OllamaAIProvider(
     )
 
     @Serializable
-	private data class OllamaGenerateRequest(
+    private data class OllamaGenerateRequest(
 		val model: String,
 		val system: String? = null,
 		val prompt: String,

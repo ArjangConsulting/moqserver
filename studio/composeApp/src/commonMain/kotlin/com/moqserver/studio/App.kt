@@ -2,7 +2,6 @@ package com.moqserver.studio
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -17,13 +16,13 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material3.Card
+import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -42,14 +41,14 @@ import androidx.compose.ui.input.pointer.PointerIcon
 import androidx.compose.ui.input.pointer.pointerHoverIcon
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
-import com.moqserver.studio.domain.AIProviderInfo
-import com.moqserver.studio.domain.VariantReferenceSyncPreference
+import com.moqserver.composeapp.generated.resources.GreatVibes_Regular
+import com.moqserver.composeapp.generated.resources.Res
 import com.moqserver.studio.domain.AIAction
+import com.moqserver.studio.domain.AIProviderInfo
 import com.moqserver.studio.domain.AIState
 import com.moqserver.studio.domain.StudioRootViewModel
 import com.moqserver.studio.domain.StudioState
-import com.moqserver.composeapp.generated.resources.GreatVibes_Regular
-import com.moqserver.composeapp.generated.resources.Res
+import com.moqserver.studio.domain.VariantReferenceSyncPreference
 import org.jetbrains.compose.resources.Font
 
 private object AppStrings {
@@ -92,8 +91,8 @@ private object AppStrings {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun App(
-    appViewModel: StudioRootViewModel,
-    themeMode: StudioThemeMode,
+	appViewModel: StudioRootViewModel,
+	@Suppress("UnusedParameter") themeMode: StudioThemeMode,
     variantReferenceSyncPreference: VariantReferenceSyncPreference? = null,
     onOpenProject: () -> Unit = {},
     onImportOpenAPI: () -> Unit = {},
@@ -116,7 +115,7 @@ fun App(
             StudioTopBar(
                 state = state,
             )
-        }
+        },
     ) { innerPadding ->
         Surface(modifier = Modifier.fillMaxSize().padding(innerPadding)) {
             when {

@@ -45,7 +45,8 @@ object PromptBuilder {
         append("Respond with ONLY the JSON array, no markdown fences or explanation.")
     }
 
-    fun buildGenerateVariantsPrompt(request: CompanionRequest): String = buildString {
+	@Suppress("CyclomaticComplexMethod")
+	fun buildGenerateVariantsPrompt(request: CompanionRequest): String = buildString {
         appendLine("You are a mock API response generator. Generate realistic mock response variants for the specified endpoints.")
         appendLine()
         appendLine("Return your output as a JSON array of variant objects. Each variant has:")
@@ -87,12 +88,18 @@ object PromptBuilder {
         if (request.intent?.type == "body-generation") {
             appendLine()
             appendLine("This request is to generate or update the response body for an existing variant.")
-            appendLine("Return exactly one variant object that matches the selected endpoint and current variant context.")
+            appendLine(
+                "Return exactly one variant object that matches the selected endpoint and current variant context.",
+            )
             appendLine("If the intent includes a current body, treat it as the baseline:")
             appendLine("  - Preserve the exact same JSON schema and structure.")
-            appendLine("  - Keep all existing items and fields unless the user explicitly asks to remove or replace them.")
+            appendLine(
+                "  - Keep all existing items and fields unless the user explicitly asks to remove or replace them.",
+            )
             appendLine("  - If the user asks to add items, append them to the existing collection.")
-            appendLine("The \"body\" field in your response should be the actual JSON value (object or array), not a stringified version.")
+            appendLine(
+                "The \"body\" field in your response should be the actual JSON value (object or array), not a stringified version.",
+            )
         }
 
         val maxVariants = request.options?.maxVariants ?: DEFAULT_MAX_VARIANTS

@@ -1,8 +1,5 @@
 package com.moqserver.studio
 
-import java.io.File
-import javax.swing.JOptionPane
-
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -28,19 +25,21 @@ import androidx.compose.ui.window.rememberWindowState
 import com.moqserver.studio.data.AISettingsRepository
 import com.moqserver.studio.data.RecentProjectsRepository
 import com.moqserver.studio.data.ThemePreference
-import com.moqserver.studio.imports.HARImportParser
-import com.moqserver.studio.imports.OpenAPIImportParser
 import com.moqserver.studio.domain.ImportSourceType
 import com.moqserver.studio.domain.StudioRootViewModel
 import com.moqserver.studio.export.ExportCatalogBuilder
 import com.moqserver.studio.export.ExportOptions
 import com.moqserver.studio.export.ExportRegistry
+import com.moqserver.studio.imports.HARImportParser
+import com.moqserver.studio.imports.OpenAPIImportParser
 import com.moqserver.studio.logging.loggerFor
 import com.moqserver.studio.projectformat.ProjectRepository
 import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.io.File
+import javax.swing.JOptionPane
 
 private val logger = loggerFor<Any>()
 
@@ -363,8 +362,16 @@ fun main(args: Array<String>) {
                 null
             }
             val showPreferencesInMenuBar = !isMac
-            val undoShortcut = if (isMac) KeyShortcut(key = Key.Z, meta = true) else KeyShortcut(key = Key.Z, ctrl = true)
-            val redoShortcut = if (isMac) KeyShortcut(key = Key.Z, meta = true, shift = true) else KeyShortcut(key = Key.Y, ctrl = true)
+			val undoShortcut = if (isMac) {
+				KeyShortcut(key = Key.Z, meta = true)
+			} else {
+				KeyShortcut(key = Key.Z, ctrl = true)
+			}
+			val redoShortcut = if (isMac) {
+				KeyShortcut(key = Key.Z, meta = true, shift = true)
+			} else {
+				KeyShortcut(key = Key.Y, ctrl = true)
+			}
 
             MenuBar {
                 Menu("File") {
@@ -519,7 +526,9 @@ fun main(args: Array<String>) {
                                 withContext(Dispatchers.IO) { repo.save(project, path) }
                                 appViewModel.projectSaved(path)
                                 appViewModel.addRecentProject(path)
-                                withContext(Dispatchers.IO) { recentProjectsRepo.save(appViewModel.state.value.recentProjects) }
+                                withContext(Dispatchers.IO) {
+                                    recentProjectsRepo.save(appViewModel.state.value.recentProjects)
+                                }
                                 lastFileDirectory.value = File(path).parentFile?.canonicalPath ?: path
                                 logger.info("Import complete: {} endpoint(s) saved to {}", project.endpoints.size, path)
                             } catch (e: Exception) {
@@ -548,8 +557,9 @@ fun main(args: Array<String>) {
                             )
                         }
                     },
-                    variantReferenceSyncPreference = state.project?.projectPath
-                        ?.let { aiSettings.value.variantReferenceSyncByProject[it] },
+					variantReferenceSyncPreference = state.project?.projectPath?.let {
+						aiSettings.value.variantReferenceSyncByProject[it]
+					},
                     onVariantReferenceSyncPreferenceChange = { projectPath, preference ->
                         scope.launch(exceptionHandler) {
                             val updatedPreferences = aiSettings.value.variantReferenceSyncByProject.toMutableMap().also { preferences ->

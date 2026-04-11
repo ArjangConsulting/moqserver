@@ -8,8 +8,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextAlign
-
-import com.moqserver.studio.StudioDimens
+import com.moqserver.studio.designsystem.StudioDimens
 import com.moqserver.studio.projectformat.MatchType
 import com.moqserver.studio.projectformat.RequestRules
 import com.moqserver.studio.projectformat.RuleMatcher

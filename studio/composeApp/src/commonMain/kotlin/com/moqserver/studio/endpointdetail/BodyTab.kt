@@ -17,14 +17,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
-
-import com.moqserver.studio.StudioColors
-import com.moqserver.studio.StudioDimens
+import com.moqserver.studio.designsystem.StudioColors
+import com.moqserver.studio.designsystem.StudioDimens
+import com.moqserver.studio.designsystem.toAwtColor
 import com.moqserver.studio.editor.JsonCodeEditor
 import com.moqserver.studio.projectformat.ProjectVariant
 import com.moqserver.studio.projectformat.YamlValue
 import com.moqserver.studio.ui.*
-import java.awt.Color as AwtColor
 
 private object BodyTabStrings {
     const val FILE_NOT_FOUND = "File not found."
@@ -50,10 +49,8 @@ private object BodyTabStrings {
 private val bodyPanelColor = StudioColors.editorPanelBackground.copy(alpha = 0.97f)
 private val bodyPanelBorderColor = StudioColors.editorPanelBorder
 private val bodyPanelContentColor = StudioColors.editorPanelContent
-/** Keep in sync with [StudioColors.editorPanelBackground] — AWT equivalent (0x161B22). */
-private val bodyEditorBackgroundColor = AwtColor(0x16, 0x1B, 0x22)
-/** Keep in sync with [StudioColors.editorPanelContent] — AWT equivalent (0xE6EDF3). */
-private val bodyEditorForegroundColor = AwtColor(0xE6, 0xED, 0xF3)
+private val bodyEditorBackgroundColor = StudioColors.editorPanelBackground.toAwtColor()
+private val bodyEditorForegroundColor = StudioColors.editorPanelContent.toAwtColor()
 
 @Composable
 internal fun BodyTab(
@@ -82,7 +79,9 @@ internal fun BodyTab(
 	} else {
 		null
 	}
-	var selectedFormat by remember(variant.name) { mutableStateOf(if (body != null && variant.isJsonBody()) BodyFormat.JSON else BodyFormat.RAW) }
+	var selectedFormat by remember(variant.name) {
+		mutableStateOf(if (body != null && variant.isJsonBody()) BodyFormat.JSON else BodyFormat.RAW)
+	}
 	val currentText = when {
 		fileContent != null -> fileContent
 		body != null -> when (selectedFormat) {
@@ -99,7 +98,9 @@ internal fun BodyTab(
 	val isJsonBody = variant.isJsonBody(editableText)
 	var isEditing by remember(variant.name, selectedFormat, bodyFile, body) { mutableStateOf(false) }
 	var draftText by remember(variant.name, bodyFile, body) { mutableStateOf(editableText.orEmpty()) }
-	var formatBeforeEdit by remember(variant.name) { mutableStateOf(if (body != null && variant.isJsonBody()) BodyFormat.JSON else BodyFormat.RAW) }
+	var formatBeforeEdit by remember(variant.name) {
+		mutableStateOf(if (body != null && variant.isJsonBody()) BodyFormat.JSON else BodyFormat.RAW)
+	}
 	var validationError by remember(variant.name, selectedFormat, bodyFile, body) { mutableStateOf<String?>(null) }
 	val validationErrorRequester = remember { BringIntoViewRequester() }
 

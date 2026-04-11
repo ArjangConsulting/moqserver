@@ -2,7 +2,6 @@ package com.moqserver.studio
 
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.tooling.preview.Preview
-import com.moqserver.studio.data.AISettings
 import com.moqserver.studio.domain.AIActionState
 import com.moqserver.studio.domain.AIProviderInfo
 import com.moqserver.studio.domain.AIState
@@ -115,7 +114,7 @@ private fun previewState(): StudioState {
 					capabilities = setOf("ANALYZE_SPEC", "GENERATE_VARIANTS", "REFINE_PROJECT"),
 					defaultModel = "llama3.2:latest",
 					baseUrl = "http://localhost:11434",
-				)
+				),
 			),
 			selectedProviderId = "ollama",
 		),
@@ -183,7 +182,7 @@ private fun WorkspacePreview() {
 			onVariantReferenceSyncPreferenceChange = { _, _ -> },
 			viewModel = StudioRootViewModel(),
 		)
-	}
+    }
 }
 
 @Preview
@@ -240,20 +239,4 @@ private fun AIResultsPreview() {
             onNavigateToEndpoint = {},
         )
     }
-}
-
-@Preview
-@Composable
-private fun PreferencesPreview() {
-	StudioTheme(StudioThemeMode.DARK) {
-		PreferencesScreen(
-			state = PreferencesState(
-				themeMode = StudioThemeMode.SYSTEM,
-				aiSettings = AISettings(),
-			),
-			onThemeModeChange = {},
-			onSaveAISettings = {},
-			onTestAIProvider = { _, _, _ -> },
-		)
-	}
 }

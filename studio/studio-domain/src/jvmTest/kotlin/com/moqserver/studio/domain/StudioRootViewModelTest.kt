@@ -201,7 +201,7 @@ class StudioRootViewModelTest {
                 capabilities = setOf("ANALYZE_SPEC", "GENERATE_VARIANTS"),
                 defaultModel = "gpt-4o",
                 baseUrl = "https://api.openai.com/v1",
-            )
+            ),
         )
 
         viewModel.aiProvidersLoaded(providers)

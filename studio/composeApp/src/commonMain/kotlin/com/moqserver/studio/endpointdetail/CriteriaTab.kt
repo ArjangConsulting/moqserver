@@ -6,8 +6,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-
-import com.moqserver.studio.StudioDimens
+import com.moqserver.studio.designsystem.StudioDimens
 import com.moqserver.studio.projectformat.*
 import com.moqserver.studio.ui.*
 
