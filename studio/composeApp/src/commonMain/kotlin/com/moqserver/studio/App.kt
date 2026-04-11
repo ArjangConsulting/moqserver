@@ -15,10 +15,12 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.FolderOpen
+import androidx.compose.material.icons.outlined.Language
 import androidx.compose.material3.Card
 import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -56,8 +58,11 @@ private object AppStrings {
     const val WORKSPACE = "Workspace"
     const val OPEN_OR_IMPORT = "Open or import a project"
     const val OPEN_MOQPROJ = "Open .moqproj"
-    const val IMPORT_OPENAPI = "Import OpenAPI"
-    const val IMPORT_HAR = "Import HAR"
+	const val IMPORT_OPENAPI = "Import OpenAPI"
+	const val IMPORT_SWAGGER = "Import Swagger"
+	const val IMPORT_OPENAPI_URL = "Import OpenAPI URL"
+	const val IMPORT_SWAGGER_URL = "Import Swagger URL"
+	const val IMPORT_HAR = "Import HAR"
     const val RECENT_PROJECTS = "Recent Projects"
     const val REMOVE_RECENT_PROJECT = "Remove recent project"
     const val AI_COMPANION = "AI Companion"
@@ -96,6 +101,9 @@ fun App(
     variantReferenceSyncPreference: VariantReferenceSyncPreference? = null,
     onOpenProject: () -> Unit = {},
     onImportOpenAPI: () -> Unit = {},
+    onImportSwagger: () -> Unit = {},
+    onImportOpenAPIURL: () -> Unit = {},
+    onImportSwaggerURL: () -> Unit = {},
     onImportHAR: () -> Unit = {},
     onConfirmImport: () -> Unit = {},
     onGenerateImportEndpointMocks: (Int) -> Unit = {},
@@ -109,6 +117,7 @@ fun App(
     onVariantReferenceSyncPreferenceChange: (String, VariantReferenceSyncPreference?) -> Unit = { _, _ -> },
 ) {
     val state by appViewModel.state.collectAsState()
+    val importState = state.importState
 
     Scaffold(
         topBar = {
@@ -119,8 +128,8 @@ fun App(
     ) { innerPadding ->
         Surface(modifier = Modifier.fillMaxSize().padding(innerPadding)) {
             when {
-                state.isImporting -> ImportReviewScreen(
-                    state = state.importState!!,
+                state.isImporting && importState != null -> ImportReviewScreen(
+                    state = importState,
                     aiProviders = state.ai.providers,
                     aiProvidersLoading = state.ai.loading,
                     canGenerateWithAi = state.ai.selectedProvider
@@ -133,9 +142,20 @@ fun App(
                     onRefreshAIProviders = onRefreshAIProviders,
                     onSelectAIProvider = onSelectAIProvider,
                     onToggleEndpoint = { index -> appViewModel.toggleImportEndpoint(index) },
+                    onSetGroupAccepted = { indices, accepted ->
+                        val entries = importState.entries
+                        indices.forEach { index ->
+                            if (entries[index].accepted != accepted) {
+                                appViewModel.toggleImportEndpoint(index)
+                            }
+                        }
+                    },
                     onSelectAll = { appViewModel.setAllImportEndpoints(true) },
                     onDeselectAll = { appViewModel.setAllImportEndpoints(false) },
                     onUpdateProjectName = { appViewModel.updateImportProjectName(it) },
+                    onUpdateEndpointAIContextHint = { index, hint ->
+                        appViewModel.updateImportAIContextHint(index, hint)
+                    },
                     onGenerateEndpointMocks = onGenerateImportEndpointMocks,
                     onGenerateAllMocks = onGenerateImportMocksForAll,
                     onConfirm = onConfirmImport,
@@ -147,6 +167,9 @@ fun App(
                     state = state,
                     onOpenProject = onOpenProject,
                     onImportOpenAPI = onImportOpenAPI,
+                    onImportSwagger = onImportSwagger,
+                    onImportOpenAPIURL = onImportOpenAPIURL,
+                    onImportSwaggerURL = onImportSwaggerURL,
                     onImportHAR = onImportHAR,
                     onOpenRecentProject = onOpenRecentProject,
                     onRemoveRecentProject = onRemoveRecentProject,
@@ -178,7 +201,7 @@ private fun StudioTopBar(
                 Text(
                     text = AppStrings.APP_TITLE,
                     fontFamily = calligraphyFont,
-                    style = MaterialTheme.typography.headlineMedium,
+                    style = MaterialTheme.typography.headlineLarge,
                 )
             },
             colors = TopAppBarDefaults.topAppBarColors(),
@@ -208,10 +231,16 @@ internal fun StudioLandingScreen(
     state: StudioState,
     onOpenProject: () -> Unit,
     onImportOpenAPI: () -> Unit,
+    onImportSwagger: () -> Unit,
+    onImportOpenAPIURL: () -> Unit,
+    onImportSwaggerURL: () -> Unit,
     onImportHAR: () -> Unit,
     onOpenRecentProject: (String) -> Unit,
     onRemoveRecentProject: (String) -> Unit,
 ) {
+	var showFolderMenu by remember { mutableStateOf(false) }
+	var showInternetMenu by remember { mutableStateOf(false) }
+
     Column(
         modifier = Modifier.fillMaxSize().padding(StudioDimens.xxxl),
         verticalArrangement = Arrangement.spacedBy(StudioDimens.xxl),
@@ -226,18 +255,70 @@ internal fun StudioLandingScreen(
         Card(modifier = Modifier.fillMaxWidth()) {
             Column(modifier = Modifier.padding(StudioDimens.xxl), verticalArrangement = Arrangement.spacedBy(14.dp)) {
                 Text(AppStrings.OPEN_OR_IMPORT, style = MaterialTheme.typography.titleMedium)
-                Row(horizontalArrangement = Arrangement.spacedBy(StudioDimens.m)) {
-                    FilledTonalButton(onClick = onOpenProject) {
-                        Icon(Icons.Filled.FolderOpen, contentDescription = null)
-                        Text(AppStrings.OPEN_MOQPROJ)
-                    }
-                    FilledTonalButton(onClick = onImportOpenAPI) {
-                        Text(AppStrings.IMPORT_OPENAPI)
-                    }
-                    FilledTonalButton(onClick = onImportHAR) {
-                        Text(AppStrings.IMPORT_HAR)
-                    }
-                }
+				Row(horizontalArrangement = Arrangement.spacedBy(StudioDimens.m)) {
+					Box {
+						FilledIconButton(onClick = { showFolderMenu = true }) {
+							Icon(Icons.Filled.FolderOpen, contentDescription = AppStrings.OPEN_OR_IMPORT)
+						}
+						DropdownMenu(
+							expanded = showFolderMenu,
+							onDismissRequest = { showFolderMenu = false },
+						) {
+							DropdownMenuItem(
+								text = { Text(AppStrings.OPEN_MOQPROJ) },
+								onClick = {
+									showFolderMenu = false
+									onOpenProject()
+								},
+							)
+							DropdownMenuItem(
+								text = { Text(AppStrings.IMPORT_OPENAPI) },
+								onClick = {
+									showFolderMenu = false
+									onImportOpenAPI()
+								},
+							)
+							DropdownMenuItem(
+								text = { Text(AppStrings.IMPORT_SWAGGER) },
+								onClick = {
+									showFolderMenu = false
+									onImportSwagger()
+								},
+							)
+							DropdownMenuItem(
+								text = { Text(AppStrings.IMPORT_HAR) },
+								onClick = {
+									showFolderMenu = false
+									onImportHAR()
+								},
+							)
+						}
+					}
+					Box {
+						FilledIconButton(onClick = { showInternetMenu = true }) {
+							Icon(Icons.Outlined.Language, contentDescription = AppStrings.IMPORT_OPENAPI_URL)
+						}
+						DropdownMenu(
+							expanded = showInternetMenu,
+							onDismissRequest = { showInternetMenu = false },
+						) {
+							DropdownMenuItem(
+								text = { Text(AppStrings.IMPORT_OPENAPI_URL) },
+								onClick = {
+									showInternetMenu = false
+									onImportOpenAPIURL()
+								},
+							)
+							DropdownMenuItem(
+								text = { Text(AppStrings.IMPORT_SWAGGER_URL) },
+								onClick = {
+									showInternetMenu = false
+									onImportSwaggerURL()
+								},
+							)
+						}
+					}
+				}
             }
         }
 

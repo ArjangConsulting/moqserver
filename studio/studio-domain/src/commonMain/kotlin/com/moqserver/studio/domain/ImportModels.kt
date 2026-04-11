@@ -19,6 +19,7 @@ data class ParsedEndpoint(
     val alias: String? = null,
     val description: String? = null,
     val referenceName: String? = null,
+    val tags: List<String> = emptyList(),
     val responses: List<ParsedResponse>,
     val authType: AuthType = AuthType.NONE,
     val authHeaderName: String? = null,
@@ -52,6 +53,8 @@ data class ImportEndpointEntry(
     val generatedResponses: List<ParsedResponse> = emptyList(),
     val aiGenerationLoading: Boolean = false,
     val aiGenerationError: String? = null,
+    /** Optional user-provided context to guide AI mock generation for this endpoint. */
+    val aiContextHint: String = "",
 )
 
 data class ImportAIBulkState(

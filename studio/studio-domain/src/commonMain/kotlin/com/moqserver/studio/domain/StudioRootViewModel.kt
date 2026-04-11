@@ -537,6 +537,14 @@ class StudioRootViewModel(
         _state.update { it.copy(importState = importState.copy(projectName = name)) }
     }
 
+    fun updateImportAIContextHint(index: Int, hint: String) {
+        val importState = _state.value.importState ?: return
+        val entries = importState.entries.toMutableList()
+        if (index !in entries.indices) return
+        entries[index] = entries[index].copy(aiContextHint = hint)
+        _state.update { it.copy(importState = importState.copy(entries = entries)) }
+    }
+
     fun confirmImport(projectPath: String): MoqProject? {
         val importState = _state.value.importState ?: return null
         val acceptedEntries = importState.entries.filter { it.accepted }

@@ -65,13 +65,18 @@ fun EndpointBrowser(
         }
     }
 
-    // Group by first path segment
-    val grouped = remember(filteredEndpoints) {
-        filteredEndpoints.groupBy { ep ->
-            val segments = ep.path.removePrefix("/").split("/")
-            if (segments.size > 1) "/${segments.first()}" else ep.path
-        }.toSortedMap()
-    }
+	// Group by first path segment
+	val grouped = remember(filteredEndpoints) {
+		filteredEndpoints.groupBy { ep ->
+			ep.tags
+				?.firstOrNull()
+				?.takeIf { it.isNotBlank() }
+				?: run {
+					val segments = ep.path.removePrefix("/").split("/")
+					if (segments.size > 1) "/${segments.first()}" else ep.path
+				}
+		}.toSortedMap()
+	}
 
     Row(modifier = Modifier.fillMaxSize()) {
         // Left sidebar

@@ -119,6 +119,7 @@ object ImportConverter {
             referenceName = referenceName,
             method = parsed.method.uppercase(),
             path = parsed.path,
+            tags = parsed.tags.ifEmpty { null },
             auth = auth,
             requestRules = requestRules,
             variants = variants,

@@ -18,13 +18,15 @@ import io.swagger.v3.oas.models.responses.ApiResponse
 import io.swagger.v3.oas.models.security.SecurityRequirement
 import io.swagger.v3.oas.models.security.SecurityScheme
 import io.swagger.v3.parser.OpenAPIV3Parser
+import io.swagger.v3.parser.converter.SwaggerConverter
 import io.swagger.v3.parser.core.models.ParseOptions
+import io.swagger.v3.parser.core.models.SwaggerParseResult
 import java.util.*
 
-/**
- * Parses OpenAPI 3.0.x and 3.1.x specs (YAML/JSON) into ParsedSpec.
- * Uses swagger-parser for OpenAPI handling, mirroring the Swift OpenAPIParser logic.
- */
+	/**
+	 * Parses OpenAPI 3.x and Swagger 2.0 specs (YAML/JSON) into ParsedSpec.
+	 * Swagger 2.0 payloads are converted to OpenAPI 3 models before the rest of the import flow.
+	 */
 class OpenAPIImportParser {
 	private val logger = loggerFor<OpenAPIImportParser>()
 
@@ -41,20 +43,16 @@ class OpenAPIImportParser {
 
 	@Suppress("LongMethod", "DestructuringDeclarationWithTooManyEntries")
 	fun parse(content: String): ParsedSpec {
-		logger.info("Parsing OpenAPI spec ({} bytes)", content.length)
-		val options = ParseOptions().apply {
-			isResolve = true
-			isResolveFully = true
-		}
-		val result = OpenAPIV3Parser().readContents(content, null, options)
+		logger.info("Parsing API spec ({} bytes)", content.length)
+		val result = parseWithFallback(content)
 		val openAPI = result.openAPI
 			?: throw IllegalArgumentException(
-				"Unable to parse OpenAPI spec: ${result.messages.joinToString("; ")}",
+				"Unable to parse API spec: ${result.messages.joinToString("; ")}",
 			)
 
 		val warnings = result.messages.orEmpty().toMutableList()
 		if (warnings.isNotEmpty()) {
-			logger.warn("OpenAPI parser warnings ({}): {}", warnings.size, warnings.joinToString("; "))
+			logger.warn("API parser warnings ({}): {}", warnings.size, warnings.joinToString("; "))
 		}
 
 		val securitySchemes = openAPI.components?.securitySchemes.orEmpty()
@@ -86,6 +84,7 @@ class OpenAPIImportParser {
 						alias = resolveAlias(operation, method, pathStr),
 						description = operation.description?.trim()?.takeIf { it.isNotEmpty() },
 						referenceName = operation.operationId?.trim()?.takeIf { it.isNotEmpty() },
+						tags = operation.tags.orEmpty(),
 						responses = responses,
 						authType = authType,
 						authHeaderName = authHeaderName,
@@ -107,13 +106,50 @@ class OpenAPIImportParser {
 			warnings = warnings,
 		).also {
 			logger.info(
-				"OpenAPI parse complete: '{}' v{} — {} endpoint(s), {} warning(s)",
+				"API parse complete: '{}' v{} — {} endpoint(s), {} warning(s)",
 				it.title,
 				it.version,
 				endpoints.size,
 				warnings.size,
 			)
 		}
+	}
+
+	private fun parseWithFallback(content: String): SwaggerParseResult {
+		val options = ParseOptions().apply {
+			isResolve = true
+			isResolveFully = true
+		}
+		val openApiResult = OpenAPIV3Parser().readContents(content, null, options)
+		if (openApiResult.openAPI != null) {
+			return openApiResult
+		}
+
+		if (!looksLikeSwagger2(content)) {
+			return openApiResult
+		}
+
+		logger.info("OpenAPI 3 parse failed; attempting Swagger 2 conversion")
+		val swaggerResult = SwaggerConverter().readContents(content, null, options)
+		if (swaggerResult.openAPI != null) {
+			return swaggerResult.apply {
+				messages = messages
+					.orEmpty()
+					.filterNot { it.contains("attribute openapi is missing", ignoreCase = true) }
+					.distinct()
+			}
+		}
+
+		return SwaggerParseResult().apply {
+			openAPI = null
+			messages = (openApiResult.messages.orEmpty() + swaggerResult.messages.orEmpty()).distinct()
+		}
+	}
+
+	private fun looksLikeSwagger2(content: String): Boolean {
+		val trimmed = content.trimStart()
+		return trimmed.contains(""""swagger"\s*:\s*"2.0""".toRegex()) ||
+			trimmed.contains("""^swagger\s*:\s*["']?2.0["']?""".toRegex(RegexOption.MULTILINE))
 	}
 
 	private fun resolveAlias(operation: Operation, method: String, path: String): String {
