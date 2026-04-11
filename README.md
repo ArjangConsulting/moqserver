@@ -190,6 +190,8 @@ For complete API and configuration docs with detailed examples:
 
 The desktop Studio app is a separate Gradle project under [`studio/`](studio/). Open that directory directly in IntelliJ for the normal Compose Desktop debug workflow.
 
+For repo-local Studio engineering guidance and the local skill index, see [`LOCAL_SKILLS.md`](LOCAL_SKILLS.md).
+
 ## Mobile Recorder SDKs
 
 The extracted iOS and Android network recording SDKs now live in the sibling repository at [`../mobile-network-recorder`](../mobile-network-recorder).

@@ -23,6 +23,13 @@ Do not duplicate those product guides in new files unless the repo structure cha
 - Cursor rules: none found in `.cursor/rules/` or `.cursorrules`.
 - Copilot rules: none found in `.github/copilot-instructions.md`.
 
+## Local Skills
+- Prefer repo-local skills over third-party skills for `studio/` work.
+- Human-readable local skill index: `LOCAL_SKILLS.md`.
+- Primary Studio entrypoint skill: `moqserver-studio-master`.
+- Local skills live under `~/.agents/skills/` and are intended to capture repo-specific architecture, theming, AI, import, persistence, and testing guidance.
+- If a newly added local skill is not yet visible to the runtime skill registry in the current session, consult `LOCAL_SKILLS.md` and continue, or restart the session to refresh skill discovery.
+
 ## General Workflow
 - Start by reading the relevant product guide before making non-trivial changes.
 - Prefer the smallest correct change.
