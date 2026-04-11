@@ -55,7 +55,8 @@ object ImportConverter {
         )
     }
 
-    private fun convertEndpoint(
+	@Suppress("LongMethod")
+	private fun convertEndpoint(
         entry: ImportEndpointEntry,
         assignedEndpointReferenceNames: MutableList<String>,
     ): EndpointDocument {

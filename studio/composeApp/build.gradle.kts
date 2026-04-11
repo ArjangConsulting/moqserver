@@ -20,6 +20,7 @@ kotlin {
     sourceSets {
         val commonMain by getting {
             dependencies {
+                implementation(projects.studioDesignSystem)
                 implementation(projects.studioDomain)
                 implementation(projects.studioProjectFormat)
                 implementation(compose.runtime)

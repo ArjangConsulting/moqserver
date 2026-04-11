@@ -185,8 +185,14 @@ class ProjectRepositoryTest {
                 assertEquals(ep.operation?.type, reloadedEp.operation?.type)
                 assertEquals(ep.operation?.name, reloadedEp.operation?.name)
                 assertEquals(ep.variants.size, reloadedEp.variants.size)
-                assertEquals(ep.variants.map(ProjectVariant::referenceName), reloadedEp.variants.map(ProjectVariant::referenceName))
-                assertEquals(ep.variants.map(ProjectVariant::description), reloadedEp.variants.map(ProjectVariant::description))
+                assertEquals(
+                    ep.variants.map(ProjectVariant::referenceName),
+                    reloadedEp.variants.map(ProjectVariant::referenceName),
+                )
+                assertEquals(
+                    ep.variants.map(ProjectVariant::description),
+                    reloadedEp.variants.map(ProjectVariant::description),
+                )
                 assertEquals(ep.network?.latencyMs, reloadedEp.network?.latencyMs)
                 assertEquals(ep.network?.jitterMs, reloadedEp.network?.jitterMs)
             }
@@ -225,7 +231,7 @@ class ProjectRepositoryTest {
                             body = YamlValue.Str("[]"),
                         ),
                     ),
-                )
+                ),
             ),
             projectPath = "/tmp/variant-description-test",
         )
@@ -281,7 +287,7 @@ class ProjectRepositoryTest {
                     path = "/pets/{petId}",
                     description = "Deletes the selected pet",
                     variants = listOf(ProjectVariant(name = "default", status = 204)),
-                )
+                ),
             ),
             projectPath = sampleProjectPath,
         )
@@ -480,7 +486,7 @@ class ProjectRepositoryTest {
                     ),
                     body = YamlValue.Str("ok"),
                     bodyFile = null,
-                )
+                ),
             ),
         )
         val tempDir = kotlin.io.path.createTempDirectory("moqproj-variant-request-match").toFile()

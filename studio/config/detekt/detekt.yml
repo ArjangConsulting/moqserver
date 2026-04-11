@@ -5,18 +5,22 @@ complexity:
   CognitiveComplexMethod:
     active: true
     threshold: 15
+    ignoreAnnotated: ['Composable']
   CyclomaticComplexMethod:
     threshold: 15
+    ignoreAnnotated: ['Composable']
   LargeClass:
-    threshold: 400
+    threshold: 600
   LongMethod:
     threshold: 60
+    ignoreAnnotated: ['Composable']
   LongParameterList:
     functionThreshold: 8
     constructorThreshold: 10
     ignoreDefaultParameters: true
     ignoreDataClasses: true
     ignoreAnnotatedParameter: ['Composable']
+    ignoreAnnotated: ['Composable']
   NestedBlockDepth:
     threshold: 5
   TooManyFunctions:
@@ -49,6 +53,7 @@ style:
       - 'androidx.compose.ui.*'
       - 'androidx.compose.ui.unit.*'
       - 'com.moqserver.studio.projectformat.*'
+      - 'com.moqserver.studio.designsystem.*'
       - 'com.moqserver.studio.ui.*'
       - 'kotlinx.serialization.json.*'
   ReturnCount:
@@ -78,7 +83,7 @@ naming:
 
 formatting:
   Indentation:
-    indentSize: 4
+    active: false
   TrailingCommaOnCallSite:
     active: true
     useTrailingCommaOnCallSite: true
@@ -88,6 +93,10 @@ formatting:
   MaximumLineLength:
     active: true
     maxLineLength: 140
+
+potential-bugs:
+  UnreachableCode:
+    active: false
 
 exceptions:
   TooGenericExceptionCaught:

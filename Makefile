@@ -1,4 +1,4 @@
-.PHONY: build test smoke run clean release docker-build studio-build studio-package studio-run studio-test studio-lint
+.PHONY: build test smoke run clean release docker-build studio-build studio-package studio-run studio-test studio-lint install-hooks
 
 # ── Server (Swift) ──────────────────────────────────────────────
 
@@ -61,3 +61,10 @@ studio-test:
 
 studio-lint:
 	cd studio && ./gradlew detektAll
+
+# ── Dev Setup ───────────────────────────────────────────────────
+
+install-hooks:
+	cp scripts/pre-commit .git/hooks/pre-commit
+	chmod +x .git/hooks/pre-commit
+	@echo "Git hooks installed."

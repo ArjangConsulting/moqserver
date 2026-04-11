@@ -27,7 +27,7 @@ class AISettingsRepositoryTest {
                 openai = OpenAISettings(apiKey = "openai-secret"),
                 anthropic = AnthropicSettings(apiKey = "anthropic-secret"),
                 gemini = GeminiSettings(apiKey = "gemini-secret"),
-            )
+            ),
         )
 
         val persisted = settingsFile.readText()
@@ -68,7 +68,7 @@ class AISettingsRepositoryTest {
               "anthropic": { "apiKey": "", "baseUrl": "https://example.com/anthropic", "defaultModel": "claude-test" },
               "gemini": { "apiKey": "", "baseUrl": "https://example.com/gemini", "defaultModel": "gemini-test" }
             }
-            """.trimIndent()
+            """.trimIndent(),
         )
 
         val loaded = repository.load()

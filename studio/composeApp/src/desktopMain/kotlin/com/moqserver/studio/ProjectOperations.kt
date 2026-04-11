@@ -1,22 +1,19 @@
 package com.moqserver.studio
 
+import androidx.compose.runtime.MutableState
+import com.moqserver.studio.data.RecentProjectsRepository
+import com.moqserver.studio.domain.StudioRootViewModel
+import com.moqserver.studio.domain.StudioState
+import com.moqserver.studio.logging.loggerFor
+import com.moqserver.studio.projectformat.ProjectRepository
+import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.withContext
 import java.awt.Desktop
 import java.awt.Image
 import java.awt.Taskbar
 import java.io.File
 import javax.imageio.ImageIO
 import javax.swing.JOptionPane
-
-import kotlinx.coroutines.CoroutineDispatcher
-import kotlinx.coroutines.runBlocking
-import kotlinx.coroutines.withContext
-
-import com.moqserver.studio.data.RecentProjectsRepository
-import com.moqserver.studio.domain.StudioRootViewModel
-import com.moqserver.studio.domain.StudioState
-import com.moqserver.studio.logging.loggerFor
-import com.moqserver.studio.projectformat.ProjectRepository
-
 import java.awt.Window as AwtWindow
 
 private val logger = loggerFor<StudioRootViewModel>()
@@ -46,7 +43,7 @@ internal suspend fun openProject(
     rawPath: String,
     repo: ProjectRepository,
     appViewModel: StudioRootViewModel,
-    lastFileDirectory: androidx.compose.runtime.MutableState<String?>,
+    lastFileDirectory: MutableState<String?>,
     recentProjectsRepo: RecentProjectsRepository,
     ioDispatcher: CoroutineDispatcher,
 ) {

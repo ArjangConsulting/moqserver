@@ -7,6 +7,7 @@ plugins {
 dependencies {
     implementation(compose.desktop.currentOs)
     implementation(libs.rsyntaxtextarea)
+    implementation(projects.studioDesignSystem)
 }
 
 kotlin {

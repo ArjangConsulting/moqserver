@@ -4,7 +4,11 @@ import com.moqserver.studio.domain.ParsedEndpoint
 import com.moqserver.studio.domain.ParsedResponse
 import com.moqserver.studio.domain.ParsedSpec
 import com.moqserver.studio.logging.loggerFor
-import com.moqserver.studio.projectformat.*
+import com.moqserver.studio.projectformat.AuthType
+import com.moqserver.studio.projectformat.MatchType
+import com.moqserver.studio.projectformat.RuleMatcher
+import com.moqserver.studio.projectformat.defaultAliasForEndpoint
+import com.moqserver.studio.projectformat.humanizeAliasSource
 import io.swagger.v3.oas.models.Operation
 import io.swagger.v3.oas.models.PathItem
 import io.swagger.v3.oas.models.media.Content
@@ -35,6 +39,7 @@ class OpenAPIImportParser {
 		private const val DEFAULT_JSON_BODY = "{}"
 	}
 
+	@Suppress("LongMethod", "DestructuringDeclarationWithTooManyEntries")
 	fun parse(content: String): ParsedSpec {
 		logger.info("Parsing OpenAPI spec ({} bytes)", content.length)
 		val options = ParseOptions().apply {
@@ -44,7 +49,7 @@ class OpenAPIImportParser {
 		val result = OpenAPIV3Parser().readContents(content, null, options)
 		val openAPI = result.openAPI
 			?: throw IllegalArgumentException(
-				"Unable to parse OpenAPI spec: ${result.messages.joinToString("; ")}"
+				"Unable to parse OpenAPI spec: ${result.messages.joinToString("; ")}",
 			)
 
 		val warnings = result.messages.orEmpty().toMutableList()
@@ -59,14 +64,20 @@ class OpenAPIImportParser {
 			for ((method, operation) in operationsOf(pathItem)) {
 				val responses = buildResponses(operation)
 				val (authType, authHeaderName) = resolveAuth(
-					operation, openAPI.security.orEmpty(), securitySchemes
+					operation,
+					openAPI.security.orEmpty(),
+					securitySchemes,
 				)
+
 				val (reqQuery, reqHeaders, reqCookies, requiresBody, acceptedContentTypes) =
 					extractRequestRules(operation, pathItem.parameters.orEmpty())
 
 				logger.debug(
 					"OpenAPI endpoint: {} {} → {} variant(s), auth={}",
-					method, pathStr, responses.size, authType,
+					method,
+					pathStr,
+					responses.size,
+					authType,
 				)
 				endpoints.add(
 					ParsedEndpoint(
@@ -84,7 +95,7 @@ class OpenAPIImportParser {
 						cookies = reqCookies,
 						requiresBody = requiresBody,
 						acceptedContentTypes = acceptedContentTypes,
-					)
+					),
 				)
 			}
 		}
@@ -151,7 +162,7 @@ class OpenAPIImportParser {
 				val name = uniqueImportName(baseName, usedNames)
 				usedNames.add(name)
 				responses.add(
-					ParsedResponse(name = name, statusCode = code, headers = responseHeaders)
+					ParsedResponse(name = name, statusCode = code, headers = responseHeaders),
 				)
 			} else {
 				val sorted = sortContentTypes(content)
@@ -173,7 +184,7 @@ class OpenAPIImportParser {
 							statusCode = code,
 							headers = headers,
 							body = body,
-						)
+						),
 					)
 				}
 			}
@@ -254,7 +265,7 @@ class OpenAPIImportParser {
 			is Number -> kotlinx.serialization.json.JsonPrimitive(value)
 			is String -> kotlinx.serialization.json.JsonPrimitive(value)
 			is Map<*, *> -> kotlinx.serialization.json.JsonObject(
-				value.entries.associate { (k, v) -> k.toString() to anyToJsonElement(v) }
+				value.entries.associate { (k, v) -> k.toString() to anyToJsonElement(v) },
 			)
 			is List<*> -> kotlinx.serialization.json.JsonArray(value.map { anyToJsonElement(it) })
 			else -> kotlinx.serialization.json.JsonPrimitive(value.toString())
@@ -270,7 +281,8 @@ class OpenAPIImportParser {
 			return "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<root/>"
 		}
 		if (isHtmlMediaType(mediaType)) {
-			return "<!DOCTYPE html>\n<html><head><title>Mock Response</title></head><body><p>mock-response</p></body></html>"
+			return "<!DOCTYPE html>\n<html><head><title>Mock Response</title></head>" +
+				"<body><p>mock-response</p></body></html>"
 		}
 		return defaultBody(mediaType)
 	}
@@ -318,10 +330,15 @@ class OpenAPIImportParser {
 		return when {
 			isJsonMediaType(lower) -> DEFAULT_JSON_BODY
 			isXmlMediaType(lower) -> "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<root/>"
-			isHtmlMediaType(lower) -> "<!DOCTYPE html>\n<html><head><title>Mock Response</title></head><body><p>mock-response</p></body></html>"
+			isHtmlMediaType(lower) ->
+				"<!DOCTYPE html>\n<html><head><title>Mock Response</title></head>" +
+					"<body><p>mock-response</p></body></html>"
 			lower == "text/csv" -> "column1,column2\nvalue1,value2"
 			lower.startsWith("text/") -> "mock-response"
-			lower.startsWith("image/svg") -> "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"100\" height=\"100\"><rect width=\"100\" height=\"100\" fill=\"#ccc\"/><text x=\"10\" y=\"55\" font-size=\"12\">mock</text></svg>"
+			lower.startsWith("image/svg") ->
+				"<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"100\" height=\"100\">" +
+					"<rect width=\"100\" height=\"100\" fill=\"#ccc\"/>" +
+					"<text x=\"10\" y=\"55\" font-size=\"12\">mock</text></svg>"
 			else -> null
 		}
 	}
@@ -342,6 +359,7 @@ class OpenAPIImportParser {
 
 	// -- Auth resolution --
 
+	@Suppress("CyclomaticComplexMethod")
 	private fun resolveAuth(
 		operation: Operation,
 		globalSecurity: List<SecurityRequirement>,

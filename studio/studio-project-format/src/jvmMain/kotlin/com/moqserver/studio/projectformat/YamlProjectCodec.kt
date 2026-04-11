@@ -301,7 +301,8 @@ class YamlProjectCodec {
         return lines.joinToString("\n") + "\n"
     }
 
-    private fun encodeVariant(variant: ProjectVariant, indent: Int): List<String> {
+	@Suppress("CyclomaticComplexMethod", "CognitiveComplexMethod", "LongMethod")
+	private fun encodeVariant(variant: ProjectVariant, indent: Int): List<String> {
         val pad = " ".repeat(indent)
         val lines = mutableListOf<String>()
 

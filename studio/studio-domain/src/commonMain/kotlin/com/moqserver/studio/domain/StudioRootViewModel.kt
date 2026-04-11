@@ -10,14 +10,14 @@ import com.moqserver.studio.projectformat.ValidationDiagnostic
 import com.moqserver.studio.projectformat.YamlValue
 import com.moqserver.studio.projectformat.suggestedVariantName
 import com.moqserver.studio.projectformat.suggestedVariantReferenceName
-import kotlin.time.Duration.Companion.milliseconds
-import kotlin.time.TimeSource
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
+import kotlin.time.Duration.Companion.milliseconds
+import kotlin.time.TimeSource
 
-private val HISTORY_DEBOUNCE_DURATION = 500.milliseconds
+private val historyDebounceDuration = 500.milliseconds
 private data class HistoryEntry(
     val project: MoqProject,
     val selectedEndpointId: String?,
@@ -50,7 +50,7 @@ class StudioRootViewModel(
         val entry = HistoryEntry(project, s.selectedEndpointId)
         val now = TimeSource.Monotonic.markNow()
         val lastMark = lastContinuousEditMark
-        if (isContinuousEdit && lastMark != null && (now - lastMark) < HISTORY_DEBOUNCE_DURATION) {
+        if (isContinuousEdit && lastMark != null && (now - lastMark) < historyDebounceDuration) {
             lastContinuousEditMark = now
             return
         }
@@ -125,7 +125,8 @@ class StudioRootViewModel(
             }
         val newlyMarkedDefaultVariant = newlyMarkedDefault?.value
         val message = if (newlyMarkedDefaultVariant != null) {
-            "\"${currentDefault.name}\" is already the default variant. Clear it before marking \"${newlyMarkedDefaultVariant.name}\" as default."
+            "\"${currentDefault.name}\" is already the default variant. " +
+                "Clear it before marking \"${newlyMarkedDefaultVariant.name}\" as default."
         } else {
             "Only one variant may be marked as default."
         }
@@ -169,7 +170,14 @@ class StudioRootViewModel(
         if (current.manifest == manifest) return
         recordHistory(isContinuousEdit = true)
         val updated = current.copy(manifest = manifest)
-        _state.update { it.copy(project = updated, isDirty = true, diagnostics = revalidate(updated), transientDiagnostic = null) }
+        _state.update {
+            it.copy(
+                project = updated,
+                isDirty = true,
+                diagnostics = revalidate(updated),
+                transientDiagnostic = null,
+            )
+        }
     }
 
     fun updateEndpoint(endpoint: EndpointDocument) {
@@ -190,7 +198,14 @@ class StudioRootViewModel(
         val updated = current.copy(
             endpoints = current.endpoints.map { if (it.id == endpoint.id) endpoint else it }
         )
-        _state.update { it.copy(project = updated, isDirty = true, diagnostics = revalidate(updated), transientDiagnostic = null) }
+        _state.update {
+            it.copy(
+                project = updated,
+                isDirty = true,
+                diagnostics = revalidate(updated),
+                transientDiagnostic = null,
+            )
+        }
     }
 
     fun addEndpoint(endpoint: EndpointDocument) {
@@ -488,14 +503,15 @@ class StudioRootViewModel(
         val importState = _state.value.importState ?: return
         val bulkState = importState.aiBulkState
         _state.update {
+            val progress = completedCount.coerceAtMost(bulkState.totalCount)
             it.copy(
                 importState = importState.copy(
                     aiBulkState = bulkState.copy(
                         running = true,
-                        completedCount = completedCount.coerceAtMost(bulkState.totalCount),
+                        completedCount = progress,
                     ),
                 ),
-                statusLine = "Generating AI mock variants ${completedCount.coerceAtMost(bulkState.totalCount)}/${bulkState.totalCount}",
+                statusLine = "Generating AI mock variants $progress/${bulkState.totalCount}",
             )
         }
     }

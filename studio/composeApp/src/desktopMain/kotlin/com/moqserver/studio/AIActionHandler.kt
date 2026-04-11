@@ -12,7 +12,6 @@ import com.moqserver.studio.domain.AIAction
 import com.moqserver.studio.domain.AIProviderInfo
 import com.moqserver.studio.domain.CompanionRequest
 import com.moqserver.studio.domain.EndpointSummary
-import com.moqserver.studio.domain.ImportEndpointEntry
 import com.moqserver.studio.domain.ImportState
 import com.moqserver.studio.domain.IntentContext
 import com.moqserver.studio.domain.ParsedEndpoint
@@ -271,6 +270,7 @@ private suspend fun executeRefineProject(
 	viewModel.refineProjectCompleted(result)
 }
 
+@Suppress("LongMethod", "ReturnCount")
 internal suspend fun generateBodyForVariant(
 	endpointId: String,
 	variantReferenceName: String,
@@ -366,7 +366,15 @@ internal suspend fun generateBodyForVariant(
 			return
 		}
 
-		viewModel.updateEndpoint(applyGeneratedBody(latestEndpoint, latestVariant, generated.body, prompt, generated.contentType))
+		viewModel.updateEndpoint(
+		applyGeneratedBody(
+			latestEndpoint,
+			latestVariant,
+			generated.body,
+			prompt,
+			generated.contentType,
+		),
+	)
 		viewModel.dismissAIAction()
 		viewModel.setStatus("AI generated body for ${latestVariant.name} (${latestEndpoint.method} ${latestEndpoint.path})")
 	} catch (e: Exception) {

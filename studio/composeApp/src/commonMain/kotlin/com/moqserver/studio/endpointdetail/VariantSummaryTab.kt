@@ -1,7 +1,6 @@
 package com.moqserver.studio.endpointdetail
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
@@ -12,8 +11,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-
-import com.moqserver.studio.StudioDimens
+import com.moqserver.studio.designsystem.StudioDimens
 import com.moqserver.studio.domain.VariantReferenceSyncPreference
 import com.moqserver.studio.projectformat.EndpointDocument
 import com.moqserver.studio.projectformat.ProjectVariant

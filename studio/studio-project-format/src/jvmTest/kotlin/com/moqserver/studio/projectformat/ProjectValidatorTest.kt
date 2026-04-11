@@ -67,13 +67,18 @@ class ProjectValidatorTest {
                             referenceName = "success",
                             status = 200,
                             requestMatch = VariantRequestMatch(),
-                        )
+                        ),
                     ),
                 ),
-            )
+            ),
         )
 
-        assertTrue(diagnostics.any { it.field?.endsWith("request_match") == true && "must define query, headers, or body_contains" in it.message })
+        assertTrue(
+            diagnostics.any {
+                it.field?.endsWith("request_match") == true &&
+                    "must define query, headers, or body_contains" in it.message
+            },
+        )
     }
 
     private fun projectWithEndpoints(vararg endpoints: EndpointDocument): MoqProject {

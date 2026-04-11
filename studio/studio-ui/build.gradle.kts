@@ -10,6 +10,7 @@ dependencies {
     implementation(compose.material3)
     implementation(compose.materialIconsExtended)
     implementation(compose.ui)
+    implementation(projects.studioDesignSystem)
     implementation(projects.studioProjectFormat)
 }
 

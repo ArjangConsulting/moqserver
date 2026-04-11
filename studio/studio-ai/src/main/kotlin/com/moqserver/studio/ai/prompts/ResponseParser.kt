@@ -10,15 +10,7 @@ import com.moqserver.studio.domain.SpecFinding
 import com.moqserver.studio.logging.loggerFor
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
-import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
-import kotlinx.serialization.json.JsonPrimitive
-import kotlinx.serialization.json.booleanOrNull
-import kotlinx.serialization.json.contentOrNull
-import kotlinx.serialization.json.intOrNull
-import kotlinx.serialization.json.jsonArray
-import kotlinx.serialization.json.jsonObject
-import kotlinx.serialization.json.jsonPrimitive
 
 object ResponseParser {
 
@@ -191,5 +183,8 @@ object ResponseParser {
     private const val FALLBACK_CATEGORY = "general"
     private const val FALLBACK_ENDPOINT_KEY = "UNMAPPED"
     private const val FALLBACK_VARIANT_NAME = "generated-response"
-    private val THINK_TAG_REGEX = Regex("""<think>.*?</think>""", setOf(RegexOption.DOT_MATCHES_ALL, RegexOption.IGNORE_CASE))
+    private val THINK_TAG_REGEX = Regex(
+        """<think>.*?</think>""",
+        setOf(RegexOption.DOT_MATCHES_ALL, RegexOption.IGNORE_CASE),
+    )
 }

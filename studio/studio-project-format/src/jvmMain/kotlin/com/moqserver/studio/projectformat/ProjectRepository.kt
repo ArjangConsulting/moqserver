@@ -1,14 +1,14 @@
 package com.moqserver.studio.projectformat
 
 import com.moqserver.studio.logging.loggerFor
-import java.io.File
-import java.util.Base64
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
+import java.io.File
+import java.util.Base64
 
 class ProjectRepository(
     private val codec: YamlProjectCodec = YamlProjectCodec(),
@@ -106,7 +106,11 @@ class ProjectRepository(
                     file.isDirectory && file.listFiles().isNullOrEmpty() -> file.delete()
                 }
             }
-        logger.debug("Project saved with {} endpoints and {} fixtures", persistedEndpoints.size, referencedFixtures.size)
+        logger.debug(
+            "Project saved with {} endpoints and {} fixtures",
+            persistedEndpoints.size,
+            referencedFixtures.size,
+        )
     }
 
     fun readFixture(projectPath: String, bodyFile: String): String? {

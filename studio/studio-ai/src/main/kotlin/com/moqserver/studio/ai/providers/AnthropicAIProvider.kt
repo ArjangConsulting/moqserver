@@ -118,7 +118,9 @@ class AnthropicAIProvider(
         val latency = System.currentTimeMillis() - start
         logger.debug(
             "Anthropic completion received in {}ms (prompt={}, completion={} tokens)",
-            latency, result.usage?.inputTokens, result.usage?.outputTokens,
+            latency,
+            result.usage?.inputTokens,
+            result.usage?.outputTokens,
         )
         return AICompletionResult(
             text = text,

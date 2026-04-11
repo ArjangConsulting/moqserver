@@ -1,10 +1,5 @@
 package com.moqserver.studio
 
-import kotlin.test.Test
-import kotlin.test.assertEquals
-import kotlin.test.assertFalse
-import kotlin.test.assertTrue
-
 import com.moqserver.studio.domain.StudioState
 import com.moqserver.studio.projectformat.AuthType
 import com.moqserver.studio.projectformat.MoqProject
@@ -12,6 +7,10 @@ import com.moqserver.studio.projectformat.NetworkBehavior
 import com.moqserver.studio.projectformat.ProjectAuthConfig
 import com.moqserver.studio.projectformat.ProjectDefaults
 import com.moqserver.studio.projectformat.ProjectManifest
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertFalse
+import kotlin.test.assertTrue
 
 class ProjectOperationsTest {
 

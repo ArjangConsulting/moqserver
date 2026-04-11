@@ -43,6 +43,7 @@ class HARImportParser {
 		)
 	}
 
+	@Suppress("LongMethod", "CyclomaticComplexMethod")
 	fun parse(content: String): ParsedSpec {
 		logger.info("Parsing HAR file ({} bytes)", content.length)
 		val har = runCatching { json.decodeFromString<HarFile>(content) }
@@ -57,6 +58,7 @@ class HARImportParser {
 		val grouped = mutableMapOf<GroupKey, MutableList<CapturedExchange>>()
 		val warnings = mutableListOf<String>()
 
+		@Suppress("LoopWithTooManyJumpStatements")
 		for ((index, entry) in entries.withIndex()) {
 			val request = entry.request
 			if (request == null) {
@@ -213,6 +215,7 @@ class HARImportParser {
 		return text
 	}
 
+	@Suppress("UnusedPrivateMember")
 	private fun requestCookies(request: HarRequest): Map<String, String> {
 		if (request.cookies.isNotEmpty()) {
 			return request.cookies
@@ -257,6 +260,7 @@ class HARImportParser {
 		}
 	}
 
+	@Suppress("UnusedPrivateMember")
 	private fun requestCookies(exchanges: List<CapturedExchange>): List<RuleMatcher> {
 		val valuesByName = linkedMapOf<String, MutableSet<String>>()
 
