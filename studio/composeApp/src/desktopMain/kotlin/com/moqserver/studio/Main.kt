@@ -468,6 +468,33 @@ fun main(args: Array<String>) {
                     onOpenProject = ::requestOpenProject,
                     onImportOpenAPI = ::requestImportOpenAPI,
                     onImportHAR = ::requestImportHAR,
+                    onGenerateImportEndpointMocks = { index ->
+                        scope.launch(exceptionHandler) {
+                            generateImportMocksForEndpoint(
+                                index = index,
+                                registry = aiRegistry,
+                                viewModel = appViewModel,
+                                ioDispatcher = Dispatchers.IO,
+                            )
+                        }
+                    },
+                    onGenerateImportMocksForAll = {
+                        scope.launch(exceptionHandler) {
+                            generateImportMocksForAcceptedEndpoints(
+                                registry = aiRegistry,
+                                viewModel = appViewModel,
+                                ioDispatcher = Dispatchers.IO,
+                            )
+                        }
+                    },
+                    onRefreshAIProviders = {
+                        scope.launch(exceptionHandler) {
+                            refreshAIProviders(aiRegistry, appViewModel, Dispatchers.IO)
+                        }
+                    },
+                    onSelectAIProvider = { providerId ->
+                        appViewModel.selectProvider(providerId)
+                    },
                     onOpenRecentProject = ::requestOpenRecentProject,
                     onRemoveRecentProject = ::removeRecentProject,
                     onConfirmImport = {

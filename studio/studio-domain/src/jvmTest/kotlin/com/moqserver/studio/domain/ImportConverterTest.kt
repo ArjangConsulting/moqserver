@@ -41,7 +41,7 @@ class ImportConverterTest {
 
         val project = ImportConverter.convert(
             spec = parsed,
-            acceptedEndpoints = parsed.endpoints,
+            acceptedEntries = parsed.endpoints.map { ImportEndpointEntry(endpoint = it) },
             projectName = "Imported API",
             projectPath = "/tmp/imported-api",
         )
@@ -95,7 +95,7 @@ class ImportConverterTest {
 
         val project = ImportConverter.convert(
             spec = parsed,
-            acceptedEndpoints = parsed.endpoints,
+            acceptedEntries = parsed.endpoints.map { ImportEndpointEntry(endpoint = it) },
             projectName = "Imported API",
             projectPath = "/tmp/imported-api",
         )
@@ -128,7 +128,7 @@ class ImportConverterTest {
 
         val project = ImportConverter.convert(
             spec = parsed,
-            acceptedEndpoints = parsed.endpoints,
+            acceptedEntries = parsed.endpoints.map { ImportEndpointEntry(endpoint = it) },
             projectName = "Imported API",
             projectPath = "/tmp/imported-api",
         )
@@ -162,7 +162,7 @@ class ImportConverterTest {
 
         val project = ImportConverter.convert(
             spec = parsed,
-            acceptedEndpoints = parsed.endpoints,
+            acceptedEntries = parsed.endpoints.map { ImportEndpointEntry(endpoint = it) },
             projectName = "Imported API",
             projectPath = "/tmp/imported-api",
         )
@@ -200,7 +200,7 @@ class ImportConverterTest {
 
         val project = ImportConverter.convert(
             spec = parsed,
-            acceptedEndpoints = parsed.endpoints,
+            acceptedEntries = parsed.endpoints.map { ImportEndpointEntry(endpoint = it) },
             projectName = "Imported API",
             projectPath = "/tmp/imported-api",
         )
@@ -211,5 +211,53 @@ class ImportConverterTest {
         assertEquals(true, queryParams.first { it.name == "q" }.required)
         assertEquals("1", queryParams.first { it.name == "page" }.match)
         assertEquals(MatchType.EQUAL_TO, queryParams.first { it.name == "page" }.matchType)
+    }
+
+    @Test
+    fun `includes generated import variants after parsed responses`() {
+        val endpoint = ParsedEndpoint(
+            method = "GET",
+            path = "/pets",
+            responses = listOf(
+                ParsedResponse(
+                    name = "default",
+                    statusCode = 200,
+                    headers = mapOf("Content-Type" to "application/json"),
+                    body = "[]",
+                ),
+            ),
+        )
+        val parsed = ParsedSpec(
+            title = "Imported API",
+            version = "1.0.0",
+            endpoints = listOf(endpoint),
+        )
+
+        val project = ImportConverter.convert(
+            spec = parsed,
+            acceptedEntries = listOf(
+                ImportEndpointEntry(
+                    endpoint = endpoint,
+                    generatedResponses = listOf(
+                        ParsedResponse(
+                            name = "not-found",
+                            statusCode = 404,
+                            headers = mapOf("Content-Type" to "application/json"),
+                            body = "{\"error\":\"missing\"}",
+                            description = "Missing pet",
+                        ),
+                    ),
+                ),
+            ),
+            projectName = "Imported API",
+            projectPath = "/tmp/imported-api",
+        )
+
+        val variants = project.endpoints.single().variants
+        assertEquals(2, variants.size)
+        assertEquals("Success", variants[0].name)
+        assertEquals("not-found", variants[1].name)
+        assertEquals("Missing pet", variants[1].description)
+        assertEquals(404, variants[1].status)
     }
 }

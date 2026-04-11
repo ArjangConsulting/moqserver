@@ -419,6 +419,103 @@ class StudioRootViewModel(
         _state.update { it.copy(importState = importState.copy(entries = entries)) }
     }
 
+    fun importAIGenerationStarted(index: Int) {
+        val importState = _state.value.importState ?: return
+        val entries = importState.entries.toMutableList()
+        if (index !in entries.indices) return
+        entries[index] = entries[index].copy(aiGenerationLoading = true, aiGenerationError = null)
+        _state.update {
+            it.copy(
+                importState = importState.copy(entries = entries),
+                statusLine = "Generating AI mock variants for ${entries[index].endpoint.method} ${entries[index].endpoint.path}",
+            )
+        }
+    }
+
+    fun importAIGenerationCompleted(index: Int, generatedResponses: List<ParsedResponse>) {
+        val importState = _state.value.importState ?: return
+        val entries = importState.entries.toMutableList()
+        if (index !in entries.indices) return
+        val endpoint = entries[index].endpoint
+        entries[index] = entries[index].copy(
+            generatedResponses = generatedResponses,
+            aiGenerationLoading = false,
+            aiGenerationError = null,
+        )
+        _state.update {
+            it.copy(
+                importState = importState.copy(entries = entries),
+                statusLine = if (generatedResponses.isEmpty()) {
+                    "AI did not generate extra variants for ${endpoint.method} ${endpoint.path}"
+                } else {
+                    "Generated ${generatedResponses.size} AI variant(s) for ${endpoint.method} ${endpoint.path}"
+                },
+            )
+        }
+    }
+
+    fun importAIGenerationFailed(index: Int, error: String) {
+        val importState = _state.value.importState ?: return
+        val entries = importState.entries.toMutableList()
+        if (index !in entries.indices) return
+        val endpoint = entries[index].endpoint
+        entries[index] = entries[index].copy(aiGenerationLoading = false, aiGenerationError = error)
+        _state.update {
+            it.copy(
+                importState = importState.copy(entries = entries),
+                statusLine = "Error: Failed to generate AI variants for ${endpoint.method} ${endpoint.path}",
+            )
+        }
+    }
+
+    fun importAIBulkStarted(totalCount: Int) {
+        val importState = _state.value.importState ?: return
+        _state.update {
+            it.copy(
+                importState = importState.copy(
+                    aiBulkState = ImportAIBulkState(
+                        running = true,
+                        completedCount = 0,
+                        totalCount = totalCount,
+                    ),
+                ),
+                statusLine = "Generating AI mock variants for $totalCount endpoint(s)",
+            )
+        }
+    }
+
+    fun importAIBulkProgress(completedCount: Int) {
+        val importState = _state.value.importState ?: return
+        val bulkState = importState.aiBulkState
+        _state.update {
+            it.copy(
+                importState = importState.copy(
+                    aiBulkState = bulkState.copy(
+                        running = true,
+                        completedCount = completedCount.coerceAtMost(bulkState.totalCount),
+                    ),
+                ),
+                statusLine = "Generating AI mock variants ${completedCount.coerceAtMost(bulkState.totalCount)}/${bulkState.totalCount}",
+            )
+        }
+    }
+
+    fun importAIBulkFinished() {
+        val importState = _state.value.importState ?: return
+        val generatedEndpoints = importState.entries.count { it.generatedResponses.isNotEmpty() }
+        _state.update {
+            it.copy(
+                importState = importState.copy(
+                    aiBulkState = importState.aiBulkState.copy(
+                        running = false,
+                        completedCount = importState.aiBulkState.totalCount,
+                    ),
+                ),
+                statusLine = "AI mock generation finished for $generatedEndpoints endpoint(s)",
+            )
+        }
+    }
+
     fun updateImportProjectName(name: String) {
         val importState = _state.value.importState ?: return
         _state.update { it.copy(importState = importState.copy(projectName = name)) }
@@ -426,12 +523,12 @@ class StudioRootViewModel(
 
     fun confirmImport(projectPath: String): MoqProject? {
         val importState = _state.value.importState ?: return null
-        val accepted = importState.entries.filter { it.accepted }.map { it.endpoint }
-        if (accepted.isEmpty()) return null
+        val acceptedEntries = importState.entries.filter { it.accepted }
+        if (acceptedEntries.isEmpty()) return null
 
         val project = ImportConverter.convert(
             spec = importState.parsedSpec,
-            acceptedEndpoints = accepted,
+            acceptedEntries = acceptedEntries,
             projectName = importState.projectName,
             projectPath = projectPath,
         )
@@ -442,7 +539,7 @@ class StudioRootViewModel(
                 originalProject = project,
                 isDirty = true, // New import needs saving
                 importState = null,
-                statusLine = "Imported ${accepted.size} endpoints from ${importState.sourceFileName}",
+                statusLine = "Imported ${acceptedEntries.size} endpoints from ${importState.sourceFileName}",
                 transientDiagnostic = null,
                 selectedEndpointId = project.endpoints.firstOrNull()?.id,
                 diagnostics = revalidate(project),

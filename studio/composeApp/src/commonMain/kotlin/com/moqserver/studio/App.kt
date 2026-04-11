@@ -42,6 +42,7 @@ import androidx.compose.ui.input.pointer.PointerIcon
 import androidx.compose.ui.input.pointer.pointerHoverIcon
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
+import com.moqserver.studio.domain.AIProviderInfo
 import com.moqserver.studio.domain.VariantReferenceSyncPreference
 import com.moqserver.studio.domain.AIAction
 import com.moqserver.studio.domain.AIState
@@ -85,6 +86,7 @@ private object AppStrings {
     const val CAP_ANALYZE = "Analyze"
     const val CAP_GENERATE = "Generate"
     const val CAP_REFINE = "Refine"
+    const val CAP_GENERATE_VARIANTS = "GENERATE_VARIANTS"
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -97,6 +99,10 @@ fun App(
     onImportOpenAPI: () -> Unit = {},
     onImportHAR: () -> Unit = {},
     onConfirmImport: () -> Unit = {},
+    onGenerateImportEndpointMocks: (Int) -> Unit = {},
+    onGenerateImportMocksForAll: () -> Unit = {},
+    onRefreshAIProviders: () -> Unit = {},
+    onSelectAIProvider: (String) -> Unit = {},
     onOpenRecentProject: (String) -> Unit = {},
     onRemoveRecentProject: (String) -> Unit = {},
     onAIAction: (AIAction) -> Unit = {},
@@ -116,10 +122,23 @@ fun App(
             when {
                 state.isImporting -> ImportReviewScreen(
                     state = state.importState!!,
+                    aiProviders = state.ai.providers,
+                    aiProvidersLoading = state.ai.loading,
+                    canGenerateWithAi = state.ai.selectedProvider
+                        ?.takeIf { it.available }
+                        ?.capabilities
+                        ?.contains(AppStrings.CAP_GENERATE_VARIANTS)
+                        == true,
+                    selectedAIProviderId = state.ai.selectedProviderId,
+                    aiProviderLabel = state.ai.selectedProvider?.displayName,
+                    onRefreshAIProviders = onRefreshAIProviders,
+                    onSelectAIProvider = onSelectAIProvider,
                     onToggleEndpoint = { index -> appViewModel.toggleImportEndpoint(index) },
                     onSelectAll = { appViewModel.setAllImportEndpoints(true) },
                     onDeselectAll = { appViewModel.setAllImportEndpoints(false) },
                     onUpdateProjectName = { appViewModel.updateImportProjectName(it) },
+                    onGenerateEndpointMocks = onGenerateImportEndpointMocks,
+                    onGenerateAllMocks = onGenerateImportMocksForAll,
                     onConfirm = onConfirmImport,
                     onCancel = { appViewModel.cancelImport() },
                     modifier = Modifier.fillMaxSize(),

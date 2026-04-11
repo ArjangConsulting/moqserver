@@ -36,6 +36,7 @@ data class ParsedResponse(
     val statusCode: Int,
     val headers: Map<String, String> = emptyMap(),
     val body: String? = null,
+    val description: String? = null,
 )
 
 /** Import source type. */
@@ -48,6 +49,15 @@ enum class ImportSourceType {
 data class ImportEndpointEntry(
     val endpoint: ParsedEndpoint,
     val accepted: Boolean = true,
+    val generatedResponses: List<ParsedResponse> = emptyList(),
+    val aiGenerationLoading: Boolean = false,
+    val aiGenerationError: String? = null,
+)
+
+data class ImportAIBulkState(
+    val running: Boolean = false,
+    val completedCount: Int = 0,
+    val totalCount: Int = 0,
 )
 
 /** State for the import workflow. */
@@ -57,6 +67,7 @@ data class ImportState(
     val parsedSpec: ParsedSpec,
     val entries: List<ImportEndpointEntry>,
     val projectName: String,
+    val aiBulkState: ImportAIBulkState = ImportAIBulkState(),
 ) {
     val acceptedCount: Int get() = entries.count { it.accepted }
     val totalCount: Int get() = entries.size
