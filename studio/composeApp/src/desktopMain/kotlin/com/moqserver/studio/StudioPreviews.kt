@@ -159,14 +159,17 @@ private fun previewImportState(): ImportState {
 @Composable
 private fun LandingPreview() {
     StudioTheme(StudioThemeMode.LIGHT) {
-        StudioLandingScreen(
-            state = StudioState(recentProjects = listOf("/tmp/sample-api", "/tmp/another-api")),
-            onOpenProject = {},
-            onImportOpenAPI = {},
-            onImportHAR = {},
-            onOpenRecentProject = {},
-            onRemoveRecentProject = {},
-        )
+		StudioLandingScreen(
+			state = StudioState(recentProjects = listOf("/tmp/sample-api", "/tmp/another-api")),
+			onOpenProject = {},
+			onImportOpenAPI = {},
+			onImportSwagger = {},
+			onImportOpenAPIURL = {},
+			onImportSwaggerURL = {},
+			onImportHAR = {},
+			onOpenRecentProject = {},
+			onRemoveRecentProject = {},
+		)
     }
 }
 
@@ -199,9 +202,11 @@ private fun ImportReviewPreview() {
             onRefreshAIProviders = {},
             onSelectAIProvider = {},
             onToggleEndpoint = {},
+            onSetGroupAccepted = { _, _ -> },
             onSelectAll = {},
             onDeselectAll = {},
             onUpdateProjectName = {},
+            onUpdateEndpointAIContextHint = { _, _ -> },
             onGenerateEndpointMocks = {},
             onGenerateAllMocks = {},
             onConfirm = {},

@@ -10,6 +10,83 @@ class OpenAPIImportParserTest {
 	private val parser = OpenAPIImportParser()
 
 	@Test
+	fun `parses Swagger 2 specs via conversion fallback`() {
+		val spec = """
+			{
+			  "swagger": "2.0",
+			  "info": {
+			    "title": "Legacy API",
+			    "version": "v1"
+			  },
+			  "host": "example.com",
+			  "basePath": "/api",
+			  "schemes": ["https"],
+			  "paths": {
+			    "/pets": {
+			      "get": {
+			        "summary": "List Pets",
+			        "responses": {
+			          "200": {
+			            "description": "OK",
+			            "schema": {
+			              "type": "array",
+			              "items": {
+			                "type": "object",
+			                "properties": {
+			                  "id": { "type": "integer" },
+			                  "name": { "type": "string" }
+			                }
+			              }
+			            }
+			          }
+			        }
+			      }
+			    }
+			  }
+			}
+		""".trimIndent()
+
+		val parsed = parser.parse(spec)
+
+		assertEquals("Legacy API", parsed.title)
+		assertEquals("v1", parsed.version)
+		assertEquals(1, parsed.endpoints.size)
+
+		val endpoint = parsed.endpoints.single()
+		assertEquals("GET", endpoint.method)
+		assertEquals("/pets", endpoint.path)
+		assertEquals("List Pets", endpoint.alias)
+		assertEquals(emptyList(), endpoint.tags)
+		assertEquals(1, endpoint.responses.size)
+		assertEquals(200, endpoint.responses.single().statusCode)
+		assertEquals("OK", endpoint.responses.single().name)
+	}
+
+	@Test
+	fun `preserves endpoint tags from OpenAPI specs`() {
+		val spec = """
+			openapi: 3.0.3
+			info:
+			  title: Tagged API
+			  version: 1.0.0
+			paths:
+			  /videos:
+			    get:
+			      summary: List videos
+			      tags:
+			        - youtube
+			        - catalog
+			      responses:
+			        "200":
+			          description: OK
+		""".trimIndent()
+
+		val parsed = parser.parse(spec)
+
+		assertEquals(listOf("youtube", "catalog"), parsed.endpoints.single().tags)
+	}
+
+	@Test
 	fun `parses recursive schemas without stack overflow`() {
 		val spec = """
             openapi: 3.0.3

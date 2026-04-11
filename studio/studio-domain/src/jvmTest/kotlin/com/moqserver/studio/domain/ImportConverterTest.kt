@@ -9,8 +9,35 @@ import kotlin.test.assertIs
 import kotlin.test.assertTrue
 
 class ImportConverterTest {
-    @Test
-    fun `parses json bodies defensively and marks the correct default variant`() {
+	@Test
+	fun `preserves imported endpoint tags`() {
+		val parsed = ParsedSpec(
+			title = "Imported API",
+			version = "1.0.0",
+			endpoints = listOf(
+				ParsedEndpoint(
+					method = "GET",
+					path = "/videos",
+					tags = listOf("youtube", "catalog"),
+					responses = listOf(
+						ParsedResponse(name = "default", statusCode = 200, body = "[]"),
+					),
+				),
+			),
+		)
+
+		val project = ImportConverter.convert(
+			spec = parsed,
+			acceptedEntries = parsed.endpoints.map { ImportEndpointEntry(endpoint = it) },
+			projectName = "Imported API",
+			projectPath = "/tmp/imported-api",
+		)
+
+		assertEquals(listOf("youtube", "catalog"), project.endpoints.single().tags)
+	}
+
+	@Test
+	fun `parses json bodies defensively and marks the correct default variant`() {
         val parsed = ParsedSpec(
             title = "Imported API",
             version = "1.0.0",

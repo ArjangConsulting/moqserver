@@ -417,7 +417,7 @@ internal suspend fun generateImportMocksForEndpoint(
 			),
 			intent = IntentContext(
 				type = "import-generation",
-				description = buildImportGenerationIntent(entry.endpoint),
+				description = buildImportGenerationIntent(entry.endpoint, entry.aiContextHint),
 			),
 			options = RequestOptions(maxVariants = IMPORT_GENERATION_MAX_VARIANTS),
 		)
@@ -485,7 +485,7 @@ private fun buildImportProjectContext(importState: ImportState): ProjectContext 
 
 private fun importEndpointKey(endpoint: ParsedEndpoint): String = "${endpoint.method.uppercase()} ${endpoint.path}"
 
-private fun buildImportGenerationIntent(endpoint: ParsedEndpoint): String {
+private fun buildImportGenerationIntent(endpoint: ParsedEndpoint, aiContextHint: String = ""): String {
 	return buildString {
 		appendLine("Generate extra mock response variants for an imported API endpoint.")
 		appendLine("Endpoint: ${endpoint.method.uppercase()} ${endpoint.path}")
@@ -513,6 +513,11 @@ private fun buildImportGenerationIntent(endpoint: ParsedEndpoint): String {
 		}
 		if (endpoint.acceptedContentTypes.isNotEmpty()) {
 			appendLine("Accepted request content types: ${endpoint.acceptedContentTypes.joinToString()}")
+		}
+		if (aiContextHint.isNotBlank()) {
+			appendLine()
+			appendLine("Additional context from the user:")
+			appendLine(aiContextHint.trim())
 		}
 		appendLine()
 		appendLine("Generate realistic additional variants that complement these imported responses.")

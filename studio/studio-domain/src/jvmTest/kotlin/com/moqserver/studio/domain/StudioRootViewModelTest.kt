@@ -387,4 +387,36 @@ class StudioRootViewModelTest {
         assertEquals(3, bulkState.totalCount)
         assertEquals(3, bulkState.completedCount)
     }
+
+    @Test
+    fun `updateImportAIContextHint stores hint on specific endpoint entry`() {
+        val viewModel = StudioRootViewModel()
+
+        viewModel.startImport(sampleImportState().parsedSpec, ImportSourceType.OPENAPI, "users.yaml")
+        assertEquals("", viewModel.state.value.importState!!.entries[0].aiContextHint)
+
+        viewModel.updateImportAIContextHint(0, "Use realistic e-commerce data with pagination")
+        assertEquals(
+            "Use realistic e-commerce data with pagination",
+            viewModel.state.value.importState!!.entries[0].aiContextHint,
+        )
+    }
+
+    @Test
+    fun `updateImportAIContextHint is no-op without active import`() {
+        val viewModel = StudioRootViewModel()
+
+        viewModel.updateImportAIContextHint(0, "should be ignored")
+        assertNull(viewModel.state.value.importState)
+    }
+
+    @Test
+    fun `updateImportAIContextHint with invalid index is no-op`() {
+        val viewModel = StudioRootViewModel()
+
+        viewModel.startImport(sampleImportState().parsedSpec, ImportSourceType.OPENAPI, "users.yaml")
+        viewModel.updateImportAIContextHint(99, "should be ignored")
+
+        assertEquals("", viewModel.state.value.importState!!.entries[0].aiContextHint)
+    }
 }

@@ -32,6 +32,9 @@ import com.moqserver.studio.export.ExportOptions
 import com.moqserver.studio.export.ExportRegistry
 import com.moqserver.studio.imports.HARImportParser
 import com.moqserver.studio.imports.OpenAPIImportParser
+import com.moqserver.studio.imports.OpenAPIURLFetcher
+import com.moqserver.studio.imports.URLFetchException
+import com.moqserver.studio.imports.URLImportAuth
 import com.moqserver.studio.logging.loggerFor
 import com.moqserver.studio.projectformat.ProjectRepository
 import kotlinx.coroutines.CoroutineExceptionHandler
@@ -42,6 +45,11 @@ import java.io.File
 import javax.swing.JOptionPane
 
 private val logger = loggerFor<Any>()
+
+private enum class SpecFileImportMode {
+	OPENAPI,
+	SWAGGER,
+}
 
 private fun ThemePreference.toStudioThemeMode(): StudioThemeMode = when (this) {
     ThemePreference.SYSTEM -> StudioThemeMode.SYSTEM
@@ -81,9 +89,12 @@ fun main(args: Array<String>) {
         val recentProjectsRepo = remember { RecentProjectsRepository() }
         val aiSettings = remember { mutableStateOf(settingsRepo.load()) }
         val aiRegistry = remember(aiSettings.value) { buildAIRegistry(aiSettings.value) }
-        val showSettings = remember { mutableStateOf(false) }
-        val showExport = remember { mutableStateOf(false) }
-        val exportState = remember { mutableStateOf(ExportReferencesState()) }
+		val showSettings = remember { mutableStateOf(false) }
+		val showExport = remember { mutableStateOf(false) }
+		val exportState = remember { mutableStateOf(ExportReferencesState()) }
+		val showImportURLDialog = remember { mutableStateOf(false) }
+		val importURLState = remember { mutableStateOf(ImportFromURLState()) }
+		val urlFetcher = remember { OpenAPIURLFetcher() }
         val appViewModel = remember { StudioRootViewModel() }
         val scope = rememberCoroutineScope()
         val themeMode = remember { mutableStateOf(aiSettings.value.themeMode.toStudioThemeMode()) }
@@ -261,34 +272,42 @@ fun main(args: Array<String>) {
                 }
             }
 
-            fun requestImportOpenAPI() {
-                scope.launch(exceptionHandler) {
-                    logger.debug("User requested import OpenAPI spec")
-                    if (!guardProjectTransition()) {
-                        logger.debug("Import OpenAPI cancelled while resolving current project state")
-                        return@launch
-                    }
-                    val file = chooseFile(
-                        window,
-                        "Import OpenAPI Spec",
-                        setOf("yaml", "yml", "json"),
-                        lastFileDirectory.value,
-                    ) ?: run { logger.debug("Import OpenAPI dialog cancelled"); return@launch }
-                    logger.info("Importing OpenAPI spec from: {}", file.absolutePath)
-                    try {
-                        val content = withContext(Dispatchers.IO) { file.readText() }
-                        val spec = withContext(Dispatchers.IO) { openApiParser.parse(content) }
-                        appViewModel.startImport(spec, ImportSourceType.OPENAPI, file.name)
-                        lastFileDirectory.value = file.parentFile?.canonicalPath ?: lastFileDirectory.value
-                    } catch (e: Exception) {
-                        reportRecoverable(
-                            context = "Failed to parse OpenAPI spec",
-                            throwable = e,
-                            onUserMessage = appViewModel::setError,
-                        )
-                    }
-                }
-            }
+			fun requestImportSpecFile(mode: SpecFileImportMode) {
+				scope.launch(exceptionHandler) {
+					logger.debug("User requested import {} spec", mode.name.lowercase())
+					if (!guardProjectTransition()) {
+						logger.debug("Import {} cancelled while resolving current project state", mode.name.lowercase())
+						return@launch
+					}
+					val file = chooseFile(
+						window,
+						if (mode == SpecFileImportMode.SWAGGER) "Import Swagger Spec" else "Import OpenAPI Spec",
+						setOf("yaml", "yml", "json"),
+						lastFileDirectory.value,
+					) ?: run { logger.debug("Import OpenAPI dialog cancelled"); return@launch }
+					logger.info("Importing {} spec from: {}", mode.name.lowercase(), file.absolutePath)
+					try {
+						val content = withContext(Dispatchers.IO) { file.readText() }
+						val spec = withContext(Dispatchers.IO) { openApiParser.parse(content) }
+						appViewModel.startImport(spec, ImportSourceType.OPENAPI, file.name)
+						lastFileDirectory.value = file.parentFile?.canonicalPath ?: lastFileDirectory.value
+					} catch (e: Exception) {
+						reportRecoverable(
+							context = if (mode == SpecFileImportMode.SWAGGER) {
+								"Failed to parse Swagger spec"
+							} else {
+								"Failed to parse OpenAPI spec"
+							},
+							throwable = e,
+							onUserMessage = appViewModel::setError,
+						)
+					}
+				}
+			}
+
+			fun requestImportOpenAPI() = requestImportSpecFile(SpecFileImportMode.OPENAPI)
+
+			fun requestImportSwagger() = requestImportSpecFile(SpecFileImportMode.SWAGGER)
 
             fun requestImportHAR() {
                 scope.launch(exceptionHandler) {
@@ -318,6 +337,72 @@ fun main(args: Array<String>) {
                     }
                 }
             }
+
+			fun requestImportFromURL(mode: URLImportMode) {
+				if (!guardProjectTransition()) {
+					logger.debug("Import from URL cancelled while resolving current project state")
+					return
+				}
+				importURLState.value = ImportFromURLState(mode = mode)
+				showImportURLDialog.value = true
+			}
+
+			fun requestImportOpenAPIURL() = requestImportFromURL(URLImportMode.OPENAPI)
+
+			fun requestImportSwaggerURL() = requestImportFromURL(URLImportMode.SWAGGER)
+
+            fun executeURLImport() {
+                val currentState = importURLState.value
+                if (currentState.url.isBlank() || currentState.loading) return
+                importURLState.value = currentState.copy(loading = true, error = null)
+                scope.launch(exceptionHandler) {
+                    try {
+						logger.info(
+							"Importing {} spec from URL: {}",
+							currentState.mode.name.lowercase(),
+							currentState.url,
+						)
+                        val auth = when (currentState.authType) {
+                            URLAuthType.BEARER -> URLImportAuth.Bearer(currentState.bearerToken)
+                            URLAuthType.BASIC -> URLImportAuth.Basic(
+                                currentState.basicUsername,
+                                currentState.basicPassword,
+                            )
+                            URLAuthType.NONE -> null
+                        }
+                        val fetched = withContext(Dispatchers.IO) {
+                            urlFetcher.fetchSpec(currentState.url, auth)
+                        }
+                        logger.info(
+                            "Fetched spec from {} ({} chars), parsing...",
+                            fetched.resolvedUrl,
+                            fetched.content.length,
+                        )
+                        val spec = withContext(Dispatchers.IO) { openApiParser.parse(fetched.content) }
+                        appViewModel.startImport(spec, ImportSourceType.OPENAPI, fetched.sourceName)
+                        showImportURLDialog.value = false
+                        importURLState.value = ImportFromURLState()
+                        logger.info(
+                            "URL import started: {} endpoints from {}",
+                            spec.endpoints.size,
+                            fetched.resolvedUrl,
+                        )
+                    } catch (e: URLFetchException) {
+                        logger.error("URL fetch failed: {}", e.message)
+                        importURLState.value = importURLState.value.copy(
+                            loading = false,
+                            error = e.message,
+                        )
+                    } catch (e: Exception) {
+                        logger.error("Failed to import from URL: {}", e.message)
+                        importURLState.value = importURLState.value.copy(
+                            loading = false,
+								error = "Successfully fetched content from the URL, but it couldn't be parsed " +
+									"as a valid API specification: ${e.message ?: "Unknown error"}",
+							)
+						}
+					}
+				}
 
             suspend fun saveProject(project: com.moqserver.studio.projectformat.MoqProject) {
                 logger.info("Saving project '{}' to: {}", project.manifest.name, project.projectPath)
@@ -429,8 +514,11 @@ fun main(args: Array<String>) {
                         }
                     }
                     Separator()
-                    Item("Import OpenAPI", onClick = ::requestImportOpenAPI)
-                    Item("Import HAR", onClick = ::requestImportHAR)
+					Item("Import OpenAPI", onClick = ::requestImportOpenAPI)
+					Item("Import Swagger", onClick = ::requestImportSwagger)
+					Item("Import OpenAPI URL", onClick = ::requestImportOpenAPIURL)
+					Item("Import Swagger URL", onClick = ::requestImportSwaggerURL)
+					Item("Import HAR", onClick = ::requestImportHAR)
                     Separator()
                     Item(
                         "Generate Client Code...",
@@ -469,12 +557,15 @@ fun main(args: Array<String>) {
             }
 
             StudioTheme(themeMode = themeMode.value) {
-                App(
-                    appViewModel = appViewModel,
-                    themeMode = themeMode.value,
-                    onOpenProject = ::requestOpenProject,
-                    onImportOpenAPI = ::requestImportOpenAPI,
-                    onImportHAR = ::requestImportHAR,
+				App(
+					appViewModel = appViewModel,
+					themeMode = themeMode.value,
+					onOpenProject = ::requestOpenProject,
+					onImportOpenAPI = ::requestImportOpenAPI,
+					onImportSwagger = ::requestImportSwagger,
+					onImportOpenAPIURL = ::requestImportOpenAPIURL,
+					onImportSwaggerURL = ::requestImportSwaggerURL,
+					onImportHAR = ::requestImportHAR,
                     onGenerateImportEndpointMocks = { index ->
                         scope.launch(exceptionHandler) {
                             generateImportMocksForEndpoint(
@@ -588,6 +679,26 @@ fun main(args: Array<String>) {
                         }
                     },
                 )
+
+                if (showImportURLDialog.value) {
+                    ImportFromURLDialog(
+                        state = importURLState.value,
+                        onUrlChange = { importURLState.value = importURLState.value.copy(url = it, error = null) },
+                        onAuthTypeChange = { importURLState.value = importURLState.value.copy(authType = it) },
+                        onBearerTokenChange = { importURLState.value = importURLState.value.copy(bearerToken = it) },
+                        onBasicUsernameChange = {
+                            importURLState.value = importURLState.value.copy(basicUsername = it)
+                        },
+                        onBasicPasswordChange = {
+                            importURLState.value = importURLState.value.copy(basicPassword = it)
+                        },
+                        onConfirm = ::executeURLImport,
+                        onDismiss = {
+                            showImportURLDialog.value = false
+                            importURLState.value = ImportFromURLState()
+                        },
+                    )
+                }
             }
         }
 
