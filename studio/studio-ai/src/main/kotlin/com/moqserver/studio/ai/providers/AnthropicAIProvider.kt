@@ -92,24 +92,7 @@ class AnthropicAIProvider(
             throw AIProviderException.Unavailable(DISPLAY_NAME, e.message ?: "network error", retryable = true)
         }
 
-        when (response.status.value) {
-            401 -> {
-                logger.error("Anthropic authentication failed (401)")
-                throw AIProviderException.AuthInvalid(DISPLAY_NAME)
-            }
-            429 -> {
-                logger.warn("Anthropic rate limit exceeded (429)")
-                throw AIProviderException.Unavailable(DISPLAY_NAME, "rate limit exceeded", retryable = true)
-            }
-            !in 200..299 -> {
-                logger.error("Anthropic returned HTTP {}", response.status.value)
-                throw AIProviderException.Unavailable(
-                    DISPLAY_NAME,
-                    "HTTP ${response.status.value}",
-                    retryable = response.status.value >= 500,
-                )
-            }
-        }
+        checkResponseStatus(response.status.value)
 
         val result = response.body<AnthropicMessagesResponse>()
         val text = result.content.firstOrNull { it.type == "text" }?.text
@@ -150,6 +133,28 @@ class AnthropicAIProvider(
         @SerialName("input_tokens") val inputTokens: Int? = null,
         @SerialName("output_tokens") val outputTokens: Int? = null,
     )
+
+    @Suppress("ThrowsCount")
+    private fun checkResponseStatus(statusCode: Int) {
+        when (statusCode) {
+            401 -> {
+                logger.error("Anthropic authentication failed (401)")
+                throw AIProviderException.AuthInvalid(DISPLAY_NAME)
+            }
+            429 -> {
+                logger.warn("Anthropic rate limit exceeded (429)")
+                throw AIProviderException.Unavailable(DISPLAY_NAME, "rate limit exceeded", retryable = true)
+            }
+            !in 200..299 -> {
+                logger.error("Anthropic returned HTTP {}", statusCode)
+                throw AIProviderException.Unavailable(
+                    DISPLAY_NAME,
+                    "HTTP $statusCode",
+                    retryable = statusCode >= 500,
+                )
+            }
+        }
+    }
 
     companion object {
         const val PROVIDER_ID = "anthropic"

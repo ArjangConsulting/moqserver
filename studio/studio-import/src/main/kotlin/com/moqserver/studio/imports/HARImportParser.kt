@@ -198,7 +198,7 @@ class HARImportParser {
 
 	private fun normalizedPath(uri: URI): String {
 		val path = uri.path ?: "/"
-		return if (path.isEmpty()) "/" else if (path.startsWith("/")) path else "/$path"
+		return path.ifEmpty { "/" }.let { if (it.startsWith("/")) it else "/$it" }
 	}
 
 	private fun normalizedStatusCode(status: Int?): Int {
@@ -358,9 +358,9 @@ class HARImportParser {
 	}
 
 	private fun baseVariantName(statusCode: Int, allowDefault: Boolean): String {
-		return when {
-			statusCode in 200..299 -> if (allowDefault) DEFAULT_VARIANT_NAME else "$SUCCESS_VARIANT_PREFIX-$statusCode"
-			statusCode in 300..399 -> "$REDIRECT_VARIANT_PREFIX-$statusCode"
+		return when (statusCode) {
+			in 200..299 -> if (allowDefault) DEFAULT_VARIANT_NAME else "$SUCCESS_VARIANT_PREFIX-$statusCode"
+			in 300..399 -> "$REDIRECT_VARIANT_PREFIX-$statusCode"
 			else -> "$ERROR_VARIANT_PREFIX-$statusCode"
 		}
 	}
