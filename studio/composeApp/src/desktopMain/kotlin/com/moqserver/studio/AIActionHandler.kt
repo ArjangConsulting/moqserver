@@ -12,7 +12,11 @@ import com.moqserver.studio.domain.AIAction
 import com.moqserver.studio.domain.AIProviderInfo
 import com.moqserver.studio.domain.CompanionRequest
 import com.moqserver.studio.domain.EndpointSummary
+import com.moqserver.studio.domain.ImportEndpointEntry
+import com.moqserver.studio.domain.ImportState
 import com.moqserver.studio.domain.IntentContext
+import com.moqserver.studio.domain.ParsedEndpoint
+import com.moqserver.studio.domain.ParsedResponse
 import com.moqserver.studio.domain.ProjectContext
 import com.moqserver.studio.domain.ProviderKind
 import com.moqserver.studio.domain.RequestOptions
@@ -374,12 +378,149 @@ internal suspend fun generateBodyForVariant(
 	}
 }
 
+internal suspend fun generateImportMocksForEndpoint(
+	index: Int,
+	registry: AIProviderRegistry,
+	viewModel: StudioRootViewModel,
+	ioDispatcher: CoroutineDispatcher,
+) {
+	val state = viewModel.state.value
+	val importState = state.importState ?: return
+	val entry = importState.entries.getOrNull(index) ?: return
+	val providerId = state.ai.selectedProviderId
+	if (providerId == null) {
+		viewModel.importAIGenerationFailed(index, "No AI provider selected. Open AI Settings to configure one.")
+		return
+	}
+
+	val provider = registry.find(providerId)
+	if (provider == null) {
+		viewModel.importAIGenerationFailed(index, "Provider '$providerId' not found. Open AI Settings to reconfigure.")
+		return
+	}
+
+	viewModel.importAIGenerationStarted(index)
+	try {
+		val request = CompanionRequest(
+			providerId = providerId,
+			projectContext = buildImportProjectContext(importState),
+			selection = SelectionContext(
+				endpointKeys = listOf(importEndpointKey(entry.endpoint)),
+			),
+			intent = IntentContext(
+				type = "import-generation",
+				description = buildImportGenerationIntent(entry.endpoint),
+			),
+			options = RequestOptions(maxVariants = IMPORT_GENERATION_MAX_VARIANTS),
+		)
+		val result = runOnIo(ioDispatcher) { registry.generateVariants(provider, request) }
+		val normalizedResult = result.withResolvedEndpointFallback(importEndpointKey(entry.endpoint))
+		val generatedResponses = normalizedResult.result.variants
+			.filter { it.endpointKey == importEndpointKey(entry.endpoint) }
+			.map(::generatedVariantToParsedResponse)
+		viewModel.importAIGenerationCompleted(index, generatedResponses)
+	} catch (e: Exception) {
+		reportRecoverable(
+			context = "Import AI generation failed",
+			throwable = e,
+			onUserMessage = { message -> viewModel.importAIGenerationFailed(index, message) },
+		)
+	}
+}
+
+internal suspend fun generateImportMocksForAcceptedEndpoints(
+	registry: AIProviderRegistry,
+	viewModel: StudioRootViewModel,
+	ioDispatcher: CoroutineDispatcher,
+) {
+	val importState = viewModel.state.value.importState ?: return
+	val acceptedIndexes = importState.entries.mapIndexedNotNull { index, entry ->
+		index.takeIf { entry.accepted }
+	}
+	if (acceptedIndexes.isEmpty()) {
+		viewModel.setStatus("Select at least one endpoint before generating AI mocks.")
+		return
+	}
+
+	viewModel.importAIBulkStarted(acceptedIndexes.size)
+	acceptedIndexes.forEachIndexed { completedCount, index ->
+		generateImportMocksForEndpoint(index, registry, viewModel, ioDispatcher)
+		viewModel.importAIBulkProgress(completedCount + 1)
+	}
+	viewModel.importAIBulkFinished()
+}
+
 private fun effectiveModelFor(provider: AIProvider): String = when (provider) {
 	is OllamaAIProvider -> provider.defaultModel
 	is OpenAIAIProvider -> provider.defaultModel
 	is AnthropicAIProvider -> provider.defaultModel
 	is GeminiAIProvider -> provider.defaultModel
 	else -> "<unknown>"
+}
+
+private fun buildImportProjectContext(importState: ImportState): ProjectContext {
+	return ProjectContext(
+		title = importState.parsedSpec.title,
+		version = importState.parsedSpec.version,
+		endpoints = importState.entries
+			.filter { it.accepted }
+			.map { entry ->
+				EndpointSummary(
+					method = entry.endpoint.method,
+					path = entry.endpoint.path,
+					variantCount = entry.endpoint.responses.size + entry.generatedResponses.size,
+					hasAuth = entry.endpoint.authType != com.moqserver.studio.projectformat.AuthType.NONE,
+				)
+			},
+	)
+}
+
+private fun importEndpointKey(endpoint: ParsedEndpoint): String = "${endpoint.method.uppercase()} ${endpoint.path}"
+
+private fun buildImportGenerationIntent(endpoint: ParsedEndpoint): String {
+	return buildString {
+		appendLine("Generate extra mock response variants for an imported API endpoint.")
+		appendLine("Endpoint: ${endpoint.method.uppercase()} ${endpoint.path}")
+		endpoint.description?.takeIf { it.isNotBlank() }?.let { appendLine("Description: $it") }
+		if (endpoint.responses.isNotEmpty()) {
+			appendLine()
+			appendLine("Existing imported response variants:")
+			endpoint.responses.forEach { response ->
+				appendLine("- ${response.statusCode} ${response.name}")
+				response.headers[CONTENT_TYPE_HEADER]?.let { appendLine("  Content-Type: $it") }
+				response.body?.takeIf { it.isNotBlank() }?.let { body ->
+					appendLine("  Body example:")
+					appendLine("  ```")
+					appendLine(body)
+					appendLine("  ```")
+				}
+			}
+		}
+		if (endpoint.requiredQueryParameters.isNotEmpty()) {
+			appendLine()
+			appendLine("Required query parameters: ${endpoint.requiredQueryParameters.joinToString()}")
+		}
+		if (endpoint.requiredHeaders.isNotEmpty()) {
+			appendLine("Required headers: ${endpoint.requiredHeaders.joinToString()}")
+		}
+		if (endpoint.acceptedContentTypes.isNotEmpty()) {
+			appendLine("Accepted request content types: ${endpoint.acceptedContentTypes.joinToString()}")
+		}
+		appendLine()
+		appendLine("Generate realistic additional variants that complement these imported responses.")
+		appendLine("Preserve the endpoint's schema style and avoid duplicating existing variants.")
+		appendLine("Prefer useful happy-path alternatives and common error cases.")
+	}
+}
+
+private fun generatedVariantToParsedResponse(variant: com.moqserver.studio.domain.GeneratedVariant): ParsedResponse {
+	return ParsedResponse(
+		name = variant.name,
+		statusCode = variant.statusCode,
+		headers = mapOf(CONTENT_TYPE_HEADER to variant.contentType),
+		body = variant.body,
+		description = variant.description,
+	)
 }
 
 private fun com.moqserver.studio.domain.CompanionResponse<com.moqserver.studio.domain.GenerateVariantsResult>.withResolvedEndpointFallback(
@@ -574,3 +715,4 @@ private fun updatedHeaders(
 }
 
 private const val CONTENT_TYPE_HEADER = "Content-Type"
+private const val IMPORT_GENERATION_MAX_VARIANTS = 3

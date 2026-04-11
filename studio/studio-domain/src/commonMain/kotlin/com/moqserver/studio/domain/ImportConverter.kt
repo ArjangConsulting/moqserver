@@ -32,12 +32,12 @@ object ImportConverter {
 
     fun convert(
         spec: ParsedSpec,
-        acceptedEndpoints: List<ParsedEndpoint>,
+        acceptedEntries: List<ImportEndpointEntry>,
         projectName: String,
         projectPath: String,
     ): MoqProject {
         val assignedEndpointReferenceNames = mutableListOf<String>()
-        val endpoints = acceptedEndpoints.map { convertEndpoint(it, assignedEndpointReferenceNames) }
+        val endpoints = acceptedEntries.map { convertEndpoint(it, assignedEndpointReferenceNames) }
         val manifest = ProjectManifest(
             version = "1",
             name = projectName,
@@ -56,9 +56,10 @@ object ImportConverter {
     }
 
     private fun convertEndpoint(
-        parsed: ParsedEndpoint,
+        entry: ImportEndpointEntry,
         assignedEndpointReferenceNames: MutableList<String>,
     ): EndpointDocument {
+        val parsed = entry.endpoint
         val id = endpointId(parsed.method, parsed.path)
         val alias = parsed.alias?.takeIf { it.isNotBlank() }
             ?: defaultAliasForEndpoint(method = parsed.method, path = parsed.path)
@@ -68,15 +69,16 @@ object ImportConverter {
             existingNames = assignedEndpointReferenceNames,
         )
         assignedEndpointReferenceNames += referenceName
+        val allResponses = parsed.responses + entry.generatedResponses
         val defaultIndex = when {
-            parsed.responses.isEmpty() -> -1
-            else -> parsed.responses.indexOfFirst { it.name == "default" }.takeIf { it >= 0 }
-                ?: parsed.responses.indexOfFirst { it.statusCode in 200..299 }.takeIf { it >= 0 }
+            allResponses.isEmpty() -> -1
+            else -> allResponses.indexOfFirst { it.name == "default" }.takeIf { it >= 0 }
+                ?: allResponses.indexOfFirst { it.statusCode in 200..299 }.takeIf { it >= 0 }
                 ?: 0
         }
         val assignedNames = mutableListOf<String>()
         val assignedReferenceNames = mutableListOf<String>()
-        val variants = parsed.responses.mapIndexed { index, resp ->
+        val variants = allResponses.mapIndexed { index, resp ->
             val name = suggestedVariantName(
                 status = resp.statusCode,
                 existingNames = assignedNames,
@@ -132,6 +134,7 @@ object ImportConverter {
         return ProjectVariant(
             name = name,
             referenceName = referenceName,
+            description = resp.description,
             isDefault = if (isDefault) true else null,
             status = resp.statusCode,
             headers = resp.headers.ifEmpty { null },

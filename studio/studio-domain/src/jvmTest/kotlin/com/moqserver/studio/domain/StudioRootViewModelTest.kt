@@ -16,6 +16,27 @@ import kotlin.test.assertTrue
 
 class StudioRootViewModelTest {
 
+    private fun sampleImportState(): ImportState {
+        val endpoint = ParsedEndpoint(
+            method = "GET",
+            path = "/users",
+            responses = listOf(
+                ParsedResponse(name = "default", statusCode = 200, body = "[]"),
+            ),
+        )
+        return ImportState(
+            source = ImportSourceType.OPENAPI,
+            sourceFileName = "users.yaml",
+            parsedSpec = ParsedSpec(
+                title = "Users API",
+                version = "1.0.0",
+                endpoints = listOf(endpoint),
+            ),
+            entries = listOf(ImportEndpointEntry(endpoint = endpoint)),
+            projectName = "Users API",
+        )
+    }
+
     private fun sampleProject() = MoqProject(
         manifest = ProjectManifest(
             name = "Test Project",
@@ -326,5 +347,44 @@ class StudioRootViewModelTest {
 
         assertNull(viewModel.state.value.transientDiagnostic)
         assertEquals("Error: Something went wrong", viewModel.state.value.statusLine)
+    }
+
+    @Test
+    fun `importAIGenerationCompleted stores generated responses on entry`() {
+        val viewModel = StudioRootViewModel()
+
+        viewModel.startImport(sampleImportState().parsedSpec, ImportSourceType.OPENAPI, "users.yaml")
+        viewModel.importAIGenerationStarted(0)
+        viewModel.importAIGenerationCompleted(
+            index = 0,
+            generatedResponses = listOf(
+                ParsedResponse(
+                    name = "not-found",
+                    statusCode = 404,
+                    body = "{\"error\":\"missing\"}",
+                ),
+            ),
+        )
+
+        val entry = viewModel.state.value.importState!!.entries.single()
+        assertFalse(entry.aiGenerationLoading)
+        assertNull(entry.aiGenerationError)
+        assertEquals(1, entry.generatedResponses.size)
+        assertEquals("not-found", entry.generatedResponses.single().name)
+    }
+
+    @Test
+    fun `importAIBulkStarted and finished track bulk progress`() {
+        val viewModel = StudioRootViewModel()
+
+        viewModel.startImport(sampleImportState().parsedSpec, ImportSourceType.OPENAPI, "users.yaml")
+        viewModel.importAIBulkStarted(totalCount = 3)
+        viewModel.importAIBulkProgress(completedCount = 2)
+        viewModel.importAIBulkFinished()
+
+        val bulkState = viewModel.state.value.importState!!.aiBulkState
+        assertFalse(bulkState.running)
+        assertEquals(3, bulkState.totalCount)
+        assertEquals(3, bulkState.completedCount)
     }
 }

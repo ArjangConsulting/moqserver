@@ -192,10 +192,19 @@ private fun ImportReviewPreview() {
     StudioTheme(StudioThemeMode.LIGHT) {
         ImportReviewScreen(
             state = previewImportState(),
+            aiProviders = previewState().ai.providers,
+            aiProvidersLoading = false,
+            canGenerateWithAi = true,
+            selectedAIProviderId = "ollama",
+            aiProviderLabel = "Ollama",
+            onRefreshAIProviders = {},
+            onSelectAIProvider = {},
             onToggleEndpoint = {},
             onSelectAll = {},
             onDeselectAll = {},
             onUpdateProjectName = {},
+            onGenerateEndpointMocks = {},
+            onGenerateAllMocks = {},
             onConfirm = {},
             onCancel = {},
         )
