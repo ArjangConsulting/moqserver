@@ -2,7 +2,6 @@ import Foundation
 import Testing
 @testable import MoqCore
 
-@Suite("AuthValidator - Unit Tests")
 struct AuthValidatorTests {
     let config = AuthConfig(
         bearerTokens: ["valid-bearer"],

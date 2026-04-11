@@ -2,7 +2,6 @@ import Foundation
 import Testing
 @testable import MoqCore
 
-@Suite("Core Value Types")
 struct CoreValueTypesTests {
     @Test("ValidationDiagnostic description includes optional context")
     func validationDiagnosticDescription() {

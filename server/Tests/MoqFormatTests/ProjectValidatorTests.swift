@@ -3,7 +3,6 @@ import Testing
 @testable import MoqCore
 @testable import MoqFormat
 
-@Suite("ProjectValidator")
 struct ProjectValidatorTests {
     let validator = ProjectValidator()
 

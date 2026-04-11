@@ -3,7 +3,6 @@ import Testing
 @testable import MoqCore
 @testable import MoqParsing
 
-@Suite("HARParser")
 struct HARParserTests {
     let parser = HARParser()
 

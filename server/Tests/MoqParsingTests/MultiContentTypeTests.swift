@@ -3,7 +3,6 @@ import Testing
 @testable import MoqCore
 @testable import MoqParsing
 
-@Suite("Multi-Content-Type Parsing")
 struct MultiContentTypeTests {
     let parser = OpenAPIParser()
 

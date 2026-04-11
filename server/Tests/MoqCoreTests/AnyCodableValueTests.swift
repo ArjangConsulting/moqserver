@@ -2,7 +2,6 @@ import Foundation
 import Testing
 @testable import MoqCore
 
-@Suite("AnyCodableValue")
 struct AnyCodableValueTests {
     @Test("Decodes scalar values")
     func decodesScalars() throws {

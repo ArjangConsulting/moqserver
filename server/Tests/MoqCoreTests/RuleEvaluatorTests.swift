@@ -2,7 +2,6 @@ import Foundation
 import Testing
 @testable import MoqCore
 
-@Suite("RuleEvaluator")
 struct RuleEvaluatorTests {
     @Test("Evaluates all supported match types")
     func allMatchTypes() {

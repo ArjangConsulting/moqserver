@@ -3,7 +3,6 @@ import Testing
 @testable import MoqCore
 @testable import MoqParsing
 
-@Suite("OpenAPIParser")
 struct OpenAPIParserTests {
     let parser = OpenAPIParser()
 

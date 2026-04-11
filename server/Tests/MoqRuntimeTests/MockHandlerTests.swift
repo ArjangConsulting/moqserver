@@ -6,36 +6,7 @@ import XCTVapor
 @testable import MoqCore
 @testable import MoqRuntime
 
-@Suite("MockHandler Tests")
 struct MockHandlerTests {
-    func makeEndpoint(
-        method: HTTPMethodValue,
-        path: String,
-        auth: AuthRequirement = .none,
-        variants: [ResponseVariant]? = nil,
-        headerRules: [RuleMatcher] = [],
-        cookieRules: [RuleMatcher] = [],
-        verifyCookies: Bool = false,
-        network: NetworkBehavior? = nil
-    ) -> Endpoint {
-        let defaultVariants = [
-            ResponseVariant(
-                name: "default",
-                statusCode: .ok,
-                headers: [("Content-Type", "application/json")],
-                body: Data(#"{"ok":true}"#.utf8)
-            )
-        ]
-        return Endpoint(
-            key: EndpointKey(method: method, path: path),
-            authRequirement: auth,
-            variants: variants ?? defaultVariants,
-            headerRules: headerRules,
-            cookieRules: cookieRules,
-            verifyCookies: verifyCookies,
-            network: network
-        )
-    }
 
     // MARK: - Endpoint Not Found
 
@@ -58,7 +29,7 @@ struct MockHandlerTests {
     @Test("X-Mock-Variant header selects specific variant")
     func variantHeaderSelection() async throws {
         let store = InMemoryMockStore()
-        await store.register(makeEndpoint(method: .get, path: "/pets", variants: [
+        await store.register(makeTestEndpoint(method: .get, path: "/pets", variants: [
             ResponseVariant(name: "default", statusCode: .ok, body: Data(#"{"status":"ok"}"#.utf8)),
             ResponseVariant(name: "error-500", statusCode: .internalServerError, body: Data(#"{"error":"fail"}"#.utf8)),
         ]))
@@ -76,7 +47,7 @@ struct MockHandlerTests {
     @Test("X-Mock-Variant can select variant by reference name")
     func variantHeaderSelectionByReferenceName() async throws {
         let store = InMemoryMockStore()
-        await store.register(makeEndpoint(method: .get, path: "/pets", variants: [
+        await store.register(makeTestEndpoint(method: .get, path: "/pets", variants: [
             ResponseVariant(name: "Default", referenceName: "defaultVariant", statusCode: .ok, body: Data(#"{"status":"ok"}"#.utf8)),
             ResponseVariant(name: "Server Error", referenceName: "serverError", statusCode: .internalServerError, body: Data(#"{"error":"fail"}"#.utf8)),
         ]))
@@ -94,7 +65,7 @@ struct MockHandlerTests {
     @Test("Admin override takes precedence over default")
     func adminOverrideSelection() async throws {
         let store = InMemoryMockStore()
-        await store.register(makeEndpoint(method: .get, path: "/pets", variants: [
+        await store.register(makeTestEndpoint(method: .get, path: "/pets", variants: [
             ResponseVariant(name: "default", statusCode: .ok, body: Data("{}".utf8)),
             ResponseVariant(name: "error-500", statusCode: .internalServerError, body: Data("{}".utf8)),
         ]))
@@ -111,7 +82,7 @@ struct MockHandlerTests {
     @Test("X-Mock-Variant header overrides admin override")
     func headerOverridesAdmin() async throws {
         let store = InMemoryMockStore()
-        await store.register(makeEndpoint(method: .get, path: "/pets", variants: [
+        await store.register(makeTestEndpoint(method: .get, path: "/pets", variants: [
             ResponseVariant(name: "default", statusCode: .ok, body: Data("{}".utf8)),
             ResponseVariant(name: "error-500", statusCode: .internalServerError, body: Data("{}".utf8)),
         ]))
@@ -128,7 +99,7 @@ struct MockHandlerTests {
     @Test("Config variant override is used when no header or admin override")
     func configOverride() async throws {
         let store = InMemoryMockStore()
-        await store.register(makeEndpoint(method: .get, path: "/pets", variants: [
+        await store.register(makeTestEndpoint(method: .get, path: "/pets", variants: [
             ResponseVariant(name: "default", statusCode: .ok, body: Data("{}".utf8)),
             ResponseVariant(name: "error-404", statusCode: .notFound, body: Data("{}".utf8)),
         ]))
@@ -145,7 +116,7 @@ struct MockHandlerTests {
     @Test("Unknown variant name falls back to default variant")
     func variantFallback() async throws {
         let store = InMemoryMockStore()
-        await store.register(makeEndpoint(method: .get, path: "/pets"))
+        await store.register(makeTestEndpoint(method: .get, path: "/pets"))
 
         let app = try await buildApp(store: store)
         defer { Task { try? await app.asyncShutdown() } }
@@ -160,7 +131,7 @@ struct MockHandlerTests {
     func variantNotFoundNoMatch() async throws {
         let store = InMemoryMockStore()
         // Create endpoint with only a constrained variant that won't match
-        await store.register(makeEndpoint(method: .get, path: "/constrained", variants: [
+        await store.register(makeTestEndpoint(method: .get, path: "/constrained", variants: [
             ResponseVariant(
                 name: "only-admin",
                 statusCode: .ok,
@@ -185,7 +156,7 @@ struct MockHandlerTests {
     @Test("Response includes variant headers")
     func responseHeaders() async throws {
         let store = InMemoryMockStore()
-        await store.register(makeEndpoint(method: .get, path: "/test", variants: [
+        await store.register(makeTestEndpoint(method: .get, path: "/test", variants: [
             ResponseVariant(
                 name: "default",
                 statusCode: .ok,
@@ -206,7 +177,7 @@ struct MockHandlerTests {
     @Test("Response with nil body returns empty body")
     func emptyBody() async throws {
         let store = InMemoryMockStore()
-        await store.register(makeEndpoint(method: .delete, path: "/items", variants: [
+        await store.register(makeTestEndpoint(method: .delete, path: "/items", variants: [
             ResponseVariant(name: "default", statusCode: HTTPStatusCode(code: 204), body: nil),
         ]))
 
@@ -224,7 +195,7 @@ struct MockHandlerTests {
     @Test("Variant with requestMatch on query is selected when query matches")
     func requestMatchQuery() async throws {
         let store = InMemoryMockStore()
-        await store.register(makeEndpoint(method: .get, path: "/search", variants: [
+        await store.register(makeTestEndpoint(method: .get, path: "/search", variants: [
             ResponseVariant(
                 name: "default",
                 statusCode: .ok,
@@ -255,7 +226,7 @@ struct MockHandlerTests {
     @Test("Variant with requestMatch on headers is selected when header matches")
     func requestMatchHeaders() async throws {
         let store = InMemoryMockStore()
-        await store.register(makeEndpoint(method: .get, path: "/data", variants: [
+        await store.register(makeTestEndpoint(method: .get, path: "/data", variants: [
             ResponseVariant(
                 name: "default",
                 statusCode: .ok,
@@ -283,7 +254,7 @@ struct MockHandlerTests {
     @Test("Path parameters match via regex")
     func pathParameterMatching() async throws {
         let store = InMemoryMockStore()
-        await store.register(makeEndpoint(method: .get, path: "/users/{id}"))
+        await store.register(makeTestEndpoint(method: .get, path: "/users/{id}"))
 
         let app = try await buildApp(store: store)
         defer { Task { try? await app.asyncShutdown() } }
@@ -363,7 +334,7 @@ struct MockHandlerTests {
     @Test("Cookie validation returns specific error code")
     func cookieValidation() async throws {
         let store = InMemoryMockStore()
-        await store.register(makeEndpoint(
+        await store.register(makeTestEndpoint(
             method: .get,
             path: "/needs-cookie",
             cookieRules: [RuleMatcher(name: "session_id", matchType: .notEmpty)]
@@ -382,7 +353,7 @@ struct MockHandlerTests {
     @Test("Packet loss simulation returns 503")
     func packetLossSimulation() async throws {
         let store = InMemoryMockStore()
-        await store.register(makeEndpoint(
+        await store.register(makeTestEndpoint(
             method: .get,
             path: "/lossy",
             network: NetworkBehavior(latencyMs: 0, jitterMs: 0, packetLossPercent: 100)

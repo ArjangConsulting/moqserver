@@ -50,26 +50,17 @@ public struct MockHandler: Sendable {
             )
         }
 
-        // Auth validation
-        let authContext = AuthContext(
-            authorizationHeader: req.headers.first(name: .authorization)
-        )
+        // Auth validation — for API key auth read the custom header, not Authorization
+        let authContext: AuthContext
+        if case .apiKey(let headerName) = endpoint.authRequirement {
+            authContext = AuthContext(authorizationHeader: req.headers.first(name: headerName))
+        } else {
+            authContext = AuthContext(authorizationHeader: req.headers.first(name: .authorization))
+        }
         let authOutcome = authValidator.evaluate(endpoint.authRequirement, context: authContext)
         if let authError = authResponseFromOutcome(authOutcome) {
             logger.warning("Auth failed for \(req.method) \(req.url.path)")
             return authError
-        }
-
-        // For API key auth, we need to check the specific header (not Authorization)
-        if case .apiKey(let headerName) = endpoint.authRequirement {
-            let apiKeyContext = AuthContext(
-                authorizationHeader: req.headers.first(name: headerName)
-            )
-            let apiKeyOutcome = authValidator.evaluate(endpoint.authRequirement, context: apiKeyContext)
-            if let apiKeyError = authResponseFromOutcome(apiKeyOutcome) {
-                logger.warning("API key auth failed for \(req.method) \(req.url.path)")
-                return apiKeyError
-            }
         }
 
         // Request validation

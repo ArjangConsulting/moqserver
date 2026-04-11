@@ -129,16 +129,12 @@ public enum ProjectToRuntimeConverter {
     }
 
     private static func mergeRules(_ globalRules: [RuleMatcher]?, _ endpointRules: [RuleMatcher]?) -> [RuleMatcher] {
-        var merged: [RuleMatcher] = []
-        for rule in globalRules ?? [] {
-            merged.append(rule)
-        }
-        for rule in endpointRules ?? [] where !merged.contains(where: { $0.name == rule.name }) {
-            merged.append(rule)
-        }
-        for rule in endpointRules ?? [] where merged.contains(where: { $0.name == rule.name }) {
+        var merged = globalRules ?? []
+        for rule in endpointRules ?? [] {
             if let index = merged.firstIndex(where: { $0.name == rule.name }) {
-                merged[index] = rule
+                merged[index] = rule   // endpoint rule overrides global rule with same name
+            } else {
+                merged.append(rule)
             }
         }
         return merged

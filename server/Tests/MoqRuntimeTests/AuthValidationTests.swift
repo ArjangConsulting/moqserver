@@ -25,32 +25,12 @@ struct AuthValidationTests {
         return store
     }
 
-    func makeEndpoint(
-        method: HTTPMethodValue,
-        path: String,
-        auth: AuthRequirement,
-        queryParamRules: [RuleMatcher] = [],
-        headerRules: [RuleMatcher] = [],
-        requiresBody: Bool = false,
-        acceptedContentTypes: [String] = []
-    ) -> Endpoint {
-        Endpoint(
-            key: EndpointKey(method: method, path: path),
-            authRequirement: auth,
-            variants: [ResponseVariant(name: "default", body: Data(#"{"ok":true}"#.utf8))],
-            queryParamRules: queryParamRules,
-            headerRules: headerRules,
-            requiresBody: requiresBody,
-            acceptedContentTypes: acceptedContentTypes
-        )
-    }
-
     // MARK: - OAuth2 Validation
 
     @Test("OAuth2 endpoint rejects missing token with WWW-Authenticate")
     func oauth2RejectsMissingToken() async throws {
         let store = await makeStore(endpoints: [
-            makeEndpoint(method: .get, path: "/secured", auth: .oauth2(scopes: ["read"]))
+            makeTestEndpoint(method: .get, path: "/secured", auth: .oauth2(scopes: ["read"]))
         ])
         let app = try await buildApp(store: store, config: config)
         defer { Task { try? await app.asyncShutdown() } }
@@ -67,7 +47,7 @@ struct AuthValidationTests {
     @Test("OAuth2 endpoint accepts valid token")
     func oauth2AcceptsValidToken() async throws {
         let store = await makeStore(endpoints: [
-            makeEndpoint(method: .get, path: "/secured", auth: .oauth2(scopes: ["read"]))
+            makeTestEndpoint(method: .get, path: "/secured", auth: .oauth2(scopes: ["read"]))
         ])
         let app = try await buildApp(store: store, config: config)
         defer { Task { try? await app.asyncShutdown() } }
@@ -80,7 +60,7 @@ struct AuthValidationTests {
     @Test("OAuth2 endpoint rejects invalid token")
     func oauth2RejectsInvalidToken() async throws {
         let store = await makeStore(endpoints: [
-            makeEndpoint(method: .get, path: "/secured", auth: .oauth2(scopes: []))
+            makeTestEndpoint(method: .get, path: "/secured", auth: .oauth2(scopes: []))
         ])
         let app = try await buildApp(store: store, config: config)
         defer { Task { try? await app.asyncShutdown() } }
@@ -95,7 +75,7 @@ struct AuthValidationTests {
     @Test("OAuth2 endpoint rejects token without required scope")
     func oauth2RejectsInsufficientScope() async throws {
         let store = await makeStore(endpoints: [
-            makeEndpoint(method: .get, path: "/secured-scope", auth: .oauth2(scopes: ["admin"]))
+            makeTestEndpoint(method: .get, path: "/secured-scope", auth: .oauth2(scopes: ["admin"]))
         ])
         let app = try await buildApp(store: store, config: config)
         defer { Task { try? await app.asyncShutdown() } }
@@ -112,7 +92,7 @@ struct AuthValidationTests {
     @Test("Bearer auth returns WWW-Authenticate header")
     func bearerWwwAuthenticate() async throws {
         let store = await makeStore(endpoints: [
-            makeEndpoint(method: .get, path: "/bearer", auth: .bearer)
+            makeTestEndpoint(method: .get, path: "/bearer", auth: .bearer)
         ])
         let app = try await buildApp(store: store, config: config)
         defer { Task { try? await app.asyncShutdown() } }
@@ -129,7 +109,7 @@ struct AuthValidationTests {
     @Test("Basic auth returns WWW-Authenticate header")
     func basicWwwAuthenticate() async throws {
         let store = await makeStore(endpoints: [
-            makeEndpoint(method: .get, path: "/basic", auth: .basic)
+            makeTestEndpoint(method: .get, path: "/basic", auth: .basic)
         ])
         let app = try await buildApp(store: store, config: config)
         defer { Task { try? await app.asyncShutdown() } }
@@ -144,7 +124,7 @@ struct AuthValidationTests {
     @Test("Basic auth accepts valid credentials")
     func basicAcceptsValid() async throws {
         let store = await makeStore(endpoints: [
-            makeEndpoint(method: .get, path: "/basic", auth: .basic)
+            makeTestEndpoint(method: .get, path: "/basic", auth: .basic)
         ])
         let app = try await buildApp(store: store, config: config)
         defer { Task { try? await app.asyncShutdown() } }
@@ -160,7 +140,7 @@ struct AuthValidationTests {
     @Test("Endpoint validates required query parameters")
     func requiredQueryValidation() async throws {
         let store = await makeStore(endpoints: [
-            makeEndpoint(
+            makeTestEndpoint(
                 method: .get,
                 path: "/validate-query",
                 auth: .none,
@@ -179,7 +159,7 @@ struct AuthValidationTests {
     @Test("Endpoint validates required headers")
     func requiredHeaderValidation() async throws {
         let store = await makeStore(endpoints: [
-            makeEndpoint(
+            makeTestEndpoint(
                 method: .get,
                 path: "/validate-header",
                 auth: .none,
@@ -198,7 +178,7 @@ struct AuthValidationTests {
     @Test("Endpoint validates required body and content type")
     func requestBodyValidation() async throws {
         let store = await makeStore(endpoints: [
-            makeEndpoint(
+            makeTestEndpoint(
                 method: .post,
                 path: "/validate-body",
                 auth: .none,
