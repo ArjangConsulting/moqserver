@@ -2,7 +2,6 @@ import Foundation
 import Testing
 @testable import MoqRuntime
 
-@Suite("Config Loading")
 struct ConfigTests {
     func loadFixture(_ name: String) throws -> String {
         let url = Bundle.module.url(forResource: name, withExtension: nil, subdirectory: "Fixtures")!

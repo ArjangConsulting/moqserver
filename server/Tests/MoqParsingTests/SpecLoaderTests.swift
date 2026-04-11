@@ -3,7 +3,6 @@ import Testing
 @testable import MoqCore
 @testable import MoqParsing
 
-@Suite("SpecLoader Tests")
 struct SpecLoaderTests {
     let loader = SpecLoader()
 

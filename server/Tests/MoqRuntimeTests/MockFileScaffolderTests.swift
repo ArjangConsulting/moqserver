@@ -3,7 +3,6 @@ import Testing
 @testable import MoqCore
 @testable import MoqRuntime
 
-@Suite("MockFileScaffolder Tests")
 struct MockFileScaffolderTests {
     private func tempDir() -> String {
         let dir = NSTemporaryDirectory() + "moqserver-scaffold-\(UUID().uuidString)"

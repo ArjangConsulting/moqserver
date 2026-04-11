@@ -5,9 +5,11 @@ import Vapor
 private let logger = Logger(label: "moqserver.runtime.MockErrorMiddleware")
 
 /// Middleware that converts thrown errors into structured `ErrorResponse` JSON.
-struct MockErrorMiddleware: Middleware {
-    func respond(to request: Request, chainingTo next: any Responder) -> EventLoopFuture<Response> {
-        next.respond(to: request).flatMapError { error in
+struct MockErrorMiddleware: AsyncMiddleware {
+    func respond(to request: Request, chainingTo next: any AsyncResponder) async throws -> Response {
+        do {
+            return try await next.respond(to: request)
+        } catch {
             let status: HTTPResponseStatus
             let body: ErrorResponse
 
@@ -33,7 +35,7 @@ struct MockErrorMiddleware: Middleware {
             let response = Response(status: status)
             response.headers.contentType = .json
             response.body = .init(data: body.jsonData())
-            return request.eventLoop.makeSucceededFuture(response)
+            return response
         }
     }
 

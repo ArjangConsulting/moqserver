@@ -3,7 +3,6 @@ import Testing
 @testable import MoqCore
 @testable import MoqFormat
 
-@Suite("ProjectLoader")
 struct ProjectLoaderTests {
     func fixturePath() throws -> String {
         let url = Bundle.module.url(forResource: "sample-app.moqproj", withExtension: nil, subdirectory: "Fixtures")!

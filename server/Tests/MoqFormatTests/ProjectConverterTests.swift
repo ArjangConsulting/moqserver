@@ -3,7 +3,6 @@ import Testing
 @testable import MoqCore
 @testable import MoqFormat
 
-@Suite("ProjectToRuntimeConverter")
 struct ProjectConverterTests {
     @Test("Converts sample project to runtime endpoints")
     func convertsSampleProject() throws {

@@ -3,7 +3,6 @@ import Testing
 @testable import MoqCore
 @testable import MoqRuntime
 
-@Suite("InMemoryMockStore")
 struct InMemoryMockStoreTests {
     func makeEndpoint(method: HTTPMethodValue, path: String, statusCode: UInt = 200, body: String = "{}") -> Endpoint {
         Endpoint(

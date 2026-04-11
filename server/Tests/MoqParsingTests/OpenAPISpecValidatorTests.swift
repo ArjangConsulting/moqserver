@@ -3,7 +3,6 @@ import Testing
 @testable import MoqCore
 @testable import MoqParsing
 
-@Suite("OpenAPISpecValidator")
 struct OpenAPISpecValidatorTests {
     let validator = OpenAPISpecValidator()
 

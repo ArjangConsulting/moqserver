@@ -3,7 +3,6 @@ import Testing
 @testable import MoqCore
 @testable import MoqRuntime
 
-@Suite("MockFileLoader")
 struct MockFileLoaderTests {
     func fixtureDirectory() throws -> String {
         let url = Bundle.module.url(forResource: "mocks", withExtension: nil, subdirectory: "Fixtures")!

@@ -2,7 +2,6 @@ import Foundation
 import Testing
 @testable import MoqCore
 
-@Suite("EndpointConverter - Unit Tests")
 struct EndpointConverterTests {
     @Test("Converts parsed endpoint to domain endpoint")
     func convertEndpoint() {

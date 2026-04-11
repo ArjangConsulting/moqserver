@@ -2,7 +2,6 @@ import Foundation
 import Testing
 @testable import MoqCore
 
-@Suite("RequestValidator - Unit Tests")
 struct RequestValidatorTests {
     let validator = RequestValidator()
 

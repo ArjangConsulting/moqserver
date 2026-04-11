@@ -32,19 +32,16 @@ public actor InMemoryMockStore: MockStoring {
         endpoints[key] = endpoint
 
         if key.path.contains("{") {
-            let regexPattern = "^" + key.path
+            let segments = key.path
                 .split(separator: "/")
-                .map { segment in
+                .map { segment -> String in
                     let s = String(segment)
-                    if s.hasPrefix("{") && s.hasSuffix("}") {
-                        return "[^/]+"
-                    }
-                    return NSRegularExpression.escapedPattern(for: s)
+                    return (s.hasPrefix("{") && s.hasSuffix("}"))
+                        ? "[^/]+"
+                        : NSRegularExpression.escapedPattern(for: s)
                 }
                 .joined(separator: "/")
-            + "$"
-
-            let fullPattern = "/" + regexPattern.dropFirst()
+            let fullPattern = "^/\(segments)$"
             if let regex = try? NSRegularExpression(pattern: fullPattern) {
                 patterns.removeAll { $0.key == key }
                 patterns.append((regex: regex, key: key))
@@ -210,11 +207,10 @@ public actor InMemoryMockStore: MockStoring {
 
     private func persistVariantOverridesIfNeeded() {
         guard let path = overridesPersistencePath else { return }
-
         let fileURL = URL(fileURLWithPath: path)
         let directoryURL = fileURL.deletingLastPathComponent()
-        try? FileManager.default.createDirectory(at: directoryURL, withIntermediateDirectories: true, attributes: nil)
-
+        try? FileManager.default.createDirectory(
+            at: directoryURL, withIntermediateDirectories: true, attributes: nil)
         if let data = try? JSONEncoder().encode(variantOverrides) {
             try? data.write(to: fileURL)
         }
