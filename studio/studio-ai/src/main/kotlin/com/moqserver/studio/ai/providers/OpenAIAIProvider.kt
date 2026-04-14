@@ -73,17 +73,17 @@ class OpenAIAIProvider(
         val start = System.currentTimeMillis()
         logger.info("Sending completion request to OpenAI model {}", effectiveModel)
 
-        val bodyMap = buildMap<String, Any> {
-            put("model", effectiveModel)
-            put("messages", listOf(mapOf("role" to "user", "content" to prompt)))
-            if (temperature != null) put("temperature", temperature)
-        }
+        val requestBody = OpenAIChatRequest(
+            model = effectiveModel,
+            messages = listOf(OpenAIChatMessage(role = "user", content = prompt)),
+            temperature = temperature,
+        )
 
         val response = try {
             httpClient.post("$baseUrl$CHAT_COMPLETIONS_PATH") {
                 contentType(ContentType.Application.Json)
                 header(HttpHeaders.Authorization, "Bearer $apiKey")
-                setBody(bodyMap)
+                setBody(requestBody)
             }
         } catch (e: Exception) {
             logger.error("OpenAI request failed: {}", e.message, e)
@@ -113,6 +113,19 @@ class OpenAIAIProvider(
             latencyMs = latency,
         )
     }
+
+    @Serializable
+    private data class OpenAIChatRequest(
+        val model: String,
+        val messages: List<OpenAIChatMessage>,
+        val temperature: Double? = null,
+    )
+
+    @Serializable
+    private data class OpenAIChatMessage(
+        val role: String,
+        val content: String,
+    )
 
     @Serializable
     private data class OpenAIChatResponse(
