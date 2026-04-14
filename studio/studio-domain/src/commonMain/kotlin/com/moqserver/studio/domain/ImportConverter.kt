@@ -55,6 +55,176 @@ object ImportConverter {
         )
     }
 
+    /**
+     * Merges accepted import entries into an existing project.
+     *
+     * Strategy:
+     * - NEW entries: converted fresh and appended to the project endpoint list.
+     * - CHANGED entries: spec-owned fields (auth, request rules, tags) are updated on the existing
+     *   endpoint; only new response status codes from the spec are added as new variants — existing
+     *   user-authored variants are preserved untouched.
+     * - UNCHANGED entries: always skipped (they contribute nothing new to the project).
+     * - Entries with [accepted=false] are always skipped regardless of status.
+     */
+    fun merge(
+        existingProject: MoqProject,
+        acceptedEntries: List<ImportEndpointEntry>,
+    ): MoqProject {
+        val newEntries = acceptedEntries.filter { it.updateStatus == EndpointUpdateStatus.NEW }
+        val changedEntries = acceptedEntries.filter { it.updateStatus == EndpointUpdateStatus.CHANGED }
+
+        // Build set of existing endpoint IDs for collision avoidance when assigning new reference names
+        val assignedEndpointReferenceNames = existingProject.endpoints.map { it.referenceName }.toMutableList()
+
+        // Convert brand-new endpoints fresh
+        val convertedNew = newEntries.map { convertEndpoint(it, assignedEndpointReferenceNames) }
+
+        // Apply spec-field updates to changed endpoints (preserving user content)
+        val updatedExisting = existingProject.endpoints.map { existing ->
+            val changedEntry = changedEntries.find { entry ->
+                endpointId(entry.endpoint.method, entry.endpoint.path) == existing.id
+            }
+            if (changedEntry != null) mergeEndpoint(existing, changedEntry) else existing
+        }
+
+        return existingProject.copy(
+            endpoints = updatedExisting + convertedNew,
+        )
+    }
+
+    /**
+     * Computes a [EndpointSpecDiff] by comparing a freshly parsed endpoint against an existing
+     * [EndpointDocument]. Only spec-owned, non-user-editable fields are compared.
+     */
+    fun diffEndpoint(parsed: ParsedEndpoint, existing: EndpointDocument): EndpointSpecDiff {
+        val parsedStatusCodes = parsed.responses.map { it.statusCode }.toSet()
+        val existingStatusCodes = existing.variants.map { it.status }.toSet()
+        val newStatusCodes = parsedStatusCodes - existingStatusCodes
+        val removedStatusCodes = existingStatusCodes - parsedStatusCodes
+
+        val parsedAuth = if (parsed.authType != AuthType.NONE) {
+            parsed.authType to parsed.authHeaderName
+        } else {
+            null
+        }
+        val existingAuth = existing.auth?.let { it.type to it.headerName }
+        val authChanged = parsedAuth != existingAuth
+
+        val parsedRequiredHeaders = parsed.requiredHeaders.toSet()
+        val existingRequiredHeaders = existing.requestRules?.headers
+            ?.filter { it.required == true }
+            ?.map { it.name }
+            ?.toSet()
+            ?: emptySet()
+
+        val parsedQueryParams = if (parsed.queryParameters.isNotEmpty()) {
+            parsed.queryParameters.map { it.name }.toSet()
+        } else {
+            parsed.requiredQueryParameters.toSet()
+        }
+        val existingQueryParams = existing.requestRules?.queryParams
+            ?.map { it.name }
+            ?.toSet()
+            ?: emptySet()
+
+        val parsedCookies = parsed.cookies.map { it.name }.toSet()
+        val existingCookies = existing.requestRules?.cookies
+            ?.map { it.name }
+            ?.toSet()
+            ?: emptySet()
+
+        val requestRulesChanged = parsedRequiredHeaders != existingRequiredHeaders ||
+            parsedQueryParams != existingQueryParams ||
+            parsedCookies != existingCookies
+
+        val parsedTags = parsed.tags.toSet()
+        val existingTags = existing.tags?.toSet() ?: emptySet()
+        val tagsChanged = parsedTags != existingTags
+
+        return EndpointSpecDiff(
+            newStatusCodes = newStatusCodes,
+            removedStatusCodes = removedStatusCodes,
+            authChanged = authChanged,
+            requestRulesChanged = requestRulesChanged,
+            tagsChanged = tagsChanged,
+        )
+    }
+
+    /**
+     * Merges spec-owned fields from a [changedEntry] into an [existing] endpoint.
+     *
+     * Preserved from existing (user-owned): alias, description, referenceName, body/bodyFile,
+     * delayMs, requestMatch, isDefault, variant names/reference names.
+     *
+     * Updated from spec (spec-owned): auth, requestRules, tags.
+     * Added from spec: variants whose status codes are new in the spec (existing variants kept).
+     */
+    @Suppress("LongMethod")
+    private fun mergeEndpoint(
+        existing: EndpointDocument,
+        changedEntry: ImportEndpointEntry,
+    ): EndpointDocument {
+        val parsed = changedEntry.endpoint
+        val diff = changedEntry.specDiff
+
+        // Update spec-owned structural fields
+        val updatedAuth = if (parsed.authType != AuthType.NONE) {
+            ProjectAuthConfig(
+                type = parsed.authType,
+                verify = true,
+                headerName = parsed.authHeaderName,
+            )
+        } else {
+            null
+        }
+
+        val updatedRequestRules = if (diff?.requestRulesChanged == true) {
+            buildRequestRules(parsed)
+        } else {
+            existing.requestRules
+        }
+
+        val updatedTags = if (diff?.tagsChanged == true) {
+            parsed.tags.ifEmpty { null }
+        } else {
+            existing.tags
+        }
+
+        // Add only new variants (by status code) — preserve all existing user-authored variants
+        val existingStatusCodes = existing.variants.map { it.status }.toSet()
+        val newResponses = (parsed.responses + changedEntry.generatedResponses)
+            .filter { it.statusCode !in existingStatusCodes }
+
+        val newVariants = if (newResponses.isNotEmpty()) {
+            val assignedNames = existing.variants.map { it.name }.toMutableList()
+            val assignedRefNames = existing.variants.map { it.referenceName }.toMutableList()
+            newResponses.map { resp ->
+                val name = suggestedVariantName(
+                    status = resp.statusCode,
+                    existingNames = assignedNames,
+                    preferredName = resp.name,
+                )
+                assignedNames += name
+                val refName = suggestedVariantReferenceName(
+                    preferredSource = name,
+                    status = resp.statusCode,
+                    existingNames = assignedRefNames,
+                )
+                assignedRefNames += refName
+                convertVariant(resp = resp, name = name, referenceName = refName, isDefault = false)
+            }
+        } else {
+            emptyList()
+        }
+
+        return existing.copy(
+            auth = if (diff?.authChanged == true) updatedAuth else existing.auth,
+            requestRules = updatedRequestRules,
+            tags = updatedTags,
+            variants = existing.variants + newVariants,
+        )
+    }
+
 	@Suppress("LongMethod")
 	private fun convertEndpoint(
         entry: ImportEndpointEntry,
@@ -191,7 +361,7 @@ object ImportConverter {
     }
 
     /** Generate a deterministic endpoint ID from method + path. */
-    internal fun endpointId(method: String, path: String): String {
+    fun endpointId(method: String, path: String): String {
         val normalized = path
             .removePrefix("/")
             .replace(Regex("\\{[^}]+}"), "param")

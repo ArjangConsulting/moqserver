@@ -414,8 +414,82 @@ class StudioRootViewModel(
                     parsedSpec = spec,
                     entries = entries,
                     projectName = projectName,
+                    mode = ImportMode.NewProject,
                 ),
                 statusLine = "Import: ${spec.endpoints.size} endpoints found in $fileName",
+            )
+        }
+    }
+
+    /**
+     * Starts an update-from-spec import against the currently loaded project.
+     *
+     * Each parsed endpoint is classified as NEW, CHANGED, or UNCHANGED relative to the project:
+     * - NEW endpoints are pre-selected ([accepted=true]).
+     * - CHANGED endpoints are pre-selected ([accepted=true]).
+     * - UNCHANGED endpoints are pre-deselected ([accepted=false]).
+     *
+     * [previouslyDeselectedIds] is the set of endpoint IDs the user deselected in a prior update
+     * import for this project. Any NEW or CHANGED endpoint whose ID is in this set is also
+     * pre-deselected, so users don't have to re-dismiss the same endpoints repeatedly.
+     */
+    fun startUpdateFromSpec(
+        spec: ParsedSpec,
+        source: ImportSourceType,
+        fileName: String,
+        previouslyDeselectedIds: Set<String> = emptySet(),
+    ) {
+        val currentProject = _state.value.project ?: return
+        val existingById = currentProject.endpoints.associateBy { it.id }
+
+        val entries = spec.endpoints.map { parsed ->
+            val id = ImportConverter.endpointId(parsed.method, parsed.path)
+            val existing = existingById[id]
+            when {
+                existing == null -> {
+                    val acceptedByDefault = id !in previouslyDeselectedIds
+                    ImportEndpointEntry(
+                        endpoint = parsed,
+                        accepted = acceptedByDefault,
+                        updateStatus = EndpointUpdateStatus.NEW,
+                    )
+                }
+                else -> {
+                    val diff = ImportConverter.diffEndpoint(parsed, existing)
+                    if (diff.hasChanges) {
+                        val acceptedByDefault = id !in previouslyDeselectedIds
+                        ImportEndpointEntry(
+                            endpoint = parsed,
+                            accepted = acceptedByDefault,
+                            updateStatus = EndpointUpdateStatus.CHANGED,
+                            specDiff = diff,
+                        )
+                    } else {
+                        ImportEndpointEntry(
+                            endpoint = parsed,
+                            accepted = false,
+                            updateStatus = EndpointUpdateStatus.UNCHANGED,
+                        )
+                    }
+                }
+            }
+        }
+
+        val newCount = entries.count { it.updateStatus == EndpointUpdateStatus.NEW }
+        val changedCount = entries.count { it.updateStatus == EndpointUpdateStatus.CHANGED }
+        val unchangedCount = entries.count { it.updateStatus == EndpointUpdateStatus.UNCHANGED }
+
+        _state.update {
+            it.copy(
+                importState = ImportState(
+                    source = source,
+                    sourceFileName = fileName,
+                    parsedSpec = spec,
+                    entries = entries,
+                    projectName = currentProject.manifest.name,
+                    mode = ImportMode.UpdateExisting(currentProject),
+                ),
+                statusLine = "Update: $newCount new, $changedCount changed, $unchangedCount unchanged endpoint(s) in $fileName",
             )
         }
     }
@@ -550,12 +624,18 @@ class StudioRootViewModel(
         val acceptedEntries = importState.entries.filter { it.accepted }
         if (acceptedEntries.isEmpty()) return null
 
-        val project = ImportConverter.convert(
-            spec = importState.parsedSpec,
-            acceptedEntries = acceptedEntries,
-            projectName = importState.projectName,
-            projectPath = projectPath,
-        )
+        val project = when (val mode = importState.mode) {
+            is ImportMode.NewProject -> ImportConverter.convert(
+                spec = importState.parsedSpec,
+                acceptedEntries = acceptedEntries,
+                projectName = importState.projectName,
+                projectPath = projectPath,
+            )
+            is ImportMode.UpdateExisting -> ImportConverter.merge(
+                existingProject = mode.existingProject.copy(projectPath = mode.existingProject.projectPath),
+                acceptedEntries = acceptedEntries,
+            )
+        }
 
         _state.update {
             it.copy(
@@ -571,6 +651,20 @@ class StudioRootViewModel(
         }
 
         return project
+    }
+
+    /**
+     * Returns the set of endpoint IDs that were deselected in the current import review.
+     * Only meaningful for update-mode imports; returns an empty set for new-project imports.
+     * Should be called just before [confirmImport] or [cancelImport] to persist history.
+     */
+    fun collectDeselectedImportIds(): Set<String> {
+        val importState = _state.value.importState ?: return emptySet()
+        if (importState.mode !is ImportMode.UpdateExisting) return emptySet()
+        return importState.entries
+            .filter { !it.accepted && it.updateStatus != EndpointUpdateStatus.UNCHANGED }
+            .map { ImportConverter.endpointId(it.endpoint.method, it.endpoint.path) }
+            .toSet()
     }
 
     fun cancelImport() {

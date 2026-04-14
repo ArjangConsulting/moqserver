@@ -52,6 +52,7 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.moqserver.studio.domain.AIProviderInfo
+import com.moqserver.studio.domain.EndpointUpdateStatus
 import com.moqserver.studio.domain.ImportEndpointEntry
 import com.moqserver.studio.domain.ImportSourceType
 import com.moqserver.studio.domain.ImportState
@@ -62,12 +63,15 @@ import com.moqserver.studio.ui.MethodBadge
 private object ImportReviewStrings {
 	const val IMPORT_OPENAPI = "Import OpenAPI Spec"
 	const val IMPORT_HAR = "Import HAR File"
+	const val UPDATE_OPENAPI = "Update from OpenAPI Spec"
+	const val UPDATE_HAR = "Update from HAR File"
 	const val WARNINGS = "Warnings"
 	const val PROJECT_NAME = "Project Name"
 	const val SELECT_ALL = "Select All"
 	const val DESELECT_ALL = "Deselect All"
 	const val CANCEL = "Cancel"
 	const val IMPORT = "Import"
+	const val UPDATE = "Update"
 	const val GENERATE_ALL = "Generate AI Mocks"
 	const val GENERATE_ALL_HELP = "Use AI to generate realistic mock response bodies and additional " +
 		"variants (e.g. error responses, edge cases) for every selected endpoint. " +
@@ -97,6 +101,13 @@ private object ImportReviewStrings {
 	const val DIALOG_GENERATE_ENDPOINT_SUBTITLE = "Optionally provide extra context to guide the AI generation."
 	const val DIALOG_BULK_SUBTITLE = "Optionally provide per-endpoint context to guide AI generation for all selected endpoints."
 	const val AI_GENERATED_VARIANTS = "AI generated variants"
+	const val STATUS_NEW = "New"
+	const val STATUS_CHANGED = "Changed"
+	const val STATUS_UNCHANGED = "Unchanged"
+	const val CHANGED_DIFF_PREFIX = "Changes: "
+	const val UPDATE_SUMMARY_NEW = "new"
+	const val UPDATE_SUMMARY_CHANGED = "changed"
+	const val UPDATE_SUMMARY_UNCHANGED = "unchanged"
 }
 
 @Composable
@@ -124,6 +135,7 @@ fun ImportReviewScreen(
 	var singleEndpointDialogIndex by remember { mutableStateOf<Int?>(null) }
 	var showBulkDialog by remember { mutableStateOf(false) }
 	val isOpenApiSource = state.source == ImportSourceType.OPENAPI
+	val isUpdateMode = state.isUpdateMode
 
 	singleEndpointDialogIndex?.let { index ->
 		val entry = state.entries.getOrNull(index)
@@ -155,9 +167,11 @@ fun ImportReviewScreen(
 	Column(modifier = modifier.padding(StudioDimens.xxxl)) {
         // Header
         Text(
-            text = when (state.source) {
-                ImportSourceType.OPENAPI -> ImportReviewStrings.IMPORT_OPENAPI
-                ImportSourceType.HAR -> ImportReviewStrings.IMPORT_HAR
+            text = when {
+                isUpdateMode && state.source == ImportSourceType.OPENAPI -> ImportReviewStrings.UPDATE_OPENAPI
+                isUpdateMode && state.source == ImportSourceType.HAR -> ImportReviewStrings.UPDATE_HAR
+                state.source == ImportSourceType.OPENAPI -> ImportReviewStrings.IMPORT_OPENAPI
+                else -> ImportReviewStrings.IMPORT_HAR
             },
             style = MaterialTheme.typography.headlineSmall,
         )
@@ -167,6 +181,21 @@ fun ImportReviewScreen(
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
+
+        // Update-mode summary line
+        if (isUpdateMode) {
+            Spacer(Modifier.height(StudioDimens.xs))
+            val newCount = state.entries.count { it.updateStatus == EndpointUpdateStatus.NEW }
+            val changedCount = state.entries.count { it.updateStatus == EndpointUpdateStatus.CHANGED }
+            val unchangedCount = state.entries.count { it.updateStatus == EndpointUpdateStatus.UNCHANGED }
+            Text(
+                text = "$newCount ${ImportReviewStrings.UPDATE_SUMMARY_NEW}" +
+                    " · $changedCount ${ImportReviewStrings.UPDATE_SUMMARY_CHANGED}" +
+                    " · $unchangedCount ${ImportReviewStrings.UPDATE_SUMMARY_UNCHANGED}",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
 
         Spacer(Modifier.height(StudioDimens.xl))
 
@@ -203,16 +232,18 @@ fun ImportReviewScreen(
             Spacer(Modifier.height(StudioDimens.l))
         }
 
-        // Project name
-        OutlinedTextField(
-            value = state.projectName,
-            onValueChange = onUpdateProjectName,
-            label = { Text(ImportReviewStrings.PROJECT_NAME) },
-            singleLine = true,
-            modifier = Modifier.fillMaxWidth(0.5f),
-        )
+        // Project name (only for new-project imports)
+        if (!isUpdateMode) {
+            OutlinedTextField(
+                value = state.projectName,
+                onValueChange = onUpdateProjectName,
+                label = { Text(ImportReviewStrings.PROJECT_NAME) },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth(0.5f),
+            )
 
-        Spacer(Modifier.height(StudioDimens.xl))
+            Spacer(Modifier.height(StudioDimens.xl))
+        }
 
         if (state.source == ImportSourceType.OPENAPI) {
             val selectableProviders = aiProviders.filter { it.available }
@@ -365,6 +396,7 @@ fun ImportReviewScreen(
 							entry = entry,
 							canGenerateWithAi = canGenerateWithAi && isOpenApiSource,
 							bulkGenerationRunning = state.aiBulkState.running,
+							isUpdateMode = isUpdateMode,
 							onToggle = { onToggleEndpoint(index) },
 							onAIClick = { singleEndpointDialogIndex = index },
 							modifier = Modifier.padding(start = 28.dp),
@@ -392,7 +424,7 @@ fun ImportReviewScreen(
                 onClick = onConfirm,
                 enabled = state.acceptedCount > 0 && state.projectName.isNotBlank(),
             ) {
-                Text(ImportReviewStrings.IMPORT)
+                Text(if (isUpdateMode) ImportReviewStrings.UPDATE else ImportReviewStrings.IMPORT)
             }
         }
     }
@@ -485,10 +517,45 @@ private fun RefreshAIProvidersIcon(
 }
 
 @Composable
+private fun EndpointStatusBadge(status: EndpointUpdateStatus) {
+	val (label, containerColor, contentColor) = when (status) {
+		EndpointUpdateStatus.NEW -> Triple(
+			ImportReviewStrings.STATUS_NEW,
+			StudioColors.success.copy(alpha = 0.15f),
+			StudioColors.success,
+		)
+		EndpointUpdateStatus.CHANGED -> Triple(
+			ImportReviewStrings.STATUS_CHANGED,
+			MaterialTheme.colorScheme.primaryContainer,
+			MaterialTheme.colorScheme.onPrimaryContainer,
+		)
+		EndpointUpdateStatus.UNCHANGED -> Triple(
+			ImportReviewStrings.STATUS_UNCHANGED,
+			MaterialTheme.colorScheme.surfaceVariant,
+			MaterialTheme.colorScheme.onSurfaceVariant,
+		)
+	}
+	Box(
+		modifier = Modifier
+			.background(color = containerColor, shape = RoundedCornerShape(StudioDimens.xs))
+			.padding(horizontal = StudioDimens.s, vertical = 2.dp),
+		contentAlignment = Alignment.Center,
+	) {
+		Text(
+			text = label,
+			style = MaterialTheme.typography.labelSmall,
+			color = contentColor,
+			fontWeight = FontWeight.Medium,
+		)
+	}
+}
+
+@Composable
 private fun ImportEndpointRow(
 	entry: ImportEndpointEntry,
 	canGenerateWithAi: Boolean,
 	bulkGenerationRunning: Boolean,
+	isUpdateMode: Boolean,
 	onToggle: () -> Unit,
 	onAIClick: () -> Unit,
 	modifier: Modifier = Modifier,
@@ -517,7 +584,12 @@ private fun ImportEndpointRow(
 					onCheckedChange = { onToggle() },
 				)
 				MethodBadge(endpoint.method)
-				Spacer(Modifier.width(StudioDimens.m))
+				Spacer(Modifier.width(StudioDimens.s))
+				// Show update-status badge only in update mode
+				if (isUpdateMode) {
+					EndpointStatusBadge(entry.updateStatus)
+					Spacer(Modifier.width(StudioDimens.s))
+				}
 				Text(
 					text = endpoint.path,
 					style = MaterialTheme.typography.bodyMedium.copy(fontFamily = FontFamily.Monospace),
@@ -562,6 +634,16 @@ private fun ImportEndpointRow(
 					text = ImportReviewStrings.TAGS_PREFIX + endpoint.tags.joinToString(" / "),
 					style = MaterialTheme.typography.labelSmall,
 					color = MaterialTheme.colorScheme.onSurfaceVariant,
+					modifier = Modifier.padding(start = 48.dp),
+				)
+			}
+
+			// Show diff summary for changed endpoints
+			entry.specDiff?.takeIf { it.hasChanges }?.let { diff ->
+				Text(
+					text = ImportReviewStrings.CHANGED_DIFF_PREFIX + diff.summary(),
+					style = MaterialTheme.typography.labelSmall,
+					color = MaterialTheme.colorScheme.primary,
 					modifier = Modifier.padding(start = 48.dp),
 				)
 			}

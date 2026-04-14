@@ -44,6 +44,8 @@ import androidx.compose.ui.unit.dp
 private object ImportURLStrings {
 	const val OPENAPI_DIALOG_TITLE = "Import OpenAPI from URL"
 	const val SWAGGER_DIALOG_TITLE = "Import Swagger from URL"
+	const val UPDATE_OPENAPI_DIALOG_TITLE = "Update from OpenAPI URL"
+	const val UPDATE_SWAGGER_DIALOG_TITLE = "Update from Swagger URL"
 	const val URL_LABEL = "Spec URL"
 	const val URL_PLACEHOLDER = "https://example.com/api/docs or https://example.com/openapi.json"
 	const val URL_HELPER = "Enter a direct URL to a spec file (.json/.yaml) or a Swagger UI / API docs page."
@@ -56,6 +58,7 @@ private object ImportURLStrings {
 	const val USERNAME_LABEL = "Username"
 	const val PASSWORD_LABEL = "Password"
 	const val IMPORT_BUTTON = "Import"
+	const val UPDATE_BUTTON = "Update"
 	const val CANCEL_BUTTON = "Cancel"
 	const val FETCHING = "Fetching spec..."
 	const val AUTH_HELPER = "Add credentials if the API docs require authentication."
@@ -70,12 +73,18 @@ enum class URLAuthType(val label: String) {
 	BASIC(ImportURLStrings.AUTH_TYPE_BASIC),
 }
 
+enum class URLImportAction {
+	IMPORT,
+	UPDATE,
+}
+
 /**
  * State holder for the import-from-URL dialog.
  */
 data class ImportFromURLState(
 	val url: String = "",
 	val mode: URLImportMode = URLImportMode.OPENAPI,
+	val action: URLImportAction = URLImportAction.IMPORT,
 	val authType: URLAuthType = URLAuthType.NONE,
 	val bearerToken: String = "",
 	val basicUsername: String = "",
@@ -87,6 +96,30 @@ data class ImportFromURLState(
 enum class URLImportMode {
 	OPENAPI,
 	SWAGGER,
+}
+
+internal data class ImportFromURLDialogCopy(
+	val title: String,
+	val submitButton: String,
+)
+
+internal fun importFromURLDialogCopy(state: ImportFromURLState): ImportFromURLDialogCopy {
+	val title = when (state.action) {
+		URLImportAction.IMPORT -> when (state.mode) {
+			URLImportMode.OPENAPI -> ImportURLStrings.OPENAPI_DIALOG_TITLE
+			URLImportMode.SWAGGER -> ImportURLStrings.SWAGGER_DIALOG_TITLE
+		}
+
+		URLImportAction.UPDATE -> when (state.mode) {
+			URLImportMode.OPENAPI -> ImportURLStrings.UPDATE_OPENAPI_DIALOG_TITLE
+			URLImportMode.SWAGGER -> ImportURLStrings.UPDATE_SWAGGER_DIALOG_TITLE
+		}
+	}
+	val submitButton = when (state.action) {
+		URLImportAction.IMPORT -> ImportURLStrings.IMPORT_BUTTON
+		URLImportAction.UPDATE -> ImportURLStrings.UPDATE_BUTTON
+	}
+	return ImportFromURLDialogCopy(title = title, submitButton = submitButton)
 }
 
 /**
@@ -109,10 +142,7 @@ internal fun ImportFromURLDialog(
 	var authExpanded by remember { mutableStateOf(state.authType != URLAuthType.NONE) }
 	val isUrlValid = state.url.isNotBlank() && looksLikeUrl(state.url)
 	val canSubmit = isUrlValid && !state.loading
-	val dialogTitle = when (state.mode) {
-		URLImportMode.OPENAPI -> ImportURLStrings.OPENAPI_DIALOG_TITLE
-		URLImportMode.SWAGGER -> ImportURLStrings.SWAGGER_DIALOG_TITLE
-	}
+	val dialogCopy = importFromURLDialogCopy(state)
 	val submitOnEnter = remember(canSubmit, onConfirm) {
 		{
 			if (canSubmit) onConfirm()
@@ -133,7 +163,7 @@ internal fun ImportFromURLDialog(
 					contentDescription = null,
 					modifier = Modifier.size(24.dp),
 				)
-				Text(dialogTitle)
+				Text(dialogCopy.title)
 			}
 		},
 		text = {
@@ -280,7 +310,7 @@ internal fun ImportFromURLDialog(
 				} else {
 					Icon(Icons.Outlined.CloudDownload, contentDescription = null)
 					Spacer(Modifier.width(StudioDimens.s))
-					Text(ImportURLStrings.IMPORT_BUTTON)
+					Text(dialogCopy.submitButton)
 				}
 			}
 		},
