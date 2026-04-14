@@ -73,19 +73,19 @@ class AnthropicAIProvider(
         val start = System.currentTimeMillis()
         logger.info("Sending completion request to Anthropic model {}", effectiveModel)
 
-        val bodyMap = buildMap<String, Any> {
-            put("model", effectiveModel)
-            put("max_tokens", DEFAULT_MAX_TOKENS)
-            put("messages", listOf(mapOf("role" to "user", "content" to prompt)))
-            if (temperature != null) put("temperature", temperature)
-        }
+        val requestBody = AnthropicMessagesRequest(
+            model = effectiveModel,
+            maxTokens = DEFAULT_MAX_TOKENS,
+            messages = listOf(AnthropicMessage(role = "user", content = prompt)),
+            temperature = temperature,
+        )
 
         val response = try {
             httpClient.post("$baseUrl$MESSAGES_PATH") {
                 contentType(ContentType.Application.Json)
                 header(API_KEY_HEADER, apiKey)
                 header(VERSION_HEADER, API_VERSION)
-                setBody(bodyMap)
+                setBody(requestBody)
             }
         } catch (e: Exception) {
             logger.error("Anthropic request failed: {}", e.message, e)
@@ -114,6 +114,20 @@ class AnthropicAIProvider(
             latencyMs = latency,
         )
     }
+
+    @Serializable
+    private data class AnthropicMessagesRequest(
+        val model: String,
+        @SerialName("max_tokens") val maxTokens: Int,
+        val messages: List<AnthropicMessage>,
+        val temperature: Double? = null,
+    )
+
+    @Serializable
+    private data class AnthropicMessage(
+        val role: String,
+        val content: String,
+    )
 
     @Serializable
     private data class AnthropicMessagesResponse(

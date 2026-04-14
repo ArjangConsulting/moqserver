@@ -139,5 +139,13 @@ let package = Package(
                 .copy("Fixtures"),
             ]
         ),
+        .testTarget(
+            name: "MoqCLITests",
+            dependencies: [
+                .target(name: "MoqCLI"),
+                .target(name: "MoqCore"),
+            ],
+            path: "Tests/MoqCLITests"
+        ),
     ]
 )

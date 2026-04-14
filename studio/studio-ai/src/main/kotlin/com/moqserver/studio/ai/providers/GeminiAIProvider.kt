@@ -69,15 +69,15 @@ class GeminiAIProvider(
         val start = System.currentTimeMillis()
         logger.info("Sending completion request to Gemini model {}", effectiveModel)
 
-        val bodyMap = buildMap<String, Any> {
-            put("contents", listOf(mapOf("parts" to listOf(mapOf("text" to prompt)))))
-            if (temperature != null) put("generationConfig", mapOf("temperature" to temperature))
-        }
+        val requestBody = GeminiGenerateRequest(
+            contents = listOf(GeminiRequestContent(parts = listOf(GeminiRequestPart(text = prompt)))),
+            generationConfig = if (temperature != null) GeminiGenerationConfig(temperature = temperature) else null,
+        )
 
         val response = try {
             httpClient.post("$baseUrl/v1beta/models/$effectiveModel:generateContent?key=$apiKey") {
                 contentType(ContentType.Application.Json)
-                setBody(bodyMap)
+                setBody(requestBody)
             }
         } catch (e: Exception) {
             logger.error("Gemini request failed: {}", e.message, e)
@@ -112,6 +112,27 @@ class GeminiAIProvider(
             latencyMs = latency,
         )
     }
+
+    @Serializable
+    private data class GeminiGenerateRequest(
+        val contents: List<GeminiRequestContent>,
+        val generationConfig: GeminiGenerationConfig? = null,
+    )
+
+    @Serializable
+    private data class GeminiRequestContent(
+        val parts: List<GeminiRequestPart>,
+    )
+
+    @Serializable
+    private data class GeminiRequestPart(
+        val text: String,
+    )
+
+    @Serializable
+    private data class GeminiGenerationConfig(
+        val temperature: Double? = null,
+    )
 
     @Suppress("ThrowsCount")
     private fun checkResponseStatus(statusCode: Int) {

@@ -14,7 +14,10 @@ dependencies {
     implementation(libs.slf4j.api)
 
     testImplementation(kotlin("test"))
-    testImplementation(libs.coroutines.core)
+    testImplementation(libs.coroutines.test)
+    testImplementation(libs.ktor.client.mock)
+    testImplementation(libs.ktor.client.content.negotiation)
+    testImplementation(libs.ktor.serialization.kotlinx.json)
 }
 
 kotlin {
