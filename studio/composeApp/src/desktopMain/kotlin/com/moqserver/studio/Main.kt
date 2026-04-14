@@ -23,8 +23,12 @@ import androidx.compose.ui.window.WindowPosition
 import androidx.compose.ui.window.application
 import androidx.compose.ui.window.rememberWindowState
 import com.moqserver.studio.data.AISettingsRepository
+import com.moqserver.studio.data.ImportHistoryRepository
 import com.moqserver.studio.data.RecentProjectsRepository
 import com.moqserver.studio.data.ThemePreference
+import com.moqserver.studio.domain.EndpointUpdateStatus
+import com.moqserver.studio.domain.ImportConverter
+import com.moqserver.studio.domain.ImportMode
 import com.moqserver.studio.domain.ImportSourceType
 import com.moqserver.studio.domain.StudioRootViewModel
 import com.moqserver.studio.export.ExportCatalogBuilder
@@ -77,6 +81,58 @@ private fun isRedoShortcut(event: androidx.compose.ui.input.key.KeyEvent, isMac:
     }
 }
 
+internal data class URLImportExecutionPlan(
+	val operationLabel: String,
+	val modeLabel: String,
+	val requiresProject: Boolean,
+)
+
+internal fun planURLImportExecution(state: ImportFromURLState): URLImportExecutionPlan = URLImportExecutionPlan(
+	operationLabel = if (state.action == URLImportAction.UPDATE) "Updating from" else "Importing",
+	modeLabel = state.mode.name.lowercase(),
+	requiresProject = state.action == URLImportAction.UPDATE,
+)
+
+internal fun buildURLImportAuth(state: ImportFromURLState): URLImportAuth? = when (state.authType) {
+	URLAuthType.BEARER -> URLImportAuth.Bearer(state.bearerToken)
+	URLAuthType.BASIC -> URLImportAuth.Basic(state.basicUsername, state.basicPassword)
+	URLAuthType.NONE -> null
+}
+
+private suspend fun applyURLImportResult(
+	state: ImportFromURLState,
+	executionPlan: URLImportExecutionPlan,
+	currentProject: com.moqserver.studio.projectformat.MoqProject?,
+	fetched: com.moqserver.studio.imports.FetchedSpec,
+	spec: com.moqserver.studio.domain.ParsedSpec,
+	importHistoryRepo: ImportHistoryRepository,
+	appViewModel: StudioRootViewModel,
+): Boolean {
+	if (executionPlan.requiresProject) {
+		if (currentProject == null) {
+			return false
+		}
+		val previouslyDeselected = withContext(Dispatchers.IO) {
+			importHistoryRepo.loadDeselected(currentProject.projectPath)
+		}
+		appViewModel.startUpdateFromSpec(
+			spec = spec,
+			source = ImportSourceType.OPENAPI,
+			fileName = fetched.sourceName,
+			previouslyDeselectedIds = previouslyDeselected,
+		)
+	} else {
+		appViewModel.startImport(spec, ImportSourceType.OPENAPI, fetched.sourceName)
+	}
+	logger.info(
+		"URL {} started: {} endpoints from {}",
+		if (state.action == URLImportAction.UPDATE) "update" else "import",
+		spec.endpoints.size,
+		fetched.resolvedUrl,
+	)
+	return true
+}
+
 fun main(args: Array<String>) {
     System.setProperty("apple.awt.application.name", STUDIO_APP_DISPLAY_NAME)
     logger.info("moqserver studio starting (args={})", args.toList())
@@ -87,6 +143,7 @@ fun main(args: Array<String>) {
         val harParser = remember { HARImportParser() }
         val settingsRepo = remember { AISettingsRepository() }
         val recentProjectsRepo = remember { RecentProjectsRepository() }
+        val importHistoryRepo = remember { ImportHistoryRepository() }
         val aiSettings = remember { mutableStateOf(settingsRepo.load()) }
         val aiRegistry = remember(aiSettings.value) { buildAIRegistry(aiSettings.value) }
 		val showSettings = remember { mutableStateOf(false) }
@@ -338,18 +395,100 @@ fun main(args: Array<String>) {
                 }
             }
 
-			fun requestImportFromURL(mode: URLImportMode) {
-				if (!guardProjectTransition()) {
+			fun requestImportFromURL(mode: URLImportMode, action: URLImportAction) {
+				if (action == URLImportAction.IMPORT && !guardProjectTransition()) {
 					logger.debug("Import from URL cancelled while resolving current project state")
 					return
 				}
-				importURLState.value = ImportFromURLState(mode = mode)
+				if (action == URLImportAction.UPDATE && appViewModel.state.value.project == null) return
+				importURLState.value = ImportFromURLState(mode = mode, action = action)
 				showImportURLDialog.value = true
 			}
 
-			fun requestImportOpenAPIURL() = requestImportFromURL(URLImportMode.OPENAPI)
+			fun requestUpdateFromSpecFile(mode: SpecFileImportMode) {
+				val currentProject = appViewModel.state.value.project ?: return
+				scope.launch(exceptionHandler) {
+					logger.debug("User requested update from {} spec", mode.name.lowercase())
+					val file = chooseFile(
+						window,
+						if (mode == SpecFileImportMode.SWAGGER) "Update from Swagger Spec" else "Update from OpenAPI Spec",
+						setOf("yaml", "yml", "json"),
+						lastFileDirectory.value,
+					) ?: run { logger.debug("Update from spec dialog cancelled"); return@launch }
+					logger.info(
+						"Updating project '{}' from {} spec: {}",
+						currentProject.manifest.name,
+						mode.name.lowercase(),
+						file.absolutePath,
+					)
+					try {
+						val content = withContext(Dispatchers.IO) { file.readText() }
+						val spec = withContext(Dispatchers.IO) { openApiParser.parse(content) }
+						val previouslyDeselected = withContext(Dispatchers.IO) {
+							importHistoryRepo.loadDeselected(currentProject.projectPath)
+						}
+						appViewModel.startUpdateFromSpec(
+							spec = spec,
+							source = ImportSourceType.OPENAPI,
+							fileName = file.name,
+							previouslyDeselectedIds = previouslyDeselected,
+						)
+						lastFileDirectory.value = file.parentFile?.canonicalPath ?: lastFileDirectory.value
+					} catch (e: Exception) {
+						reportRecoverable(
+							context = if (mode == SpecFileImportMode.SWAGGER) {
+								"Failed to parse Swagger spec"
+							} else {
+								"Failed to parse OpenAPI spec"
+							},
+							throwable = e,
+							onUserMessage = appViewModel::setError,
+						)
+					}
+				}
+			}
 
-			fun requestImportSwaggerURL() = requestImportFromURL(URLImportMode.SWAGGER)
+			fun requestUpdateFromHAR() {
+				val currentProject = appViewModel.state.value.project ?: return
+				scope.launch(exceptionHandler) {
+					logger.debug("User requested update from HAR file")
+					val file = chooseFile(
+						window,
+						"Update from HAR File",
+						setOf("har", "json"),
+						lastFileDirectory.value,
+					) ?: run { logger.debug("Update from HAR dialog cancelled"); return@launch }
+					logger.info("Updating project '{}' from HAR: {}", currentProject.manifest.name, file.absolutePath)
+					try {
+						val content = withContext(Dispatchers.IO) { file.readText() }
+						val spec = withContext(Dispatchers.IO) { harParser.parse(content) }
+						val previouslyDeselected = withContext(Dispatchers.IO) {
+							importHistoryRepo.loadDeselected(currentProject.projectPath)
+						}
+						appViewModel.startUpdateFromSpec(
+							spec = spec,
+							source = ImportSourceType.HAR,
+							fileName = file.name,
+							previouslyDeselectedIds = previouslyDeselected,
+						)
+						lastFileDirectory.value = file.parentFile?.canonicalPath ?: lastFileDirectory.value
+					} catch (e: Exception) {
+						reportRecoverable(
+							context = "Failed to parse HAR file",
+							throwable = e,
+							onUserMessage = appViewModel::setError,
+						)
+					}
+				}
+			}
+
+			fun requestImportOpenAPIURL() = requestImportFromURL(URLImportMode.OPENAPI, URLImportAction.IMPORT)
+
+			fun requestImportSwaggerURL() = requestImportFromURL(URLImportMode.SWAGGER, URLImportAction.IMPORT)
+
+			fun requestUpdateOpenAPIURL() = requestImportFromURL(URLImportMode.OPENAPI, URLImportAction.UPDATE)
+
+			fun requestUpdateSwaggerURL() = requestImportFromURL(URLImportMode.SWAGGER, URLImportAction.UPDATE)
 
             fun executeURLImport() {
                 val currentState = importURLState.value
@@ -357,19 +496,15 @@ fun main(args: Array<String>) {
                 importURLState.value = currentState.copy(loading = true, error = null)
                 scope.launch(exceptionHandler) {
                     try {
+						val currentProject = appViewModel.state.value.project
+						val executionPlan = planURLImportExecution(currentState)
 						logger.info(
-							"Importing {} spec from URL: {}",
-							currentState.mode.name.lowercase(),
+							"{} {} spec from URL: {}",
+							executionPlan.operationLabel,
+							executionPlan.modeLabel,
 							currentState.url,
 						)
-                        val auth = when (currentState.authType) {
-                            URLAuthType.BEARER -> URLImportAuth.Bearer(currentState.bearerToken)
-                            URLAuthType.BASIC -> URLImportAuth.Basic(
-                                currentState.basicUsername,
-                                currentState.basicPassword,
-                            )
-                            URLAuthType.NONE -> null
-                        }
+						val auth = buildURLImportAuth(currentState)
                         val fetched = withContext(Dispatchers.IO) {
                             urlFetcher.fetchSpec(currentState.url, auth)
                         }
@@ -379,14 +514,24 @@ fun main(args: Array<String>) {
                             fetched.content.length,
                         )
                         val spec = withContext(Dispatchers.IO) { openApiParser.parse(fetched.content) }
-                        appViewModel.startImport(spec, ImportSourceType.OPENAPI, fetched.sourceName)
+						val applied = applyURLImportResult(
+							state = currentState,
+							executionPlan = executionPlan,
+							currentProject = currentProject,
+							fetched = fetched,
+							spec = spec,
+							importHistoryRepo = importHistoryRepo,
+							appViewModel = appViewModel,
+						)
+						if (!applied) {
+							importURLState.value = importURLState.value.copy(
+								loading = false,
+								error = "Open a project before updating from URL.",
+							)
+							return@launch
+						}
                         showImportURLDialog.value = false
                         importURLState.value = ImportFromURLState()
-                        logger.info(
-                            "URL import started: {} endpoints from {}",
-                            spec.endpoints.size,
-                            fetched.resolvedUrl,
-                        )
                     } catch (e: URLFetchException) {
                         logger.error("URL fetch failed: {}", e.message)
                         importURLState.value = importURLState.value.copy(
@@ -519,6 +664,32 @@ fun main(args: Array<String>) {
 					Item("Import OpenAPI URL", onClick = ::requestImportOpenAPIURL)
 					Item("Import Swagger URL", onClick = ::requestImportSwaggerURL)
 					Item("Import HAR", onClick = ::requestImportHAR)
+					Separator()
+					Item(
+						"Update from OpenAPI",
+						enabled = state.project != null,
+						onClick = { requestUpdateFromSpecFile(SpecFileImportMode.OPENAPI) },
+					)
+					Item(
+						"Update from Swagger",
+						enabled = state.project != null,
+						onClick = { requestUpdateFromSpecFile(SpecFileImportMode.SWAGGER) },
+					)
+					Item(
+						"Update from OpenAPI URL",
+						enabled = state.project != null,
+						onClick = ::requestUpdateOpenAPIURL,
+					)
+					Item(
+						"Update from Swagger URL",
+						enabled = state.project != null,
+						onClick = ::requestUpdateSwaggerURL,
+					)
+					Item(
+						"Update from HAR",
+						enabled = state.project != null,
+						onClick = ::requestUpdateFromHAR,
+					)
                     Separator()
                     Item(
                         "Generate Client Code...",
@@ -604,30 +775,76 @@ fun main(args: Array<String>) {
                                 importState.entries.count { it.accepted },
                                 importState.entries.size,
                             )
-                            val path = chooseProjectDirectory(
-                                parent = window,
-                                title = "Import Project",
-                                initialDirectory = lastFileDirectory.value,
-                                projectName = importState.projectName,
-                            )
-                                ?: run { logger.debug("Import save dialog cancelled"); return@launch }
-                            logger.info("Saving imported project '{}' to: {}", importState.projectName, path)
-                            try {
-                                val project = appViewModel.confirmImport(path) ?: return@launch
-                                withContext(Dispatchers.IO) { repo.save(project, path) }
-                                appViewModel.projectSaved(path)
-                                appViewModel.addRecentProject(path)
+
+                            // For update-mode imports, collect deselected IDs before confirm clears the state
+                            val isUpdateMode = importState.isUpdateMode
+                            val existingProjectPath = (importState.mode as? ImportMode.UpdateExisting)
+                                ?.existingProject?.projectPath
+
+                            if (isUpdateMode) {
+                                // Update-mode: save into the existing project path (no directory picker).
+                                // Capture deselected IDs from importState BEFORE confirmImport clears it.
+                                val deselectedIds = importState.entries
+                                    .filter {
+                                        !it.accepted &&
+                                            it.updateStatus != EndpointUpdateStatus.UNCHANGED
+                                    }
+                                    .map {
+                                        ImportConverter.endpointId(
+                                            it.endpoint.method,
+                                            it.endpoint.path,
+                                        )
+                                    }
+                                    .toSet()
+                                val project = appViewModel.confirmImport(
+                                    existingProjectPath ?: importState.parsedSpec.title,
+                                ) ?: return@launch
+                                val projectPath = project.projectPath
+                                withContext(Dispatchers.IO) {
+                                    importHistoryRepo.saveDeselected(projectPath, deselectedIds)
+                                    repo.save(project, projectPath)
+                                }
+                                appViewModel.projectSaved(projectPath)
+                                appViewModel.addRecentProject(projectPath)
                                 withContext(Dispatchers.IO) {
                                     recentProjectsRepo.save(appViewModel.state.value.recentProjects)
                                 }
-                                lastFileDirectory.value = File(path).parentFile?.canonicalPath ?: path
-                                logger.info("Import complete: {} endpoint(s) saved to {}", project.endpoints.size, path)
-                            } catch (e: Exception) {
-                                reportRecoverable(
-                                    context = "Failed to save imported project",
-                                    throwable = e,
-                                    onUserMessage = appViewModel::setError,
+                                logger.info(
+                                    "Update import complete: {} endpoint(s) in {}",
+                                    project.endpoints.size,
+                                    projectPath,
                                 )
+                            } else {
+                                // New-project import: pick a save directory
+                                val path = chooseProjectDirectory(
+                                    parent = window,
+                                    title = "Import Project",
+                                    initialDirectory = lastFileDirectory.value,
+                                    projectName = importState.projectName,
+                                )
+                                    ?: run { logger.debug("Import save dialog cancelled"); return@launch }
+                                logger.info("Saving imported project '{}' to: {}", importState.projectName, path)
+                                try {
+                                    val project = appViewModel.confirmImport(path) ?: return@launch
+                                    withContext(Dispatchers.IO) { repo.save(project, path) }
+                                    appViewModel.projectSaved(path)
+                                    appViewModel.addRecentProject(path)
+                                    withContext(Dispatchers.IO) {
+                                        recentProjectsRepo.save(appViewModel.state.value.recentProjects)
+                                    }
+                                    lastFileDirectory.value = File(path).parentFile?.canonicalPath ?: path
+                                    logger.info(
+                                        "Import complete: {} endpoint(s) saved to {}",
+                                        project.endpoints.size,
+                                        path,
+                                    )
+                                } catch (e: Exception) {
+                                    reportRecoverable(
+                                        context = "Failed to save imported project",
+                                        throwable = e,
+                                        onUserMessage = appViewModel::setError,
+                                    )
+                                }
                             }
                         }
                     },

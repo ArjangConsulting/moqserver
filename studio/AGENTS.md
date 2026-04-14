@@ -46,5 +46,6 @@ Canonical note: This is the single source of truth for AI agent guidance in this
 
 ## Safe Change Heuristics
 - If behavior changes in viewmodel or project-format code, add module-local tests near that logic.
+- If behavior changes in desktop workflow wiring or shared UI state, add a focused desktop test for the new branch or helper; compile-only verification is not enough for new features.
 - Keep save/dirty invariants intact (`StudioState.isDirty`, `hasErrors`, `windowTitle`), since UI enablement depends on them.
 - When touching `.moqproj` persistence, preserve fixture migration/cleanup behavior in `ProjectRepository.save()`.

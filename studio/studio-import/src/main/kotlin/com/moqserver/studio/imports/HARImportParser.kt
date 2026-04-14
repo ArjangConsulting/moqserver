@@ -3,6 +3,7 @@ package com.moqserver.studio.imports
 import com.moqserver.studio.domain.ParsedEndpoint
 import com.moqserver.studio.domain.ParsedResponse
 import com.moqserver.studio.domain.ParsedSpec
+import com.moqserver.studio.imports.HARImportParser.Companion.REDACTED
 import com.moqserver.studio.logging.loggerFor
 import com.moqserver.studio.projectformat.MatchType
 import com.moqserver.studio.projectformat.RuleMatcher
@@ -10,7 +11,7 @@ import com.moqserver.studio.projectformat.defaultAliasForEndpoint
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import java.net.URI
-import java.util.Base64
+import java.util.*
 
 /**
  * Parses HAR 1.2 files into ParsedSpec for import into Studio.
@@ -294,24 +295,8 @@ class HARImportParser {
 	}
 
 	@Suppress("UnusedPrivateMember")
-	private fun requestCookies(exchanges: List<CapturedExchange>): List<RuleMatcher> {
-		val valuesByName = linkedMapOf<String, MutableSet<String>>()
-
-		for (exchange in exchanges) {
-			for ((name, value) in exchange.cookies) {
-				valuesByName.getOrPut(name) { linkedSetOf() }.add(value)
-			}
-		}
-
-		return valuesByName.entries.map { (name, values) ->
-			RuleMatcher(
-				name = name,
-				match = values.singleOrNull(),
-				required = true,
-				matchType = MatchType.EQUAL_TO,
-			)
-		}
-	}
+	private fun requestCookies(exchanges: List<CapturedExchange>): List<RuleMatcher> =
+		collectRuleMatchers(exchanges) { it.cookies }
 
 	private fun requestQueryParameters(request: HarRequest, uri: URI): Map<String, String> {
 		val queryItems = if (request.queryString.isNotEmpty()) {
@@ -338,15 +323,19 @@ class HARImportParser {
 			.associate { it }
 	}
 
-	private fun requestQueryParameters(exchanges: List<CapturedExchange>): List<RuleMatcher> {
-		val valuesByName = linkedMapOf<String, MutableSet<String>>()
+	private fun requestQueryParameters(exchanges: List<CapturedExchange>): List<RuleMatcher> =
+		collectRuleMatchers(exchanges) { it.queryParameters }
 
+	private fun collectRuleMatchers(
+		exchanges: List<CapturedExchange>,
+		selector: (CapturedExchange) -> Map<String, String>,
+	): List<RuleMatcher> {
+		val valuesByName = linkedMapOf<String, MutableSet<String>>()
 		for (exchange in exchanges) {
-			for ((name, value) in exchange.queryParameters) {
+			for ((name, value) in selector(exchange)) {
 				valuesByName.getOrPut(name) { linkedSetOf() }.add(value)
 			}
 		}
-
 		return valuesByName.entries.map { (name, values) ->
 			RuleMatcher(
 				name = name,
