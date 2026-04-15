@@ -270,7 +270,6 @@ private suspend fun executeRefineProject(
 	viewModel.refineProjectCompleted(result)
 }
 
-@Suppress("LongMethod", "ReturnCount")
 internal suspend fun generateBodyForVariant(
 	endpointId: String,
 	variantReferenceName: String,
@@ -285,98 +284,58 @@ internal suspend fun generateBodyForVariant(
 	}
 
 	viewModel.aiActionStarted(AIAction.GENERATE_BODY)
-
-	val state = viewModel.state.value
-	val providerId = state.ai.selectedProviderId
-	if (providerId == null) {
-		viewModel.aiActionFailed("No AI provider selected. Open AI Settings to configure one.")
-		return
-	}
-
-	val provider = registry.find(providerId)
-	if (provider == null) {
-		viewModel.aiActionFailed("Provider '$providerId' not found. Open AI Settings to reconfigure.")
-		return
-	}
-
-	val endpoint = state.project?.endpoints?.find { it.id == endpointId }
-	val variant = endpoint?.findVariant(variantReferenceName)
-	if (endpoint == null || variant == null) {
-		viewModel.aiActionFailed("The selected variant is no longer available.")
-		return
-	}
+	val context = resolveBodyGenerationContext(
+		endpointId = endpointId,
+		variantReferenceName = variantReferenceName,
+		registry = registry,
+		viewModel = viewModel,
+	) ?: return
 
 	logger.info(
 		"Generating AI body for endpoint={} {}, variant={}, provider={}",
-		endpoint.method,
-		endpoint.path,
-		variant.referenceName,
-		providerId,
+		context.endpoint.method,
+		context.endpoint.path,
+		context.variant.referenceName,
+		context.providerId,
 	)
 
+	requestGeneratedBody(context, prompt, registry, viewModel, ioDispatcher)
+}
+
+private suspend fun requestGeneratedBody(
+	context: BodyGenerationContext,
+	prompt: String,
+	registry: AIProviderRegistry,
+	viewModel: StudioRootViewModel,
+	ioDispatcher: CoroutineDispatcher,
+) {
 	try {
 		logger.info(
 			"AI body generation request starting provider={} model={} endpoint={} {} variant={}",
-			provider.id,
-			effectiveModelFor(provider),
-			endpoint.method,
-			endpoint.path,
-			variant.referenceName,
+			context.provider.id,
+			effectiveModelFor(context.provider),
+			context.endpoint.method,
+			context.endpoint.path,
+			context.variant.referenceName,
 		)
 
-		val request = CompanionRequest(
-			providerId = providerId,
-			projectContext = state.project?.let(::buildProjectContext),
-			selection = SelectionContext(
-				endpointKeys = listOf("${endpoint.method} ${endpoint.path}"),
-				variantNames = listOf(variant.name),
-			),
-			intent = IntentContext(
-				type = "body-generation",
-				description = buildBodyGenerationIntent(endpoint, variant, prompt),
-			),
-			options = RequestOptions(maxVariants = 1),
-		)
-
+		val request = buildBodyGenerationRequest(context, prompt)
 		logger.info(
 			"=== AI BODY GENERATION INTENT ===\n{}\n=== END INTENT ===",
 			request.intent?.description,
 		)
 
-		val result = runOnIo(ioDispatcher) { registry.generateVariants(provider, request) }
-		val normalizedResult = result.withResolvedEndpointFallback("${endpoint.method} ${endpoint.path}")
+		val result = runOnIo(ioDispatcher) { registry.generateVariants(context.provider, request) }
+		val normalizedResult = result.withResolvedEndpointFallback(context.endpointKey)
 		val generated = normalizedResult.result.variants.firstOrNull()
 		if (generated == null) {
-			viewModel.aiActionFailed("AI did not return any response content for ${endpoint.method} ${endpoint.path}.")
+			viewModel.aiActionFailed(
+				"AI did not return any response content for ${context.endpoint.method} ${context.endpoint.path}.",
+			)
 			return
 		}
 
-		logger.info(
-			"=== AI GENERATED BODY for variant={}: contentType={}, body preview={} ===",
-			variant.referenceName,
-			generated.contentType,
-			generated.body.take(500),
-		)
-
-		val latestState = viewModel.state.value
-		val latestEndpoint = latestState.project?.endpoints?.find { it.id == endpointId }
-		val latestVariant = latestEndpoint?.findVariant(variantReferenceName)
-		if (latestEndpoint == null || latestVariant == null) {
-			viewModel.aiActionFailed("The selected variant changed before the AI response was applied.")
-			return
-		}
-
-		viewModel.updateEndpoint(
-		applyGeneratedBody(
-			latestEndpoint,
-			latestVariant,
-			generated.body,
-			prompt,
-			generated.contentType,
-		),
-	)
-		viewModel.dismissAIAction()
-		viewModel.setStatus("AI generated body for ${latestVariant.name} (${latestEndpoint.method} ${latestEndpoint.path})")
+		applyGeneratedBodyResult(context, generated, prompt, viewModel)
 	} catch (e: Exception) {
 		reportRecoverable(
 			context = "AI body generation failed",
@@ -385,6 +344,121 @@ internal suspend fun generateBodyForVariant(
 		)
 	}
 }
+
+private fun buildBodyGenerationRequest(
+	context: BodyGenerationContext,
+	prompt: String,
+): CompanionRequest {
+	return CompanionRequest(
+		providerId = context.providerId,
+		projectContext = context.state.project?.let(::buildProjectContext),
+		selection = SelectionContext(
+			endpointKeys = listOf(context.endpointKey),
+			variantNames = listOf(context.variant.name),
+		),
+		intent = IntentContext(
+			type = "body-generation",
+			description = buildBodyGenerationIntent(context.endpoint, context.variant, prompt),
+		),
+		options = RequestOptions(maxVariants = 1),
+	)
+}
+
+private fun applyGeneratedBodyResult(
+	context: BodyGenerationContext,
+	generated: com.moqserver.studio.domain.GeneratedVariant,
+	prompt: String,
+	viewModel: StudioRootViewModel,
+) {
+	logger.info(
+		"=== AI GENERATED BODY for variant={}: contentType={}, body preview={} ===",
+		context.variant.referenceName,
+		generated.contentType,
+		generated.body.take(500),
+	)
+
+	val latestContext = resolveLatestBodyGenerationContext(context, viewModel)
+	if (latestContext == null) {
+		viewModel.aiActionFailed("The selected variant changed before the AI response was applied.")
+		return
+	}
+
+	viewModel.updateEndpoint(
+		applyGeneratedBody(
+			latestContext.endpoint,
+			latestContext.variant,
+			generated.body,
+			prompt,
+			generated.contentType,
+		),
+	)
+	viewModel.dismissAIAction()
+	viewModel.setStatus(
+		"AI generated body for ${latestContext.variant.name} (${latestContext.endpoint.method} ${latestContext.endpoint.path})",
+	)
+}
+
+private fun resolveBodyGenerationContext(
+	endpointId: String,
+	variantReferenceName: String,
+	registry: AIProviderRegistry,
+	viewModel: StudioRootViewModel,
+): BodyGenerationContext? {
+	val state = viewModel.state.value
+	val providerId = state.ai.selectedProviderId
+	if (providerId == null) {
+		viewModel.aiActionFailed("No AI provider selected. Open AI Settings to configure one.")
+		return null
+	}
+	val provider = registry.find(providerId)
+	if (provider == null) {
+		viewModel.aiActionFailed("Provider '$providerId' not found. Open AI Settings to reconfigure.")
+		return null
+	}
+	val endpoint = state.project?.endpoints?.find { it.id == endpointId }
+	val variant = endpoint?.findVariant(variantReferenceName)
+	if (endpoint == null || variant == null) {
+		viewModel.aiActionFailed("The selected variant is no longer available.")
+		return null
+	}
+	return BodyGenerationContext(
+		state = state,
+		providerId = providerId,
+		provider = provider,
+		endpointId = endpointId,
+		variantReferenceName = variantReferenceName,
+		endpoint = endpoint,
+		variant = variant,
+	)
+}
+
+private fun resolveLatestBodyGenerationContext(
+	context: BodyGenerationContext,
+	viewModel: StudioRootViewModel,
+): ResolvedEndpointVariant? {
+	val latestState = viewModel.state.value
+	val latestEndpoint = latestState.project?.endpoints?.find { it.id == context.endpointId } ?: return null
+	val latestVariant = latestEndpoint.findVariant(context.variantReferenceName) ?: return null
+	return ResolvedEndpointVariant(latestEndpoint, latestVariant)
+}
+
+private data class BodyGenerationContext(
+	val state: com.moqserver.studio.domain.StudioState,
+	val providerId: String,
+	val provider: AIProvider,
+	val endpointId: String,
+	val variantReferenceName: String,
+	val endpoint: EndpointDocument,
+	val variant: ProjectVariant,
+) {
+	val endpointKey: String
+		get() = "${endpoint.method} ${endpoint.path}"
+}
+
+private data class ResolvedEndpointVariant(
+	val endpoint: EndpointDocument,
+	val variant: ProjectVariant,
+)
 
 internal suspend fun generateImportMocksForEndpoint(
 	index: Int,

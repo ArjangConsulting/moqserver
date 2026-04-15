@@ -6,7 +6,6 @@ import io.ktor.client.engine.cio.CIO
 import io.ktor.client.plugins.HttpTimeout
 import io.ktor.client.request.get
 import io.ktor.client.request.header
-import io.ktor.client.statement.HttpResponse
 import io.ktor.client.statement.bodyAsChannel
 import io.ktor.client.statement.bodyAsText
 import io.ktor.http.HttpHeaders
@@ -68,6 +67,63 @@ class OpenAPIURLFetcher(
 	private val client: HttpClient = defaultClient(),
 ) {
 	private val logger = loggerFor<OpenAPIURLFetcher>()
+	private val readResponseBody: suspend (io.ktor.client.statement.HttpResponse) -> String = { response ->
+		val contentLength = response.headers[HttpHeaders.ContentLength]?.toLongOrNull() ?: 0L
+		if (contentLength > LARGE_RESPONSE_THRESHOLD) {
+			logger.info("Large response detected ({} bytes), streaming to temp file", contentLength)
+			val tempFile = File.createTempFile("moqstudio-import-", ".tmp")
+			try {
+				val channel = response.bodyAsChannel()
+				val bytes = channel.readRemaining().readByteArray()
+				tempFile.writeBytes(bytes)
+				logger.info("Streamed {} bytes to temp file: {}", tempFile.length(), tempFile.absolutePath)
+				tempFile.readText(Charset.defaultCharset())
+			} finally {
+				if (tempFile.exists()) {
+					tempFile.delete()
+					logger.debug("Cleaned up temp file: {}", tempFile.absolutePath)
+				}
+			}
+		} else {
+			response.bodyAsText()
+		}
+	}
+	private val fetchDiscoveredSpecAtUrl: suspend (String, URLImportAuth?) -> FetchedSpec = { specUrl, auth ->
+		val response = try {
+			client.get(specUrl) {
+				header(HttpHeaders.Accept, "$ACCEPT_JSON, $ACCEPT_YAML, $ACCEPT_HTML, $ACCEPT_WILDCARD")
+				header(HttpHeaders.UserAgent, USER_AGENT)
+				applyAuth(auth)
+			}
+		} catch (e: Exception) {
+			raise(mapNetworkException(e, specUrl))
+		}
+		if (!response.status.isSuccess()) {
+			raise(httpStatusException(response.status, specUrl))
+		}
+		val body = readResponseBody(response)
+		asFetchedSpec(body, response.headers[HttpHeaders.ContentType].orEmpty(), specUrl)
+			?: raise(invalidDiscoveredSpecException(specUrl))
+	}
+	private val tryFetchWellKnownSpecAtUrl: suspend (String, URLImportAuth?) -> FetchedSpec? = { candidateUrl, auth ->
+		try {
+			logger.debug("Trying well-known spec path: {}", candidateUrl)
+			val response = client.get(candidateUrl) {
+				header(HttpHeaders.Accept, "$ACCEPT_JSON, $ACCEPT_YAML, $ACCEPT_WILDCARD")
+				header(HttpHeaders.UserAgent, USER_AGENT)
+				applyAuth(auth)
+			}
+			if (!response.status.isSuccess()) {
+				null
+			} else {
+				val body = response.bodyAsText()
+				asFetchedSpec(body, response.headers[HttpHeaders.ContentType].orEmpty(), candidateUrl)
+			}
+		} catch (e: Exception) {
+			logger.debug("Well-known path {} failed: {}", candidateUrl, e.message)
+			null
+		}
+	}
 
 	/**
 	 * Fetch an OpenAPI spec from the given URL.
@@ -81,7 +137,18 @@ class OpenAPIURLFetcher(
 		val normalizedUrl = normalizeUrl(url)
 		logger.info("Fetching OpenAPI spec from URL: {}", normalizedUrl)
 
-		val response = executeRequest(normalizedUrl, auth)
+		val response = try {
+			client.get(normalizedUrl) {
+				header(HttpHeaders.Accept, "$ACCEPT_JSON, $ACCEPT_YAML, $ACCEPT_HTML, $ACCEPT_WILDCARD")
+				header(HttpHeaders.UserAgent, USER_AGENT)
+				applyAuth(auth)
+			}
+		} catch (e: Exception) {
+			raise(mapNetworkException(e, normalizedUrl))
+		}
+		if (!response.status.isSuccess()) {
+			raise(httpStatusException(response.status, normalizedUrl))
+		}
 		val contentType = response.headers[HttpHeaders.ContentType].orEmpty().lowercase()
 		val body = readResponseBody(response)
 
@@ -102,10 +169,12 @@ class OpenAPIURLFetcher(
 		}
 
 		// Neither spec nor HTML -- unclear content.
-		throw URLFetchException(
-			"The URL returned unexpected content (Content-Type: ${contentType.ifEmpty { "unknown" }}). " +
-				"Please provide a direct link to an OpenAPI spec (.json or .yaml) or a Swagger UI / API docs page.",
-			technicalDetail = "Content-Type=$contentType, body-prefix=${body.take(BODY_PREFIX_LENGTH)}",
+		raise(
+			URLFetchException(
+				"The URL returned unexpected content (Content-Type: ${contentType.ifEmpty { "unknown" }}). " +
+					"Please provide a direct link to an OpenAPI spec (.json or .yaml) or a Swagger UI / API docs page.",
+				technicalDetail = "Content-Type=$contentType, body-prefix=${body.take(BODY_PREFIX_LENGTH)}",
+			),
 		)
 	}
 
@@ -118,145 +187,63 @@ class OpenAPIURLFetcher(
 
 	// -- Private helpers --
 
-	@Suppress("ThrowsCount", "RedundantSuspendModifier") // client.get is suspend; multiple throws for distinct error paths
-	private suspend fun executeRequest(url: String, auth: URLImportAuth?): HttpResponse {
-		try {
-			val response = client.get(url) {
-				header(HttpHeaders.Accept, "$ACCEPT_JSON, $ACCEPT_YAML, $ACCEPT_HTML, $ACCEPT_WILDCARD")
-				header(HttpHeaders.UserAgent, USER_AGENT)
-				applyAuth(auth)
-			}
-			if (!response.status.isSuccess()) {
-				throw httpStatusException(response.status, url)
-			}
-			return response
-		} catch (e: URLFetchException) {
-			throw e
-		} catch (e: Exception) {
-			throw mapNetworkException(e, url)
-		}
-	}
-
-	private suspend fun readResponseBody(response: HttpResponse): String {
-		val contentLength = response.headers[HttpHeaders.ContentLength]?.toLongOrNull() ?: 0L
-		if (contentLength > LARGE_RESPONSE_THRESHOLD) {
-			logger.info("Large response detected ({} bytes), streaming to temp file", contentLength)
-			return streamToTempFile(response)
-		}
-		return response.bodyAsText()
-	}
-
-	@Suppress("RedundantSuspendModifier") // bodyAsChannel/readRemaining are suspend
-	private suspend fun streamToTempFile(response: HttpResponse): String {
-		val tempFile = File.createTempFile("moqstudio-import-", ".tmp")
-		try {
-			val channel = response.bodyAsChannel()
-			val bytes = channel.readRemaining().readByteArray()
-			tempFile.writeBytes(bytes)
-			logger.info("Streamed {} bytes to temp file: {}", tempFile.length(), tempFile.absolutePath)
-			return tempFile.readText(Charset.defaultCharset())
-		} finally {
-			if (tempFile.exists()) {
-				tempFile.delete()
-				logger.debug("Cleaned up temp file: {}", tempFile.absolutePath)
-			}
-		}
-	}
-
 	private suspend fun discoverSpecFromHtml(
 		html: String,
 		baseUrl: String,
 		auth: URLImportAuth?,
 	): FetchedSpec {
-		// Strategy 1: Look for SwaggerUIBundle configuration with a url property.
-		val swaggerBundleUrl = extractSwaggerBundleUrl(html, baseUrl)
-		if (swaggerBundleUrl != null) {
-			logger.info("Discovered spec URL from SwaggerUIBundle config: {}", swaggerBundleUrl)
-			return fetchDiscoveredSpec(swaggerBundleUrl, auth)
+		val discoveredUrl = discoverSpecUrlFromHtml(html, baseUrl)
+		if (discoveredUrl != null) {
+			logger.info("Discovered spec URL from HTML: {}", discoveredUrl)
+			return fetchDiscoveredSpecAtUrl(discoveredUrl, auth)
 		}
 
-		// Strategy 2: Look for common spec URL patterns anywhere in the HTML.
-		val embeddedUrl = extractEmbeddedSpecUrl(html, baseUrl)
-		if (embeddedUrl != null) {
-			logger.info("Discovered embedded spec URL from HTML: {}", embeddedUrl)
-			return fetchDiscoveredSpec(embeddedUrl, auth)
-		}
-
-		// Strategy 3: Try well-known spec paths relative to the base URL.
-		val wellKnownResult = tryWellKnownPaths(baseUrl, auth)
-		if (wellKnownResult != null) {
-			return wellKnownResult
+		val candidateUrls = buildCandidateUrls(baseUrl)
+		if (candidateUrls != null) {
+			for (candidateUrl in candidateUrls) {
+				val result = tryFetchWellKnownSpecAtUrl(candidateUrl, auth)
+				if (result != null) {
+					logger.info("Found spec at well-known path: {}", candidateUrl)
+					return result
+				}
+			}
 		}
 
 		logger.warn("Could not auto-discover OpenAPI spec from HTML at: {}", baseUrl)
-		throw URLFetchException(
-			"The page at this URL appears to be an HTML page, but we couldn't auto-discover an OpenAPI spec " +
-				"from it. Try providing the direct URL to the .json or .yaml spec file. You can usually find " +
-				"this in the page source (look for a URL ending in swagger.json, openapi.json, or similar).",
-			technicalDetail = "HTML auto-discovery exhausted all strategies for $baseUrl",
+		raise(
+			URLFetchException(
+				"The page at this URL appears to be an HTML page, but we couldn't auto-discover an OpenAPI spec " +
+					"from it. Try providing the direct URL to the .json or .yaml spec file. You can usually find " +
+					"this in the page source (look for a URL ending in swagger.json, openapi.json, or similar).",
+				technicalDetail = "HTML auto-discovery exhausted all strategies for $baseUrl",
+			),
 		)
 	}
 
-	private suspend fun fetchDiscoveredSpec(specUrl: String, auth: URLImportAuth?): FetchedSpec {
-		logger.info("Fetching discovered spec from: {}", specUrl)
-		val response = executeRequest(specUrl, auth)
-		val body = readResponseBody(response)
+	private fun discoverSpecUrlFromHtml(html: String, baseUrl: String): String? {
+		extractSwaggerBundleUrl(html, baseUrl)?.let { return it }
+		return extractEmbeddedSpecUrl(html, baseUrl)
+	}
 
-		if (!looksLikeSpec(body, response.headers[HttpHeaders.ContentType].orEmpty())) {
-			throw URLFetchException(
-				"Auto-discovered a potential spec URL ($specUrl) but its content doesn't appear " +
-					"to be a valid OpenAPI spec.",
-				technicalDetail = "Discovered URL did not return JSON/YAML spec content",
-			)
+	private fun asFetchedSpec(body: String, contentType: String, url: String): FetchedSpec? {
+		if (!looksLikeSpec(body, contentType)) {
+			return null
 		}
-
 		return FetchedSpec(
 			content = body,
-			resolvedUrl = specUrl,
-			sourceName = sourceNameFromUrl(specUrl),
+			resolvedUrl = url,
+			sourceName = sourceNameFromUrl(url),
 		)
 	}
 
-	private suspend fun tryWellKnownPaths(baseUrl: String, auth: URLImportAuth?): FetchedSpec? {
-		val candidateUrls = buildCandidateUrls(baseUrl) ?: return null
-
-		for (candidateUrl in candidateUrls) {
-			val result = probeWellKnownUrl(candidateUrl, auth)
-			if (result != null) return result
-		}
-		return null
+	private fun invalidDiscoveredSpecException(specUrl: String): URLFetchException {
+		return URLFetchException(
+			"Auto-discovered a potential spec URL ($specUrl) but its content doesn't appear to be a valid OpenAPI spec.",
+			technicalDetail = "Discovered URL did not return JSON/YAML spec content",
+		)
 	}
 
-	@Suppress("RedundantSuspendModifier") // client.get and bodyAsText are suspend
-	private suspend fun probeWellKnownUrl(candidateUrl: String, auth: URLImportAuth?): FetchedSpec? {
-		return try {
-			logger.debug("Trying well-known spec path: {}", candidateUrl)
-			val response = client.get(candidateUrl) {
-				header(HttpHeaders.Accept, "$ACCEPT_JSON, $ACCEPT_YAML, $ACCEPT_WILDCARD")
-				header(HttpHeaders.UserAgent, USER_AGENT)
-				applyAuth(auth)
-			}
-			if (response.status.isSuccess()) {
-				val body = response.bodyAsText()
-				val ct = response.headers[HttpHeaders.ContentType].orEmpty()
-				if (looksLikeSpec(body, ct)) {
-					logger.info("Found spec at well-known path: {}", candidateUrl)
-					FetchedSpec(
-						content = body,
-						resolvedUrl = candidateUrl,
-						sourceName = sourceNameFromUrl(candidateUrl),
-					)
-				} else {
-					null
-				}
-			} else {
-				null
-			}
-		} catch (e: Exception) {
-			logger.debug("Well-known path {} failed: {}", candidateUrl, e.message)
-			null
-		}
-	}
+	private fun raise(error: URLFetchException): Nothing = throw error
 
 	companion object {
 		private const val LARGE_RESPONSE_THRESHOLD = 1_048_576L // 1 MB
@@ -416,7 +403,6 @@ class OpenAPIURLFetcher(
 			}
 		}
 
-		@Suppress("ThrowsCount")
 		private fun mapNetworkException(e: Exception, url: String): URLFetchException {
 			val host = tryExtractHost(url)
 			return when (e) {

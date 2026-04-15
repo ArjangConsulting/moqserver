@@ -90,7 +90,6 @@ class HARImportParser {
 		private val JWT_REGEX = Regex("""(ey[A-Za-z0-9\-_=]+)\.(ey[A-Za-z0-9\-_=]+)\.[A-Za-z0-9\-_.+/=]+""")
 	}
 
-	@Suppress("LongMethod", "CyclomaticComplexMethod")
 	fun parse(content: String): ParsedSpec {
 		logger.info("Parsing HAR file ({} bytes)", content.length)
 		val har = runCatching { json.decodeFromString<HarFile>(content) }
@@ -105,55 +104,12 @@ class HARImportParser {
 		val grouped = mutableMapOf<GroupKey, MutableList<CapturedExchange>>()
 		val warnings = mutableListOf<String>()
 
-		@Suppress("LoopWithTooManyJumpStatements")
 		for ((index, entry) in entries.withIndex()) {
-			val request = entry.request
-			if (request == null) {
-				warnings += "Skipped HAR entry ${index + 1}: missing request payload."
-				continue
-			}
-
-			val response = entry.response
-			if (response == null) {
-				warnings += "Skipped HAR entry ${index + 1}: missing response payload."
-				continue
-			}
-
-			val method = request.method.orEmpty().trim().uppercase()
-			if (method.isBlank()) {
-				warnings += "Skipped HAR entry ${index + 1}: missing request method."
-				continue
-			}
-
-			val rawUrl = request.url.orEmpty().trim()
-			if (rawUrl.isBlank()) {
-				warnings += "Skipped HAR entry ${index + 1}: missing request URL."
-				continue
-			}
-
-			val uri = try {
-				URI(rawUrl)
-			} catch (_: Exception) {
-				warnings += "Skipped HAR entry ${index + 1}: invalid request URL '$rawUrl'."
-				continue
-			}
-
-			val path = normalizedPath(uri)
-			val key = GroupKey(method, path)
-			val requestCookies = requestCookies(request)
-			val requestQueryParameters = requestQueryParameters(request, uri)
-
-			val exchange = CapturedExchange(
-				statusCode = normalizedStatusCode(response.status),
-				headers = responseHeaders(response),
-				body = responseBody(response),
-				cookies = requestCookies,
-				queryParameters = requestQueryParameters,
-			)
-
-			val existing = grouped.getOrPut(key) { mutableListOf() }
-			if (exchange !in existing) {
-				existing.add(exchange)
+			parseEntry(entry, index + 1, warnings)?.let { parsedEntry ->
+				val existing = grouped.getOrPut(parsedEntry.key) { mutableListOf() }
+				if (parsedEntry.exchange !in existing) {
+					existing.add(parsedEntry.exchange)
+				}
 			}
 		}
 
@@ -168,7 +124,7 @@ class HARImportParser {
 					alias = defaultAliasForEndpoint(method = key.method, path = key.path),
 					responses = responses,
 					queryParameters = requestQueryParameters(exchanges),
-					cookies = requestCookies(exchanges),
+					cookies = collectCookieRules(exchanges),
 				)
 			}
 
@@ -248,8 +204,53 @@ class HARImportParser {
 	 * Cookie values are session credentials and must never appear in the
 	 * persisted project.
 	 */
-	@Suppress("UnusedPrivateMember")
-	private fun requestCookies(request: HarRequest): Map<String, String> {
+	private fun parseEntry(
+		entry: HarEntry,
+		entryNumber: Int,
+		warnings: MutableList<String>,
+	): ParsedHarEntry? {
+		val request = entry.request ?: return warnAndSkip(warnings, entryNumber, "missing request payload")
+		val response = entry.response ?: return warnAndSkip(warnings, entryNumber, "missing response payload")
+		val method = request.method.orEmpty().trim().uppercase()
+		if (method.isBlank()) return warnAndSkip(warnings, entryNumber, "missing request method")
+		val rawUrl = request.url.orEmpty().trim()
+		if (rawUrl.isBlank()) return warnAndSkip(warnings, entryNumber, "missing request URL")
+		val uri = parseRequestUri(rawUrl, entryNumber, warnings) ?: return null
+
+		return ParsedHarEntry(
+			key = GroupKey(method, normalizedPath(uri)),
+			exchange = CapturedExchange(
+				statusCode = normalizedStatusCode(response.status),
+				headers = responseHeaders(response),
+				body = responseBody(response),
+				cookies = extractRequestCookies(request),
+				queryParameters = requestQueryParameters(request, uri),
+			),
+		)
+	}
+
+	private fun parseRequestUri(
+		rawUrl: String,
+		entryNumber: Int,
+		warnings: MutableList<String>,
+	): URI? {
+		return try {
+			URI(rawUrl)
+		} catch (_: Exception) {
+			warnAndSkip(warnings, entryNumber, "invalid request URL '$rawUrl'")
+		}
+	}
+
+	private fun warnAndSkip(
+		warnings: MutableList<String>,
+		entryNumber: Int,
+		reason: String,
+	): Nothing? {
+		warnings += "Skipped HAR entry $entryNumber: $reason."
+		return null
+	}
+
+	private fun extractRequestCookies(request: HarRequest): Map<String, String> {
 		if (request.cookies.isNotEmpty()) {
 			return request.cookies
 				.asSequence()
@@ -293,8 +294,7 @@ class HARImportParser {
 		}
 	}
 
-	@Suppress("UnusedPrivateMember")
-	private fun requestCookies(exchanges: List<CapturedExchange>): List<RuleMatcher> =
+	private fun collectCookieRules(exchanges: List<CapturedExchange>): List<RuleMatcher> =
 		collectRuleMatchers(exchanges) { it.cookies }
 
 	private fun requestQueryParameters(request: HarRequest, uri: URI): Map<String, String> {
@@ -394,6 +394,11 @@ class HARImportParser {
 	// -- HAR data model --
 
 	private data class GroupKey(val method: String, val path: String)
+
+	private data class ParsedHarEntry(
+		val key: GroupKey,
+		val exchange: CapturedExchange,
+	)
 
 	private data class CapturedExchange(
 		val statusCode: Int,

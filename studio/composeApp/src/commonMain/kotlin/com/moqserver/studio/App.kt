@@ -97,7 +97,6 @@ private object AppStrings {
 @Composable
 fun App(
 	appViewModel: StudioRootViewModel,
-	@Suppress("UnusedParameter") themeMode: StudioThemeMode,
     variantReferenceSyncPreference: VariantReferenceSyncPreference? = null,
     onOpenProject: () -> Unit = {},
     onImportOpenAPI: () -> Unit = {},

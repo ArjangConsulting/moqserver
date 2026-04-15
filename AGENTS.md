@@ -168,4 +168,5 @@ Do not duplicate those product guides in new files unless the repo structure cha
 - Never assume a request applies to both products.
 - Do not collapse product-specific guidance into this file; reference the deeper guide instead.
 - Do not remove or rewrite existing agent docs unless the user asks.
+- Do not add new `@Suppress` or `@file:Suppress` annotations just to get a build, lint run, hook, or commit to pass. Fix the underlying issue instead, and only keep or add a suppression when the user explicitly approves it or the limitation is genuinely unavoidable and documented in the final summary.
 - If you add new repo-wide tooling or rules later, update this file and point to the authoritative config path.

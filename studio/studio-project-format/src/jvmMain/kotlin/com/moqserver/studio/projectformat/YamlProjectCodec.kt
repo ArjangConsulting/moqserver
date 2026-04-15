@@ -301,8 +301,7 @@ class YamlProjectCodec {
         return lines.joinToString("\n") + "\n"
     }
 
-	@Suppress("CyclomaticComplexMethod", "CognitiveComplexMethod", "LongMethod")
-	private fun encodeVariant(variant: ProjectVariant, indent: Int): List<String> {
+    private fun encodeVariant(variant: ProjectVariant, indent: Int): List<String> {
         val pad = " ".repeat(indent)
         val lines = mutableListOf<String>()
 
@@ -315,73 +314,81 @@ class YamlProjectCodec {
         lines += "${pad}  status: ${variant.status}"
 
         variant.headers?.takeIf { it.isNotEmpty() }?.let { headers ->
-            lines += "${pad}  headers:"
-            headers.toSortedMap().forEach { (k, v) ->
-                lines += "${pad}    ${encodeYamlKey(k)}: ${yamlQuote(v)}"
-            }
+            lines += encodeVariantStringMap(headers = headers, sectionName = "headers", indent = indent + 2)
         }
-
-        variant.requestMatch?.let { requestMatch ->
-            val query = requestMatch.query
-            val headers = requestMatch.headers
-            val bodyContains = requestMatch.bodyContains
-            if (!query.isNullOrEmpty() || !headers.isNullOrEmpty() || !bodyContains.isNullOrBlank()) {
-                lines += "${pad}  request_match:"
-                if (!query.isNullOrEmpty()) {
-                    lines += "${pad}    query:"
-                    query.toSortedMap().forEach { (k, v) ->
-                        lines += "${pad}      ${encodeYamlKey(k)}: ${yamlQuote(v)}"
-                    }
-                }
-                if (!headers.isNullOrEmpty()) {
-                    lines += "${pad}    headers:"
-                    headers.toSortedMap().forEach { (k, v) ->
-                        lines += "${pad}      ${encodeYamlKey(k)}: ${yamlQuote(v)}"
-                    }
-                }
-                if (!bodyContains.isNullOrBlank()) {
-                    lines += "${pad}    body_contains: ${yamlQuote(bodyContains)}"
-                }
-            }
-        }
-
-        if (variant.bodyFile != null) {
-            lines += "${pad}  body_file: ${yamlQuote(variant.bodyFile)}"
-        } else {
-            val body = variant.body
-            when (body) {
-                null -> { /* no body */ }
-                is YamlValue.Null, is YamlValue.Bool, is YamlValue.Int,
-                is YamlValue.Double, is YamlValue.Str -> {
-                    if (body is YamlValue.Str && body.value.contains('\n')) {
-                        lines += "${pad}  body: |-"
-                        lines += encodeMultilineStringLines(body.value, indent + 4)
-                    } else {
-                        lines += "${pad}  body: ${encodeInlineBodyValue(body)}"
-                    }
-                }
-                is YamlValue.Array -> {
-                    if (body.value.isEmpty()) {
-                        lines += "${pad}  body: []"
-                    } else {
-                        lines += "${pad}  body:"
-                        lines += encodeBlockBodyLines(body, indent + 4)
-                    }
-                }
-                is YamlValue.Obj -> {
-                    if (body.value.isEmpty()) {
-                        lines += "${pad}  body: {}"
-                    } else {
-                        lines += "${pad}  body:"
-                        lines += encodeBlockBodyLines(body, indent + 4)
-                    }
-                }
-            }
-        }
+        lines += encodeVariantRequestMatch(variant.requestMatch, indent)
+        lines += encodeVariantBody(variant, indent)
 
         variant.delayMs?.let { lines += "${pad}  delay_ms: $it" }
 
         return lines
+    }
+
+    private fun encodeVariantRequestMatch(requestMatch: VariantRequestMatch?, indent: Int): List<String> {
+        if (requestMatch == null || requestMatch.isEmpty()) {
+            return emptyList()
+        }
+
+        val pad = " ".repeat(indent)
+        val lines = mutableListOf<String>()
+        lines += "${pad}  request_match:"
+        requestMatch.query?.takeIf { it.isNotEmpty() }?.let { query ->
+            lines += encodeVariantStringMap(headers = query, sectionName = "query", indent = indent + 4)
+        }
+        requestMatch.headers?.takeIf { it.isNotEmpty() }?.let { headers ->
+            lines += encodeVariantStringMap(headers = headers, sectionName = "headers", indent = indent + 4)
+        }
+        requestMatch.bodyContains?.takeIf { it.isNotBlank() }?.let { bodyContains ->
+            lines += "${pad}    body_contains: ${yamlQuote(bodyContains)}"
+        }
+        return lines
+    }
+
+    private fun encodeVariantStringMap(headers: Map<String, String>, sectionName: String, indent: Int): List<String> {
+        val pad = " ".repeat(indent)
+        return buildList {
+            add("$pad$sectionName:")
+            headers.toSortedMap().forEach { (key, value) ->
+                add("${pad}  ${encodeYamlKey(key)}: ${yamlQuote(value)}")
+            }
+        }
+    }
+
+    private fun encodeVariantBody(variant: ProjectVariant, indent: Int): List<String> {
+        val pad = " ".repeat(indent)
+        variant.bodyFile?.let { bodyFile ->
+            return listOf("${pad}  body_file: ${yamlQuote(bodyFile)}")
+        }
+
+        return when (val body = variant.body) {
+            null -> emptyList()
+            is YamlValue.Null,
+            is YamlValue.Bool,
+            is YamlValue.Int,
+            is YamlValue.Double,
+            -> listOf("${pad}  body: ${encodeInlineBodyValue(body)}")
+            is YamlValue.Str -> encodeVariantStringBody(body, indent)
+            is YamlValue.Array -> encodeVariantCollectionBody(body, emptyValue = "[]", indent = indent)
+            is YamlValue.Obj -> encodeVariantCollectionBody(body, emptyValue = "{}", indent = indent)
+        }
+    }
+
+    private fun encodeVariantStringBody(body: YamlValue.Str, indent: Int): List<String> {
+        val pad = " ".repeat(indent)
+        return if (body.value.contains('\n')) {
+            listOf("${pad}  body: |-") + encodeMultilineStringLines(body.value, indent + 4)
+        } else {
+            listOf("${pad}  body: ${encodeInlineBodyValue(body)}")
+        }
+    }
+
+    private fun encodeVariantCollectionBody(body: YamlValue, emptyValue: String, indent: Int): List<String> {
+        val pad = " ".repeat(indent)
+        return if (body.isInlineBodyValue()) {
+            listOf("${pad}  body: $emptyValue")
+        } else {
+            listOf("${pad}  body:") + encodeBlockBodyLines(body, indent + 4)
+        }
     }
 
     private fun encodeAuth(auth: ProjectAuthConfig, indent: Int): List<String> {
@@ -519,6 +526,10 @@ class YamlProjectCodec {
 }
 
 private val SAFE_YAML_KEY = Regex("^[A-Za-z0-9_-]+$")
+
+private fun VariantRequestMatch.isEmpty(): Boolean {
+    return query.isNullOrEmpty() && headers.isNullOrEmpty() && bodyContains.isNullOrBlank()
+}
 
 private fun YamlValue.isInlineBodyValue(): Boolean = when (this) {
     is YamlValue.Null,

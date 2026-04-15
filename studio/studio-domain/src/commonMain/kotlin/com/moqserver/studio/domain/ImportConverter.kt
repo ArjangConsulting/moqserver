@@ -167,61 +167,72 @@ object ImportConverter {
 		)
 	}
 
-    /**
-     * Merges spec-owned fields from a [changedEntry] into an [existing] endpoint.
-     *
-     * Preserved from existing (user-owned): alias, description, referenceName, body/bodyFile,
-     * delayMs, requestMatch, isDefault, variant names/reference names.
-     *
-     * Updated from spec (spec-owned): auth, requestRules, tags.
-     * Added from spec: variants whose status codes are new in the spec (existing variants kept).
-     */
-    @Suppress("LongMethod")
-    private fun mergeEndpoint(
-        existing: EndpointDocument,
-        changedEntry: ImportEndpointEntry,
-        updateSelection: UpdateSelection,
-    ): EndpointDocument {
-        val parsed = changedEntry.endpoint
-        val diff = changedEntry.specDiff
-
-        // Update spec-owned structural fields
-        val updatedAuth = if (parsed.authType != AuthType.NONE) {
-            ProjectAuthConfig(
-                type = parsed.authType,
-                verify = true,
-                headerName = parsed.authHeaderName,
-            )
-        } else {
-            null
-        }
-
-        val updatedRequestRules = if (updateSelection.details && diff?.requestRulesChanged == true) {
-            buildRequestRules(parsed)
-        } else {
-            existing.requestRules
-        }
-
-        val updatedTags = if (updateSelection.details && diff?.tagsChanged == true) {
-            parsed.tags.ifEmpty { null }
-        } else {
-            existing.tags
-        }
-
-        // Add or replace variants when body updates are enabled; otherwise preserve existing variants.
-        val existingStatusCodes = existing.variants.map { it.status }.toSet()
-        val mergedVariants = if (updateSelection.body) {
-            mergeVariants(existing, parsed, changedEntry.generatedResponses)
-        } else {
-            existing.variants
-        }
+	/**
+	 * Merges spec-owned fields from a [changedEntry] into an [existing] endpoint.
+	 *
+	 * Preserved from existing (user-owned): alias, description, referenceName, body/bodyFile,
+	 * delayMs, requestMatch, isDefault, variant names/reference names.
+	 *
+	 * Updated from spec (spec-owned): auth, requestRules, tags.
+	 * Added from spec: variants whose status codes are new in the spec (existing variants kept).
+	 */
+	private fun mergeEndpoint(
+		existing: EndpointDocument,
+		changedEntry: ImportEndpointEntry,
+		updateSelection: UpdateSelection,
+	): EndpointDocument {
+		val parsed = changedEntry.endpoint
+		val diff = changedEntry.specDiff
 
 		return existing.copy(
-			auth = if (updateSelection.details && diff?.authChanged == true) updatedAuth else existing.auth,
-			requestRules = updatedRequestRules,
-			tags = updatedTags,
-			variants = mergedVariants,
+			auth = mergedAuth(existing, parsed, diff, updateSelection),
+			requestRules = mergedRequestRules(existing, parsed, diff, updateSelection),
+			tags = mergedTags(existing, parsed, diff, updateSelection),
+			variants = mergedVariants(existing, parsed, changedEntry.generatedResponses, updateSelection),
 		)
+	}
+
+	private fun mergedAuth(
+		existing: EndpointDocument,
+		parsed: ParsedEndpoint,
+		diff: EndpointSpecDiff?,
+		updateSelection: UpdateSelection,
+	): ProjectAuthConfig? {
+		if (!updateSelection.details || diff?.authChanged != true) return existing.auth
+		return parsed.toProjectAuthConfig()
+	}
+
+	private fun mergedRequestRules(
+		existing: EndpointDocument,
+		parsed: ParsedEndpoint,
+		diff: EndpointSpecDiff?,
+		updateSelection: UpdateSelection,
+	): RequestRules? {
+		if (!updateSelection.details || diff?.requestRulesChanged != true) return existing.requestRules
+		return buildRequestRules(parsed)
+	}
+
+	private fun mergedTags(
+		existing: EndpointDocument,
+		parsed: ParsedEndpoint,
+		diff: EndpointSpecDiff?,
+		updateSelection: UpdateSelection,
+	): List<String>? {
+		if (!updateSelection.details || diff?.tagsChanged != true) return existing.tags
+		return parsed.tags.ifEmpty { null }
+	}
+
+	private fun mergedVariants(
+		existing: EndpointDocument,
+		parsed: ParsedEndpoint,
+		generatedResponses: List<ParsedResponse>,
+		updateSelection: UpdateSelection,
+	): List<ProjectVariant> {
+		return if (updateSelection.body) {
+			mergeVariants(existing, parsed, generatedResponses)
+		} else {
+			existing.variants
+		}
 	}
 
 	private fun shouldMergeChangedEntry(entry: ImportEndpointEntry, updateSelection: UpdateSelection): Boolean {
@@ -302,76 +313,94 @@ object ImportConverter {
 				}
 	}
 
-	@Suppress("LongMethod")
 	private fun convertEndpoint(
-        entry: ImportEndpointEntry,
-        assignedEndpointReferenceNames: MutableList<String>,
-    ): EndpointDocument {
-        val parsed = entry.endpoint
-        val id = endpointId(parsed.method, parsed.path)
-        val alias = parsed.alias?.takeIf { it.isNotBlank() }
-            ?: defaultAliasForEndpoint(method = parsed.method, path = parsed.path)
-        val referenceName = suggestedEndpointReferenceName(
-            preferredSource = parsed.referenceName ?: alias,
-            fallbackId = id,
-            existingNames = assignedEndpointReferenceNames,
-        )
-        assignedEndpointReferenceNames += referenceName
-		val allResponses = deduplicateResponses(parsed.responses + entry.generatedResponses)
-        val defaultIndex = when {
-            allResponses.isEmpty() -> -1
-            else -> allResponses.indexOfFirst { it.name == "default" }.takeIf { it >= 0 }
-                ?: allResponses.indexOfFirst { it.statusCode in 200..299 }.takeIf { it >= 0 }
-                ?: 0
-        }
-        val assignedNames = mutableListOf<String>()
-        val assignedReferenceNames = mutableListOf<String>()
-        val variants = allResponses.mapIndexed { index, resp ->
-            val name = suggestedVariantName(
-                status = resp.statusCode,
-                existingNames = assignedNames,
-                preferredName = resp.name,
-            )
-            assignedNames += name
-            val variantReferenceName = suggestedVariantReferenceName(
-                preferredSource = name,
-                status = resp.statusCode,
-                existingNames = assignedReferenceNames,
-            )
-            assignedReferenceNames += variantReferenceName
-            convertVariant(
-                resp = resp,
-                name = name,
-                referenceName = variantReferenceName,
-                isDefault = index == defaultIndex,
-            )
-        }
+		entry: ImportEndpointEntry,
+		assignedEndpointReferenceNames: MutableList<String>,
+	): EndpointDocument {
+		val parsed = entry.endpoint
+		val identity = buildEndpointIdentity(parsed, assignedEndpointReferenceNames)
+		val variants = buildEndpointVariants(parsed.responses + entry.generatedResponses)
 
-        val auth = if (parsed.authType != AuthType.NONE) {
-            ProjectAuthConfig(
-                type = parsed.authType,
-                verify = true,
-                headerName = parsed.authHeaderName,
-            )
-        } else {
-            null
-        }
+		val requestRules = buildRequestRules(parsed)
 
-        val requestRules = buildRequestRules(parsed)
+		return EndpointDocument(
+			id = identity.id,
+			alias = identity.alias,
+			description = parsed.description?.takeIf { it.isNotBlank() },
+			referenceName = identity.referenceName,
+			method = parsed.method.uppercase(),
+			path = parsed.path,
+			tags = parsed.tags.ifEmpty { null },
+			auth = parsed.toProjectAuthConfig(),
+			requestRules = requestRules,
+			variants = variants,
+		)
+	}
 
-        return EndpointDocument(
-            id = id,
-            alias = alias,
-            description = parsed.description?.takeIf { it.isNotBlank() },
-            referenceName = referenceName,
-            method = parsed.method.uppercase(),
-            path = parsed.path,
-            tags = parsed.tags.ifEmpty { null },
-            auth = auth,
-            requestRules = requestRules,
-            variants = variants,
-        )
-    }
+	private fun buildEndpointIdentity(
+		parsed: ParsedEndpoint,
+		assignedEndpointReferenceNames: MutableList<String>,
+	): EndpointIdentity {
+		val id = endpointId(parsed.method, parsed.path)
+		val alias = parsed.alias?.takeIf { it.isNotBlank() }
+			?: defaultAliasForEndpoint(method = parsed.method, path = parsed.path)
+		val referenceName = suggestedEndpointReferenceName(
+			preferredSource = parsed.referenceName ?: alias,
+			fallbackId = id,
+			existingNames = assignedEndpointReferenceNames,
+		)
+		assignedEndpointReferenceNames += referenceName
+		return EndpointIdentity(id = id, alias = alias, referenceName = referenceName)
+	}
+
+	private fun buildEndpointVariants(responses: List<ParsedResponse>): List<ProjectVariant> {
+		val allResponses = deduplicateResponses(responses)
+		val defaultIndex = defaultVariantIndex(allResponses)
+		val assignedNames = mutableListOf<String>()
+		val assignedReferenceNames = mutableListOf<String>()
+		return allResponses.mapIndexed { index, response ->
+			val name = suggestedVariantName(
+				status = response.statusCode,
+				existingNames = assignedNames,
+				preferredName = response.name,
+			)
+			assignedNames += name
+			val referenceName = suggestedVariantReferenceName(
+				preferredSource = name,
+				status = response.statusCode,
+				existingNames = assignedReferenceNames,
+			)
+			assignedReferenceNames += referenceName
+			convertVariant(
+				resp = response,
+				name = name,
+				referenceName = referenceName,
+				isDefault = index == defaultIndex,
+			)
+		}
+	}
+
+	private fun defaultVariantIndex(responses: List<ParsedResponse>): Int {
+		if (responses.isEmpty()) return -1
+		return responses.indexOfFirst { it.name == "default" }.takeIf { it >= 0 }
+			?: responses.indexOfFirst { it.statusCode in 200..299 }.takeIf { it >= 0 }
+			?: 0
+	}
+
+	private fun ParsedEndpoint.toProjectAuthConfig(): ProjectAuthConfig? {
+		if (authType == AuthType.NONE) return null
+		return ProjectAuthConfig(
+			type = authType,
+			verify = true,
+			headerName = authHeaderName,
+		)
+	}
+
+	private data class EndpointIdentity(
+		val id: String,
+		val alias: String,
+		val referenceName: String,
+	)
 
     private fun convertVariant(
         resp: ParsedResponse,

@@ -49,3 +49,4 @@ Canonical note: This is the single source of truth for AI agent guidance in this
 - If behavior changes in desktop workflow wiring or shared UI state, add a focused desktop test for the new branch or helper; compile-only verification is not enough for new features.
 - Keep save/dirty invariants intact (`StudioState.isDirty`, `hasErrors`, `windowTitle`), since UI enablement depends on them.
 - When touching `.moqproj` persistence, preserve fixture migration/cleanup behavior in `ProjectRepository.save()`.
+- Do not add new `@Suppress` or `@file:Suppress` annotations just to satisfy Detekt, compile checks, pre-commit hooks, or commit-time verification. Refactor the code to satisfy the rule; if a suppression is truly unavoidable, stop and justify it explicitly instead of slipping it in during a fix.
