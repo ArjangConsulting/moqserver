@@ -404,7 +404,7 @@ class StudioRootViewModel(
     // -- Import workflow --
 
     fun startImport(spec: ParsedSpec, source: ImportSourceType, fileName: String) {
-        val entries = spec.endpoints.map { ImportEndpointEntry(endpoint = it, accepted = true) }
+		val entries = spec.endpoints.map(ImportEntryFactory::forNewImport)
         val projectName = spec.title.replace(Regex("[^a-zA-Z0-9 _-]"), "").trim().ifEmpty { "Imported API" }
         _state.update {
             it.copy(
@@ -415,6 +415,7 @@ class StudioRootViewModel(
                     entries = entries,
                     projectName = projectName,
                     mode = ImportMode.NewProject,
+                    updateSelection = UpdateSelection(),
                 ),
                 statusLine = "Import: ${spec.endpoints.size} endpoints found in $fileName",
             )
@@ -442,38 +443,13 @@ class StudioRootViewModel(
         val currentProject = _state.value.project ?: return
         val existingById = currentProject.endpoints.associateBy { it.id }
 
-        val entries = spec.endpoints.map { parsed ->
-            val id = ImportConverter.endpointId(parsed.method, parsed.path)
-            val existing = existingById[id]
-            when {
-                existing == null -> {
-                    val acceptedByDefault = id !in previouslyDeselectedIds
-                    ImportEndpointEntry(
-                        endpoint = parsed,
-                        accepted = acceptedByDefault,
-                        updateStatus = EndpointUpdateStatus.NEW,
-                    )
-                }
-                else -> {
-                    val diff = ImportConverter.diffEndpoint(parsed, existing)
-                    if (diff.hasChanges) {
-                        val acceptedByDefault = id !in previouslyDeselectedIds
-                        ImportEndpointEntry(
-                            endpoint = parsed,
-                            accepted = acceptedByDefault,
-                            updateStatus = EndpointUpdateStatus.CHANGED,
-                            specDiff = diff,
-                        )
-                    } else {
-                        ImportEndpointEntry(
-                            endpoint = parsed,
-                            accepted = false,
-                            updateStatus = EndpointUpdateStatus.UNCHANGED,
-                        )
-                    }
-                }
-            }
-        }
+		val entries = spec.endpoints.map { parsed ->
+			ImportEntryFactory.forUpdateImport(
+				parsed = parsed,
+				existing = existingById[ImportConverter.endpointId(parsed.method, parsed.path)],
+				previouslyDeselectedIds = previouslyDeselectedIds,
+			)
+		}
 
         val newCount = entries.count { it.updateStatus == EndpointUpdateStatus.NEW }
         val changedCount = entries.count { it.updateStatus == EndpointUpdateStatus.CHANGED }
@@ -488,6 +464,7 @@ class StudioRootViewModel(
                     entries = entries,
                     projectName = currentProject.manifest.name,
                     mode = ImportMode.UpdateExisting(currentProject),
+                    updateSelection = UpdateSelection(),
                 ),
                 statusLine = "Update: $newCount new, $changedCount changed, $unchangedCount unchanged endpoint(s) in $fileName",
             )
@@ -523,11 +500,19 @@ class StudioRootViewModel(
 
     fun importAIGenerationCompleted(index: Int, generatedResponses: List<ParsedResponse>) {
         val importState = _state.value.importState ?: return
-        val entries = importState.entries.toMutableList()
-        if (index !in entries.indices) return
-        val endpoint = entries[index].endpoint
-        entries[index] = entries[index].copy(
-            generatedResponses = generatedResponses,
+		val entries = importState.entries.toMutableList()
+		if (index !in entries.indices) return
+		val endpoint = entries[index].endpoint
+		val existingVariants = existingImportVariants(importState, endpoint.method, endpoint.path)
+		val normalizedResponses = ImportEntryFactory.renameResponses(
+			generatedResponses,
+			existingVariants = existingVariants + endpoint.responses.map {
+				ProjectVariant(name = it.name, status = it.statusCode)
+			},
+			preferExistingNamesByStatus = false,
+		)
+		entries[index] = entries[index].copy(
+			generatedResponses = normalizedResponses.responses,
             aiGenerationLoading = false,
             aiGenerationError = null,
         )
@@ -619,9 +604,37 @@ class StudioRootViewModel(
         _state.update { it.copy(importState = importState.copy(entries = entries)) }
     }
 
+	fun updateImportResponseName(index: Int, responseIndex: Int, name: String) {
+		val importState = _state.value.importState ?: return
+		val entries = importState.entries.toMutableList()
+		if (index !in entries.indices) return
+		val entry = entries[index]
+		val existingVariants = existingImportVariants(importState, entry.endpoint.method, entry.endpoint.path)
+		val responses = entry.endpoint.responses.toMutableList()
+		if (responseIndex !in responses.indices) return
+		responses[responseIndex] = responses[responseIndex].copy(name = name)
+		val renormalizedResponses = ImportEntryFactory.renameResponses(
+			responses,
+			existingVariants = existingVariants,
+			preferExistingNamesByStatus = false,
+		)
+		entries[index] = entry.copy(
+			endpoint = entry.endpoint.withResponses(renormalizedResponses.responses),
+			lockedResponseIndices = renormalizedResponses.lockedResponseIndices,
+		)
+		_state.update { it.copy(importState = importState.copy(entries = entries)) }
+	}
+
+	fun updateImportSelection(selection: UpdateSelection) {
+		val importState = _state.value.importState ?: return
+		_state.update { it.copy(importState = importState.copy(updateSelection = selection)) }
+	}
+
     fun confirmImport(projectPath: String): MoqProject? {
         val importState = _state.value.importState ?: return null
-        val acceptedEntries = importState.entries.filter { it.accepted }
+        val acceptedEntries = importState.entries.filter {
+			it.isEffectivelyAccepted(importState.updateSelection, importState.isUpdateMode)
+		}
         if (acceptedEntries.isEmpty()) return null
 
         val project = when (val mode = importState.mode) {
@@ -634,6 +647,7 @@ class StudioRootViewModel(
             is ImportMode.UpdateExisting -> ImportConverter.merge(
                 existingProject = mode.existingProject.copy(projectPath = mode.existingProject.projectPath),
                 acceptedEntries = acceptedEntries,
+				updateSelection = importState.updateSelection,
             )
         }
 
@@ -670,6 +684,16 @@ class StudioRootViewModel(
     fun cancelImport() {
         _state.update { it.copy(importState = null, statusLine = "Import cancelled.") }
     }
+
+	private fun existingImportVariants(
+		importState: ImportState,
+		method: String,
+		path: String,
+	): List<ProjectVariant> {
+		val existingProject = (importState.mode as? ImportMode.UpdateExisting)?.existingProject ?: return emptyList()
+		val endpointId = ImportConverter.endpointId(method, path)
+		return existingProject.endpoints.firstOrNull { it.id == endpointId }?.variants.orEmpty()
+	}
 }
 
 data class StudioState(

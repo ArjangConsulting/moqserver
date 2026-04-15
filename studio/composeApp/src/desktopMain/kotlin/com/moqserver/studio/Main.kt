@@ -1,5 +1,7 @@
 package com.moqserver.studio
 
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.material3.Surface
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -7,6 +9,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.KeyShortcut
@@ -16,11 +19,13 @@ import androidx.compose.ui.input.key.isShiftPressed
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.DialogWindow
 import androidx.compose.ui.window.MenuBar
 import androidx.compose.ui.window.Window
 import androidx.compose.ui.window.WindowPlacement
 import androidx.compose.ui.window.WindowPosition
 import androidx.compose.ui.window.application
+import androidx.compose.ui.window.rememberDialogState
 import androidx.compose.ui.window.rememberWindowState
 import com.moqserver.studio.data.AISettingsRepository
 import com.moqserver.studio.data.ImportHistoryRepository
@@ -658,40 +663,40 @@ fun main(args: Array<String>) {
                             }
                         }
                     }
-                    Separator()
-					Item("Import OpenAPI", onClick = ::requestImportOpenAPI)
-					Item("Import Swagger", onClick = ::requestImportSwagger)
-					Item("Import OpenAPI URL", onClick = ::requestImportOpenAPIURL)
-					Item("Import Swagger URL", onClick = ::requestImportSwaggerURL)
-					Item("Import HAR", onClick = ::requestImportHAR)
+					Separator()
+					Menu("Update", enabled = state.project != null) {
+						Menu("From File") {
+							Item(
+								"OpenAPI",
+								enabled = state.project != null,
+								onClick = { requestUpdateFromSpecFile(SpecFileImportMode.OPENAPI) },
+							)
+							Item(
+								"Swagger",
+								enabled = state.project != null,
+								onClick = { requestUpdateFromSpecFile(SpecFileImportMode.SWAGGER) },
+							)
+							Item(
+								"HAR",
+								enabled = state.project != null,
+								onClick = ::requestUpdateFromHAR,
+							)
+						}
+						Menu("From URL") {
+							Item(
+								"OpenAPI",
+								enabled = state.project != null,
+								onClick = ::requestUpdateOpenAPIURL,
+							)
+							Item(
+								"Swagger",
+								enabled = state.project != null,
+								onClick = ::requestUpdateSwaggerURL,
+							)
+						}
+					}
 					Separator()
 					Item(
-						"Update from OpenAPI",
-						enabled = state.project != null,
-						onClick = { requestUpdateFromSpecFile(SpecFileImportMode.OPENAPI) },
-					)
-					Item(
-						"Update from Swagger",
-						enabled = state.project != null,
-						onClick = { requestUpdateFromSpecFile(SpecFileImportMode.SWAGGER) },
-					)
-					Item(
-						"Update from OpenAPI URL",
-						enabled = state.project != null,
-						onClick = ::requestUpdateOpenAPIURL,
-					)
-					Item(
-						"Update from Swagger URL",
-						enabled = state.project != null,
-						onClick = ::requestUpdateSwaggerURL,
-					)
-					Item(
-						"Update from HAR",
-						enabled = state.project != null,
-						onClick = ::requestUpdateFromHAR,
-					)
-                    Separator()
-                    Item(
                         "Generate Client Code...",
                         enabled = state.project != null,
                         onClick = {
@@ -728,127 +733,18 @@ fun main(args: Array<String>) {
             }
 
             StudioTheme(themeMode = themeMode.value) {
-				App(
-					appViewModel = appViewModel,
-					themeMode = themeMode.value,
-					onOpenProject = ::requestOpenProject,
-					onImportOpenAPI = ::requestImportOpenAPI,
-					onImportSwagger = ::requestImportSwagger,
-					onImportOpenAPIURL = ::requestImportOpenAPIURL,
-					onImportSwaggerURL = ::requestImportSwaggerURL,
-					onImportHAR = ::requestImportHAR,
-                    onGenerateImportEndpointMocks = { index ->
-                        scope.launch(exceptionHandler) {
-                            generateImportMocksForEndpoint(
-                                index = index,
-                                registry = aiRegistry,
-                                viewModel = appViewModel,
-                                ioDispatcher = Dispatchers.IO,
-                            )
-                        }
-                    },
-                    onGenerateImportMocksForAll = {
-                        scope.launch(exceptionHandler) {
-                            generateImportMocksForAcceptedEndpoints(
-                                registry = aiRegistry,
-                                viewModel = appViewModel,
-                                ioDispatcher = Dispatchers.IO,
-                            )
-                        }
-                    },
-                    onRefreshAIProviders = {
-                        scope.launch(exceptionHandler) {
-                            refreshAIProviders(aiRegistry, appViewModel, Dispatchers.IO)
-                        }
-                    },
-                    onSelectAIProvider = { providerId ->
-                        appViewModel.selectProvider(providerId)
-                    },
-                    onOpenRecentProject = ::requestOpenRecentProject,
-                    onRemoveRecentProject = ::removeRecentProject,
-                    onConfirmImport = {
-                        scope.launch(exceptionHandler) {
-                            val importState = appViewModel.state.value.importState ?: return@launch
-                            logger.debug(
-                                "User confirming import: source={}, accepted={}/{}",
-                                importState.sourceFileName,
-                                importState.entries.count { it.accepted },
-                                importState.entries.size,
-                            )
-
-                            // For update-mode imports, collect deselected IDs before confirm clears the state
-                            val isUpdateMode = importState.isUpdateMode
-                            val existingProjectPath = (importState.mode as? ImportMode.UpdateExisting)
-                                ?.existingProject?.projectPath
-
-                            if (isUpdateMode) {
-                                // Update-mode: save into the existing project path (no directory picker).
-                                // Capture deselected IDs from importState BEFORE confirmImport clears it.
-                                val deselectedIds = importState.entries
-                                    .filter {
-                                        !it.accepted &&
-                                            it.updateStatus != EndpointUpdateStatus.UNCHANGED
-                                    }
-                                    .map {
-                                        ImportConverter.endpointId(
-                                            it.endpoint.method,
-                                            it.endpoint.path,
-                                        )
-                                    }
-                                    .toSet()
-                                val project = appViewModel.confirmImport(
-                                    existingProjectPath ?: importState.parsedSpec.title,
-                                ) ?: return@launch
-                                val projectPath = project.projectPath
-                                withContext(Dispatchers.IO) {
-                                    importHistoryRepo.saveDeselected(projectPath, deselectedIds)
-                                    repo.save(project, projectPath)
-                                }
-                                appViewModel.projectSaved(projectPath)
-                                appViewModel.addRecentProject(projectPath)
-                                withContext(Dispatchers.IO) {
-                                    recentProjectsRepo.save(appViewModel.state.value.recentProjects)
-                                }
-                                logger.info(
-                                    "Update import complete: {} endpoint(s) in {}",
-                                    project.endpoints.size,
-                                    projectPath,
-                                )
-                            } else {
-                                // New-project import: pick a save directory
-                                val path = chooseProjectDirectory(
-                                    parent = window,
-                                    title = "Import Project",
-                                    initialDirectory = lastFileDirectory.value,
-                                    projectName = importState.projectName,
-                                )
-                                    ?: run { logger.debug("Import save dialog cancelled"); return@launch }
-                                logger.info("Saving imported project '{}' to: {}", importState.projectName, path)
-                                try {
-                                    val project = appViewModel.confirmImport(path) ?: return@launch
-                                    withContext(Dispatchers.IO) { repo.save(project, path) }
-                                    appViewModel.projectSaved(path)
-                                    appViewModel.addRecentProject(path)
-                                    withContext(Dispatchers.IO) {
-                                        recentProjectsRepo.save(appViewModel.state.value.recentProjects)
-                                    }
-                                    lastFileDirectory.value = File(path).parentFile?.canonicalPath ?: path
-                                    logger.info(
-                                        "Import complete: {} endpoint(s) saved to {}",
-                                        project.endpoints.size,
-                                        path,
-                                    )
-                                } catch (e: Exception) {
-                                    reportRecoverable(
-                                        context = "Failed to save imported project",
-                                        throwable = e,
-                                        onUserMessage = appViewModel::setError,
-                                    )
-                                }
-                            }
-                        }
-                    },
-                    onAIAction = { action ->
+					App(
+						appViewModel = appViewModel,
+						themeMode = themeMode.value,
+						onOpenProject = { requestOpenProject() },
+						onImportOpenAPI = { requestImportOpenAPI() },
+						onImportSwagger = { requestImportSwagger() },
+						onImportOpenAPIURL = { requestImportOpenAPIURL() },
+						onImportSwaggerURL = { requestImportSwaggerURL() },
+						onImportHAR = { requestImportHAR() },
+						onOpenRecentProject = { path -> requestOpenRecentProject(path) },
+						onRemoveRecentProject = { path -> removeRecentProject(path) },
+						onAIAction = { action ->
                         scope.launch(exceptionHandler) {
                             executeAIAction(action, aiRegistry, appViewModel, Dispatchers.IO)
                         }
@@ -897,8 +793,8 @@ fun main(args: Array<String>) {
                     },
                 )
 
-                if (showImportURLDialog.value) {
-                    ImportFromURLDialog(
+            if (showImportURLDialog.value) {
+                ImportFromURLDialog(
                         state = importURLState.value,
                         onUrlChange = { importURLState.value = importURLState.value.copy(url = it, error = null) },
                         onAuthTypeChange = { importURLState.value = importURLState.value.copy(authType = it) },
@@ -916,6 +812,155 @@ fun main(args: Array<String>) {
                         },
                     )
                 }
+
+				val importState = state.importState
+				if (importState != null) {
+					DialogWindow(
+						onCloseRequest = { appViewModel.cancelImport() },
+						title = if (importState.isUpdateMode) "Update Review" else "Import Review",
+						state = rememberDialogState(width = 1120.dp, height = 820.dp),
+						resizable = true,
+					) {
+						window.isModal = true
+						StudioTheme(themeMode = themeMode.value) {
+							Surface(modifier = Modifier.fillMaxSize()) {
+								ImportReviewScreen(
+									state = importState,
+									aiProviders = state.ai.providers,
+									aiProvidersLoading = state.ai.loading,
+									canGenerateWithAi = state.ai.selectedProvider
+										?.takeIf { it.available }
+										?.capabilities
+										?.contains("GENERATE_VARIANTS")
+										== true,
+									selectedAIProviderId = state.ai.selectedProviderId,
+									aiProviderLabel = state.ai.selectedProvider?.displayName,
+									onRefreshAIProviders = {
+										scope.launch(exceptionHandler) {
+											refreshAIProviders(aiRegistry, appViewModel, Dispatchers.IO)
+										}
+									},
+									onSelectAIProvider = { providerId -> appViewModel.selectProvider(providerId) },
+									onToggleEndpoint = { index -> appViewModel.toggleImportEndpoint(index) },
+									onSetGroupAccepted = { indices, accepted ->
+										val entries = importState.entries
+										indices.forEach { index ->
+											if (entries[index].accepted != accepted) {
+												appViewModel.toggleImportEndpoint(index)
+											}
+										}
+									},
+									onSelectAll = { appViewModel.setAllImportEndpoints(true) },
+									onDeselectAll = { appViewModel.setAllImportEndpoints(false) },
+									onUpdateProjectName = { appViewModel.updateImportProjectName(it) },
+									onUpdateSelection = { appViewModel.updateImportSelection(it) },
+									onUpdateResponseName = { entryIndex, responseIndex, name ->
+										appViewModel.updateImportResponseName(entryIndex, responseIndex, name)
+									},
+									onUpdateEndpointAIContextHint = { index, hint ->
+										appViewModel.updateImportAIContextHint(index, hint)
+									},
+									onGenerateEndpointMocks = { index ->
+										scope.launch(exceptionHandler) {
+											generateImportMocksForEndpoint(
+												index = index,
+												registry = aiRegistry,
+												viewModel = appViewModel,
+												ioDispatcher = Dispatchers.IO,
+											)
+										}
+									},
+									onGenerateAllMocks = {
+										scope.launch(exceptionHandler) {
+											generateImportMocksForAcceptedEndpoints(
+												registry = aiRegistry,
+												viewModel = appViewModel,
+												ioDispatcher = Dispatchers.IO,
+											)
+										}
+									},
+									onConfirm = {
+									scope.launch(exceptionHandler) {
+										val currentImportState = appViewModel.state.value.importState ?: return@launch
+										logger.debug(
+											"User confirming import: source={}, accepted={}/{}",
+											currentImportState.sourceFileName,
+											currentImportState.entries.count { it.accepted },
+											currentImportState.entries.size,
+										)
+
+										val isUpdateMode = currentImportState.isUpdateMode
+										val existingProjectPath = (currentImportState.mode as? ImportMode.UpdateExisting)
+											?.existingProject?.projectPath
+
+										if (isUpdateMode) {
+											val deselectedIds = currentImportState.entries
+												.filter {
+													!it.accepted &&
+														it.updateStatus != EndpointUpdateStatus.UNCHANGED
+												}
+												.map {
+													ImportConverter.endpointId(it.endpoint.method, it.endpoint.path)
+												}
+												.toSet()
+											val project = appViewModel.confirmImport(
+												existingProjectPath ?: currentImportState.parsedSpec.title,
+											) ?: return@launch
+											val projectPath = project.projectPath
+											withContext(Dispatchers.IO) {
+												importHistoryRepo.saveDeselected(projectPath, deselectedIds)
+												repo.save(project, projectPath)
+											}
+											appViewModel.projectSaved(projectPath)
+											appViewModel.addRecentProject(projectPath)
+											withContext(Dispatchers.IO) {
+												recentProjectsRepo.save(appViewModel.state.value.recentProjects)
+											}
+											logger.info(
+												"Update import complete: {} endpoint(s) in {}",
+												project.endpoints.size,
+												projectPath,
+											)
+										} else {
+											val path = chooseProjectDirectory(
+												parent = window,
+												title = "Import Project",
+												initialDirectory = lastFileDirectory.value,
+												projectName = currentImportState.projectName,
+											)
+												?: run { logger.debug("Import save dialog cancelled"); return@launch }
+											logger.info("Saving imported project '{}' to: {}", currentImportState.projectName, path)
+											try {
+												val project = appViewModel.confirmImport(path) ?: return@launch
+												withContext(Dispatchers.IO) { repo.save(project, path) }
+												appViewModel.projectSaved(path)
+												appViewModel.addRecentProject(path)
+												withContext(Dispatchers.IO) {
+													recentProjectsRepo.save(appViewModel.state.value.recentProjects)
+												}
+												lastFileDirectory.value = File(path).parentFile?.canonicalPath ?: path
+												logger.info(
+													"Import complete: {} endpoint(s) saved to {}",
+													project.endpoints.size,
+													path,
+												)
+											} catch (e: Exception) {
+												reportRecoverable(
+													context = "Failed to save imported project",
+													throwable = e,
+													onUserMessage = appViewModel::setError,
+												)
+											}
+										}
+									}
+									},
+									onCancel = { appViewModel.cancelImport() },
+									modifier = Modifier.fillMaxSize(),
+								)
+							}
+						}
+					}
+				}
             }
         }
 

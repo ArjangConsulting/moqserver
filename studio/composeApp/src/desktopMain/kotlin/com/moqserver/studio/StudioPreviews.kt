@@ -206,6 +206,8 @@ private fun ImportReviewPreview() {
             onSelectAll = {},
             onDeselectAll = {},
             onUpdateProjectName = {},
+			onUpdateSelection = {},
+			onUpdateResponseName = { _, _, _ -> },
             onUpdateEndpointAIContextHint = { _, _ -> },
             onGenerateEndpointMocks = {},
             onGenerateAllMocks = {},

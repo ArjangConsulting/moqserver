@@ -44,7 +44,7 @@ class ImportConverterUpdateTest {
 		authType: AuthType = AuthType.NONE,
 		requiredHeaders: List<String> = emptyList(),
 		tags: List<String>? = null,
-		userBody: YamlValue? = YamlValue.Str("user-edited"),
+		userBody: YamlValue? = YamlValue.Obj(mapOf("spec" to YamlValue.Str("value"))),
 	): EndpointDocument {
 		val id = ImportConverter.endpointId(method, path)
 		return EndpointDocument(
@@ -157,14 +157,14 @@ class ImportConverterUpdateTest {
 	}
 
 	@Test
-	fun `diffEndpoint does not flag body changes as spec changes`() {
-		// User edited the body — diff should still report no changes for spec-owned fields
+	fun `diffEndpoint flags body changes as updateable body changes`() {
 		val existing = makeEndpoint(statusCodes = listOf(200), userBody = YamlValue.Str("user has edited this body"))
-		val parsed = parsedEndpoint(statusCodes = listOf(200)) // spec has different body, but we don't compare it
+		val parsed = parsedEndpoint(statusCodes = listOf(200))
 
 		val diff = ImportConverter.diffEndpoint(parsed, existing)
 
-		assertFalse(diff.hasChanges) // Body changes are user-owned, not detected
+		assertTrue(diff.hasChanges)
+		assertTrue(diff.responseBodyChanged)
 	}
 
 	// ---------- merge tests ----------
@@ -182,7 +182,11 @@ class ImportConverterUpdateTest {
 			),
 		)
 
-		val result = ImportConverter.merge(existingProject = project, acceptedEntries = entries)
+		val result = ImportConverter.merge(
+			existingProject = project,
+			acceptedEntries = entries,
+			updateSelection = UpdateSelection(body = true),
+		)
 
 		assertEquals(2, result.endpoints.size)
 		val ids = result.endpoints.map { it.id }
@@ -197,7 +201,11 @@ class ImportConverterUpdateTest {
 		val project = makeProject(makeEndpoint(path = "/items"))
 		val entries = emptyList<ImportEndpointEntry>() // caller filtered out the rejected /users entry
 
-		val result = ImportConverter.merge(existingProject = project, acceptedEntries = entries)
+		val result = ImportConverter.merge(
+			existingProject = project,
+			acceptedEntries = entries,
+			updateSelection = UpdateSelection(body = true),
+		)
 
 		assertEquals(1, result.endpoints.size)
 		assertEquals("get-items", result.endpoints.single().id)
@@ -214,7 +222,11 @@ class ImportConverterUpdateTest {
 			),
 		)
 
-		val result = ImportConverter.merge(existingProject = project, acceptedEntries = entries)
+		val result = ImportConverter.merge(
+			existingProject = project,
+			acceptedEntries = entries,
+			updateSelection = UpdateSelection(body = true),
+		)
 
 		// Endpoint unchanged and not accepted — stays as-is with 1 variant
 		assertEquals(1, result.endpoints.size)
@@ -238,7 +250,11 @@ class ImportConverterUpdateTest {
 			),
 		)
 
-		val result = ImportConverter.merge(existingProject = project, acceptedEntries = entries)
+		val result = ImportConverter.merge(
+			existingProject = project,
+			acceptedEntries = entries,
+			updateSelection = UpdateSelection(body = true),
+		)
 
 		assertEquals(1, result.endpoints.size)
 		val ep = result.endpoints.single()
@@ -246,7 +262,7 @@ class ImportConverterUpdateTest {
 		assertEquals(3, ep.variants.size)
 		// Original 200 variant body must be preserved unchanged
 		val v200 = ep.variants.find { it.status == 200 }
-		assertEquals(userBody, v200?.body, "User-authored body must not be overwritten by merge")
+		assertTrue(v200?.body != null, "Existing variant should remain present after body-enabled merge")
 		// New 201 and 500 variants must exist
 		assertTrue(ep.variants.any { it.status == 201 })
 		assertTrue(ep.variants.any { it.status == 500 })
@@ -268,7 +284,11 @@ class ImportConverterUpdateTest {
 			),
 		)
 
-		val result = ImportConverter.merge(existingProject = project, acceptedEntries = entries)
+		val result = ImportConverter.merge(
+			existingProject = project,
+			acceptedEntries = entries,
+			updateSelection = UpdateSelection(body = true),
+		)
 
 		assertEquals(AuthType.BEARER, result.endpoints.single().auth?.type)
 	}
@@ -292,7 +312,11 @@ class ImportConverterUpdateTest {
 			),
 		)
 
-		val result = ImportConverter.merge(existingProject = project, acceptedEntries = entries)
+		val result = ImportConverter.merge(
+			existingProject = project,
+			acceptedEntries = entries,
+			updateSelection = UpdateSelection(body = true),
+		)
 
 		val ep = result.endpoints.single()
 		assertEquals("My Custom Alias", ep.alias, "Alias must be preserved from existing endpoint")
@@ -457,6 +481,12 @@ class ImportConverterUpdateTest {
 	}
 
 	@Test
+	fun `summary includes response bodies changed`() {
+		val diff = EndpointSpecDiff(responseBodyChanged = true)
+		assertTrue(diff.summary().contains("response bodies changed"))
+	}
+
+	@Test
 	fun `summary combines multiple changes with semicolon`() {
 		val diff = EndpointSpecDiff(
 			newStatusCodes = setOf(201),
@@ -542,9 +572,38 @@ class ImportConverterUpdateTest {
 			),
 		)
 
-		val result = ImportConverter.merge(existingProject = project, acceptedEntries = entries)
+		val result = ImportConverter.merge(
+			existingProject = project,
+			acceptedEntries = entries,
+			updateSelection = UpdateSelection(body = true),
+		)
 
 		assertFalse(result.endpoints.single().requestRules?.headers.isNullOrEmpty())
+	}
+
+	@Test
+	fun `merge skips details changes when details update is disabled`() {
+		val existing = makeEndpoint(path = "/items", requiredHeaders = emptyList())
+		val project = makeProject(existing)
+
+		val newSpec = parsedEndpoint(path = "/items", requiredHeaders = listOf("X-Api-Key"))
+		val diff = ImportConverter.diffEndpoint(newSpec, existing)
+		val entries = listOf(
+			ImportEndpointEntry(
+				endpoint = newSpec,
+				accepted = true,
+				updateStatus = EndpointUpdateStatus.CHANGED,
+				specDiff = diff,
+			),
+		)
+
+		val result = ImportConverter.merge(
+			existingProject = project,
+			acceptedEntries = entries,
+			updateSelection = UpdateSelection(details = false),
+		)
+
+		assertTrue(result.endpoints.single().requestRules?.headers.isNullOrEmpty())
 	}
 
 	@Test
@@ -563,7 +622,11 @@ class ImportConverterUpdateTest {
 			),
 		)
 
-		val result = ImportConverter.merge(existingProject = project, acceptedEntries = entries)
+		val result = ImportConverter.merge(
+			existingProject = project,
+			acceptedEntries = entries,
+			updateSelection = UpdateSelection(body = true),
+		)
 
 		assertEquals(listOf("new-tag", "another"), result.endpoints.single().tags)
 	}
@@ -584,7 +647,11 @@ class ImportConverterUpdateTest {
 			),
 		)
 
-		val result = ImportConverter.merge(existingProject = project, acceptedEntries = entries)
+		val result = ImportConverter.merge(
+			existingProject = project,
+			acceptedEntries = entries,
+			updateSelection = UpdateSelection(body = true),
+		)
 
 		// tags changed to empty → stored as null
 		assertNull(result.endpoints.single().tags)
@@ -608,10 +675,99 @@ class ImportConverterUpdateTest {
 			),
 		)
 
-		val result = ImportConverter.merge(existingProject = project, acceptedEntries = entries)
+		val result = ImportConverter.merge(
+			existingProject = project,
+			acceptedEntries = entries,
+			updateSelection = UpdateSelection(body = true),
+		)
 
 		// The AI-generated 422 should be added to the merged endpoint
 		assertTrue(result.endpoints.single().variants.any { it.status == 422 })
+	}
+
+	@Test
+	fun `merge updates existing response body when body update is enabled`() {
+		val existing = makeEndpoint(path = "/items", statusCodes = listOf(200), userBody = YamlValue.Str("old"))
+		val project = makeProject(existing)
+
+		val newSpec = ParsedEndpoint(
+			method = "GET",
+			path = "/items",
+			responses = listOf(ParsedResponse(name = "ok", statusCode = 200, body = "{\"spec\":\"new\"}")),
+		)
+		val diff = ImportConverter.diffEndpoint(newSpec, existing)
+		val entries = listOf(
+			ImportEndpointEntry(
+				endpoint = newSpec,
+				accepted = true,
+				updateStatus = EndpointUpdateStatus.CHANGED,
+				specDiff = diff,
+			),
+		)
+
+		val result = ImportConverter.merge(
+			existingProject = project,
+			acceptedEntries = entries,
+			updateSelection = UpdateSelection(body = true),
+		)
+
+		assertEquals(
+			"new",
+			(result.endpoints.single().variants.single().body as YamlValue.Obj).value["spec"]?.let {
+				(it as YamlValue.Str).value
+			},
+		)
+	}
+
+	@Test
+	fun `merge preserves existing response body when body update is disabled`() {
+		val existing = makeEndpoint(path = "/items", statusCodes = listOf(200), userBody = YamlValue.Str("old"))
+		val project = makeProject(existing)
+
+		val newSpec = ParsedEndpoint(
+			method = "GET",
+			path = "/items",
+			responses = listOf(ParsedResponse(name = "ok", statusCode = 200, body = "{\"spec\":\"new\"}")),
+		)
+		val diff = ImportConverter.diffEndpoint(newSpec, existing)
+		val entries = listOf(
+			ImportEndpointEntry(
+				endpoint = newSpec,
+				accepted = true,
+				updateStatus = EndpointUpdateStatus.CHANGED,
+				specDiff = diff,
+			),
+		)
+
+		val result = ImportConverter.merge(
+			existingProject = project,
+			acceptedEntries = entries,
+			updateSelection = UpdateSelection(body = false),
+		)
+
+		assertEquals(YamlValue.Str("old"), result.endpoints.single().variants.single().body)
+	}
+
+	@Test
+	fun `merge skips new endpoints when url update is disabled`() {
+		val project = makeProject(makeEndpoint(path = "/items"))
+		val newEndpoint = parsedEndpoint(path = "/users")
+		val entries = listOf(
+			ImportEndpointEntry(
+				endpoint = newEndpoint,
+				accepted = true,
+				updateStatus = EndpointUpdateStatus.NEW,
+			),
+		)
+
+		val result = ImportConverter.merge(
+			existingProject = project,
+			acceptedEntries = entries,
+			updateSelection = UpdateSelection(url = false),
+		)
+
+		assertEquals(1, result.endpoints.size)
+		assertTrue(result.endpoints.none { it.path == "/users" })
 	}
 
 	@Test

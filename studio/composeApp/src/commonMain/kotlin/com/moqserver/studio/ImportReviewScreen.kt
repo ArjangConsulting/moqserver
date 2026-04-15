@@ -57,8 +57,11 @@ import com.moqserver.studio.domain.ImportEndpointEntry
 import com.moqserver.studio.domain.ImportSourceType
 import com.moqserver.studio.domain.ImportState
 import com.moqserver.studio.domain.ProviderKind
+import com.moqserver.studio.domain.UpdateSelection
 import com.moqserver.studio.projectformat.AuthType
 import com.moqserver.studio.ui.MethodBadge
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonElement
 
 private object ImportReviewStrings {
 	const val IMPORT_OPENAPI = "Import OpenAPI Spec"
@@ -108,6 +111,24 @@ private object ImportReviewStrings {
 	const val UPDATE_SUMMARY_NEW = "new"
 	const val UPDATE_SUMMARY_CHANGED = "changed"
 	const val UPDATE_SUMMARY_UNCHANGED = "unchanged"
+	const val UPDATE_PARTS = "Update Parts"
+	const val UPDATE_PARTS_HELP =
+		"Choose what to apply from this source. URL adds newly discovered endpoints, " +
+			"Details updates metadata and request rules, and Body updates response content and variants."
+	const val UPDATE_PART_URL = "URL"
+	const val UPDATE_PART_DETAILS = "Details"
+	const val UPDATE_PART_BODY = "Body"
+	const val VARIANT_NAME = "Variant name"
+	const val EXISTING_VARIANT_NAME = "Existing variant name"
+	const val VARIANT_BODY = "Body"
+	const val SHOW_BODY = "Show Body"
+	const val HIDE_BODY = "Hide Body"
+	const val BINARY_BODY_PLACEHOLDER = "Binary content preview unavailable"
+}
+
+private val bodyPreviewJson = Json {
+	prettyPrint = true
+	prettyPrintIndent = "  "
 }
 
 @Composable
@@ -125,6 +146,8 @@ fun ImportReviewScreen(
 	onSelectAll: () -> Unit,
 	onDeselectAll: () -> Unit,
 	onUpdateProjectName: (String) -> Unit,
+	onUpdateSelection: (UpdateSelection) -> Unit,
+	onUpdateResponseName: (Int, Int, String) -> Unit,
 	onUpdateEndpointAIContextHint: (Int, String) -> Unit,
 	onGenerateEndpointMocks: (Int) -> Unit,
 	onGenerateAllMocks: () -> Unit,
@@ -197,7 +220,15 @@ fun ImportReviewScreen(
             )
         }
 
-        Spacer(Modifier.height(StudioDimens.xl))
+		Spacer(Modifier.height(StudioDimens.xl))
+
+		if (isUpdateMode) {
+			UpdateSelectionCard(
+				selection = state.updateSelection,
+				onSelectionChange = onUpdateSelection,
+			)
+			Spacer(Modifier.height(StudioDimens.l))
+		}
 
         // Warnings
         if (state.warnings.isNotEmpty()) {
@@ -245,7 +276,7 @@ fun ImportReviewScreen(
             Spacer(Modifier.height(StudioDimens.xl))
         }
 
-        if (state.source == ImportSourceType.OPENAPI) {
+		if (state.source == ImportSourceType.OPENAPI) {
             val selectableProviders = aiProviders.filter { it.available }
             Card(
                 colors = CardDefaults.cardColors(
@@ -340,10 +371,10 @@ fun ImportReviewScreen(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Text(
-                "${state.acceptedCount} of ${state.totalCount} endpoints selected",
-                style = MaterialTheme.typography.titleSmall,
-            )
+			Text(
+				"${state.effectiveAcceptedCount} of ${state.totalCount} endpoints selected",
+				style = MaterialTheme.typography.titleSmall,
+			)
                         Row(horizontalArrangement = Arrangement.spacedBy(StudioDimens.m)) {
                 TextButton(onClick = onSelectAll) { Text(ImportReviewStrings.SELECT_ALL) }
                 TextButton(onClick = onDeselectAll) { Text(ImportReviewStrings.DESELECT_ALL) }
@@ -398,6 +429,7 @@ fun ImportReviewScreen(
 							bulkGenerationRunning = state.aiBulkState.running,
 							isUpdateMode = isUpdateMode,
 							onToggle = { onToggleEndpoint(index) },
+							onUpdateResponseName = { responseIndex, name -> onUpdateResponseName(index, responseIndex, name) },
 							onAIClick = { singleEndpointDialogIndex = index },
 							modifier = Modifier.padding(start = 28.dp),
 						)
@@ -420,14 +452,75 @@ fun ImportReviewScreen(
                 Text(ImportReviewStrings.CANCEL)
             }
             Spacer(Modifier.width(StudioDimens.m))
-            Button(
-                onClick = onConfirm,
-                enabled = state.acceptedCount > 0 && state.projectName.isNotBlank(),
-            ) {
-                Text(if (isUpdateMode) ImportReviewStrings.UPDATE else ImportReviewStrings.IMPORT)
-            }
+			Button(
+				onClick = onConfirm,
+				enabled = state.effectiveAcceptedCount > 0 && state.projectName.isNotBlank() &&
+					(!isUpdateMode || state.updateSelection.hasEnabledParts),
+			) {
+				Text(if (isUpdateMode) ImportReviewStrings.UPDATE else ImportReviewStrings.IMPORT)
+			}
         }
     }
+}
+
+@Composable
+private fun UpdateSelectionCard(
+	selection: UpdateSelection,
+	onSelectionChange: (UpdateSelection) -> Unit,
+) {
+	Card(
+		colors = CardDefaults.cardColors(
+			containerColor = MaterialTheme.colorScheme.surfaceVariant,
+		),
+		modifier = Modifier.fillMaxWidth(),
+	) {
+		Column(
+			modifier = Modifier.padding(StudioDimens.l),
+			verticalArrangement = Arrangement.spacedBy(StudioDimens.s),
+		) {
+			Text(
+				text = ImportReviewStrings.UPDATE_PARTS,
+				style = MaterialTheme.typography.titleSmall,
+			)
+			Text(
+				text = ImportReviewStrings.UPDATE_PARTS_HELP,
+				style = MaterialTheme.typography.bodySmall,
+				color = MaterialTheme.colorScheme.onSurfaceVariant,
+			)
+			Row(horizontalArrangement = Arrangement.spacedBy(StudioDimens.l)) {
+				UpdateSelectionToggle(
+					label = ImportReviewStrings.UPDATE_PART_URL,
+					checked = selection.url,
+					onCheckedChange = { onSelectionChange(selection.copy(url = it)) },
+				)
+				UpdateSelectionToggle(
+					label = ImportReviewStrings.UPDATE_PART_DETAILS,
+					checked = selection.details,
+					onCheckedChange = { onSelectionChange(selection.copy(details = it)) },
+				)
+				UpdateSelectionToggle(
+					label = ImportReviewStrings.UPDATE_PART_BODY,
+					checked = selection.body,
+					onCheckedChange = { onSelectionChange(selection.copy(body = it)) },
+				)
+			}
+		}
+	}
+}
+
+@Composable
+private fun UpdateSelectionToggle(
+	label: String,
+	checked: Boolean,
+	onCheckedChange: (Boolean) -> Unit,
+) {
+	Row(
+		verticalAlignment = Alignment.CenterVertically,
+		horizontalArrangement = Arrangement.spacedBy(StudioDimens.xs),
+	) {
+		Checkbox(checked = checked, onCheckedChange = onCheckedChange)
+		Text(label, style = MaterialTheme.typography.bodyMedium)
+	}
 }
 
 private fun importGroupLabel(entry: ImportEndpointEntry): String {
@@ -557,6 +650,7 @@ private fun ImportEndpointRow(
 	bulkGenerationRunning: Boolean,
 	isUpdateMode: Boolean,
 	onToggle: () -> Unit,
+	onUpdateResponseName: (Int, String) -> Unit,
 	onAIClick: () -> Unit,
 	modifier: Modifier = Modifier,
 ) {
@@ -565,7 +659,7 @@ private fun ImportEndpointRow(
 	val accepted = entry.accepted
 
 	Card(
-		modifier = modifier.fillMaxWidth().clickable { onToggle() },
+		modifier = modifier.fillMaxWidth(),
 		colors = CardDefaults.cardColors(
 			containerColor = if (accepted) {
 				MaterialTheme.colorScheme.surface
@@ -685,24 +779,41 @@ private fun ImportEndpointRow(
 							color = MaterialTheme.colorScheme.tertiary,
 						)
 					}
-					for (resp in endpoint.responses) {
-						Row(horizontalArrangement = Arrangement.spacedBy(StudioDimens.m)) {
-							Text(
-								"${resp.statusCode}",
-								style = MaterialTheme.typography.labelSmall,
-								fontWeight = FontWeight.Bold,
-							)
-							Text(
-								resp.name,
-								style = MaterialTheme.typography.labelSmall,
-								color = MaterialTheme.colorScheme.onSurfaceVariant,
-							)
-							resp.headers["Content-Type"]?.let { ct ->
+					for ((responseIndex, resp) in endpoint.responses.withIndex()) {
+						val preservesExistingVariantName = isUpdateMode && responseIndex in entry.lockedResponseIndices
+						Column(verticalArrangement = Arrangement.spacedBy(StudioDimens.xxs)) {
+							Row(horizontalArrangement = Arrangement.spacedBy(StudioDimens.m)) {
 								Text(
-									ct,
+									"${resp.statusCode}",
 									style = MaterialTheme.typography.labelSmall,
-									color = MaterialTheme.colorScheme.outline,
+									fontWeight = FontWeight.Bold,
 								)
+								resp.headers["Content-Type"]?.let { ct ->
+									Text(
+										ct,
+										style = MaterialTheme.typography.labelSmall,
+										color = MaterialTheme.colorScheme.outline,
+									)
+								}
+							}
+							OutlinedTextField(
+								value = resp.name,
+								onValueChange = { onUpdateResponseName(responseIndex, it) },
+								label = {
+									Text(
+										if (preservesExistingVariantName) {
+											ImportReviewStrings.EXISTING_VARIANT_NAME
+										} else {
+											ImportReviewStrings.VARIANT_NAME
+										},
+									)
+								},
+								enabled = !preservesExistingVariantName,
+								singleLine = true,
+								modifier = Modifier.fillMaxWidth(),
+							)
+							resp.body?.takeIf { it.isNotBlank() }?.let { body ->
+								VariantBodyPreview(body = body)
 							}
 						}
 					}
@@ -746,6 +857,52 @@ private fun ImportEndpointRow(
 			}
 		}
 	}
+}
+
+@Composable
+private fun VariantBodyPreview(body: String) {
+	var expanded by remember(body) { mutableStateOf(false) }
+	Column(verticalArrangement = Arrangement.spacedBy(StudioDimens.xxs)) {
+		TextButton(onClick = { expanded = !expanded }) {
+			Text(if (expanded) ImportReviewStrings.HIDE_BODY else ImportReviewStrings.SHOW_BODY)
+		}
+		if (expanded) {
+			val preview = remember(body) { formatBodyPreview(body) }
+			Text(
+				text = preview,
+				style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace),
+				color = MaterialTheme.colorScheme.onSurfaceVariant,
+				modifier = Modifier
+					.fillMaxWidth()
+					.background(
+						color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+						shape = RoundedCornerShape(StudioDimens.s),
+					)
+					.padding(StudioDimens.s),
+			)
+		}
+	}
+}
+
+private fun formatBodyPreview(body: String): String {
+	val trimmed = body.trim()
+	if (trimmed.isEmpty()) return body
+	if (isLikelyBinaryBody(trimmed)) return ImportReviewStrings.BINARY_BODY_PLACEHOLDER
+	return parsePrettyJson(trimmed) ?: body
+}
+
+private fun parsePrettyJson(body: String): String? {
+	return runCatching {
+		val element: JsonElement = bodyPreviewJson.parseToJsonElement(body)
+		bodyPreviewJson.encodeToString(JsonElement.serializer(), element)
+	}.getOrNull()
+}
+
+private fun isLikelyBinaryBody(body: String): Boolean {
+	if (body.equals("binary", ignoreCase = true)) return true
+	if (body.length > 128 && body.matches(Regex("^[A-Za-z0-9+/=\\r\\n]+$"))) return true
+	val controlChars = body.count { ch -> ch.code in 0..8 || ch.code in 14..31 }
+	return controlChars > 0
 }
 
 @Composable

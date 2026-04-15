@@ -6,8 +6,7 @@ import com.moqserver.studio.projectformat.RuleMatcher
 
 /**
  * Describes which changes were detected between a freshly parsed endpoint and an existing
- * project endpoint. Only spec-owned fields are compared; user-edited fields (body, alias,
- * description, reference names) are intentionally excluded to avoid noise.
+ * project endpoint.
  */
 data class EndpointSpecDiff(
 	val newStatusCodes: Set<Int> = emptySet(),
@@ -15,13 +14,21 @@ data class EndpointSpecDiff(
 	val authChanged: Boolean = false,
 	val requestRulesChanged: Boolean = false,
 	val tagsChanged: Boolean = false,
+	val responseBodyChanged: Boolean = false,
 ) {
 	val hasChanges: Boolean
 		get() = newStatusCodes.isNotEmpty() ||
 			removedStatusCodes.isNotEmpty() ||
 			authChanged ||
 			requestRulesChanged ||
-			tagsChanged
+			tagsChanged ||
+			responseBodyChanged
+
+	val affectsDetails: Boolean
+		get() = authChanged || requestRulesChanged || tagsChanged
+
+	val affectsBody: Boolean
+		get() = newStatusCodes.isNotEmpty() || removedStatusCodes.isNotEmpty() || responseBodyChanged
 
 	fun summary(): String = buildList {
 		if (newStatusCodes.isNotEmpty()) add("new responses: ${newStatusCodes.sorted().joinToString()}")
@@ -29,7 +36,17 @@ data class EndpointSpecDiff(
 		if (authChanged) add("auth changed")
 		if (requestRulesChanged) add("request rules changed")
 		if (tagsChanged) add("tags changed")
+		if (responseBodyChanged) add("response bodies changed")
 	}.joinToString("; ")
+}
+
+data class UpdateSelection(
+	val url: Boolean = true,
+	val details: Boolean = true,
+	val body: Boolean = false,
+) {
+	val hasEnabledParts: Boolean
+		get() = url || details || body
 }
 
 /** Describes how a parsed endpoint relates to an existing project during an update-mode import. */
@@ -88,6 +105,8 @@ data class ParsedEndpoint(
 	val acceptedContentTypes: List<String> = emptyList(),
 )
 
+fun ParsedEndpoint.withResponses(responses: List<ParsedResponse>): ParsedEndpoint = copy(responses = responses)
+
 /** A parsed response variant from an API spec. */
 data class ParsedResponse(
 	val name: String,
@@ -107,6 +126,7 @@ enum class ImportSourceType {
 data class ImportEndpointEntry(
 	val endpoint: ParsedEndpoint,
 	val accepted: Boolean = true,
+	val lockedResponseIndices: Set<Int> = emptySet(),
 	val generatedResponses: List<ParsedResponse> = emptyList(),
 	val aiGenerationLoading: Boolean = false,
 	val aiGenerationError: String? = null,
@@ -134,9 +154,29 @@ data class ImportState(
 	val aiBulkState: ImportAIBulkState = ImportAIBulkState(),
 	/** The mode this import was started in. */
 	val mode: ImportMode = ImportMode.NewProject,
+	val updateSelection: UpdateSelection = UpdateSelection(),
 ) {
 	val acceptedCount: Int get() = entries.count { it.accepted }
+	val effectiveAcceptedCount: Int
+		get() = entries.count { it.isEffectivelyAccepted(updateSelection, isUpdateMode) }
 	val totalCount: Int get() = entries.size
 	val warnings: List<String> get() = parsedSpec.warnings
 	val isUpdateMode: Boolean get() = mode is ImportMode.UpdateExisting
+}
+
+fun ImportEndpointEntry.isEffectivelyAccepted(
+	updateSelection: UpdateSelection,
+	isUpdateMode: Boolean,
+): Boolean {
+	if (!accepted) return false
+	if (!isUpdateMode) return true
+	return when (updateStatus) {
+		EndpointUpdateStatus.NEW -> updateSelection.url
+		EndpointUpdateStatus.CHANGED -> {
+			val diff = specDiff
+			(diff?.affectsDetails == true && updateSelection.details) ||
+				((diff?.affectsBody == true || generatedResponses.isNotEmpty()) && updateSelection.body)
+		}
+		EndpointUpdateStatus.UNCHANGED -> false
+	}
 }

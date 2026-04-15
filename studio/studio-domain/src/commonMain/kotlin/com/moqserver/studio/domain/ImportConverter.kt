@@ -69,9 +69,14 @@ object ImportConverter {
     fun merge(
         existingProject: MoqProject,
         acceptedEntries: List<ImportEndpointEntry>,
+        updateSelection: UpdateSelection = UpdateSelection(),
     ): MoqProject {
-        val newEntries = acceptedEntries.filter { it.updateStatus == EndpointUpdateStatus.NEW }
-        val changedEntries = acceptedEntries.filter { it.updateStatus == EndpointUpdateStatus.CHANGED }
+        val newEntries = acceptedEntries.filter {
+            it.updateStatus == EndpointUpdateStatus.NEW && updateSelection.url
+        }
+        val changedEntries = acceptedEntries.filter {
+            it.updateStatus == EndpointUpdateStatus.CHANGED && shouldMergeChangedEntry(it, updateSelection)
+        }
 
         // Build set of existing endpoint IDs for collision avoidance when assigning new reference names
         val assignedEndpointReferenceNames = existingProject.endpoints.map { it.referenceName }.toMutableList()
@@ -84,7 +89,7 @@ object ImportConverter {
             val changedEntry = changedEntries.find { entry ->
                 endpointId(entry.endpoint.method, entry.endpoint.path) == existing.id
             }
-            if (changedEntry != null) mergeEndpoint(existing, changedEntry) else existing
+            if (changedEntry != null) mergeEndpoint(existing, changedEntry, updateSelection) else existing
         }
 
         return existingProject.copy(
@@ -141,14 +146,26 @@ object ImportConverter {
         val existingTags = existing.tags?.toSet() ?: emptySet()
         val tagsChanged = parsedTags != existingTags
 
-        return EndpointSpecDiff(
-            newStatusCodes = newStatusCodes,
-            removedStatusCodes = removedStatusCodes,
-            authChanged = authChanged,
-            requestRulesChanged = requestRulesChanged,
-            tagsChanged = tagsChanged,
-        )
-    }
+		val parsedBodiesByStatus = parsed.responses.associate { response ->
+			response.statusCode to normalizeParsedBody(response.body)
+		}
+		val existingBodiesByStatus = existing.variants.associate {
+			it.status to normalizeBody(it.body?.let(::yamlBodyToComparableString))
+		}
+        val sharedStatusCodes = parsedBodiesByStatus.keys intersect existingBodiesByStatus.keys
+        val responseBodyChanged = sharedStatusCodes.any { status ->
+            parsedBodiesByStatus[status] != existingBodiesByStatus[status]
+        }
+
+		return EndpointSpecDiff(
+			newStatusCodes = newStatusCodes,
+			removedStatusCodes = removedStatusCodes,
+			authChanged = authChanged,
+			requestRulesChanged = requestRulesChanged,
+			tagsChanged = tagsChanged,
+			responseBodyChanged = responseBodyChanged,
+		)
+	}
 
     /**
      * Merges spec-owned fields from a [changedEntry] into an [existing] endpoint.
@@ -163,6 +180,7 @@ object ImportConverter {
     private fun mergeEndpoint(
         existing: EndpointDocument,
         changedEntry: ImportEndpointEntry,
+        updateSelection: UpdateSelection,
     ): EndpointDocument {
         val parsed = changedEntry.endpoint
         val diff = changedEntry.specDiff
@@ -178,52 +196,111 @@ object ImportConverter {
             null
         }
 
-        val updatedRequestRules = if (diff?.requestRulesChanged == true) {
+        val updatedRequestRules = if (updateSelection.details && diff?.requestRulesChanged == true) {
             buildRequestRules(parsed)
         } else {
             existing.requestRules
         }
 
-        val updatedTags = if (diff?.tagsChanged == true) {
+        val updatedTags = if (updateSelection.details && diff?.tagsChanged == true) {
             parsed.tags.ifEmpty { null }
         } else {
             existing.tags
         }
 
-        // Add only new variants (by status code) — preserve all existing user-authored variants
+        // Add or replace variants when body updates are enabled; otherwise preserve existing variants.
         val existingStatusCodes = existing.variants.map { it.status }.toSet()
-        val newResponses = (parsed.responses + changedEntry.generatedResponses)
-            .filter { it.statusCode !in existingStatusCodes }
-
-        val newVariants = if (newResponses.isNotEmpty()) {
-            val assignedNames = existing.variants.map { it.name }.toMutableList()
-            val assignedRefNames = existing.variants.map { it.referenceName }.toMutableList()
-            newResponses.map { resp ->
-                val name = suggestedVariantName(
-                    status = resp.statusCode,
-                    existingNames = assignedNames,
-                    preferredName = resp.name,
-                )
-                assignedNames += name
-                val refName = suggestedVariantReferenceName(
-                    preferredSource = name,
-                    status = resp.statusCode,
-                    existingNames = assignedRefNames,
-                )
-                assignedRefNames += refName
-                convertVariant(resp = resp, name = name, referenceName = refName, isDefault = false)
-            }
+        val mergedVariants = if (updateSelection.body) {
+            mergeVariants(existing, parsed, changedEntry.generatedResponses)
         } else {
-            emptyList()
+            existing.variants
         }
 
-        return existing.copy(
-            auth = if (diff?.authChanged == true) updatedAuth else existing.auth,
-            requestRules = updatedRequestRules,
-            tags = updatedTags,
-            variants = existing.variants + newVariants,
-        )
-    }
+		return existing.copy(
+			auth = if (updateSelection.details && diff?.authChanged == true) updatedAuth else existing.auth,
+			requestRules = updatedRequestRules,
+			tags = updatedTags,
+			variants = mergedVariants,
+		)
+	}
+
+	private fun shouldMergeChangedEntry(entry: ImportEndpointEntry, updateSelection: UpdateSelection): Boolean {
+		val diff = entry.specDiff ?: return false
+		return (updateSelection.details && diff.affectsDetails) ||
+			(updateSelection.body && (diff.affectsBody || entry.generatedResponses.isNotEmpty()))
+	}
+
+	private fun mergeVariants(
+		existing: EndpointDocument,
+		parsed: ParsedEndpoint,
+		generatedResponses: List<ParsedResponse>,
+	): List<ProjectVariant> {
+		val responses = deduplicateResponses(parsed.responses + generatedResponses)
+		val responsesByStatus = responses.groupBy { it.statusCode }.mapValues { (_, values) -> values.toMutableList() }
+
+		val assignedNames = existing.variants.map { it.name }.toMutableList()
+		val assignedRefNames = existing.variants.map { it.referenceName }.toMutableList()
+
+		val updatedExisting = existing.variants.map { variant ->
+			val candidates = responsesByStatus[variant.status] ?: return@map variant
+			val replacement = candidates.firstOrNull { it.name == variant.name }
+				?: candidates.singleOrNull()
+				?: return@map variant
+			candidates.remove(replacement)
+			convertVariant(
+				resp = replacement,
+				name = variant.name,
+				referenceName = variant.referenceName,
+				isDefault = variant.isDefault == true,
+			).copy(
+				requestMatch = variant.requestMatch,
+				delayMs = variant.delayMs,
+				bodyFile = variant.bodyFile,
+			)
+		}
+
+		val newResponses = responsesByStatus.values.flatten()
+		val newVariants = newResponses.map { resp ->
+			val name = suggestedVariantName(
+				status = resp.statusCode,
+				existingNames = assignedNames,
+				preferredName = resp.name,
+			)
+			assignedNames += name
+			val refName = suggestedVariantReferenceName(
+				preferredSource = name,
+				status = resp.statusCode,
+				existingNames = assignedRefNames,
+			)
+			assignedRefNames += refName
+			convertVariant(resp = resp, name = name, referenceName = refName, isDefault = false)
+		}
+
+		return updatedExisting + newVariants
+	}
+
+	private fun normalizeBody(body: String?): String? = body?.trim()?.ifBlank { null }
+
+	private fun normalizeParsedBody(body: String?): String? {
+		if (body == null) return null
+		return parseBodyToYamlValue(body).let(::yamlBodyToComparableString).trim().ifBlank { null }
+	}
+
+	private fun yamlBodyToComparableString(body: YamlValue): String = when (body) {
+		is YamlValue.Null -> "null"
+		is YamlValue.Str -> body.value
+		is YamlValue.Int -> body.value.toString()
+		is YamlValue.Double -> body.value.toString()
+		is YamlValue.Bool -> body.value.toString()
+		is YamlValue.Array ->
+			body.value.joinToString(prefix = "[", postfix = "]") { yamlBodyToComparableString(it) }
+		is YamlValue.Obj ->
+			body.value.entries
+				.sortedBy { it.key }
+				.joinToString(prefix = "{", postfix = "}") { (key, value) ->
+					"$key:${yamlBodyToComparableString(value)}"
+				}
+	}
 
 	@Suppress("LongMethod")
 	private fun convertEndpoint(
@@ -240,7 +317,7 @@ object ImportConverter {
             existingNames = assignedEndpointReferenceNames,
         )
         assignedEndpointReferenceNames += referenceName
-        val allResponses = parsed.responses + entry.generatedResponses
+		val allResponses = deduplicateResponses(parsed.responses + entry.generatedResponses)
         val defaultIndex = when {
             allResponses.isEmpty() -> -1
             else -> allResponses.indexOfFirst { it.name == "default" }.takeIf { it >= 0 }
@@ -314,14 +391,21 @@ object ImportConverter {
         )
     }
 
-    private fun parseBodyToYamlValue(body: String): YamlValue {
+	private fun parseBodyToYamlValue(body: String): YamlValue {
         val trimmed = body.trim()
         if (trimmed.isEmpty()) return YamlValue.Str(body)
 
         return runCatching { json.parseToJsonElement(trimmed) }
             .map { jsonElementToYamlValue(it) }
             .getOrElse { YamlValue.Str(body) }
-    }
+	}
+
+	private fun deduplicateResponses(responses: List<ParsedResponse>): List<ParsedResponse> {
+		return responses
+			.groupBy { response -> response.statusCode to normalizeParsedBody(response.body) }
+			.values
+			.map { duplicates -> duplicates.last() }
+	}
 
     private fun jsonElementToYamlValue(element: JsonElement): YamlValue {
         return when (element) {

@@ -240,8 +240,8 @@ class ImportConverterTest {
         assertEquals(MatchType.EQUAL_TO, queryParams.first { it.name == "page" }.matchType)
     }
 
-    @Test
-    fun `includes generated import variants after parsed responses`() {
+	@Test
+	fun `includes generated import variants after parsed responses`() {
         val endpoint = ParsedEndpoint(
             method = "GET",
             path = "/pets",
@@ -284,7 +284,35 @@ class ImportConverterTest {
         assertEquals(2, variants.size)
         assertEquals("Success", variants[0].name)
         assertEquals("not-found", variants[1].name)
-        assertEquals("Missing pet", variants[1].description)
-        assertEquals(404, variants[1].status)
-    }
+		assertEquals("Missing pet", variants[1].description)
+		assertEquals(404, variants[1].status)
+	}
+
+	@Test
+	fun `deduplicates imported responses with same status and body`() {
+		val endpoint = ParsedEndpoint(
+			method = "GET",
+			path = "/pets",
+			responses = listOf(
+				ParsedResponse(name = "success", statusCode = 200, body = "{\"ok\":true}"),
+				ParsedResponse(name = "another success", statusCode = 200, body = "{\"ok\":true}"),
+			),
+		)
+		val parsed = ParsedSpec(
+			title = "Imported API",
+			version = "1.0.0",
+			endpoints = listOf(endpoint),
+		)
+
+		val project = ImportConverter.convert(
+			spec = parsed,
+			acceptedEntries = listOf(ImportEndpointEntry(endpoint = endpoint)),
+			projectName = "Imported API",
+			projectPath = "/tmp/imported-api",
+		)
+
+		val variants = project.endpoints.single().variants
+		assertEquals(1, variants.size)
+		assertEquals(200, variants.single().status)
+	}
 }
