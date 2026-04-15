@@ -105,11 +105,6 @@ fun App(
     onImportOpenAPIURL: () -> Unit = {},
     onImportSwaggerURL: () -> Unit = {},
     onImportHAR: () -> Unit = {},
-    onConfirmImport: () -> Unit = {},
-    onGenerateImportEndpointMocks: (Int) -> Unit = {},
-    onGenerateImportMocksForAll: () -> Unit = {},
-    onRefreshAIProviders: () -> Unit = {},
-    onSelectAIProvider: (String) -> Unit = {},
     onOpenRecentProject: (String) -> Unit = {},
     onRemoveRecentProject: (String) -> Unit = {},
     onAIAction: (AIAction) -> Unit = {},
@@ -117,7 +112,6 @@ fun App(
     onVariantReferenceSyncPreferenceChange: (String, VariantReferenceSyncPreference?) -> Unit = { _, _ -> },
 ) {
     val state by appViewModel.state.collectAsState()
-    val importState = state.importState
 
     Scaffold(
         topBar = {
@@ -128,41 +122,6 @@ fun App(
     ) { innerPadding ->
         Surface(modifier = Modifier.fillMaxSize().padding(innerPadding)) {
             when {
-                state.isImporting && importState != null -> ImportReviewScreen(
-                    state = importState,
-                    aiProviders = state.ai.providers,
-                    aiProvidersLoading = state.ai.loading,
-                    canGenerateWithAi = state.ai.selectedProvider
-                        ?.takeIf { it.available }
-                        ?.capabilities
-                        ?.contains(AppStrings.CAP_GENERATE_VARIANTS)
-                        == true,
-                    selectedAIProviderId = state.ai.selectedProviderId,
-                    aiProviderLabel = state.ai.selectedProvider?.displayName,
-                    onRefreshAIProviders = onRefreshAIProviders,
-                    onSelectAIProvider = onSelectAIProvider,
-                    onToggleEndpoint = { index -> appViewModel.toggleImportEndpoint(index) },
-                    onSetGroupAccepted = { indices, accepted ->
-                        val entries = importState.entries
-                        indices.forEach { index ->
-                            if (entries[index].accepted != accepted) {
-                                appViewModel.toggleImportEndpoint(index)
-                            }
-                        }
-                    },
-                    onSelectAll = { appViewModel.setAllImportEndpoints(true) },
-                    onDeselectAll = { appViewModel.setAllImportEndpoints(false) },
-                    onUpdateProjectName = { appViewModel.updateImportProjectName(it) },
-                    onUpdateEndpointAIContextHint = { index, hint ->
-                        appViewModel.updateImportAIContextHint(index, hint)
-                    },
-                    onGenerateEndpointMocks = onGenerateImportEndpointMocks,
-                    onGenerateAllMocks = onGenerateImportMocksForAll,
-                    onConfirm = onConfirmImport,
-                    onCancel = { appViewModel.cancelImport() },
-                    modifier = Modifier.fillMaxSize(),
-                )
-
                 state.project == null -> StudioLandingScreen(
                     state = state,
                     onOpenProject = onOpenProject,

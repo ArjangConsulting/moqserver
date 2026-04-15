@@ -410,13 +410,98 @@ class StudioRootViewModelTest {
         assertNull(viewModel.state.value.importState)
     }
 
-    @Test
-    fun `updateImportAIContextHint with invalid index is no-op`() {
-        val viewModel = StudioRootViewModel()
+	@Test
+	fun `updateImportAIContextHint with invalid index is no-op`() {
+		val viewModel = StudioRootViewModel()
 
         viewModel.startImport(sampleImportState().parsedSpec, ImportSourceType.OPENAPI, "users.yaml")
         viewModel.updateImportAIContextHint(99, "should be ignored")
 
-        assertEquals("", viewModel.state.value.importState!!.entries[0].aiContextHint)
-    }
+		assertEquals("", viewModel.state.value.importState!!.entries[0].aiContextHint)
+	}
+
+	@Test
+	fun `startImport normalizes duplicate imported response names`() {
+		val viewModel = StudioRootViewModel()
+		val spec = ParsedSpec(
+			title = "Imported API",
+			version = "1.0",
+			endpoints = listOf(
+				ParsedEndpoint(
+					method = "GET",
+					path = "/items",
+					responses = listOf(
+						ParsedResponse(name = "success", statusCode = 200, body = "{}"),
+						ParsedResponse(name = "success", statusCode = 201, body = "{}"),
+					),
+				),
+			),
+		)
+
+		viewModel.startImport(spec, ImportSourceType.OPENAPI, "items.yaml")
+
+		val responses = viewModel.state.value.importState!!.entries.single().endpoint.responses
+		assertEquals(listOf("Success", "Success 2"), responses.map { it.name })
+	}
+
+	@Test
+	fun `updateImportResponseName keeps imported response names unique`() {
+		val viewModel = StudioRootViewModel()
+		val spec = ParsedSpec(
+			title = "Imported API",
+			version = "1.0",
+			endpoints = listOf(
+				ParsedEndpoint(
+					method = "GET",
+					path = "/items",
+					responses = listOf(
+						ParsedResponse(name = "Success", statusCode = 200, body = "{}"),
+						ParsedResponse(name = "Created", statusCode = 201, body = "{}"),
+					),
+				),
+			),
+		)
+
+		viewModel.startImport(spec, ImportSourceType.OPENAPI, "users.yaml")
+		viewModel.updateImportResponseName(0, 1, "Success")
+
+		val responses = viewModel.state.value.importState!!.entries[0].endpoint.responses
+		assertEquals("Success", responses[0].name)
+		assertEquals("Success 2", responses[1].name)
+	}
+
+	@Test
+	fun `startUpdateFromSpec suffixes same-status imports and keeps them editable when they would collide with existing names`() {
+		val viewModel = StudioRootViewModel()
+		val project = sampleProject().copy(
+			endpoints = listOf(
+				sampleProject().endpoints.single().copy(
+					variants = listOf(
+						ProjectVariant(name = "Success", status = 200, isDefault = true),
+					),
+				),
+			),
+		)
+		val spec = ParsedSpec(
+			title = "Imported API",
+			version = "1.0",
+			endpoints = listOf(
+				ParsedEndpoint(
+					method = "GET",
+					path = "/users",
+					responses = listOf(
+						ParsedResponse(name = "Success", statusCode = 200, body = "{}"),
+						ParsedResponse(name = "Success", statusCode = 200, body = "{\"variant\":2}"),
+					),
+				),
+			),
+		)
+
+		viewModel.projectLoaded(project)
+		viewModel.startUpdateFromSpec(spec, ImportSourceType.OPENAPI, "users.yaml")
+
+		val entry = viewModel.state.value.importState!!.entries.single()
+		assertEquals(listOf("Success 2", "Success 3"), entry.endpoint.responses.map { it.name })
+		assertTrue(entry.lockedResponseIndices.isEmpty())
+	}
 }
