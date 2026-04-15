@@ -3,7 +3,6 @@ package com.moqserver.studio.imports
 import com.moqserver.studio.domain.ParsedEndpoint
 import com.moqserver.studio.domain.ParsedResponse
 import com.moqserver.studio.domain.ParsedSpec
-import com.moqserver.studio.imports.HARImportParser.Companion.REDACTED
 import com.moqserver.studio.logging.loggerFor
 import com.moqserver.studio.projectformat.MatchType
 import com.moqserver.studio.projectformat.RuleMatcher
@@ -21,7 +20,7 @@ import java.util.*
  * Security: all sensitive values (auth headers, cookies, tokens, JWTs) are
  * redacted at parse time following the same approach as Cloudflare's HAR Sanitizer
  * (https://github.com/cloudflare/har-sanitizer). Values are replaced with
- * "[redacted]" so they never reach the parsed spec or the persisted .moqproj.
+ * `[redacted]` so they never reach the parsed spec or the persisted .moqproj.
  */
 class HARImportParser {
 
@@ -245,7 +244,7 @@ class HARImportParser {
 	}
 
 	/**
-	 * Extracts request cookies, replacing every value with "[redacted]".
+	 * Extracts request cookies, replacing every value with `[redacted]`.
 	 * Cookie values are session credentials and must never appear in the
 	 * persisted project.
 	 */
@@ -299,9 +298,7 @@ class HARImportParser {
 		collectRuleMatchers(exchanges) { it.cookies }
 
 	private fun requestQueryParameters(request: HarRequest, uri: URI): Map<String, String> {
-		val queryItems = if (request.queryString.isNotEmpty()) {
-			request.queryString
-		} else {
+		val queryItems = request.queryString.ifEmpty {
 			uri.rawQuery
 				?.split('&')
 				?.mapNotNull { pair ->
