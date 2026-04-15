@@ -9,6 +9,7 @@ import com.moqserver.studio.projectformat.MatchType
 import com.moqserver.studio.projectformat.RuleMatcher
 import com.moqserver.studio.projectformat.defaultAliasForEndpoint
 import com.moqserver.studio.projectformat.humanizeAliasSource
+import io.swagger.v3.oas.models.OpenAPI
 import io.swagger.v3.oas.models.Operation
 import io.swagger.v3.oas.models.PathItem
 import io.swagger.v3.oas.models.media.Content
@@ -41,7 +42,6 @@ class OpenAPIImportParser {
 		private const val DEFAULT_JSON_BODY = "{}"
 	}
 
-	@Suppress("LongMethod", "DestructuringDeclarationWithTooManyEntries")
 	fun parse(content: String): ParsedSpec {
 		logger.info("Parsing API spec ({} bytes)", content.length)
 		val result = parseWithFallback(content)
@@ -55,49 +55,7 @@ class OpenAPIImportParser {
 			logger.warn("API parser warnings ({}): {}", warnings.size, warnings.joinToString("; "))
 		}
 
-		val securitySchemes = openAPI.components?.securitySchemes.orEmpty()
-		val endpoints = mutableListOf<ParsedEndpoint>()
-
-		for ((pathStr, pathItem) in openAPI.paths.orEmpty()) {
-			for ((method, operation) in operationsOf(pathItem)) {
-				val responses = buildResponses(operation)
-				val (authType, authHeaderName) = resolveAuth(
-					operation,
-					openAPI.security.orEmpty(),
-					securitySchemes,
-				)
-
-				val (reqQuery, reqHeaders, reqCookies, requiresBody, acceptedContentTypes) =
-					extractRequestRules(operation, pathItem.parameters.orEmpty())
-
-				logger.debug(
-					"OpenAPI endpoint: {} {} → {} variant(s), auth={}",
-					method,
-					pathStr,
-					responses.size,
-					authType,
-				)
-				endpoints.add(
-					ParsedEndpoint(
-						method = method,
-						path = pathStr,
-						alias = resolveAlias(operation, method, pathStr),
-						description = operation.description?.trim()?.takeIf { it.isNotEmpty() },
-						referenceName = operation.operationId?.trim()?.takeIf { it.isNotEmpty() },
-						tags = operation.tags.orEmpty(),
-						responses = responses,
-						authType = authType,
-						authHeaderName = authHeaderName,
-						queryParameters = reqQuery,
-						requiredQueryParameters = reqQuery.filter { it.required == true }.map { it.name },
-						requiredHeaders = reqHeaders,
-						cookies = reqCookies,
-						requiresBody = requiresBody,
-						acceptedContentTypes = acceptedContentTypes,
-					),
-				)
-			}
-		}
+		val endpoints = buildParsedEndpoints(openAPI)
 
 		return ParsedSpec(
 			title = openAPI.info?.title ?: DEFAULT_TITLE,
@@ -113,6 +71,63 @@ class OpenAPIImportParser {
 				warnings.size,
 			)
 		}
+	}
+
+	private fun buildParsedEndpoints(openAPI: OpenAPI): List<ParsedEndpoint> {
+		val securitySchemes = openAPI.components?.securitySchemes.orEmpty()
+		val globalSecurity = openAPI.security.orEmpty()
+		val endpoints = mutableListOf<ParsedEndpoint>()
+		for ((pathStr, pathItem) in openAPI.paths.orEmpty()) {
+			val pathParameters = pathItem.parameters.orEmpty()
+			for ((method, operation) in operationsOf(pathItem)) {
+				endpoints += buildParsedEndpoint(
+					path = pathStr,
+					method = method,
+					operation = operation,
+					pathParameters = pathParameters,
+					globalSecurity = globalSecurity,
+					securitySchemes = securitySchemes,
+				)
+			}
+		}
+		return endpoints
+	}
+
+	private fun buildParsedEndpoint(
+		path: String,
+		method: String,
+		operation: Operation,
+		pathParameters: List<Parameter>,
+		globalSecurity: List<SecurityRequirement>,
+		securitySchemes: Map<String, SecurityScheme>,
+	): ParsedEndpoint {
+		val responses = buildResponses(operation)
+		val auth = resolveAuth(operation, globalSecurity, securitySchemes)
+		val requestRules = extractRequestRules(operation, pathParameters)
+		logger.debug(
+			"OpenAPI endpoint: {} {} → {} variant(s), auth={}",
+			method,
+			path,
+			responses.size,
+			auth.type,
+		)
+		return ParsedEndpoint(
+			method = method,
+			path = path,
+			alias = resolveAlias(operation, method, path),
+			description = operation.description?.trim()?.takeIf { it.isNotEmpty() },
+			referenceName = operation.operationId?.trim()?.takeIf { it.isNotEmpty() },
+			tags = operation.tags.orEmpty(),
+			responses = responses,
+			authType = auth.type,
+			authHeaderName = auth.headerName,
+			queryParameters = requestRules.query,
+			requiredQueryParameters = requestRules.requiredQueryParameters,
+			requiredHeaders = requestRules.requiredHeaders,
+			cookies = requestRules.cookies,
+			requiresBody = requestRules.requiresBody,
+			acceptedContentTypes = requestRules.acceptedContentTypes,
+		)
 	}
 
 	private fun parseWithFallback(content: String): SwaggerParseResult {
@@ -308,7 +323,6 @@ class OpenAPIImportParser {
 		}
 	}
 
-	@Suppress("UNCHECKED_CAST")
 	private fun generateStubFromSchema(schema: Schema<*>, mediaType: String): String? {
 		if (isJsonMediaType(mediaType)) {
 			return generateJsonStub(schema)
@@ -347,7 +361,7 @@ class OpenAPIImportParser {
 					"[$itemStub]"
 				}
 				"object" -> {
-					val props = schema.properties.orEmpty()
+					val props = schemaProperties(schema)
 					if (props.isEmpty()) return DEFAULT_JSON_BODY
 					val entries = props.entries.sortedBy { it.key }.joinToString(",") { (k, v) ->
 						"\"$k\":${generateJsonStub(v, depth + 1, visited)}"
@@ -395,39 +409,47 @@ class OpenAPIImportParser {
 
 	// -- Auth resolution --
 
-	@Suppress("CyclomaticComplexMethod")
 	private fun resolveAuth(
 		operation: Operation,
 		globalSecurity: List<SecurityRequirement>,
 		securitySchemes: Map<String, SecurityScheme>,
-	): Pair<AuthType, String?> {
+	): ResolvedAuth {
 		val security = operation.security ?: globalSecurity
-		if (security.isEmpty()) return AuthType.NONE to null
+		if (security.isEmpty()) return ResolvedAuth.none()
 
-		// Take the first security requirement
 		for (req in security) {
-			for ((schemeName, _) in req) {
+			for (schemeName in req.keys) {
 				val scheme = securitySchemes[schemeName] ?: continue
-				return when (scheme.type) {
-					SecurityScheme.Type.HTTP -> when (scheme.scheme?.lowercase()) {
-						"bearer" -> AuthType.BEARER to null
-						"basic" -> AuthType.BASIC to null
-						else -> AuthType.NONE to null
-					}
-					SecurityScheme.Type.APIKEY -> AuthType.API_KEY to scheme.name
-					SecurityScheme.Type.OAUTH2 -> AuthType.BEARER to null
-					SecurityScheme.Type.OPENIDCONNECT -> AuthType.BEARER to null
-					else -> AuthType.NONE to null
-				}
+				resolveAuth(scheme)?.let { return it }
 			}
 		}
-		return AuthType.NONE to null
+		return ResolvedAuth.none()
+	}
+
+	private fun resolveAuth(scheme: SecurityScheme): ResolvedAuth? {
+		return when (scheme.type) {
+			SecurityScheme.Type.HTTP -> resolveHttpAuth(scheme)
+			SecurityScheme.Type.APIKEY -> ResolvedAuth(AuthType.API_KEY, scheme.name)
+			SecurityScheme.Type.OAUTH2,
+			SecurityScheme.Type.OPENIDCONNECT,
+			-> ResolvedAuth(AuthType.BEARER, null)
+			else -> null
+		}
+	}
+
+	private fun resolveHttpAuth(scheme: SecurityScheme): ResolvedAuth? {
+		return when (scheme.scheme?.lowercase()) {
+			"bearer" -> ResolvedAuth(AuthType.BEARER, null)
+			"basic" -> ResolvedAuth(AuthType.BASIC, null)
+			else -> null
+		}
 	}
 
 	// -- Request rules --
 
 	private data class RequestRules(
 		val query: List<RuleMatcher>,
+		val requiredQueryParameters: List<String>,
 		val requiredHeaders: List<String>,
 		val cookies: List<RuleMatcher>,
 		val requiresBody: Boolean,
@@ -461,6 +483,7 @@ class OpenAPIImportParser {
 
 		return RequestRules(
 			query = query.values.sortedBy { it.name },
+			requiredQueryParameters = query.values.filter { it.required == true }.map { it.name },
 			requiredHeaders = requiredHeaders.sorted(),
 			cookies = cookies.sortedBy { it.name },
 			requiresBody = requiresBody,
@@ -508,6 +531,21 @@ class OpenAPIImportParser {
 			required = true,
 			matchType = if (matchValue != null) MatchType.EQUAL_TO else null,
 		)
+	}
+
+	private fun schemaProperties(schema: Schema<*>): Map<String, Schema<*>> {
+		return schema.properties.orEmpty().mapNotNull { (key, value) ->
+			key to value
+		}.toMap()
+	}
+
+	private data class ResolvedAuth(
+		val type: AuthType,
+		val headerName: String?,
+	) {
+		companion object {
+			fun none(): ResolvedAuth = ResolvedAuth(AuthType.NONE, null)
+		}
 	}
 
 	// -- Helpers --

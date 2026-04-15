@@ -112,41 +112,9 @@ class ImportWorkflowTest {
 		assertEquals("/9j/4AAQSkZJRg==", endpoint.responses.single().body)
 	}
 
-	@Suppress("LongMethod")
 	@Test
 	fun `har import round trips through project save and load with special headers and binary bodies`() {
-		val parsed = HARImportParser().parse(
-			"""
-            {
-              "log": {
-                "version": "1.2",
-                "creator": { "name": "Browser", "version": "1.0" },
-                "entries": [
-                  {
-                    "request": {
-                      "method": "GET",
-                      "url": "https://img.youtube.com/vi/iONDebHX9qk/mqdefault.jpg",
-                      "headers": [],
-                      "queryString": []
-                    },
-                    "response": {
-                      "status": 200,
-                      "headers": [
-                        { "name": "Alt-Svc", "value": "h3=\":443\"; ma=2592000,h3-29=\":443\"; ma=2592000" },
-                        { "name": "report-to", "value": "{\"group\":\"youtube\",\"max_age\":2592000,\"endpoints\":[{\"url\":\"https://csp.withgoogle.com/csp/report-to/youtube\"}]}" }
-                      ],
-                      "content": {
-                        "mimeType": "image/jpeg",
-                        "text": "/9j/4AAQSkZJRg==",
-                        "encoding": "base64"
-                      }
-                    }
-                  }
-                ]
-              }
-            }
-            """.trimIndent(),
-		)
+		val parsed = HARImportParser().parse(sampleBinaryHar())
 
 		val endpoint = parsed.endpoints.single()
 		val project = ImportConverter.convert(
@@ -205,4 +173,35 @@ class ImportWorkflowTest {
 			else -> cwd
 		}
 	}
+
+	private fun sampleBinaryHar(): String = """
+		{
+		  "log": {
+		    "version": "1.2",
+		    "creator": { "name": "Browser", "version": "1.0" },
+		    "entries": [
+		      {
+		        "request": {
+		          "method": "GET",
+		          "url": "https://img.youtube.com/vi/iONDebHX9qk/mqdefault.jpg",
+		          "headers": [],
+		          "queryString": []
+		        },
+		        "response": {
+		          "status": 200,
+		          "headers": [
+		            { "name": "Alt-Svc", "value": "h3=\":443\"; ma=2592000,h3-29=\":443\"; ma=2592000" },
+		            { "name": "report-to", "value": "{\"group\":\"youtube\",\"max_age\":2592000,\"endpoints\":[{\"url\":\"https://csp.withgoogle.com/csp/report-to/youtube\"}]}" }
+		          ],
+		          "content": {
+		            "mimeType": "image/jpeg",
+		            "text": "/9j/4AAQSkZJRg==",
+		            "encoding": "base64"
+		          }
+		        }
+		      }
+		    ]
+		  }
+		}
+	""".trimIndent()
 }

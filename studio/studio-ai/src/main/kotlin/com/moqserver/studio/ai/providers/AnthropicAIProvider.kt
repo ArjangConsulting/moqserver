@@ -148,27 +148,31 @@ class AnthropicAIProvider(
         @SerialName("output_tokens") val outputTokens: Int? = null,
     )
 
-    @Suppress("ThrowsCount")
-    private fun checkResponseStatus(statusCode: Int) {
-        when (statusCode) {
-            401 -> {
-                logger.error("Anthropic authentication failed (401)")
-                throw AIProviderException.AuthInvalid(DISPLAY_NAME)
-            }
-            429 -> {
-                logger.warn("Anthropic rate limit exceeded (429)")
-                throw AIProviderException.Unavailable(DISPLAY_NAME, "rate limit exceeded", retryable = true)
-            }
-            !in 200..299 -> {
-                logger.error("Anthropic returned HTTP {}", statusCode)
-                throw AIProviderException.Unavailable(
-                    DISPLAY_NAME,
-                    "HTTP $statusCode",
-                    retryable = statusCode >= 500,
-                )
-            }
-        }
-    }
+	private fun checkResponseStatus(statusCode: Int) {
+		responseStatusException(statusCode)?.let { throw it }
+	}
+
+	private fun responseStatusException(statusCode: Int): AIProviderException? {
+		return when (statusCode) {
+			401 -> {
+				logger.error("Anthropic authentication failed (401)")
+				AIProviderException.AuthInvalid(DISPLAY_NAME)
+			}
+			429 -> {
+				logger.warn("Anthropic rate limit exceeded (429)")
+				AIProviderException.Unavailable(DISPLAY_NAME, "rate limit exceeded", retryable = true)
+			}
+			in 200..299 -> null
+			else -> {
+				logger.error("Anthropic returned HTTP {}", statusCode)
+				AIProviderException.Unavailable(
+					DISPLAY_NAME,
+					"HTTP $statusCode",
+					retryable = statusCode >= 500,
+				)
+			}
+		}
+	}
 
     companion object {
         const val PROVIDER_ID = "anthropic"

@@ -735,7 +735,6 @@ fun main(args: Array<String>) {
             StudioTheme(themeMode = themeMode.value) {
 					App(
 						appViewModel = appViewModel,
-						themeMode = themeMode.value,
 						onOpenProject = { requestOpenProject() },
 						onImportOpenAPI = { requestImportOpenAPI() },
 						onImportSwagger = { requestImportSwagger() },

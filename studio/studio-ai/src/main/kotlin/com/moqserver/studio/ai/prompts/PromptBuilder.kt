@@ -45,7 +45,6 @@ object PromptBuilder {
         append("Respond with ONLY the JSON array, no markdown fences or explanation.")
     }
 
-	@Suppress("CyclomaticComplexMethod")
 	fun buildGenerateVariantsPrompt(request: CompanionRequest): String = buildString {
         appendLine("You are a mock API response generator. Generate realistic mock response variants for the specified endpoints.")
         appendLine()
@@ -56,60 +55,71 @@ object PromptBuilder {
         appendLine("""- "contentType": e.g. "application/json"""")
         appendLine("""- "body": the mock response body (JSON object, array, or string)""")
         appendLine("""- "description": optional, what this variant represents""")
-
-        request.projectContext?.let { ctx ->
-            ctx.title?.let { appendLine(); appendLine("API: $it") }
-            ctx.endpoints?.let { endpoints ->
-                appendLine()
-                appendLine("Endpoints:")
-                for (ep in endpoints) {
-                    appendLine("  ${ep.method} ${ep.path}")
-                }
-            }
-        }
-
-        request.selection?.endpointKeys?.let { keys ->
-            appendLine()
-            appendLine("Generate variants for these endpoints only:")
-            for (key in keys) appendLine("  $key")
-        }
-
-        request.selection?.variantNames?.takeIf { it.isNotEmpty() }?.let { names ->
-            appendLine()
-            appendLine("Use these variant names when applicable:")
-            for (name in names) appendLine("  $name")
-        }
-
-        request.intent?.let { intent ->
-            intent.description?.let { appendLine(); appendLine("Intent: $it") }
-            intent.type?.let { appendLine("Focus on: $it") }
-        }
-
-        if (request.intent?.type == "body-generation") {
-            appendLine()
-            appendLine("This request is to generate or update the response body for an existing variant.")
-            appendLine(
-                "Return exactly one variant object that matches the selected endpoint and current variant context.",
-            )
-            appendLine("If the intent includes a current body, treat it as the baseline:")
-            appendLine("  - Preserve the exact same JSON schema and structure.")
-            appendLine(
-                "  - Keep all existing items and fields unless the user explicitly asks to remove or replace them.",
-            )
-            appendLine("  - If the user asks to add items, append them to the existing collection.")
-            appendLine(
-                "The \"body\" field in your response should be the actual JSON value (object or array), not a stringified version.",
-            )
-        }
-
-        val maxVariants = request.options?.maxVariants ?: DEFAULT_MAX_VARIANTS
-        if (request.intent?.type != "body-generation") {
-            appendLine()
-            appendLine("Generate up to $maxVariants variants per endpoint.")
-            appendLine("Include error cases (4xx, 5xx) alongside success cases.")
-        }
+        appendProjectContext(request)
+        appendSelectionContext(request)
+        appendIntentContext(request)
+        appendGenerationConstraints(request)
         append("Respond with ONLY the JSON array, no markdown fences or explanation.")
     }
+
+	private fun StringBuilder.appendProjectContext(request: CompanionRequest) {
+		request.projectContext?.let { ctx ->
+			ctx.title?.let { appendLine(); appendLine("API: $it") }
+			ctx.endpoints?.let { endpoints ->
+				appendLine()
+				appendLine("Endpoints:")
+				for (ep in endpoints) {
+					appendLine("  ${ep.method} ${ep.path}")
+				}
+			}
+		}
+	}
+
+	private fun StringBuilder.appendSelectionContext(request: CompanionRequest) {
+		request.selection?.endpointKeys?.let { keys ->
+			appendLine()
+			appendLine("Generate variants for these endpoints only:")
+			for (key in keys) appendLine("  $key")
+		}
+
+		request.selection?.variantNames?.takeIf { it.isNotEmpty() }?.let { names ->
+			appendLine()
+			appendLine("Use these variant names when applicable:")
+			for (name in names) appendLine("  $name")
+		}
+	}
+
+	private fun StringBuilder.appendIntentContext(request: CompanionRequest) {
+		request.intent?.let { intent ->
+			intent.description?.let { appendLine(); appendLine("Intent: $it") }
+			intent.type?.let { appendLine("Focus on: $it") }
+		}
+	}
+
+	private fun StringBuilder.appendGenerationConstraints(request: CompanionRequest) {
+		if (request.intent?.type == "body-generation") {
+			appendBodyGenerationConstraints()
+			return
+		}
+
+		val maxVariants = request.options?.maxVariants ?: DEFAULT_MAX_VARIANTS
+		appendLine()
+		appendLine("Generate up to $maxVariants variants per endpoint.")
+		appendLine("Include error cases (4xx, 5xx) alongside success cases.")
+	}
+
+	private fun StringBuilder.appendBodyGenerationConstraints() {
+		appendLine()
+		appendLine("This request is to generate or update the response body for an existing variant.")
+		appendLine("Return exactly one variant object that matches the selected endpoint and current variant context.")
+		appendLine("If the intent includes a current body, treat it as the baseline:")
+		appendLine("  - Preserve the exact same JSON schema and structure.")
+		appendLine("  - Keep all existing items and fields unless the user explicitly asks to remove or replace them.")
+		appendLine("  - If the user asks to add items, append them to the existing collection.")
+		appendLine(
+			"The \"body\" field in your response should be the actual JSON value (object or array), not a stringified version.",
+		)
+	}
 
     fun buildRefineProjectPrompt(request: CompanionRequest): String = buildString {
         appendLine("You are an API project structure advisor. Analyze the project and suggest structural improvements.")

@@ -59,14 +59,13 @@ internal class JavaExporter : LanguageExporter {
 		sb.appendLine()
 		sb.appendLine("    private MoqAPIs() { }")
 
-		catalog.endpoints.forEachIndexed { index, endpoint ->
+		catalog.endpoints.forEach { endpoint ->
 			sb.appendLine()
 			appendEndpoint(
 				sb = sb,
 				endpoint = endpoint,
 				className = endpointNames.getValue(endpoint.referenceName),
 				options = options,
-				isLast = index == catalog.endpoints.size - 1,
 			)
 		}
 
@@ -76,13 +75,11 @@ internal class JavaExporter : LanguageExporter {
 		return GeneratedFile(fileName = "MoqAPIs.java", content = sb.toString())
 	}
 
-	@Suppress("UnusedParameter")
 	private fun appendEndpoint(
 		sb: StringBuilder,
 		endpoint: ExportEndpoint,
 		className: String,
 		options: ExportOptions,
-		isLast: Boolean,
 	) {
 		val descriptionLines = if (options.includeApiDescriptions) {
 			ExportComments.lines(endpoint.description)

@@ -10,93 +10,14 @@ import kotlin.test.assertTrue
 class HARImportParserTest {
 	private val parser = HARImportParser()
 
-	@Suppress("LongMethod")
 	@Test
 	fun `parses entries, skips malformed urls, and survives invalid base64 bodies`() {
-		val har = """
-            {
-              "log": {
-                "version": "1.2",
-                "creator": { "name": "Browser", "version": "1.0" },
-                "entries": [
-                  {
-                    "request": {
-                      "method": "GET",
-                      "url": "https://api.test/users",
-                      "headers": [],
-                      "queryString": []
-                    },
-                    "response": {
-                      "status": 200,
-                      "headers": [
-                        { "name": "Content-Type", "value": "application/json" }
-                      ],
-                      "content": {
-                        "mimeType": "application/json",
-                        "text": "{\"users\":[{\"id\":1}]}"
-                      }
-                    }
-                  },
-                  {
-                    "request": {
-                      "method": "GET",
-                      "url": "not a url",
-                      "headers": [],
-                      "queryString": []
-                    },
-                    "response": {
-                      "status": 200,
-                      "headers": [],
-                      "content": {
-                        "mimeType": "text/plain",
-                        "text": "ignored"
-                      }
-                    }
-                  },
-                  {
-                    "request": {
-                      "method": "GET",
-                      "url": "https://api.test/users",
-                      "headers": [],
-                      "queryString": []
-                    },
-                    "response": {
-                      "status": 500,
-                      "headers": [
-                        { "name": "Content-Type", "value": "text/plain" }
-                      ],
-                      "content": {
-                        "mimeType": "text/plain",
-                        "encoding": "base64",
-                        "text": "@@@"
-                      }
-                    }
-                  }
-                ]
-              }
-            }
-        """.trimIndent()
-
-		val spec = parser.parse(har)
-
-		assertEquals("Browser HAR Import", spec.title)
-		assertEquals("1.0", spec.version)
-		assertEquals(1, spec.endpoints.size)
-
-		val endpoint = spec.endpoints.single()
-		assertEquals("GET", endpoint.method)
-		assertEquals("/users", endpoint.path)
-		assertEquals("List Users", endpoint.alias)
-		assertEquals(null, endpoint.description)
-		assertEquals(null, endpoint.referenceName)
-		assertEquals(2, endpoint.responses.size)
-
+		val spec = parser.parse(sampleHarWithInvalidUrlAndBase64())
+		val endpoint = assertUsersEndpoint(spec)
 		val jsonResponse = endpoint.responses.first { it.statusCode == 200 }
 		assertNotNull(jsonResponse.body)
 		assertTrue(jsonResponse.body!!.contains("\"users\""))
-
-		val invalidBase64Response = endpoint.responses.first { it.statusCode == 500 }
-		assertEquals("@@@", invalidBase64Response.body)
+		assertEquals("@@@", endpoint.responses.first { it.statusCode == 500 }.body)
 	}
 
 	@Test
@@ -405,5 +326,104 @@ class HARImportParserTest {
 		// JWT header and payload are preserved, only signature is stripped
 		val customToken = response.headers["X-Correlation-Token"]
 		assertEquals("$jwtHeader.$jwtPayload.redacted", customToken)
+	}
+
+	private fun harDocument(vararg entries: String, creator: String = "", version: String = "1.2"): String {
+		val metadataLines = buildList {
+			add("\"version\": \"$version\"")
+			creator.takeIf { it.isNotBlank() }?.let { add("\"creator\": $it") }
+		}.joinToString(",\n    ")
+		return """
+			{
+			  "log": {
+			    $metadataLines,
+			    "entries": [
+			      ${entries.joinToString(",\n      ")}
+			    ]
+			  }
+			}
+		""".trimIndent()
+	}
+
+	private fun entry(request: String, response: String): String = """
+		{
+		  "request": {
+		    $request
+		  },
+		  "response": {
+		    $response
+		  }
+		}
+	""".trimIndent()
+
+	private fun sampleHarWithInvalidUrlAndBase64(): String = harDocument(
+		entry(
+			request = """
+				"method": "GET",
+				"url": "https://api.test/users",
+				"headers": [],
+				"queryString": []
+			""".trimIndent(),
+			response = """
+				"status": 200,
+				"headers": [
+				  { "name": "Content-Type", "value": "application/json" }
+				],
+				"content": {
+				  "mimeType": "application/json",
+				  "text": "{\"users\":[{\"id\":1}]}"
+				}
+			""".trimIndent(),
+		),
+		entry(
+			request = """
+				"method": "GET",
+				"url": "not a url",
+				"headers": [],
+				"queryString": []
+			""".trimIndent(),
+			response = """
+				"status": 200,
+				"headers": [],
+				"content": {
+				  "mimeType": "text/plain",
+				  "text": "ignored"
+				}
+			""".trimIndent(),
+		),
+		entry(
+			request = """
+				"method": "GET",
+				"url": "https://api.test/users",
+				"headers": [],
+				"queryString": []
+			""".trimIndent(),
+			response = """
+				"status": 500,
+				"headers": [
+				  { "name": "Content-Type", "value": "text/plain" }
+				],
+				"content": {
+				  "mimeType": "text/plain",
+				  "encoding": "base64",
+				  "text": "@@@"
+				}
+			""".trimIndent(),
+		),
+		creator = "{ \"name\": \"Browser\", \"version\": \"1.0\" }",
+	)
+
+	private fun assertUsersEndpoint(spec: com.moqserver.studio.domain.ParsedSpec): com.moqserver.studio.domain.ParsedEndpoint {
+		assertEquals("Browser HAR Import", spec.title)
+		assertEquals("1.0", spec.version)
+		assertEquals(1, spec.endpoints.size)
+		return spec.endpoints.single().also { endpoint ->
+			assertEquals("GET", endpoint.method)
+			assertEquals("/users", endpoint.path)
+			assertEquals("List Users", endpoint.alias)
+			assertEquals(null, endpoint.description)
+			assertEquals(null, endpoint.referenceName)
+			assertEquals(2, endpoint.responses.size)
+		}
 	}
 }
