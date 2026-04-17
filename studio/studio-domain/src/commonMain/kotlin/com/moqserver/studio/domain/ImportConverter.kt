@@ -258,6 +258,7 @@ object ImportConverter {
 				?: candidates.singleOrNull()
 				?: return@map variant
 			candidates.remove(replacement)
+			val replacementHasBody = replacement.body != null
 			convertVariant(
 				resp = replacement,
 				name = variant.name,
@@ -266,7 +267,7 @@ object ImportConverter {
 			).copy(
 				requestMatch = variant.requestMatch,
 				delayMs = variant.delayMs,
-				bodyFile = variant.bodyFile,
+				bodyFile = if (replacementHasBody) null else variant.bodyFile,
 			)
 		}
 
