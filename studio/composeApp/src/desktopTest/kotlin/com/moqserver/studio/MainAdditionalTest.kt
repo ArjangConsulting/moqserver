@@ -33,6 +33,16 @@ class MainAdditionalTest {
 		assertTrue(plan.requiresProject)
 	}
 
+	@Test
+	fun `shouldPersistImportedProjectImmediately returns true for new imports`() {
+		assertTrue(shouldPersistImportedProjectImmediately(isUpdateMode = false))
+	}
+
+	@Test
+	fun `shouldPersistImportedProjectImmediately returns false for update imports`() {
+		assertFalse(shouldPersistImportedProjectImmediately(isUpdateMode = true))
+	}
+
 	// ── buildURLImportAuth ──────────────────────────────────────────
 
 	@Test

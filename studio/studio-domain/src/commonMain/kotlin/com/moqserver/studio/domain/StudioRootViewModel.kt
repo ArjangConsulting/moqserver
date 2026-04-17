@@ -632,6 +632,7 @@ class StudioRootViewModel(
 
     fun confirmImport(projectPath: String): MoqProject? {
         val importState = _state.value.importState ?: return null
+        val originalProject = _state.value.originalProject
         val acceptedEntries = importState.entries.filter {
 			it.isEffectivelyAccepted(importState.updateSelection, importState.isUpdateMode)
 		}
@@ -654,7 +655,7 @@ class StudioRootViewModel(
         _state.update {
             it.copy(
                 project = project,
-                originalProject = project,
+                originalProject = originalProject,
                 isDirty = true, // New import needs saving
                 importState = null,
                 statusLine = "Imported ${acceptedEntries.size} endpoints from ${importState.sourceFileName}",

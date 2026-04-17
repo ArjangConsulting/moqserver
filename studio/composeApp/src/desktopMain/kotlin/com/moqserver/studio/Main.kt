@@ -98,6 +98,8 @@ internal fun planURLImportExecution(state: ImportFromURLState): URLImportExecuti
 	requiresProject = state.action == URLImportAction.UPDATE,
 )
 
+internal fun shouldPersistImportedProjectImmediately(isUpdateMode: Boolean): Boolean = !isUpdateMode
+
 internal fun buildURLImportAuth(state: ImportFromURLState): URLImportAuth? = when (state.authType) {
 	URLAuthType.BEARER -> URLImportAuth.Bearer(state.bearerToken)
 	URLAuthType.BASIC -> URLImportAuth.Basic(state.basicUsername, state.basicPassword)
@@ -892,35 +894,39 @@ fun main(args: Array<String>) {
 										val existingProjectPath = (currentImportState.mode as? ImportMode.UpdateExisting)
 											?.existingProject?.projectPath
 
-										if (isUpdateMode) {
-											val deselectedIds = currentImportState.entries
-												.filter {
-													!it.accepted &&
-														it.updateStatus != EndpointUpdateStatus.UNCHANGED
-												}
+									val persistImportedProject = shouldPersistImportedProjectImmediately(isUpdateMode)
+
+									if (isUpdateMode) {
+										val deselectedIds = currentImportState.entries
+											.filter {
+												!it.accepted &&
+													it.updateStatus != EndpointUpdateStatus.UNCHANGED
+											}
 												.map {
 													ImportConverter.endpointId(it.endpoint.method, it.endpoint.path)
 												}
 												.toSet()
-											val project = appViewModel.confirmImport(
-												existingProjectPath ?: currentImportState.parsedSpec.title,
-											) ?: return@launch
-											val projectPath = project.projectPath
-											withContext(Dispatchers.IO) {
-												importHistoryRepo.saveDeselected(projectPath, deselectedIds)
-												repo.save(project, projectPath)
-											}
+										val project = appViewModel.confirmImport(
+											existingProjectPath ?: currentImportState.parsedSpec.title,
+										) ?: return@launch
+										val projectPath = project.projectPath
+										withContext(Dispatchers.IO) {
+											importHistoryRepo.saveDeselected(projectPath, deselectedIds)
+										}
+										if (persistImportedProject) {
+											withContext(Dispatchers.IO) { repo.save(project, projectPath) }
 											appViewModel.projectSaved(projectPath)
 											appViewModel.addRecentProject(projectPath)
 											withContext(Dispatchers.IO) {
 												recentProjectsRepo.save(appViewModel.state.value.recentProjects)
 											}
-											logger.info(
-												"Update import complete: {} endpoint(s) in {}",
-												project.endpoints.size,
-												projectPath,
-											)
-										} else {
+										}
+										logger.info(
+											"Update import applied: {} endpoint(s) staged in {}",
+											project.endpoints.size,
+											projectPath,
+										)
+									} else {
 											val path = chooseProjectDirectory(
 												parent = window,
 												title = "Import Project",
@@ -931,11 +937,13 @@ fun main(args: Array<String>) {
 											logger.info("Saving imported project '{}' to: {}", currentImportState.projectName, path)
 											try {
 												val project = appViewModel.confirmImport(path) ?: return@launch
-												withContext(Dispatchers.IO) { repo.save(project, path) }
-												appViewModel.projectSaved(path)
-												appViewModel.addRecentProject(path)
-												withContext(Dispatchers.IO) {
-													recentProjectsRepo.save(appViewModel.state.value.recentProjects)
+												if (persistImportedProject) {
+													withContext(Dispatchers.IO) { repo.save(project, path) }
+													appViewModel.projectSaved(path)
+													appViewModel.addRecentProject(path)
+													withContext(Dispatchers.IO) {
+														recentProjectsRepo.save(appViewModel.state.value.recentProjects)
+													}
 												}
 												lastFileDirectory.value = File(path).parentFile?.canonicalPath ?: path
 												logger.info(
