@@ -8,6 +8,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.AutoAwesome
 import androidx.compose.material.icons.outlined.Close
+import androidx.compose.material.icons.outlined.ContentCopy
 import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material.icons.outlined.Save
 import androidx.compose.material3.*
@@ -33,6 +34,7 @@ private object BodyTabStrings {
 	const val CANCEL_BODY_EDIT = "Cancel body edit"
 	const val SAVE_BODY_EDIT = "Save body edit"
 	const val EDIT_BODY = "Edit body"
+	const val COPY_BODY = "Copy body"
 	const val GENERATE_BODY = "Generate body"
 	const val AI_PROMPT_TITLE = "Generate response body"
 	const val AI_PROMPT_LABEL = "Prompt"
@@ -321,11 +323,15 @@ private fun BodyEditorPanel(
 				horizontalArrangement = Arrangement.End,
 			) {
 				BodyTabActions(
+					copyText = if (isEditing) draftText else currentText,
 					isEditing = isEditing,
 					canEdit = true,
 					canGenerateWithAi = canGenerateWithAi,
 					isGeneratingWithAi = isGeneratingWithAi,
 					isJsonBody = isJsonBody,
+					onCopyBody = {
+						copyTextToClipboard(if (isEditing) draftText else currentText)
+					},
 					onEdit = onEdit,
 					onGenerateBody = onGenerateBody,
 					onCancel = onCancel,
@@ -397,11 +403,13 @@ private fun bodyEditorFieldColors() = OutlinedTextFieldDefaults.colors(
 
 @Composable
 private fun BodyTabActions(
+	copyText: String,
 	isEditing: Boolean,
 	canEdit: Boolean,
 	canGenerateWithAi: Boolean,
 	isGeneratingWithAi: Boolean,
 	isJsonBody: Boolean,
+	onCopyBody: () -> Unit,
 	onEdit: () -> Unit,
 	onGenerateBody: () -> Unit,
 	onCancel: () -> Unit,
@@ -420,6 +428,10 @@ private fun BodyTabActions(
 			FilledTonalButton(onClick = onFormatJson, contentPadding = PaddingValues(horizontal = StudioDimens.l, vertical = StudioDimens.m)) {
 				Text(BodyTabStrings.FORMAT_JSON)
 			}
+		}
+
+		IconButton(onClick = onCopyBody, enabled = copyText.isNotEmpty()) {
+			Icon(Icons.Outlined.ContentCopy, contentDescription = BodyTabStrings.COPY_BODY)
 		}
 
 		when {
