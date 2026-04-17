@@ -14,8 +14,8 @@ import java.util.*
 
 /**
  * Parses HAR 1.2 files into ParsedSpec for import into Studio.
- * Mirrors the Swift HARParser logic: groups entries by method+path,
- * deduplicates, and generates variant names.
+	 * Mirrors the Swift HARParser logic: groups entries by method+path
+	 * and generates variant names.
  *
  * Security: all sensitive values (auth headers, cookies, tokens, JWTs) are
  * redacted at parse time following the same approach as Cloudflare's HAR Sanitizer
@@ -107,9 +107,7 @@ class HARImportParser {
 		for ((index, entry) in entries.withIndex()) {
 			parseEntry(entry, index + 1, warnings)?.let { parsedEntry ->
 				val existing = grouped.getOrPut(parsedEntry.key) { mutableListOf() }
-				if (parsedEntry.exchange !in existing) {
-					existing.add(parsedEntry.exchange)
-				}
+				existing.add(parsedEntry.exchange)
 			}
 		}
 

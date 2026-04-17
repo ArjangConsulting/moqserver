@@ -98,6 +98,33 @@ class ImportConverterMergeGapTest {
 	}
 
 	@Test
+	fun `merge adds duplicate imported responses with same status and body as separate variants`() {
+		val existing = makeEndpoint(path = "/items", statusCodes = listOf(200))
+		val project = makeProject(existing)
+		val newSpec = ParsedEndpoint(
+			method = "GET",
+			path = "/items",
+			responses = listOf(
+				ParsedResponse(name = "default", statusCode = 200, body = "{\"spec\":\"value\"}"),
+				ParsedResponse(name = "success-200", statusCode = 200, body = "{\"spec\":\"value\"}"),
+			),
+		)
+		val diff = ImportConverter.diffEndpoint(newSpec, existing)
+		val entries = changedEntries(newSpec, diff)
+
+		val result = ImportConverter.merge(
+			existingProject = project,
+			acceptedEntries = entries,
+			updateSelection = UpdateSelection(body = true),
+		)
+
+		val variants = result.endpoints.single().variants
+		assertEquals(3, variants.size)
+		assertEquals(listOf("variant-200", "Success", "Success 2"), variants.map { it.name })
+		assertEquals(listOf(200, 200, 200), variants.map { it.status })
+	}
+
+	@Test
 	fun `merge updates existing response body when body update is enabled`() {
 		val existing = makeEndpoint(
 			path = "/items",

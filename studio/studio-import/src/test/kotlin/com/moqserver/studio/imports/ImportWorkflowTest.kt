@@ -113,6 +113,64 @@ class ImportWorkflowTest {
 	}
 
 	@Test
+	fun `har import preserves duplicate same-status same-body responses as separate variants`() {
+		val parsed = HARImportParser().parse(
+			"""
+            {
+              "log": {
+                "version": "1.2",
+                "entries": [
+                  {
+                    "request": {
+                      "method": "GET",
+                      "url": "https://example.com/api/items",
+                      "headers": []
+                    },
+                    "response": {
+                      "status": 200,
+                      "headers": [],
+                      "content": {
+                        "mimeType": "application/json",
+                        "text": "{\"ok\":true}"
+                      }
+                    }
+                  },
+                  {
+                    "request": {
+                      "method": "GET",
+                      "url": "https://example.com/api/items",
+                      "headers": []
+                    },
+                    "response": {
+                      "status": 200,
+                      "headers": [],
+                      "content": {
+                        "mimeType": "application/json",
+                        "text": "{\"ok\":true}"
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+            """.trimIndent(),
+		)
+
+		val endpoint = parsed.endpoints.single()
+		val project = ImportConverter.convert(
+			spec = ParsedSpec(title = parsed.title, version = parsed.version, endpoints = parsed.endpoints),
+			acceptedEntries = listOf(ImportEndpointEntry(endpoint = endpoint)),
+			projectName = "HAR Duplicate Import",
+			projectPath = "/tmp/har-duplicate-import",
+		)
+
+		val variants = project.endpoints.single().variants
+		assertEquals(2, variants.size)
+		assertEquals(listOf("Success", "Success 2"), variants.map { it.name })
+		assertEquals(listOf(200, 200), variants.map { it.status })
+	}
+
+	@Test
 	fun `har import round trips through project save and load with special headers and binary bodies`() {
 		val parsed = HARImportParser().parse(sampleBinaryHar())
 

@@ -146,11 +146,11 @@ object ImportConverter {
         val existingTags = existing.tags?.toSet() ?: emptySet()
         val tagsChanged = parsedTags != existingTags
 
-		val parsedBodiesByStatus = parsed.responses.associate { response ->
-			response.statusCode to normalizeParsedBody(response.body)
+		val parsedBodiesByStatus = parsed.responses.groupBy { it.statusCode }.mapValues { (_, responses) ->
+			responses.map { response -> normalizeParsedBody(response.body) }.sortedBy { it ?: "" }
 		}
-		val existingBodiesByStatus = existing.variants.associate {
-			it.status to normalizeBody(it.body?.let(::yamlBodyToComparableString))
+		val existingBodiesByStatus = existing.variants.groupBy { it.status }.mapValues { (_, variants) ->
+			variants.map { variant -> normalizeBody(variant.body?.let(::yamlBodyToComparableString)) }.sortedBy { it ?: "" }
 		}
         val sharedStatusCodes = parsedBodiesByStatus.keys intersect existingBodiesByStatus.keys
         val responseBodyChanged = sharedStatusCodes.any { status ->
@@ -246,7 +246,7 @@ object ImportConverter {
 		parsed: ParsedEndpoint,
 		generatedResponses: List<ParsedResponse>,
 	): List<ProjectVariant> {
-		val responses = deduplicateResponses(parsed.responses + generatedResponses)
+		val responses = parsed.responses + generatedResponses
 		val responsesByStatus = responses.groupBy { it.statusCode }.mapValues { (_, values) -> values.toMutableList() }
 
 		val assignedNames = existing.variants.map { it.name }.toMutableList()
@@ -355,7 +355,7 @@ object ImportConverter {
 	}
 
 	private fun buildEndpointVariants(responses: List<ParsedResponse>): List<ProjectVariant> {
-		val allResponses = deduplicateResponses(responses)
+		val allResponses = responses
 		val defaultIndex = defaultVariantIndex(allResponses)
 		val assignedNames = mutableListOf<String>()
 		val assignedReferenceNames = mutableListOf<String>()
@@ -428,13 +428,6 @@ object ImportConverter {
         return runCatching { json.parseToJsonElement(trimmed) }
             .map { jsonElementToYamlValue(it) }
             .getOrElse { YamlValue.Str(body) }
-	}
-
-	private fun deduplicateResponses(responses: List<ParsedResponse>): List<ParsedResponse> {
-		return responses
-			.groupBy { response -> response.statusCode to normalizeParsedBody(response.body) }
-			.values
-			.map { duplicates -> duplicates.last() }
 	}
 
     private fun jsonElementToYamlValue(element: JsonElement): YamlValue {

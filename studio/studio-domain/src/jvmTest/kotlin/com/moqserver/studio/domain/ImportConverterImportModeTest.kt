@@ -51,6 +51,35 @@ class ImportConverterImportModeTest {
 	}
 
 	@Test
+	fun `startUpdateFromSpec classifies duplicate same-status responses as changed`() {
+		val existingEndpoint = makeEndpoint(path = "/items", statusCodes = listOf(200))
+		val vm = StudioRootViewModel()
+		vm.projectLoaded(makeProject(existingEndpoint))
+
+		val spec = ParsedSpec(
+			title = "Test",
+			version = "1.0",
+			endpoints = listOf(
+				ParsedEndpoint(
+					method = "GET",
+					path = "/items",
+					responses = listOf(
+						ParsedResponse(name = "default", statusCode = 200, body = "{\"spec\":\"value\"}"),
+						ParsedResponse(name = "success-200", statusCode = 200, body = "{\"spec\":\"value\"}"),
+					),
+				),
+			),
+		)
+
+		vm.startUpdateFromSpec(spec, ImportSourceType.OPENAPI, "test.yaml")
+
+		val entry = vm.state.value.importState!!.entries.single()
+		assertEquals(EndpointUpdateStatus.CHANGED, entry.updateStatus)
+		assertTrue(entry.accepted)
+		assertTrue(entry.specDiff?.responseBodyChanged == true)
+	}
+
+	@Test
 	fun `startUpdateFromSpec respects previously deselected IDs`() {
 		val vm = StudioRootViewModel()
 		vm.projectLoaded(makeProject(makeEndpoint(path = "/items")))
