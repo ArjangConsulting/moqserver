@@ -125,6 +125,44 @@ class ImportConverterMergeGapTest {
 	}
 
 	@Test
+	fun `merge clears existing bodyFile when replacing fixture-backed body from import`() {
+		val existing = makeEndpoint(
+			path = "/items",
+			statusCodes = listOf(200),
+			userBody = null,
+		).copy(
+			variants = listOf(
+				makeEndpoint(
+					path = "/items",
+					statusCodes = listOf(200),
+					userBody = null,
+				).variants.single().copy(bodyFile = "fixtures/responses/get-items/items-success.json"),
+			),
+		)
+		val project = makeProject(existing)
+		val newSpec = ParsedEndpoint(
+			method = "GET",
+			path = "/items",
+			responses = listOf(ParsedResponse(name = "variant-200", statusCode = 200, body = "{\"spec\":\"new\"}")),
+		)
+		val diff = ImportConverter.diffEndpoint(newSpec, existing)
+		val entries = changedEntries(newSpec, diff)
+
+		val result = ImportConverter.merge(
+			existingProject = project,
+			acceptedEntries = entries,
+			updateSelection = UpdateSelection(body = true),
+		)
+
+		val variant = result.endpoints.single().variants.single()
+		assertNull(variant.bodyFile)
+		assertEquals(
+			"new",
+			((variant.body as YamlValue.Obj).value["spec"] as YamlValue.Str).value,
+		)
+	}
+
+	@Test
 	fun `merge preserves existing response body when body update is disabled`() {
 		val existing = makeEndpoint(
 			path = "/items",
