@@ -185,6 +185,26 @@ class ImportConverterUpdateWorkflowTest {
 	}
 
 	@Test
+	fun `undo after imported update keeps project dirty`() {
+		val vm = StudioRootViewModel()
+		val originalProject = makeProject(makeEndpoint(path = "/items"), path = "/tmp/proj")
+		vm.projectLoaded(originalProject)
+		vm.startUpdateFromSpec(
+			ParsedSpec(title = "T", version = "1", endpoints = listOf(parsedEndpoint(path = "/users"))),
+			ImportSourceType.OPENAPI,
+			"test.yaml",
+		)
+
+		vm.confirmImport("/tmp/proj")
+		val importedProject = vm.state.value.project!!
+		vm.updateManifest(importedProject.manifest.copy(name = "Changed Project"))
+		vm.undo()
+
+		assertEquals(importedProject, vm.state.value.project)
+		assertTrue(vm.state.value.isDirty)
+	}
+
+	@Test
 	fun `confirmImport in update mode returns null when all entries are deselected`() {
 		val vm = StudioRootViewModel()
 		vm.projectLoaded(makeProject(makeEndpoint(path = "/items"), path = "/tmp/proj"))
