@@ -3,6 +3,7 @@ package com.moqserver.studio.domain
 import com.moqserver.studio.projectformat.AuthType
 import com.moqserver.studio.projectformat.RuleMatcher
 import kotlin.test.Test
+import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 class ImportConverterDiffGapTest {
@@ -48,5 +49,41 @@ class ImportConverterDiffGapTest {
 
 		val diff = ImportConverter.diffEndpoint(parsed, makeEndpoint())
 		assertTrue(diff.requestRulesChanged)
+	}
+
+	@Test
+	fun `diffEndpoint detects additional duplicate response with same status and body`() {
+		val existing = makeEndpoint(path = "/items", statusCodes = listOf(200))
+		val parsed = ParsedEndpoint(
+			method = "GET",
+			path = "/items",
+			responses = listOf(
+				ParsedResponse(name = "default", statusCode = 200, body = "{\"spec\":\"value\"}"),
+				ParsedResponse(name = "success-200", statusCode = 200, body = "{\"spec\":\"value\"}"),
+			),
+		)
+
+		val diff = ImportConverter.diffEndpoint(parsed, existing)
+
+		assertTrue(diff.hasChanges)
+		assertTrue(diff.responseBodyChanged)
+		assertFalse(diff.newStatusCodes.isNotEmpty())
+	}
+
+	@Test
+	fun `diffEndpoint does not flag duplicate responses when counts already match`() {
+		val existing = makeEndpoint(path = "/items", statusCodes = listOf(200, 200))
+		val parsed = ParsedEndpoint(
+			method = "GET",
+			path = "/items",
+			responses = listOf(
+				ParsedResponse(name = "default", statusCode = 200, body = "{\"spec\":\"value\"}"),
+				ParsedResponse(name = "success-200", statusCode = 200, body = "{\"spec\":\"value\"}"),
+			),
+		)
+
+		val diff = ImportConverter.diffEndpoint(parsed, existing)
+
+		assertFalse(diff.hasChanges)
 	}
 }

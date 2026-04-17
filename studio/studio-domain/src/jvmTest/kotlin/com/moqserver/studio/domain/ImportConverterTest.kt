@@ -289,7 +289,7 @@ class ImportConverterTest {
 	}
 
 	@Test
-	fun `deduplicates imported responses with same status and body`() {
+	fun `preserves imported responses with same status and body as separate variants`() {
 		val endpoint = ParsedEndpoint(
 			method = "GET",
 			path = "/pets",
@@ -312,7 +312,8 @@ class ImportConverterTest {
 		)
 
 		val variants = project.endpoints.single().variants
-		assertEquals(1, variants.size)
-		assertEquals(200, variants.single().status)
+		assertEquals(2, variants.size)
+		assertEquals(listOf("Success", "another success"), variants.map { it.name })
+		assertEquals(listOf(200, 200), variants.map { it.status })
 	}
 }

@@ -128,6 +128,54 @@ class HARImportParserTest {
 	}
 
 	@Test
+	fun `preserves duplicate exchanges with same status and body as separate responses`() {
+		val har = """
+            {
+              "log": {
+                "version": "1.2",
+                "entries": [
+                  {
+                    "request": {
+                      "method": "GET",
+                      "url": "https://api.test/items",
+                      "headers": []
+                    },
+                    "response": {
+                      "status": 200,
+                      "headers": [
+                        { "name": "Content-Type", "value": "application/json" }
+                      ],
+                      "content": { "mimeType": "application/json", "text": "{\"ok\":true}" }
+                    }
+                  },
+                  {
+                    "request": {
+                      "method": "GET",
+                      "url": "https://api.test/items",
+                      "headers": []
+                    },
+                    "response": {
+                      "status": 200,
+                      "headers": [
+                        { "name": "Content-Type", "value": "application/json" }
+                      ],
+                      "content": { "mimeType": "application/json", "text": "{\"ok\":true}" }
+                    }
+                  }
+                ]
+              }
+            }
+        """.trimIndent()
+
+		val spec = parser.parse(har)
+
+		val endpoint = spec.endpoints.single()
+		assertEquals(2, endpoint.responses.size)
+		assertEquals(listOf("default", "success-200"), endpoint.responses.map { it.name })
+		assertEquals(listOf(200, 200), endpoint.responses.map { it.statusCode })
+	}
+
+	@Test
 	fun `skips malformed har entries and surfaces warnings instead of failing import`() {
 		val har = """
             {
