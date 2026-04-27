@@ -23,10 +23,22 @@ Build a desktop-first authoring tool that can reliably create, inspect, edit, va
 
 ### `studio-data`
 
-- filesystem IO
+- settings persistence
+- secure credential storage adapters
+- recent project and import history repositories
+
+### `studio-project-format`
+
+- `.moqproj` models
+- validation rules
 - YAML load/save
-- validation adapters
-- import pipelines
+- project repository I/O
+
+### `studio-import`
+
+- OpenAPI import parsing
+- HAR import parsing
+- import normalization and redaction
 
 ### `studio-ai`
 
@@ -39,6 +51,18 @@ Build a desktop-first authoring tool that can reliably create, inspect, edit, va
 - JSON/YAML editing surface
 - Swing interop wrapper
 - editor-specific configuration
+
+### `studio-export`
+
+- language reference export
+- export catalog generation
+- symbol sanitization
+
+### `studio-ui` and `studio-design-system`
+
+- reusable UI components
+- design tokens
+- shared desktop UI patterns
 
 ## State Management
 

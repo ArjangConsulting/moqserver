@@ -13,10 +13,11 @@ This directory contains end-to-end examples for using `moqserver` from mobile ap
 Run this from the repository root:
 
 ```bash
+cd server
 swift run Run serve \
-  --spec ./samples/server/openapi.yaml \
-  --config ./samples/server/config.yaml \
-  --mocks ./samples/server/mocks \
+  --spec ../samples/server/openapi.yaml \
+  --config ../samples/server/config.yaml \
+  --mocks ../samples/server/mocks \
   --port 8080
 ```
 

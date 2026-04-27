@@ -32,12 +32,24 @@ AI should help users produce a better `.moqproj` faster, but the exported projec
 
 ```
 moqserver/
-├── Sources/              # Swift server (existing)
-├── Tests/                # Server tests (existing)
-├── Package.swift         # Existing
+├── server/               # Swift/Vapor CLI runtime
+│   ├── Sources/
+│   ├── Tests/
+│   ├── Package.swift
+│   ├── Dockerfile
+│   └── docker-compose.yml
 ├── studio/               # Desktop app (Compose Multiplatform)
-│   ├── build.gradle.kts
-│   ├── src/
+│   ├── composeApp/
+│   ├── studio-domain/
+│   ├── studio-project-format/
+│   ├── studio-import/
+│   ├── studio-data/
+│   ├── studio-ai/
+│   ├── studio-export/
+│   ├── studio-ui/
+│   ├── studio-design-system/
+│   ├── studio-code-editor/
+│   ├── studio-logging/
 │   └── ...
 ├── format/               # Shared format schema + validation
 │   ├── schema.json       # JSON Schema for .moqproj
@@ -46,7 +58,7 @@ moqserver/
 └── README.md
 ```
 
-The server stays at the repo root (no file moves). Studio is a self-contained desktop app in `studio/`. The `format/` directory holds the canonical schema that both sides reference.
+The server is a self-contained Swift package in `server/`. Studio is a self-contained Gradle project in `studio/`. The `format/` directory holds the canonical schema that both sides reference.
 
 ---
 
@@ -350,7 +362,7 @@ Any omitted timing value is treated as `0`.
 
 ### What exists
 
-Phase 1 is complete: core models (`MockEndpoint`, `MockResponse`, `AuthType`), `Package.swift` with Vapor 5, `main.swift`, Dockerfile, docker-compose, example specs, and documentation.
+The current server is a modular Swift 5.10 package using Vapor 4. It contains `MoqCore`, `MoqFormat`, `MoqParsing`, `MoqRuntime`, `MoqCLI`, and the `Run` executable target, plus Docker files, sample specs, and tests.
 
 ### What needs to be built or updated
 
@@ -372,22 +384,22 @@ Phase 1 is complete: core models (`MockEndpoint`, `MockResponse`, `AuthType`), `
 
 ```bash
 # Serve from a project file (primary usage)
-moqserver serve --project ./my-project.moqproj --port 8080
+cd server && swift run Run serve --project ../my-project.moqproj --port 8080
 
 # Serve from OpenAPI directly (convenience, skips Studio)
-moqserver serve --spec ./openapi.yaml --port 8080
+cd server && swift run Run serve --spec ../openapi.yaml --port 8080
 
 # Override default variant for all endpoints
-moqserver serve --project ./my-project.moqproj --variant error
+cd server && swift run Run serve --project ../my-project.moqproj --variant error
 
 # Validate a project file without starting the server
-moqserver validate --project ./my-project.moqproj
+cd server && swift run Run validate ../my-project.moqproj
 
-# Analyze an API spec and summarize suggested mock coverage
-moqserver analyze --spec ./openapi.yaml
+# Validate an API spec and summarize mock-readiness diagnostics
+cd server && swift run Run validate-spec --spec ../openapi.yaml
 ```
 
-`analyze` is optional for the first server milestone, but the product direction should reserve room for a CLI or Studio-backed analysis flow that can summarize endpoint coverage, likely missing variants, auth expectations, and schema quality issues.
+The executable product is named `Run`; ArgumentParser displays the command name as `moqserver` in help output and packaged binaries are named `moqserver`.
 
 ---
 
@@ -830,31 +842,27 @@ The desktop app should run expensive work off the UI thread:
 
 This should be implemented with Kotlin coroutines and structured concurrency so long-running jobs are cancelable and progress can be surfaced in the UI.
 
-#### Swift/Vapor companion module layout
+#### Studio provider module layout
 
-The Swift companion should live alongside the existing server code and reuse shared infrastructure where it makes sense.
+Studio calls AI providers directly from the `studio-ai` module. There is no separate Swift companion service in the current architecture.
 
-Suggested layout:
+Current provider-related layout:
 
-- `Sources/MoqServer/AI/`
-  - `AIProvider.swift`
-  - `AIProviderRegistry.swift`
-  - `AIRequestRedactor.swift`
-  - `AIUsage.swift`
-- `Sources/MoqServer/AI/Providers/`
-  - `OllamaProvider.swift`
-  - `OpenAIProvider.swift`
-  - `AnthropicProvider.swift`
-  - `OpenAICompatibleProvider.swift`
-- `Sources/MoqServer/AI/API/`
-  - request/response DTOs for the local Studio contract
-- `Sources/MoqServer/AI/Routing/`
-  - `AIProxyHandler.swift`
-  - `AIProxyRouter.swift`
-- `Sources/MoqServer/CLI/`
-  - `AIProxyCommand.swift` or `StudioBridgeCommand.swift`
+- `studio/studio-ai/`
+  - provider abstractions
+  - provider registry
+  - prompt construction
+  - structured response parsing
+  - direct OpenAI, Anthropic, Gemini, Ollama, and OpenAI-compatible integrations
+- `studio/studio-data/`
+  - provider settings persistence
+  - secure credential storage adapters
+- `studio/composeApp/`
+  - settings UI
+  - AI action wiring
+  - result review and accept/reject workflow
 
-This keeps AI transport and provider logic isolated from runtime request mocking.
+This keeps AI transport and provider logic isolated from deterministic runtime request mocking.
 
 ### Local API contract
 

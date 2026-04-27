@@ -14,10 +14,11 @@ This app demonstrates calling `moqserver` from Android.
 From the repository root:
 
 ```bash
+cd server
 swift run Run serve \
-  --spec ./samples/server/openapi.yaml \
-  --config ./samples/server/config.yaml \
-  --mocks ./samples/server/mocks \
+  --spec ../samples/server/openapi.yaml \
+  --config ../samples/server/config.yaml \
+  --mocks ../samples/server/mocks \
   --port 8080
 ```
 

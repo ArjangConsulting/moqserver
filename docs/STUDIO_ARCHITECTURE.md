@@ -6,10 +6,16 @@ The Studio app should use a Compose Multiplatform desktop shell with a small Gra
 
 - `composeApp` for the executable app shell and screens
 - `studio-domain` for shared state, DTOs, and use-case contracts
-- `studio-data` for JVM-only IO, YAML, validation, and companion networking
+- `studio-project-format` for `.moqproj` models, validation, YAML codec, and repository I/O
+- `studio-import` for OpenAPI/HAR import parsing
+- `studio-data` for local settings, credentials, recent projects, and import history
+- `studio-ai` for provider integrations, prompt building, and result parsing
+- `studio-export` for generated language references
+- `studio-ui` and `studio-design-system` for reusable UI components and tokens
 - `studio-code-editor` for the embedded structured text editor
+- `studio-logging` for logging helpers
 
-This is the right balance for v1. It keeps the app modular enough to avoid another monolith, but avoids splitting import/export/AI/editor into ten tiny modules before the workflows are proven.
+This is the current v1 layout. It keeps domain workflow logic isolated from desktop/UI code while giving import, AI, project-format, export, and reusable UI concerns explicit homes.
 
 ## Why This Architecture
 
@@ -71,7 +77,14 @@ Should depend on:
 
 - `studio-domain`
 - `studio-data`
+- `studio-import`
+- `studio-project-format`
+- `studio-ai`
+- `studio-export`
+- `studio-ui`
+- `studio-design-system`
 - `studio-code-editor`
+- `studio-logging`
 - Compose navigation
 - Compose Material 3
 
@@ -105,12 +118,32 @@ This should remain the cleanest module in the Studio build.
 
 Responsibilities:
 
-- YAML parsing and stable emission
-- JSON formatting helpers
-- file open/save and future file watching
-- schema-backed validation adapters
+- user preferences and provider settings persistence
+- secure credential storage adapters
+- recent project and import history repositories
 
 This is the correct place for JVM-only dependencies.
+
+### `studio-project-format`
+
+Responsibilities:
+
+- `.moqproj` domain models
+- validation diagnostics
+- YAML loading and stable emission
+- project repository I/O
+
+This module owns the Studio-side interpretation of the project format.
+
+### `studio-import`
+
+Responsibilities:
+
+- OpenAPI import parsing
+- HAR import parsing
+- import-time redaction and normalization
+
+Import parsers live here instead of in `studio-data`.
 
 ### `studio-ai`
 
@@ -119,6 +152,24 @@ Responsibilities:
 - AI provider integrations
 - prompt building and result parsing
 - provider configuration validation
+
+Studio calls providers directly from this module; there is no separate local Swift companion service.
+
+### `studio-export`
+
+Responsibilities:
+
+- language-specific reference generation
+- export catalog construction
+- symbol sanitization
+
+### `studio-ui` and `studio-design-system`
+
+Responsibilities:
+
+- reusable UI components
+- semantic color, shape, spacing, and typography tokens
+- shared component patterns outside the app shell
 
 ### `studio-code-editor`
 
@@ -135,7 +186,7 @@ This keeps the unavoidable Swing dependency boxed away from the rest of the app.
 ### Core UI and state
 
 - Compose Multiplatform `1.10.3`
-- Kotlin `2.3.20`
+- Kotlin `2.3.21`
 - Navigation Compose `org.jetbrains.androidx.navigation:navigation-compose:2.9.2`
 - Lifecycle ViewModel Compose `org.jetbrains.androidx.lifecycle:lifecycle-viewmodel-compose:2.10.0`
 - Coroutines `1.10.2`
@@ -143,11 +194,11 @@ This keeps the unavoidable Swing dependency boxed away from the rest of the app.
 
 ### Serialization and local APIs
 
-- `kotlinx-serialization-json:1.10.0`
-- Ktor client `3.4.1`
-- `ktor-client-content-negotiation:3.4.1`
-- `ktor-serialization-kotlinx-json:3.4.1`
-- `ktor-client-cio:3.4.1`
+- `kotlinx-serialization-json:1.11.0`
+- Ktor client `3.4.3`
+- `ktor-client-content-negotiation:3.4.3`
+- `ktor-serialization-kotlinx-json:3.4.3`
+- `ktor-client-cio:3.4.3`
 
 Use these for provider integrations and other local Studio networking needs.
 

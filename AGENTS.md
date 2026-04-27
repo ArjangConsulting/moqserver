@@ -63,9 +63,9 @@ Do not duplicate those product guides in new files unless the repo structure cha
 - Full test suite: `cd server && swift test`
 - Single test target: `cd server && swift test --filter MoqRuntimeTests`
 - Single test case: `cd server && swift test --filter "testAdminAPI"`
-- Run server: `cd server && swift run moqserver serve --spec ../samples/server/openapi.yaml --port 8080`
-- Validate OpenAPI spec: `cd server && swift run moqserver validate-spec ../samples/server/openapi.yaml`
-- Validate project bundle: `cd server && swift run moqserver validate path/to/project.moqproj`
+- Run server: `cd server && swift run Run serve --spec ../samples/server/openapi.yaml --port 8080`
+- Validate OpenAPI spec: `cd server && swift run Run validate-spec --spec ../samples/server/openapi.yaml`
+- Validate project bundle: `cd server && swift run Run validate path/to/project.moqproj`
 
 ## Server Test Targets
 - `MoqCoreTests`

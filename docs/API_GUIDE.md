@@ -7,22 +7,25 @@ This guide documents how to run `moqserver`, configure it, and use its runtime A
 From source:
 
 ```bash
-swift run Run serve --spec ./openapi.yaml --port 8080
+cd server
+swift run Run serve --spec ../openapi.yaml --port 8080
 ```
 
 With explicit host binding:
 
 ```bash
-swift run Run serve --spec ./openapi.yaml --hostname 0.0.0.0 --port 8080
+cd server
+swift run Run serve --spec ../openapi.yaml --hostname 0.0.0.0 --port 8080
 ```
 
 With config and mocks overlay:
 
 ```bash
+cd server
 swift run Run serve \
-  --spec ./openapi.yaml \
-  --config ./config/config.yaml \
-  --mocks ./mocks
+  --spec ../openapi.yaml \
+  --config ../config/config.yaml \
+  --mocks ../mocks
 ```
 
 Supported `serve` flags:
@@ -388,43 +391,42 @@ Example metadata:
 Use `init` to scaffold mock files from a spec:
 
 ```bash
-swift run Run init --spec ./openapi.yaml --output ./mocks
+cd server
+swift run Run init --spec ../openapi.yaml --output ../mocks
 ```
 
 This creates per-endpoint JSON files named by HTTP method and variant.
 
 ## 12. Docker Usage
 
-The repository includes a `Dockerfile` and `docker-compose.yml`.
+The server image files live under `server/`.
 
 Build/run directly:
 
 ```bash
-docker build -t moqserver .
+docker build -t moqserver ./server
 docker run --rm -p 8080:8080 \
-  -v "$PWD/spec:/app/spec:ro" \
-  -v "$PWD/mocks:/app/mocks:ro" \
-  -v "$PWD/config:/app/config:ro" \
-  moqserver serve --spec /app/spec/openapi.yaml --mocks /app/mocks --config /app/config/config.yaml --hostname 0.0.0.0 --port 8080
+  -v "$PWD/samples/server:/app/sample:ro" \
+  moqserver serve --spec /app/sample/openapi.yaml --mocks /app/sample/mocks --config /app/sample/config.yaml --hostname 0.0.0.0 --port 8080
 ```
 
 Compose:
 
 ```bash
+cd server
 docker compose up --build
 ```
 
 ## 13. Troubleshooting
 
-### `swift run moqserver ...` does not work
+### SwiftPM executable target name
 
-This package’s executable target is `Run`, so use:
+This package’s executable target is `Run`, while the CLI name shown in help output and packaged binaries is `moqserver`. When running from source, use:
 
 ```bash
-swift run Run serve --spec ./openapi.yaml
+cd server
+swift run Run serve --spec ../openapi.yaml
 ```
-
-The CLI command name shown in help output is still `moqserver`.
 
 ### 404 for expected endpoint
 
