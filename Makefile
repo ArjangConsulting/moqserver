@@ -1,4 +1,4 @@
-.PHONY: build test smoke run clean release docker-build studio-build studio-package studio-run studio-test studio-lint install-hooks
+.PHONY: build test smoke e2e run clean release docker-build docker-run studio-build studio-package studio-run studio-test studio-lint studio-dmg studio-deb studio-msi studio-uber-jar install-hooks
 
 # ── Server (Swift) ──────────────────────────────────────────────
 
@@ -15,7 +15,7 @@ e2e:
 	cd server && swift test --filter MoqIntegrationTests
 
 run:
-	cd server && swift run moqserver serve --spec ../samples/server/openapi.yaml --port 8080
+	cd server && swift run Run serve --spec ../samples/server/openapi.yaml --port 8080
 
 clean:
 	cd server && swift package clean
@@ -28,12 +28,14 @@ docker-build:
 	docker build -t moqserver ./server
 
 docker-run:
-	cd server && docker-compose up
+	cd server && docker compose up
 
 # ── Studio (Compose Multiplatform) ──────────────────────────────
 
+ifeq ($(shell uname),Darwin)
 override JAVA_HOME := $(shell /usr/libexec/java_home -v 21 2>/dev/null)
 export JAVA_HOME
+endif
 
 studio-build:
 	cd studio && ./gradlew :composeApp:compileKotlinDesktop

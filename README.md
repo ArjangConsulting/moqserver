@@ -50,7 +50,7 @@ In Studio, provider settings are configured directly by the user and used for bo
 ### 1) Build
 
 ```bash
-swift build
+make build
 ```
 
 ### 2) Create a minimal OpenAPI spec
@@ -85,19 +85,23 @@ paths:
 From source:
 
 ```bash
-swift run Run serve --spec ./openapi.yaml --port 8080
+cd server
+swift run Run serve --spec ../openapi.yaml --port 8080
 ```
 
 Using a built binary:
 
 ```bash
-./.build/debug/Run serve --spec ./openapi.yaml --port 8080
+./server/.build/debug/Run serve --spec ./openapi.yaml --port 8080
 ```
 
 Docker:
 
 ```bash
-docker compose up --build
+docker build -t moqserver ./server
+docker run --rm -p 8080:8080 \
+  -v "$PWD/openapi.yaml:/app/spec/openapi.yaml:ro" \
+  moqserver serve --spec /app/spec/openapi.yaml --hostname 0.0.0.0 --port 8080
 ```
 
 ### 4) Call the mock API
@@ -113,6 +117,7 @@ curl -H "X-Mock-Variant: error-500" http://127.0.0.1:8080/pets
 ## Command Reference
 
 ```bash
+cd server
 swift run Run --help
 swift run Run serve --help
 swift run Run init --help
@@ -138,10 +143,11 @@ swift run Run init --help
 ### Start with config and mock overlays
 
 ```bash
+cd server
 swift run Run serve \
-  --spec ./openapi.yaml \
-  --config ./config/config.yaml \
-  --mocks ./mocks \
+  --spec ../openapi.yaml \
+  --config ../config/config.yaml \
+  --mocks ../mocks \
   --hostname 0.0.0.0 \
   --port 8080
 ```
@@ -149,13 +155,15 @@ swift run Run serve \
 ### Scaffold mock files from a spec
 
 ```bash
-swift run Run init --spec ./openapi.yaml --output ./mocks
+cd server
+swift run Run init --spec ../openapi.yaml --output ../mocks
 ```
 
 ### Import a HAR capture into moqserver mocks
 
 ```bash
-swift run Run init --spec ./session.har --format har --output ./mocks
+cd server
+swift run Run init --spec ../session.har --format har --output ../mocks
 ```
 
 This generates mock files plus `.meta.json` request-match metadata so different recorded requests to the same path can become separate variants.
@@ -190,11 +198,7 @@ For complete API and configuration docs with detailed examples:
 
 The desktop Studio app is a separate Gradle project under [`studio/`](studio/). Open that directory directly in IntelliJ for the normal Compose Desktop debug workflow.
 
-For repo-local Studio engineering guidance and the local skill index, see [`LOCAL_SKILLS.md`](LOCAL_SKILLS.md).
-
-## Mobile Recorder SDKs
-
-The extracted iOS and Android network recording SDKs now live in the sibling repository at [`../mobile-network-recorder`](../mobile-network-recorder).
+For contributor setup, testing, and pull request expectations, see [`CONTRIBUTING.md`](CONTRIBUTING.md).
 
 ## License
 

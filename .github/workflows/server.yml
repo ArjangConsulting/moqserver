@@ -1,0 +1,42 @@
+name: Server
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/server.yml"
+      - "server/**"
+      - "format/**"
+      - "samples/server/**"
+      - "Makefile"
+  push:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/server.yml"
+      - "server/**"
+      - "format/**"
+      - "samples/server/**"
+      - "Makefile"
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: server
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6.0.2
+
+      - name: Set up Swift
+        uses: swift-actions/setup-swift@v2.4.0
+        with:
+          swift-version: "5.10"
+
+      - name: Build server
+        run: swift build
+
+      - name: Run server tests
+        run: swift test

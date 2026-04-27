@@ -12,14 +12,14 @@
 ## Version Bump
 
 - [ ] Update version in relevant files (if applicable)
-- [ ] Update CHANGELOG with release notes
+- [ ] Update `CHANGELOG.md` with release notes
 - [ ] Commit version bump
 
 ## Validation
 
-- [ ] `swift run moqserver serve --spec ./openapi.yaml --port 8080` starts without errors
-- [ ] `swift run moqserver init --spec ./openapi.yaml --output ./mocks` scaffolds files
-- [ ] `swift run moqserver validate-spec --spec ./openapi.yaml` reports no errors
+- [ ] `cd server && swift run Run serve --spec ../samples/server/openapi.yaml --port 8080` starts without errors
+- [ ] `cd server && swift run Run init --spec ../samples/server/openapi.yaml --output ../tmp/mocks` scaffolds files
+- [ ] `cd server && swift run Run validate-spec --spec ../samples/server/openapi.yaml` reports no errors
 - [ ] Admin API (`GET /_admin/endpoints`) returns registered endpoints
 - [ ] Variant selection via `X-Mock-Variant` header works
 - [ ] Auth enforcement works (bearer, basic, API key)

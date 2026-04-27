@@ -4,7 +4,7 @@ Desktop-first authoring surface for `.moqproj` files.
 
 ## Local development
 
-Use Java 17 or 21 for Gradle and IntelliJ. The current Kotlin/Gradle setup does not load correctly on Java 25 and fails early with `IllegalArgumentException: 25.0.2`.
+Use Java 21 for Gradle and IntelliJ. Java 17 may be sufficient for some IDE operations, but the Gradle modules use a Java 21 toolchain. The current Kotlin/Gradle setup does not load correctly on Java 25 and fails early with `IllegalArgumentException: 25.0.2`.
 
 Open the `studio/` directory as the IntelliJ project. That is the canonical IDE setup for the desktop app.
 
@@ -72,11 +72,11 @@ Shared JetBrains run configurations are checked in under:
 studio/.run/
 ```
 
-The Studio modules target Java 17.
+The Studio modules use a Java 21 toolchain.
 
 ### Recommended debug loop
 
-1. Set IntelliJ's Gradle JVM and Project SDK to Java 17 or 21.
+1. Set IntelliJ's Gradle JVM and Project SDK to Java 21.
 2. Run `0. Studio Debug`.
 
 `0. Studio Debug` now launches the desktop app as a real JVM application instead of a Gradle task, and enables:

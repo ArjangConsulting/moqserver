@@ -21,9 +21,9 @@ swift build
 swift test
 swift test --filter MoqRuntimeTests   # single test target
 swift test --filter "testAdminAPI"    # single test case
-swift run moqserver serve --spec ../samples/server/openapi.yaml --port 8080
-swift run moqserver validate-spec ../samples/server/openapi.yaml
-swift run moqserver validate path/to/project.moqproj
+swift run Run serve --spec ../samples/server/openapi.yaml --port 8080
+swift run Run validate-spec --spec ../samples/server/openapi.yaml
+swift run Run validate path/to/project.moqproj
 ```
 
 ## Module Structure
