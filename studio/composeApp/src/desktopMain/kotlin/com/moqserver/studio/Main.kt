@@ -86,6 +86,11 @@ private fun isRedoShortcut(event: androidx.compose.ui.input.key.KeyEvent, isMac:
     }
 }
 
+private fun isPreferencesShortcut(event: androidx.compose.ui.input.key.KeyEvent, isMac: Boolean): Boolean {
+    if (!isMac || event.type != KeyEventType.KeyDown) return false
+    return event.isMetaPressed && event.key == Key.Comma
+}
+
 internal data class URLImportExecutionPlan(
 	val operationLabel: String,
 	val modeLabel: String,
@@ -226,6 +231,11 @@ fun main(args: Array<String>) {
 
                     isRedoShortcut(event, isMac) && state.canRedo -> {
                         appViewModel.redo()
+                        true
+                    }
+
+                    isPreferencesShortcut(event, isMac) -> {
+                        showSettings.value = true
                         true
                     }
 
@@ -855,12 +865,18 @@ fun main(args: Array<String>) {
 									onDeselectAll = { appViewModel.setAllImportEndpoints(false) },
 									onUpdateProjectName = { appViewModel.updateImportProjectName(it) },
 									onUpdateSelection = { appViewModel.updateImportSelection(it) },
-									onUpdateResponseName = { entryIndex, responseIndex, name ->
-										appViewModel.updateImportResponseName(entryIndex, responseIndex, name)
-									},
-									onUpdateEndpointAIContextHint = { index, hint ->
-										appViewModel.updateImportAIContextHint(index, hint)
-									},
+								onUpdateResponseName = { entryIndex, responseIndex, name ->
+									appViewModel.updateImportResponseName(entryIndex, responseIndex, name)
+								},
+								onUpdateGeneratedResponseName = { entryIndex, responseIndex, name ->
+									appViewModel.updateGeneratedImportResponseName(entryIndex, responseIndex, name)
+								},
+								onToggleGeneratedResponse = { entryIndex, responseIndex ->
+									appViewModel.toggleGeneratedImportResponse(entryIndex, responseIndex)
+								},
+								onUpdateEndpointAIContextHint = { index, hint ->
+									appViewModel.updateImportAIContextHint(index, hint)
+								},
 									onGenerateEndpointMocks = { index ->
 										scope.launch(exceptionHandler) {
 											generateImportMocksForEndpoint(

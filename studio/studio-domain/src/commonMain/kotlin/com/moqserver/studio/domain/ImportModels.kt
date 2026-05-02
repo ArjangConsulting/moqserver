@@ -128,6 +128,7 @@ data class ImportEndpointEntry(
 	val accepted: Boolean = true,
 	val lockedResponseIndices: Set<Int> = emptySet(),
 	val generatedResponses: List<ParsedResponse> = emptyList(),
+	val selectedGeneratedResponseIndices: Set<Int> = emptySet(),
 	val aiGenerationLoading: Boolean = false,
 	val aiGenerationError: String? = null,
 	/** Optional user-provided context to guide AI mock generation for this endpoint. */
@@ -137,6 +138,9 @@ data class ImportEndpointEntry(
 	/** Non-null when [updateStatus] is [EndpointUpdateStatus.CHANGED], describing what changed. */
 	val specDiff: EndpointSpecDiff? = null,
 )
+
+val ImportEndpointEntry.selectedGeneratedResponses: List<ParsedResponse>
+	get() = generatedResponses.filterIndexed { index, _ -> index in selectedGeneratedResponseIndices }
 
 data class ImportAIBulkState(
 	val running: Boolean = false,
@@ -175,7 +179,7 @@ fun ImportEndpointEntry.isEffectivelyAccepted(
 		EndpointUpdateStatus.CHANGED -> {
 			val diff = specDiff
 			(diff?.affectsDetails == true && updateSelection.details) ||
-				((diff?.affectsBody == true || generatedResponses.isNotEmpty()) && updateSelection.body)
+				((diff?.affectsBody == true || selectedGeneratedResponses.isNotEmpty()) && updateSelection.body)
 		}
 		EndpointUpdateStatus.UNCHANGED -> false
 	}

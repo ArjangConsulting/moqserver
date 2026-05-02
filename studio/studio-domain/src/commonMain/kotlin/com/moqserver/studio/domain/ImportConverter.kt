@@ -188,7 +188,7 @@ object ImportConverter {
 			auth = mergedAuth(existing, parsed, diff, updateSelection),
 			requestRules = mergedRequestRules(existing, parsed, diff, updateSelection),
 			tags = mergedTags(existing, parsed, diff, updateSelection),
-			variants = mergedVariants(existing, parsed, changedEntry.generatedResponses, updateSelection),
+			variants = mergedVariants(existing, parsed, changedEntry.selectedGeneratedResponses, updateSelection),
 		)
 	}
 
@@ -238,7 +238,7 @@ object ImportConverter {
 	private fun shouldMergeChangedEntry(entry: ImportEndpointEntry, updateSelection: UpdateSelection): Boolean {
 		val diff = entry.specDiff ?: return false
 		return (updateSelection.details && diff.affectsDetails) ||
-			(updateSelection.body && (diff.affectsBody || entry.generatedResponses.isNotEmpty()))
+			(updateSelection.body && (diff.affectsBody || entry.selectedGeneratedResponses.isNotEmpty()))
 	}
 
 	private fun mergeVariants(
@@ -320,7 +320,7 @@ object ImportConverter {
 	): EndpointDocument {
 		val parsed = entry.endpoint
 		val identity = buildEndpointIdentity(parsed, assignedEndpointReferenceNames)
-		val variants = buildEndpointVariants(parsed.responses + entry.generatedResponses)
+		val variants = buildEndpointVariants(parsed.responses + entry.selectedGeneratedResponses)
 
 		val requestRules = buildRequestRules(parsed)
 

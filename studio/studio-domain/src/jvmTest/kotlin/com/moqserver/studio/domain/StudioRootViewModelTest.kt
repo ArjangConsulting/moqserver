@@ -367,11 +367,96 @@ class StudioRootViewModelTest {
         )
 
         val entry = viewModel.state.value.importState!!.entries.single()
-        assertFalse(entry.aiGenerationLoading)
-        assertNull(entry.aiGenerationError)
-        assertEquals(1, entry.generatedResponses.size)
-        assertEquals("not-found", entry.generatedResponses.single().name)
-    }
+		assertFalse(entry.aiGenerationLoading)
+		assertNull(entry.aiGenerationError)
+		assertEquals(1, entry.generatedResponses.size)
+		assertEquals(setOf(0), entry.selectedGeneratedResponseIndices)
+		assertEquals("not-found", entry.generatedResponses.single().name)
+	}
+
+	@Test
+	fun `toggleGeneratedImportResponse updates generated response selection`() {
+		val viewModel = StudioRootViewModel()
+
+		viewModel.startImport(sampleImportState().parsedSpec, ImportSourceType.OPENAPI, "users.yaml")
+		viewModel.importAIGenerationCompleted(
+			index = 0,
+			generatedResponses = listOf(
+				ParsedResponse(name = "not-found", statusCode = 404),
+			),
+		)
+
+		viewModel.toggleGeneratedImportResponse(0, 0)
+		assertTrue(viewModel.state.value.importState!!.entries.single().selectedGeneratedResponseIndices.isEmpty())
+
+		viewModel.toggleGeneratedImportResponse(0, 0)
+		assertEquals(setOf(0), viewModel.state.value.importState!!.entries.single().selectedGeneratedResponseIndices)
+	}
+
+	@Test
+	fun `updateGeneratedImportResponseName keeps generated response names unique against imported responses`() {
+		val viewModel = StudioRootViewModel()
+		val spec = ParsedSpec(
+			title = "Imported API",
+			version = "1.0",
+			endpoints = listOf(
+				ParsedEndpoint(
+					method = "GET",
+					path = "/items",
+					responses = listOf(
+						ParsedResponse(name = "Success", statusCode = 200, body = "{}"),
+					),
+				),
+			),
+		)
+
+		viewModel.startImport(spec, ImportSourceType.OPENAPI, "items.yaml")
+		viewModel.importAIGenerationCompleted(
+			index = 0,
+			generatedResponses = listOf(
+				ParsedResponse(name = "not-found", statusCode = 404, body = "{}"),
+			),
+		)
+
+		viewModel.updateGeneratedImportResponseName(0, 0, "Success")
+
+		val entry = viewModel.state.value.importState!!.entries[0]
+		val names = listOf(entry.endpoint.responses.single().name, entry.generatedResponses.single().name)
+		assertEquals(setOf("Success", "Success 2"), names.toSet())
+	}
+
+	@Test
+	fun `updateImportResponseName keeps imported response names unique against generated responses`() {
+		val viewModel = StudioRootViewModel()
+		val spec = ParsedSpec(
+			title = "Imported API",
+			version = "1.0",
+			endpoints = listOf(
+				ParsedEndpoint(
+					method = "GET",
+					path = "/items",
+					responses = listOf(
+						ParsedResponse(name = "Created", statusCode = 201, body = "{}"),
+					),
+				),
+			),
+		)
+
+		viewModel.startImport(spec, ImportSourceType.OPENAPI, "items.yaml")
+		viewModel.importAIGenerationCompleted(
+			index = 0,
+			generatedResponses = listOf(
+				ParsedResponse(name = "not-found", statusCode = 404, body = "{}"),
+			),
+		)
+		viewModel.updateGeneratedImportResponseName(0, 0, "Created")
+		viewModel.updateImportResponseName(0, 0, "Created 2")
+
+		val entry = viewModel.state.value.importState!!.entries[0]
+		val names = listOf(entry.endpoint.responses.single().name, entry.generatedResponses.single().name)
+		assertEquals(2, names.toSet().size)
+		assertTrue(names.any { it == "Created 2" })
+	}
 
     @Test
     fun `importAIBulkStarted and finished track bulk progress`() {

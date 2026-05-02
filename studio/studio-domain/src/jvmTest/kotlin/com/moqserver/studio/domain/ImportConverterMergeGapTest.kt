@@ -86,6 +86,7 @@ class ImportConverterMergeGapTest {
 				updateStatus = EndpointUpdateStatus.CHANGED,
 				specDiff = diff,
 				generatedResponses = listOf(ParsedResponse(name = "ai-variant", statusCode = 422)),
+				selectedGeneratedResponseIndices = setOf(0),
 			),
 		)
 
@@ -95,6 +96,30 @@ class ImportConverterMergeGapTest {
 			updateSelection = UpdateSelection(body = true),
 		)
 		assertTrue(result.endpoints.single().variants.any { it.status == 422 })
+	}
+
+	@Test
+	fun `merge skips unchecked generatedResponses on CHANGED endpoint`() {
+		val existing = makeEndpoint(path = "/items", statusCodes = listOf(200))
+		val project = makeProject(existing)
+		val newSpec = parsedEndpoint(path = "/items", statusCodes = listOf(200))
+		val diff = ImportConverter.diffEndpoint(newSpec, existing)
+		val entries = listOf(
+			ImportEndpointEntry(
+				endpoint = newSpec,
+				accepted = true,
+				updateStatus = EndpointUpdateStatus.CHANGED,
+				specDiff = diff,
+				generatedResponses = listOf(ParsedResponse(name = "ai-variant", statusCode = 422)),
+			),
+		)
+
+		val result = ImportConverter.merge(
+			existingProject = project,
+			acceptedEntries = entries,
+			updateSelection = UpdateSelection(body = true),
+		)
+		assertFalse(result.endpoints.single().variants.any { it.status == 422 })
 	}
 
 	@Test
