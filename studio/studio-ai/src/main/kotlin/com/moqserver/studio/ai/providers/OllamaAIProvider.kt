@@ -173,7 +173,8 @@ class OllamaAIProvider(
 	}
 
 	private fun isQwen35Model(model: String): Boolean {
-		return model.lowercase().contains("qwen3.5")
+		val lower = model.lowercase()
+		return lower.contains("qwen3.5") || lower.contains("qwen3.6")
 	}
 
     private fun parseErrorDetail(body: String): String? {
@@ -190,7 +191,7 @@ class OllamaAIProvider(
         const val PROVIDER_ID = "ollama"
 		const val DISPLAY_NAME = "Ollama"
 		const val DEFAULT_BASE_URL = "http://localhost:11434"
-		const val DEFAULT_MODEL = "llama3.2:latest"
+		const val DEFAULT_MODEL = "qwen3.6:latest"
 		const val DEFAULT_TEMPERATURE = 0.7
 		const val QWEN35_TEMPERATURE = 0.7
 		const val QWEN35_TOP_P = 0.8
