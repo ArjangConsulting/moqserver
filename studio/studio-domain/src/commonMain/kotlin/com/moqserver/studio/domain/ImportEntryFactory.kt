@@ -61,11 +61,13 @@ internal object ImportEntryFactory {
 		responses: List<ParsedResponse>,
 		existingVariants: List<ProjectVariant> = emptyList(),
 		preferExistingNamesByStatus: Boolean = false,
+		normalizeGeneratedNames: Boolean = true,
 	): NormalizedImportResponses {
 		return normalizeResponses(
 			responses = responses,
 			existingVariants = existingVariants,
 			preferExistingNamesByStatus = preferExistingNamesByStatus,
+			normalizeGeneratedNames = normalizeGeneratedNames,
 		)
 	}
 
@@ -73,6 +75,7 @@ internal object ImportEntryFactory {
 		responses: List<ParsedResponse>,
 		existingVariants: List<ProjectVariant> = emptyList(),
 		preferExistingNamesByStatus: Boolean = true,
+		normalizeGeneratedNames: Boolean = true,
 	): NormalizedImportResponses {
 		val existingVariantsByStatus = existingVariants.groupBy { it.status }
 		val incomingCountByStatus = responses.groupingBy { it.statusCode }.eachCount()
@@ -94,8 +97,10 @@ internal object ImportEntryFactory {
 			val normalizedName = preservedExisting?.name ?: suggestedVariantName(
 				status = response.statusCode,
 				existingNames = assignedNames,
-				preferredName = response.name,
+				preferredName = response.name.takeIf { normalizeGeneratedNames },
 			)
+				.takeIf { normalizeGeneratedNames }
+				?: uniqueResponseName(response.name, assignedNames)
 
 			if (preservedExisting != null) lockedIndices += index
 			assignedNames += normalizedName
@@ -106,6 +111,18 @@ internal object ImportEntryFactory {
 			responses = normalizedResponses,
 			lockedResponseIndices = lockedIndices,
 		)
+	}
+
+	private fun uniqueResponseName(name: String, existingNames: Collection<String>): String {
+		val trimmedName = name.trim().ifBlank { "Variant" }
+		if (trimmedName !in existingNames) return trimmedName
+
+		var suffix = 2
+		while (true) {
+			val candidate = "$trimmedName $suffix"
+			if (candidate !in existingNames) return candidate
+			suffix += 1
+		}
 	}
 }
 

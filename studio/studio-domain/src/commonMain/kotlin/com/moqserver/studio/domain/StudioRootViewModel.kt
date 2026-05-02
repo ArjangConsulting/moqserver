@@ -500,44 +500,23 @@ class StudioRootViewModel(
 
     fun importAIGenerationCompleted(index: Int, generatedResponses: List<ParsedResponse>) {
         val importState = _state.value.importState ?: return
-		val entries = importState.entries.toMutableList()
-		if (index !in entries.indices) return
-		val endpoint = entries[index].endpoint
-		val existingVariants = existingImportVariants(importState, endpoint.method, endpoint.path)
-		val normalizedResponses = ImportEntryFactory.renameResponses(
-			generatedResponses,
-			existingVariants = existingVariants + endpoint.responses.map {
-				ProjectVariant(name = it.name, status = it.statusCode)
-			},
-			preferExistingNamesByStatus = false,
-		)
-		entries[index] = entries[index].copy(
-			generatedResponses = normalizedResponses.responses,
-            aiGenerationLoading = false,
-            aiGenerationError = null,
-        )
+		val existingVariants = existingImportVariants(importState, index)
+		val result = completeImportAIGeneration(importState, index, generatedResponses, existingVariants) ?: return
         _state.update {
             it.copy(
-                importState = importState.copy(entries = entries),
-                statusLine = if (generatedResponses.isEmpty()) {
-                    "AI did not generate extra variants for ${endpoint.method} ${endpoint.path}"
-                } else {
-                    "Generated ${generatedResponses.size} AI variant(s) for ${endpoint.method} ${endpoint.path}"
-                },
+				importState = importState.copy(entries = result.entries),
+				statusLine = result.statusLine,
             )
         }
     }
 
     fun importAIGenerationFailed(index: Int, error: String) {
         val importState = _state.value.importState ?: return
-        val entries = importState.entries.toMutableList()
-        if (index !in entries.indices) return
-        val endpoint = entries[index].endpoint
-        entries[index] = entries[index].copy(aiGenerationLoading = false, aiGenerationError = error)
+		val result = failImportAIGeneration(importState, index, error) ?: return
         _state.update {
             it.copy(
-                importState = importState.copy(entries = entries),
-                statusLine = "Error: Failed to generate AI variants for ${endpoint.method} ${endpoint.path}",
+				importState = importState.copy(entries = result.entries),
+				statusLine = result.statusLine,
             )
         }
     }
@@ -596,32 +575,39 @@ class StudioRootViewModel(
         _state.update { it.copy(importState = importState.copy(projectName = name)) }
     }
 
-    fun updateImportAIContextHint(index: Int, hint: String) {
-        val importState = _state.value.importState ?: return
-        val entries = importState.entries.toMutableList()
-        if (index !in entries.indices) return
-        entries[index] = entries[index].copy(aiContextHint = hint)
-        _state.update { it.copy(importState = importState.copy(entries = entries)) }
-    }
+	fun updateImportAIContextHint(index: Int, hint: String) {
+		val importState = _state.value.importState ?: return
+		val entries = updateImportAIContextHintEntry(importState, index, hint) ?: return
+		_state.update { it.copy(importState = importState.copy(entries = entries)) }
+	}
 
 	fun updateImportResponseName(index: Int, responseIndex: Int, name: String) {
 		val importState = _state.value.importState ?: return
-		val entries = importState.entries.toMutableList()
-		if (index !in entries.indices) return
-		val entry = entries[index]
-		val existingVariants = existingImportVariants(importState, entry.endpoint.method, entry.endpoint.path)
-		val responses = entry.endpoint.responses.toMutableList()
-		if (responseIndex !in responses.indices) return
-		responses[responseIndex] = responses[responseIndex].copy(name = name)
-		val renormalizedResponses = ImportEntryFactory.renameResponses(
-			responses,
-			existingVariants = existingVariants,
-			preferExistingNamesByStatus = false,
-		)
-		entries[index] = entry.copy(
-			endpoint = entry.endpoint.withResponses(renormalizedResponses.responses),
-			lockedResponseIndices = renormalizedResponses.lockedResponseIndices,
-		)
+		val entries = renameImportedResponse(
+			importState = importState,
+			index = index,
+			responseIndex = responseIndex,
+			name = name,
+			existingVariants = existingImportVariants(importState, index),
+		) ?: return
+		_state.update { it.copy(importState = importState.copy(entries = entries)) }
+	}
+
+	fun updateGeneratedImportResponseName(index: Int, generatedResponseIndex: Int, name: String) {
+		val importState = _state.value.importState ?: return
+		val entries = renameGeneratedResponse(
+			importState = importState,
+			index = index,
+			generatedResponseIndex = generatedResponseIndex,
+			name = name,
+			existingVariants = existingImportVariants(importState, index),
+		) ?: return
+		_state.update { it.copy(importState = importState.copy(entries = entries)) }
+	}
+
+	fun toggleGeneratedImportResponse(index: Int, generatedResponseIndex: Int) {
+		val importState = _state.value.importState ?: return
+		val entries = toggleGeneratedImportResponseSelection(importState, index, generatedResponseIndex) ?: return
 		_state.update { it.copy(importState = importState.copy(entries = entries)) }
 	}
 
@@ -686,13 +672,10 @@ class StudioRootViewModel(
         _state.update { it.copy(importState = null, statusLine = "Import cancelled.") }
     }
 
-	private fun existingImportVariants(
-		importState: ImportState,
-		method: String,
-		path: String,
-	): List<ProjectVariant> {
+	private fun existingImportVariants(importState: ImportState, index: Int): List<ProjectVariant> {
+		val endpoint = importState.entries.getOrNull(index)?.endpoint ?: return emptyList()
 		val existingProject = (importState.mode as? ImportMode.UpdateExisting)?.existingProject ?: return emptyList()
-		val endpointId = ImportConverter.endpointId(method, path)
+		val endpointId = ImportConverter.endpointId(endpoint.method, endpoint.path)
 		return existingProject.endpoints.firstOrNull { it.id == endpointId }?.variants.orEmpty()
 	}
 }

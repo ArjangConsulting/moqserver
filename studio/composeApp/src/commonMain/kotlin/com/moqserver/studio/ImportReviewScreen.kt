@@ -58,6 +58,7 @@ import com.moqserver.studio.domain.ImportSourceType
 import com.moqserver.studio.domain.ImportState
 import com.moqserver.studio.domain.ProviderKind
 import com.moqserver.studio.domain.UpdateSelection
+import com.moqserver.studio.domain.selectedGeneratedResponses
 import com.moqserver.studio.projectformat.AuthType
 import com.moqserver.studio.ui.MethodBadge
 import kotlinx.serialization.json.Json
@@ -148,6 +149,8 @@ fun ImportReviewScreen(
 	onUpdateProjectName: (String) -> Unit,
 	onUpdateSelection: (UpdateSelection) -> Unit,
 	onUpdateResponseName: (Int, Int, String) -> Unit,
+	onUpdateGeneratedResponseName: (Int, Int, String) -> Unit,
+	onToggleGeneratedResponse: (Int, Int) -> Unit,
 	onUpdateEndpointAIContextHint: (Int, String) -> Unit,
 	onGenerateEndpointMocks: (Int) -> Unit,
 	onGenerateAllMocks: () -> Unit,
@@ -429,7 +432,13 @@ fun ImportReviewScreen(
 							bulkGenerationRunning = state.aiBulkState.running,
 							isUpdateMode = isUpdateMode,
 							onToggle = { onToggleEndpoint(index) },
-							onUpdateResponseName = { responseIndex, name -> onUpdateResponseName(index, responseIndex, name) },
+							onUpdateResponseName = { responseIndex, name ->
+								onUpdateResponseName(index, responseIndex, name)
+							},
+							onUpdateGeneratedResponseName = { responseIndex, name ->
+								onUpdateGeneratedResponseName(index, responseIndex, name)
+							},
+							onToggleGeneratedResponse = { responseIndex -> onToggleGeneratedResponse(index, responseIndex) },
 							onAIClick = { singleEndpointDialogIndex = index },
 							modifier = Modifier.padding(start = 28.dp),
 						)
@@ -651,6 +660,8 @@ private fun ImportEndpointRow(
 	isUpdateMode: Boolean,
 	onToggle: () -> Unit,
 	onUpdateResponseName: (Int, String) -> Unit,
+	onUpdateGeneratedResponseName: (Int, String) -> Unit,
+	onToggleGeneratedResponse: (Int) -> Unit,
 	onAIClick: () -> Unit,
 	modifier: Modifier = Modifier,
 ) {
@@ -689,8 +700,9 @@ private fun ImportEndpointRow(
 					style = MaterialTheme.typography.bodyMedium.copy(fontFamily = FontFamily.Monospace),
 					modifier = Modifier.weight(1f),
 				)
+				val totalVariantCount = endpoint.responses.size + entry.selectedGeneratedResponses.size
 				Text(
-					text = "${endpoint.responses.size} variant${if (endpoint.responses.size != 1) "s" else ""}",
+					text = "$totalVariantCount variant${if (totalVariantCount != 1) "s" else ""}",
 					style = MaterialTheme.typography.labelSmall,
 					color = MaterialTheme.colorScheme.onSurfaceVariant,
 				)
@@ -742,14 +754,6 @@ private fun ImportEndpointRow(
 				)
 			}
 
-			if (entry.generatedResponses.isNotEmpty()) {
-				Text(
-					text = ImportReviewStrings.AI_GENERATED_PREFIX + entry.generatedResponses.size,
-					style = MaterialTheme.typography.labelSmall,
-					color = StudioColors.success,
-					modifier = Modifier.padding(start = 48.dp),
-				)
-			}
 			entry.aiGenerationError?.let { error ->
 				Text(
 					text = ImportReviewStrings.AI_ERROR_PREFIX + error,
@@ -817,32 +821,45 @@ private fun ImportEndpointRow(
 							}
 						}
 					}
-					if (entry.generatedResponses.isNotEmpty()) {
-						Spacer(Modifier.height(StudioDimens.xs))
-						Text(
-							text = ImportReviewStrings.AI_GENERATED_VARIANTS,
-							style = MaterialTheme.typography.labelSmall,
-							color = StudioColors.success,
-						)
-						for (resp in entry.generatedResponses) {
-							Row(horizontalArrangement = Arrangement.spacedBy(StudioDimens.m)) {
+					for ((generatedResponseIndex, resp) in entry.generatedResponses.withIndex()) {
+						Column(verticalArrangement = Arrangement.spacedBy(StudioDimens.xxs)) {
+							Row(
+								horizontalArrangement = Arrangement.spacedBy(StudioDimens.m),
+								verticalAlignment = Alignment.CenterVertically,
+							) {
+								Checkbox(
+									checked = generatedResponseIndex in entry.selectedGeneratedResponseIndices,
+									onCheckedChange = { onToggleGeneratedResponse(generatedResponseIndex) },
+								)
+								Icon(
+									Icons.Outlined.AutoAwesome,
+									contentDescription = "AI generated",
+									modifier = Modifier.size(StudioDimens.smallIconSize),
+									tint = MaterialTheme.colorScheme.tertiary,
+								)
 								Text(
-									text = "${resp.statusCode}",
+									"${resp.statusCode}",
 									style = MaterialTheme.typography.labelSmall,
 									fontWeight = FontWeight.Bold,
 								)
-								Text(
-									text = resp.name,
-									style = MaterialTheme.typography.labelSmall,
-									color = MaterialTheme.colorScheme.onSurfaceVariant,
-								)
 								resp.headers["Content-Type"]?.let { ct ->
 									Text(
-										text = ct,
+										ct,
 										style = MaterialTheme.typography.labelSmall,
 										color = MaterialTheme.colorScheme.outline,
 									)
 								}
+							}
+							OutlinedTextField(
+								value = resp.name,
+								onValueChange = { onUpdateGeneratedResponseName(generatedResponseIndex, it) },
+								label = { Text(ImportReviewStrings.VARIANT_NAME) },
+								enabled = true,
+								singleLine = true,
+								modifier = Modifier.fillMaxWidth(),
+							)
+							resp.body?.takeIf { it.isNotBlank() }?.let { body ->
+								VariantBodyPreview(body = body)
 							}
 						}
 					}
