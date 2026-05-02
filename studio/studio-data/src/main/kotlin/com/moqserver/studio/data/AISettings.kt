@@ -29,7 +29,7 @@ data class OllamaSettings(
 	companion object {
 		/** Keep in sync with OllamaAIProvider defaults in studio-ai. */
 		const val DEFAULT_BASE_URL = "http://localhost:11434"
-		const val DEFAULT_MODEL = "llama3.2:latest"
+		const val DEFAULT_MODEL = "qwen3.6:latest"
 	}
 }
 
