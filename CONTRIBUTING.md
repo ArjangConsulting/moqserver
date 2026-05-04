@@ -30,7 +30,7 @@ make studio-lint    # Studio detekt lint
 Useful direct commands:
 
 ```bash
-cd server && swift run Run serve --spec ../samples/server/openapi.yaml --port 8080
+cd server && swift run Run serve --project ../format/examples/sample-app.moqproj --port 8080
 cd studio && ./gradlew :composeApp:compileKotlinDesktop
 ```
 

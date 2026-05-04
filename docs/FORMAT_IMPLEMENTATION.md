@@ -37,17 +37,18 @@ Rules:
 
 The format should be represented in code as explicit domain types, not loose maps.
 
-Required top-level types:
+Required top-level types (Swift names in `MoqCore/Project/`):
 
-- `ProjectManifest`
-- `ProjectDefaults`
-- `EndpointDocument`
-- `EndpointOperation`
-- `RequestRules`
-- `ResponseVariant`
-- `AuthRequirement`
-- `NetworkBehavior`
-- `FixtureReference`
+- `ProjectManifest` — top-level project metadata
+- `ProjectDefaults` — default auth, delay, network config applied to all endpoints
+- `EndpointDocument` — a single endpoint file with method, path, variants, etc.
+- `EndpointOperation` — GraphQL operation matching config (type, name, document)
+- `RequestRules` — required headers, query params, cookie verification config
+- `ProjectVariant` — a single response variant (name, status, body/body_file, headers, delay_ms)
+- `ProjectAuthConfig` — per-endpoint auth config (type, verify, header_name)
+- `NetworkBehavior` — network simulation settings (latency_ms, jitter_ms, packet_loss_percent)
+
+Note: `body_file` references within `ProjectVariant` are plain `String` fields (relative paths into `fixtures/`); there is no separate `FixtureReference` type. The runtime auth domain type `AuthRequirement` is distinct from `ProjectAuthConfig` — the former is the internal representation after conversion, the latter is the on-disk format model.
 
 ## Serialization Rules
 
@@ -84,14 +85,16 @@ Recommended key ordering in endpoint files:
 
 1. `id`
 2. `alias`
-3. `method`
-4. `path`
-5. `tags`
-6. `operation`
+3. `description`
+4. `method`
+5. `path`
+6. `tags`
 7. `auth`
-8. `request_rules`
-9. `variants`
-10. `network`
+8. `reference_name`
+9. `request_rules`
+10. `operation`
+11. `network`
+12. `variants`
 
 ## Fixtures
 
