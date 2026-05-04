@@ -39,7 +39,8 @@ public func buildApp(
     let adminRouter = AdminRouter(handler: adminHandler)
     adminRouter.registerRoutes(on: app)
 
-    let router = MockRouter(handler: handler)
+    let endpoints = await store.allEndpoints()
+    let router = MockRouter(handler: handler, endpoints: endpoints)
     router.registerRoutes(on: app)
 
     bootstrapLogger.info("App configured: auth, admin, and mock routes registered")

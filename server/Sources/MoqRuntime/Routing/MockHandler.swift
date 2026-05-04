@@ -26,28 +26,38 @@ public struct MockHandler: Sendable {
         self.requestValidator = requestValidator ?? RequestValidator()
     }
 
-    public func handle(req: Request) async throws -> Response {
+    /// Called by the catch-all fallback route for paths not matched by any registered endpoint.
+    public func handleNotFound(req: Request) async throws -> Response {
+        logger.warning("No endpoint found for \(req.method) \(req.url.path)")
+        let errorResponse = ErrorResponse(
+            error: "No mock endpoint found for \(req.method) \(req.url.path)",
+            code: "endpoint_not_found",
+            detail: "Method: \(req.method.rawValue), Path: \(req.url.path)",
+            hint: "Check available endpoints via GET /_admin/endpoints"
+        )
+        return Response(
+            status: .notFound,
+            headers: ["Content-Type": "application/json"],
+            body: .init(data: errorResponse.jsonData())
+        )
+    }
+
+    /// Called by per-endpoint routes. The `matchedKey` is the template key (e.g. `GET /users/{id}`)
+    /// for the route that Vapor already matched, so no store lookup is needed for REST endpoints.
+    /// GraphQL endpoints still go through the store for operation-level matching.
+    public func handle(req: Request, matchedKey: EndpointKey) async throws -> Response {
         let method = HTTPMethodValue(rawValue: req.method.rawValue)
         let path = req.url.path
-        logger.debug("Handling request \(req.method) \(path)")
+        logger.debug("Handling request \(req.method) \(path) → \(matchedKey.path)")
 
-        // Try GraphQL lookup first for POST requests to GraphQL-like paths
+        // GraphQL endpoints share a single path; use operation-level store lookup.
         let endpoint: Endpoint
-        if let resolved = try await resolveEndpoint(method: method, path: path, req: req) {
+        if let resolved = try await resolveGraphQL(method: method, path: path, req: req) {
             endpoint = resolved
+        } else if let stored = await store.lookup(method: matchedKey.method, path: matchedKey.path) {
+            endpoint = stored
         } else {
-            logger.warning("No endpoint found for \(req.method) \(req.url.path)")
-            let errorResponse = ErrorResponse(
-                error: "No mock endpoint found for \(req.method) \(req.url.path)",
-                code: "endpoint_not_found",
-                detail: "Method: \(req.method.rawValue), Path: \(req.url.path)",
-                hint: "Check available endpoints via GET /_admin/endpoints"
-            )
-            return Response(
-                status: .notFound,
-                headers: ["Content-Type": "application/json"],
-                body: .init(data: errorResponse.jsonData())
-            )
+            return try await handleNotFound(req: req)
         }
 
         // Auth validation — for API key auth read the custom header, not Authorization
@@ -373,23 +383,16 @@ public struct MockHandler: Sendable {
 
     // MARK: - GraphQL Resolution
 
-    private func resolveEndpoint(method: HTTPMethodValue, path: String, req: Request) async throws -> Endpoint? {
-        // Try GraphQL lookup for POST requests with a JSON body
-        if method.rawValue == "POST", let graphqlBody = parseGraphQLBody(req) {
-            let operationType = graphqlBody.inferOperationType()
-            if let match = await store.lookupGraphQL(
-                method: method,
-                path: path,
-                operationName: graphqlBody.operationName,
-                operationType: operationType,
-                normalizedDocument: graphqlBody.normalizedDocument()
-            ) {
-                return match
-            }
-        }
-
-        // Fall back to regular lookup
-        return await store.lookup(method: method, path: path)
+    private func resolveGraphQL(method: HTTPMethodValue, path: String, req: Request) async throws -> Endpoint? {
+        guard method.rawValue == "POST", let graphqlBody = parseGraphQLBody(req) else { return nil }
+        let operationType = graphqlBody.inferOperationType()
+        return await store.lookupGraphQL(
+            method: method,
+            path: path,
+            operationName: graphqlBody.operationName,
+            operationType: operationType,
+            normalizedDocument: graphqlBody.normalizedDocument()
+        )
     }
 
     /// Parses a GraphQL JSON request body: `{ "query": "...", "operationName": "...", "variables": {...} }`

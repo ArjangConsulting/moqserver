@@ -8,7 +8,6 @@ let package = Package(
     ],
     dependencies: [
         .package(url: "https://github.com/vapor/vapor.git", from: "4.121.4"),
-        .package(url: "https://github.com/mattpolzin/OpenAPIKit.git", from: "5.3.0"),
         .package(url: "https://github.com/jpsim/Yams.git", from: "6.2.1"),
         .package(url: "https://github.com/apple/swift-argument-parser.git", from: "1.7.1"),
     ],
@@ -32,20 +31,6 @@ let package = Package(
             path: "Sources/MoqFormat"
         ),
 
-        // MARK: - MoqParsing
-        // OpenAPI/HAR parsers and spec loading.
-        .target(
-            name: "MoqParsing",
-            dependencies: [
-                .target(name: "MoqCore"),
-                .product(name: "OpenAPIKit", package: "OpenAPIKit"),
-                .product(name: "OpenAPIKitCompat", package: "OpenAPIKit"),
-                .product(name: "OpenAPIKit30", package: "OpenAPIKit"),
-                .product(name: "Yams", package: "Yams"),
-            ],
-            path: "Sources/MoqParsing"
-        ),
-
         // MARK: - MoqRuntime
         // Vapor routing, handlers, and app bootstrap.
         .target(
@@ -65,7 +50,6 @@ let package = Package(
             dependencies: [
                 .target(name: "MoqCore"),
                 .target(name: "MoqFormat"),
-                .target(name: "MoqParsing"),
                 .target(name: "MoqRuntime"),
                 .product(name: "ArgumentParser", package: "swift-argument-parser"),
             ],
@@ -101,17 +85,6 @@ let package = Package(
             ]
         ),
         .testTarget(
-            name: "MoqParsingTests",
-            dependencies: [
-                .target(name: "MoqCore"),
-                .target(name: "MoqParsing"),
-            ],
-            path: "Tests/MoqParsingTests",
-            resources: [
-                .copy("Fixtures"),
-            ]
-        ),
-        .testTarget(
             name: "MoqRuntimeTests",
             dependencies: [
                 .target(name: "MoqCore"),
@@ -129,7 +102,6 @@ let package = Package(
             dependencies: [
                 .target(name: "MoqCore"),
                 .target(name: "MoqFormat"),
-                .target(name: "MoqParsing"),
                 .target(name: "MoqRuntime"),
                 .product(name: "VaporTesting", package: "vapor"),
                 .product(name: "XCTVapor", package: "vapor"),

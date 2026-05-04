@@ -32,7 +32,6 @@ struct ConfigTests {
         #expect(config.auth?.basicCredentials?.first?.username == "admin")
         #expect(config.auth?.basicCredentials?.first?.password == "pass")
         #expect(config.auth?.apiKeys?["X-API-Key"] == "my-key")
-        #expect(config.mocksDirectory == "./mocks")
     }
 
     @Test("Loads config from JSON file")
@@ -44,8 +43,7 @@ struct ConfigTests {
         let json = """
         {
             "globalDelay": 0.5,
-            "variantOverrides": {"GET /users": "error-404"},
-            "mocksDirectory": "./test-mocks"
+            "variantOverrides": {"GET /users": "error-404"}
         }
         """
         try json.data(using: .utf8)!.write(to: URL(fileURLWithPath: tempPath))
@@ -54,7 +52,6 @@ struct ConfigTests {
         let config = try loader.load(from: tempPath)
         #expect(config.globalDelay == 0.5)
         #expect(config.variantOverrides?["GET /users"] == "error-404")
-        #expect(config.mocksDirectory == "./test-mocks")
     }
 
     @Test("Throws fileNotFound for missing file")

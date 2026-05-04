@@ -251,7 +251,7 @@ struct MockHandlerTests {
 
     // MARK: - Path Parameters
 
-    @Test("Path parameters match via regex")
+    @Test("Path parameters match via Vapor native routing")
     func pathParameterMatching() async throws {
         let store = InMemoryMockStore()
         await store.register(makeTestEndpoint(method: .get, path: "/users/{id}"))

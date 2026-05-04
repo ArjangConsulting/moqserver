@@ -7,7 +7,6 @@ public struct ServerConfig: Codable, Sendable, ServerConfiguring {
     public var globalDelay: TimeInterval?
     public var delayOverrides: [String: TimeInterval]?
     public var auth: ServerAuthConfig?
-    public var mocksDirectory: String?
     public var overridesPersistencePath: String?
     public var admin: AdminConfig?
 
@@ -16,7 +15,6 @@ public struct ServerConfig: Codable, Sendable, ServerConfiguring {
         globalDelay: TimeInterval? = nil,
         delayOverrides: [String: TimeInterval]? = nil,
         auth: ServerAuthConfig? = nil,
-        mocksDirectory: String? = nil,
         overridesPersistencePath: String? = nil,
         admin: AdminConfig? = nil
     ) {
@@ -24,7 +22,6 @@ public struct ServerConfig: Codable, Sendable, ServerConfiguring {
         self.globalDelay = globalDelay
         self.delayOverrides = delayOverrides
         self.auth = auth
-        self.mocksDirectory = mocksDirectory
         self.overridesPersistencePath = overridesPersistencePath
         self.admin = admin
     }

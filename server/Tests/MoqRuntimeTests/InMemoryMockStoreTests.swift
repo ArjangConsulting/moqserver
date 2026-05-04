@@ -46,24 +46,26 @@ struct InMemoryMockStoreTests {
         #expect(result == nil)
     }
 
-    @Test("Path parameter matching")
-    func pathParameterMatching() async {
+    @Test("Path parameter lookup uses template key")
+    func pathParameterLookupUsesTemplateKey() async {
         let store = InMemoryMockStore()
         let endpoint = makeEndpoint(method: .get, path: "/pets/{petId}")
         await store.register(endpoint)
 
-        let result = await store.lookup(method: .get, path: "/pets/123")
+        // Routing is handled by Vapor; the store is looked up with the template path, not the actual path.
+        let result = await store.lookup(method: .get, path: "/pets/{petId}")
         #expect(result != nil)
         #expect(result?.key.path == "/pets/{petId}")
     }
 
-    @Test("Path parameter does not match extra segments")
-    func pathParameterNoExtraSegments() async {
+    @Test("Path parameter lookup — actual path returns nil (routing is Vapor's responsibility)")
+    func pathParameterActualPathReturnsNil() async {
         let store = InMemoryMockStore()
         let endpoint = makeEndpoint(method: .get, path: "/pets/{petId}")
         await store.register(endpoint)
 
-        let result = await store.lookup(method: .get, path: "/pets/123/toys")
+        // The store no longer resolves actual paths to templates; Vapor does path matching.
+        let result = await store.lookup(method: .get, path: "/pets/123")
         #expect(result == nil)
     }
 
@@ -76,7 +78,8 @@ struct InMemoryMockStoreTests {
 
         let list = await store.lookup(method: .get, path: "/pets")
         let create = await store.lookup(method: .post, path: "/pets")
-        let getOne = await store.lookup(method: .get, path: "/pets/42")
+        // Template key used — actual path values are not resolved by the store.
+        let getOne = await store.lookup(method: .get, path: "/pets/{petId}")
 
         #expect(list != nil)
         #expect(create != nil)
