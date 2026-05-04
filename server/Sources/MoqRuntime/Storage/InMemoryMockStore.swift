@@ -9,7 +9,6 @@ public actor InMemoryMockStore: MockStoring {
     private var endpoints: [EndpointKey: Endpoint] = [:]
     /// GraphQL endpoints stored separately: multiple endpoints can share the same key (POST /graphql).
     private var graphqlEndpoints: [EndpointKey: [Endpoint]] = [:]
-    private var patterns: [(regex: NSRegularExpression, key: EndpointKey)] = []
     private var overridesPersistencePath: String?
 
     public init() {}
@@ -30,42 +29,15 @@ public actor InMemoryMockStore: MockStoring {
         }
 
         endpoints[key] = endpoint
-
-        if key.path.contains("{") {
-            let segments = key.path
-                .split(separator: "/")
-                .map { segment -> String in
-                    let s = String(segment)
-                    return (s.hasPrefix("{") && s.hasSuffix("}"))
-                        ? "[^/]+"
-                        : NSRegularExpression.escapedPattern(for: s)
-                }
-                .joined(separator: "/")
-            let fullPattern = "^/\(segments)$"
-            if let regex = try? NSRegularExpression(pattern: fullPattern) {
-                patterns.removeAll { $0.key == key }
-                patterns.append((regex: regex, key: key))
-            }
-        }
     }
 
+    /// Looks up an endpoint by its template key (e.g. `GET /users/{id}`).
+    /// Routing is handled by Vapor; callers pass the template path, not the actual request path.
     public func lookup(method: HTTPMethodValue, path: String) -> Endpoint? {
         let normalizedPath = path.hasPrefix("/") ? path : "/\(path)"
         logger.trace("Looking up endpoint \(method.rawValue) \(normalizedPath)")
-
-        let exactKey = EndpointKey(method: method, path: normalizedPath)
-        if let endpoint = endpoints[exactKey] {
-            return endpoint
-        }
-
-        for (regex, key) in patterns where key.method == method {
-            let range = NSRange(normalizedPath.startIndex..., in: normalizedPath)
-            if regex.firstMatch(in: normalizedPath, range: range) != nil {
-                return endpoints[key]
-            }
-        }
-
-        return nil
+        let key = EndpointKey(method: method, path: normalizedPath)
+        return endpoints[key]
     }
 
     public func lookupGraphQL(
@@ -176,7 +148,6 @@ public actor InMemoryMockStore: MockStoring {
         logger.info("Clearing all endpoints and overrides")
         endpoints.removeAll()
         graphqlEndpoints.removeAll()
-        patterns.removeAll()
         variantOverrides.removeAll()
         persistVariantOverridesIfNeeded()
     }

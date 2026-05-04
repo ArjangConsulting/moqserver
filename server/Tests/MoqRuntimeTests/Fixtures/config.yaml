@@ -16,4 +16,3 @@ auth:
   oauth2Clients:
     - clientId: "test-client"
       clientSecret: "test-secret"
-mocksDirectory: "./mocks"

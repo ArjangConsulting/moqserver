@@ -10,7 +10,6 @@ public protocol ServerConfiguring: Sendable {
     var variantOverrides: [String: String]? { get }
     var globalDelay: TimeInterval? { get }
     var delayOverrides: [String: TimeInterval]? { get }
-    var mocksDirectory: String? { get }
     var overridesPersistencePath: String? { get }
 
     func variantOverride(for endpointKey: String) -> String?

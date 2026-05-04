@@ -15,7 +15,7 @@ e2e:
 	cd server && swift test --filter MoqIntegrationTests
 
 run:
-	cd server && swift run Run serve --spec ../samples/server/openapi.yaml --port 8080
+	cd server && swift run Run serve --project Tests/MoqFormatTests/Fixtures/sample-app.moqproj --port 8080
 
 clean:
 	cd server && swift package clean
