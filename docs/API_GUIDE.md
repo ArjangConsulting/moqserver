@@ -8,150 +8,213 @@ From source:
 
 ```bash
 cd server
-swift run Run serve --spec ../openapi.yaml --port 8080
+swift run Run serve --project ../path/to/my-api.moqproj
 ```
 
-With explicit host binding:
+With explicit host and port:
 
 ```bash
 cd server
-swift run Run serve --spec ../openapi.yaml --hostname 0.0.0.0 --port 8080
+swift run Run serve --project ../path/to/my-api.moqproj --hostname 0.0.0.0 --port 8080
 ```
 
-With config and mocks overlay:
+With a runtime config file:
 
 ```bash
 cd server
 swift run Run serve \
-  --spec ../openapi.yaml \
+  --project ../path/to/my-api.moqproj \
   --config ../config/config.yaml \
-  --mocks ../mocks
+  --hostname 0.0.0.0 \
+  --port 8080
 ```
 
 Supported `serve` flags:
 
-- `--spec`: path or URL to OpenAPI spec (required)
-- `--format`: input format (`auto`, `openapi`, `har`)
-- `--port`: listen port (default `8080`)
-- `--hostname`: listen hostname (default `127.0.0.1`)
-- `--config`: optional server config file (YAML or JSON)
-- `--mocks`: optional mock overlay directory
+| Flag | Required | Default | Description |
+|------|----------|---------|-------------|
+| `--project` | Yes | — | Path to a `.moqproj` directory |
+| `--port` | No | `8080` | Port to listen on |
+| `--hostname` | No | `127.0.0.1` | Hostname to bind to |
+| `--config` | No | — | Path to a YAML or JSON server config file |
 
-When `--format har` is used, `moqserver` imports HAR 1.2 traffic entries, groups them by HTTP method and path, and creates variants from the recorded responses. Query parameters and request bodies are preserved as request-match metadata when possible.
+The server validates the project before binding the port. If there are validation errors it prints them and exits without starting.
 
-## 2. What Endpoints Are Served
+## 2. Project Format (`.moqproj`)
+
+`moqserver` serves endpoints defined in `.moqproj` directory bundles. A project contains:
+
+```text
+my-api.moqproj/
+├── project.yml               # manifest: name, version, defaults, global rules
+├── endpoints/
+│   ├── list-users.yml        # one file per endpoint
+│   └── get-user.yml
+└── fixtures/
+    └── users-list.json       # body files referenced by body_file in endpoint YAMLs
+```
+
+Minimal `project.yml`:
+
+```yaml
+version: "1"
+name: "My API Mock"
+description: "Mock for the My API service"
+```
+
+Endpoint file example (`endpoints/list-users.yml`):
+
+```yaml
+id: list-users
+alias: "List Users"
+method: GET
+path: /api/v1/users
+tags: [users, core]
+
+auth:
+  type: bearer
+  verify: true
+
+request_rules:
+  headers:
+    - name: Accept
+      match: "application/json"
+      required: true
+
+variants:
+  - name: success
+    default: true
+    status: 200
+    headers:
+      Content-Type: application/json
+    body_file: fixtures/users-list.json
+    delay_ms: 50
+
+  - name: empty
+    status: 200
+    body:
+      users: []
+      total: 0
+
+  - name: server-error
+    status: 500
+    body:
+      error: "Internal server error"
+
+network:
+  latency_ms: 100
+  jitter_ms: 20
+```
+
+See [`docs/FORMAT_IMPLEMENTATION.md`](FORMAT_IMPLEMENTATION.md) for the full format reference.
+
+## 3. Validating a Project
+
+Before serving, validate your project for errors:
+
+```bash
+cd server
+swift run Run validate --project ../path/to/my-api.moqproj
+```
+
+Exits `0` if valid. Exits non-zero and prints diagnostics if there are errors or warnings.
+
+## 4. What Endpoints Are Served
 
 `moqserver` serves:
 
-- Dynamic mock endpoints from your OpenAPI `paths`
-- `/_auth/token` (POST): mock OAuth token endpoint
-- `/_auth/authorize` (GET): mock authorization endpoint
-- `/_admin/*`: runtime admin endpoints
+- Mock endpoints from all `endpoints/*.yml` files in your project
+- `/_auth/token` (POST) — mock OAuth token endpoint
+- `/_auth/authorize` (GET) — mock authorization redirect endpoint
+- `/_admin/*` — runtime admin endpoints
 
-Dynamic routes include all HTTP methods:
+Supported HTTP methods for mock endpoints:
 
-- `GET`, `POST`, `PUT`, `PATCH`, `DELETE`, `HEAD`, `OPTIONS`, `TRACE`, `CONNECT`
+`GET`, `POST`, `PUT`, `PATCH`, `DELETE`, `HEAD`, `OPTIONS`, `TRACE`, `CONNECT`
 
-Path templates like `/pets/{petId}` are supported with runtime matching.
+Path templates like `/users/{id}` are matched at runtime using path-parameter regex. Exact matches are tried before regex.
 
-## 3. Response Variant Selection
+## 5. Response Variant Selection
 
-Variant precedence is:
+Variant selection priority (highest to lowest):
 
-1. `X-Mock-Variant` request header
-2. Admin runtime override (`/_admin/.../variant`)
-3. Config override (`variantOverrides`)
-4. Default endpoint variant
+1. `X-Mock-Variant` request header — exact variant name
+2. Admin runtime override set via `PUT /_admin/.../variant`
+3. Config file `variantOverrides` map
+4. `requestMatch` constraints (query params, headers, body substring)
+5. `Accept` header content negotiation
+6. First variant in the endpoint file (the effective default)
 
-Example:
+Force a specific variant via header:
 
 ```bash
-curl -H "X-Mock-Variant: error-500" http://127.0.0.1:8080/pets
+curl -H "X-Mock-Variant: server-error" http://127.0.0.1:8080/api/v1/users
 ```
 
-If a requested variant is unavailable, `moqserver` falls back to default or first matching variant when possible.
+## 6. Request Validation
 
-## 4. OpenAPI Response to Variant Mapping
+For each matched endpoint, `moqserver` enforces the `request_rules` defined in the endpoint YAML:
 
-When parsing responses:
-
-- First/primary success response is typically named `default`
-- Client/server errors are named like `error-404`, `error-500`
-- Response headers from spec are preserved
-- Preferred response body source:
-  - explicit `example`
-  - generated schema stub
-  - fallback body
-
-Content type handling:
-
-- `application/json` and `+json` media types return JSON bodies
-- non-JSON media types are also supported
-
-## 5. Request Validation Behavior
-
-For each matched endpoint, `moqserver` validates required fields from OpenAPI:
-
+- Required headers and optional value matching
 - Required query parameters
-- Required headers
-- Required request body
-- Accepted `Content-Type` for requests with bodies
+- Cookie verification (`verify_cookies: true`)
 
 Error behavior:
 
-- Missing required query/header/body: `400 Bad Request`
-- Unsupported body content type: `415 Unsupported Media Type`
+- Missing required header/query param: `400 Bad Request`
+- Unsupported `Content-Type` for requests with bodies: `415 Unsupported Media Type`
 
-Example `415` case:
+## 7. Auth Simulation
 
-```bash
-curl -X POST http://127.0.0.1:8080/items \
-  -H "Content-Type: text/plain" \
-  -d 'hello'
+Configured per-endpoint in the endpoint YAML via the `auth` block:
+
+```yaml
+auth:
+  type: bearer       # none | bearer | basic | apiKey | oauth2 | openIdConnect
+  verify: true       # if false, presence is not enforced
+  header_name: Authorization
 ```
 
-## 6. Auth Simulation
+When `verify: true`, the server checks for the credential in the request. Known credentials are validated against the `auth` section of the server config. Without configured credentials, presence is enforced but any value is accepted.
 
-Derived from OpenAPI security schemes:
+Auth types:
+- `none` — no auth required
+- `bearer` — `Authorization: Bearer <token>`
+- `basic` — `Authorization: Basic <base64>`
+- `apiKey` — custom header name specified in `header_name`
+- `oauth2` — OAuth2 bearer with optional scope enforcement
+- `openIdConnect` — OpenID Connect bearer
 
-- Bearer (`Authorization: Bearer ...`)
-- Basic (`Authorization: Basic ...`)
-- API key header (e.g. `X-API-Key`)
-- OAuth2 and OpenID Connect with optional scopes
-- Composite requirements (`allOf` / `anyOf`)
-
-Auth token/credential validation comes from `config.auth` (if provided). Without configured credentials, presence checks are still enforced per scheme.
-
-### 6.1 Bearer Example
+### 7.1 Bearer Example
 
 ```bash
-curl -H "Authorization: Bearer valid-bearer" http://127.0.0.1:8080/secured
+curl -H "Authorization: Bearer valid-bearer" http://127.0.0.1:8080/api/v1/users
 ```
 
-### 6.2 Basic Example
+### 7.2 Basic Example
 
 ```bash
 BASIC=$(printf "admin:pass" | base64)
-curl -H "Authorization: Basic $BASIC" http://127.0.0.1:8080/secured-basic
+curl -H "Authorization: Basic $BASIC" http://127.0.0.1:8080/secured
 ```
 
-### 6.3 API Key Example
+### 7.3 API Key Example
 
 ```bash
-curl -H "X-API-Key: valid-key" http://127.0.0.1:8080/secured-apikey
+curl -H "X-API-Key: valid-key" http://127.0.0.1:8080/secured
 ```
 
-### 6.4 OAuth2 Scopes Example
+### 7.4 OAuth2 Scopes
 
-```bash
-curl -H "Authorization: Bearer valid-oauth-token" http://127.0.0.1:8080/pets/favorites
+When scopes are configured and the token lacks required scopes, the response is `403 Forbidden`:
+
+```
+WWW-Authenticate: Bearer ... insufficient_scope ...
 ```
 
-If the token lacks required scopes, response is `403 Forbidden` with `WWW-Authenticate: ... insufficient_scope ...`.
+## 8. Mock OAuth Endpoints (`/_auth/*`)
 
-## 7. Mock OAuth Endpoints (`/_auth/*`)
-
-### 7.1 POST `/_auth/token`
+### 8.1 POST `/_auth/token`
 
 Supported grant types:
 
@@ -160,54 +223,38 @@ Supported grant types:
 - `authorization_code`
 - `refresh_token`
 
-Input formats:
-
-- `application/x-www-form-urlencoded`
-- JSON body
-
-### client_credentials (body credentials)
+Input formats: `application/x-www-form-urlencoded` or JSON body.
 
 ```bash
+# client_credentials (body credentials)
 curl -X POST http://127.0.0.1:8080/_auth/token \
   -H "Content-Type: application/x-www-form-urlencoded" \
   -d "grant_type=client_credentials&client_id=client1&client_secret=secret1"
-```
 
-### client_credentials (Basic auth client credentials)
-
-```bash
+# client_credentials (Basic auth client credentials)
 CLIENT=$(printf "client1:secret1" | base64)
 curl -X POST http://127.0.0.1:8080/_auth/token \
   -H "Authorization: Basic $CLIENT" \
   -H "Content-Type: application/x-www-form-urlencoded" \
   -d "grant_type=client_credentials"
-```
 
-### password grant
-
-```bash
+# password grant
 curl -X POST http://127.0.0.1:8080/_auth/token \
   -H "Content-Type: application/x-www-form-urlencoded" \
-  -d "grant_type=password&username=admin&password=pass&scope=read:pets"
-```
+  -d "grant_type=password&username=admin&password=pass&scope=read:users"
 
-### authorization_code grant
-
-```bash
+# authorization_code grant
 curl -X POST http://127.0.0.1:8080/_auth/token \
   -H "Content-Type: application/x-www-form-urlencoded" \
   -d "grant_type=authorization_code&code=any-code&redirect_uri=http://localhost/callback"
-```
 
-### refresh_token grant
-
-```bash
+# refresh_token grant
 curl -X POST http://127.0.0.1:8080/_auth/token \
   -H "Content-Type: application/x-www-form-urlencoded" \
   -d "grant_type=refresh_token&refresh_token=anything"
 ```
 
-Successful response shape:
+Successful response:
 
 ```json
 {
@@ -218,7 +265,7 @@ Successful response shape:
 }
 ```
 
-Error response shape:
+Error response:
 
 ```json
 {
@@ -227,92 +274,88 @@ Error response shape:
 }
 ```
 
-### 7.2 GET `/_auth/authorize`
+### 8.2 GET `/_auth/authorize`
 
-Returns a 302 redirect to `redirect_uri` with mock `code` and optional `state`.
+Returns a `302` redirect to `redirect_uri` with mock `code` and optional `state`.
 
 ```bash
 curl -i "http://127.0.0.1:8080/_auth/authorize?redirect_uri=http://example.com/cb&state=xyz"
 ```
 
-## 8. Admin API (`/_admin/*`)
+## 9. Admin API (`/_admin/*`)
 
-Use this to inspect endpoints and force active variants at runtime.
+See [`docs/ADMIN_API.md`](ADMIN_API.md) for the full admin API reference including all response schemas, error codes, auth configuration, and CI/integration patterns.
 
-If `config.admin` is set, admin routes require bearer and/or API key auth.
+Quick reference:
 
-### 8.1 GET `/_admin/endpoints`
-
-Returns all endpoints with available variants and active override:
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/_admin/endpoints` | List all loaded endpoints |
+| `GET` | `/_admin/endpoints/:method/**` | Endpoint detail with variant info |
+| `PUT` | `/_admin/endpoints/:method/**/variant` | Set active variant override |
+| `DELETE` | `/_admin/endpoints/:method/**/variant` | Reset variant to default |
 
 ```bash
+# List all endpoints
 curl http://127.0.0.1:8080/_admin/endpoints | jq
-```
 
-Response example:
-
-```json
-[
-  {
-    "method": "GET",
-    "path": "/pets",
-    "variants": ["default", "error-500"],
-    "activeVariant": "error-500"
-  }
-]
-```
-
-### 8.2 GET `/_admin/endpoints/:method/**`
-
-Endpoint detail:
-
-```bash
-curl http://127.0.0.1:8080/_admin/endpoints/GET/pets | jq
-```
-
-### 8.3 PUT `/_admin/endpoints/:method/**/variant`
-
-Set active variant:
-
-```bash
+# Set active variant for GET /api/v1/users
 curl -X PUT \
-  http://127.0.0.1:8080/_admin/endpoints/GET/pets/variant \
+  http://127.0.0.1:8080/_admin/endpoints/GET/api/v1/users/variant \
   -H "Content-Type: application/json" \
-  -d '{"variant":"error-500"}'
+  -d '{"variant": "server-error"}'
+
+# Reset
+curl -X DELETE http://127.0.0.1:8080/_admin/endpoints/GET/api/v1/users/variant
 ```
 
-### 8.4 DELETE `/_admin/endpoints/:method/**/variant`
+## 10. GraphQL Endpoint Matching
 
-Reset override:
+For GraphQL operations, `moqserver` can route different operations on the same `POST /graphql` path to different endpoints using the request body.
 
-```bash
-curl -X DELETE http://127.0.0.1:8080/_admin/endpoints/GET/pets/variant
-```
-
-### 8.5 Admin auth examples
-
-Bearer:
-
-```bash
-curl -H "Authorization: Bearer admin-token" http://127.0.0.1:8080/_admin/endpoints
-```
-
-API key:
-
-```bash
-curl -H "X-Admin-Key: admin-secret" http://127.0.0.1:8080/_admin/endpoints
-```
-
-## 9. Config File Reference
-
-`--config` accepts YAML or JSON. Example:
+In the endpoint YAML, add an `operation` block:
 
 ```yaml
+# Match by operationName field in the request body
+method: POST
+path: /graphql
+operation:
+  type: query
+  name: GetUserProfile
+
+# Match anonymous queries by document content
+method: POST
+path: /graphql
+operation:
+  type: query
+  document: |
+    query {
+      currentUser { id name }
+    }
+```
+
+Matching logic:
+- If `operation.name` is set, the `operationName` field in the JSON request body must match.
+- If `operation.document` is set, the `query` field in the JSON request body is compared for content equality.
+- Endpoints without an `operation` block serve as catch-all for unmatched GraphQL requests.
+
+## 11. Config File Reference
+
+`--config` accepts YAML or JSON. All fields are optional.
+
+```yaml
+# Per-endpoint variant to use (key format: "METHOD /path")
 variantOverrides:
-  "GET /pets": "error-500"
+  "GET /api/v1/users": "server-error"
+
+# Global response delay in seconds for all endpoints
 globalDelay: 0.15
+
+# Per-endpoint delay overrides in seconds
 delayOverrides:
-  "POST /pets": 0.40
+  "POST /api/v1/users": 0.40
+
+# Known credentials for auth validation
 auth:
   bearerTokens:
     - "valid-bearer"
@@ -328,89 +371,63 @@ auth:
       clientSecret: "secret1"
   oauth2TokenScopes:
     valid-oauth-token:
-      - "read:pets"
-      - "write:pets"
-mocksDirectory: "./mocks"
+      - "read:users"
+      - "write:users"
+
+# Path for persisting runtime variant overrides across restarts
 overridesPersistencePath: "./tmp/variant-overrides.json"
+
+# Admin API auth (if omitted, admin routes are open)
 admin:
   bearerToken: "admin-token"
   apiKeyHeader: "X-Admin-Key"
   apiKey: "admin-secret"
 ```
 
-Field behavior:
+**Config field reference**
 
-- `variantOverrides`: default per-endpoint variant
-- `globalDelay`: response delay in seconds for all endpoints
-- `delayOverrides`: per-endpoint delay override
-- `auth.*`: known credentials/tokens used for validation
-- `mocksDirectory`: default overlay directory if `--mocks` is not passed
-- `overridesPersistencePath`: JSON file path for runtime admin overrides
-- `admin.*`: auth controls for `/_admin/*`
-
-## 10. Mock Files Overlay (`--mocks`)
-
-Mock files let you override or add variants without editing the OpenAPI spec.
-
-Conventions:
-
-```text
-mocks/pets/GET.json                   -> GET /pets variant "default"
-mocks/pets/GET.error-500.json         -> GET /pets variant "error-500"
-mocks/pets/{petId}/GET.json           -> GET /pets/{petId} variant "default"
-mocks/pets/GET.error-500.meta.json    -> metadata for that variant
-```
-
-If variant names collide, mock-file variants override spec variants with the same name.
-
-Example metadata:
-
-```json
-{
-  "statusCode": 503,
-  "headers": {
-    "Retry-After": "5"
-  },
-  "delay": 0.2,
-  "requestMatch": {
-    "query": { "mode": "chaos" },
-    "headers": { "X-Test-Mode": "enabled" },
-    "bodyContains": "simulate"
-  }
-}
-```
-
-`requestMatch` rules are ANDed:
-
-- All specified query params must match
-- All specified headers must match
-- Body must contain `bodyContains` substring (if provided)
-
-## 11. Bootstrapping a Mocks Directory
-
-Use `init` to scaffold mock files from a spec:
-
-```bash
-cd server
-swift run Run init --spec ../openapi.yaml --output ../mocks
-```
-
-This creates per-endpoint JSON files named by HTTP method and variant.
+| Field | Type | Description |
+|-------|------|-------------|
+| `variantOverrides` | `map[string]string` | Default variant per endpoint key (`"METHOD /path"`) |
+| `globalDelay` | `number` | Response delay in seconds applied to all endpoints |
+| `delayOverrides` | `map[string]number` | Per-endpoint delay overrides in seconds (overrides `globalDelay`) |
+| `auth.bearerTokens` | `string[]` | Valid bearer tokens |
+| `auth.basicCredentials` | `{username, password}[]` | Valid basic auth credentials |
+| `auth.apiKeys` | `map[string]string` | Valid API keys, keyed by header name |
+| `auth.oauth2Tokens` | `string[]` | Valid OAuth2 bearer tokens |
+| `auth.oauth2Clients` | `{clientId, clientSecret}[]` | Valid OAuth2 client credentials |
+| `auth.oauth2TokenScopes` | `map[string]string[]` | Scopes granted per OAuth2 token |
+| `overridesPersistencePath` | `string` | File path for persisting admin variant overrides |
+| `admin.bearerToken` | `string` | Bearer token required for admin routes |
+| `admin.apiKeyHeader` | `string` | API key header name for admin routes (default: `X-Admin-Key`) |
+| `admin.apiKey` | `string` | API key value required for admin routes |
 
 ## 12. Docker Usage
 
-The server image files live under `server/`.
-
-Build/run directly:
+Build and run the server image directly:
 
 ```bash
 docker build -t moqserver ./server
+
 docker run --rm -p 8080:8080 \
-  -v "$PWD/samples/server:/app/sample:ro" \
-  moqserver serve --spec /app/sample/openapi.yaml --mocks /app/sample/mocks --config /app/sample/config.yaml --hostname 0.0.0.0 --port 8080
+  -v "$PWD/my-api.moqproj:/app/project.moqproj:ro" \
+  moqserver serve --project /app/project.moqproj --hostname 0.0.0.0 --port 8080
 ```
 
-Compose:
+With a config file:
+
+```bash
+docker run --rm -p 8080:8080 \
+  -v "$PWD/my-api.moqproj:/app/project.moqproj:ro" \
+  -v "$PWD/config.yaml:/app/config.yaml:ro" \
+  moqserver serve \
+    --project /app/project.moqproj \
+    --config /app/config.yaml \
+    --hostname 0.0.0.0 \
+    --port 8080
+```
+
+Docker Compose (from `server/` directory):
 
 ```bash
 cd server
@@ -421,25 +438,29 @@ docker compose up --build
 
 ### SwiftPM executable target name
 
-This package’s executable target is `Run`, while the CLI name shown in help output and packaged binaries is `moqserver`. When running from source, use:
+The package's executable target is `Run`, while the binary name for packaged releases is `moqserver`. When running from source:
 
 ```bash
 cd server
-swift run Run serve --spec ../openapi.yaml
+swift run Run serve --project ../my-api.moqproj
 ```
 
-### 404 for expected endpoint
+### Server exits immediately at startup
 
-- Confirm spec path loaded correctly
-- Confirm request path/method exactly matches OpenAPI path
-- For templated paths (`{id}`), verify the request has a concrete segment
+Project validation failed. Read the diagnostic output — it lists specific fields or endpoints with errors. Fix them and re-run. Use `swift run Run validate --project ...` to validate without starting the server.
 
-### 400/415 validation errors
+### 404 for an expected endpoint
 
-Inspect required query/header/body/content-type in your OpenAPI operation.
+- Confirm the endpoint file exists in `endpoints/` and has a valid `method` and `path`.
+- For templated paths (`{id}`), ensure the request segment does not contain `/`.
+- Use `GET /_admin/endpoints` to confirm the endpoint was loaded.
+
+### 400 or 415 validation errors
+
+Inspect `request_rules` in the endpoint YAML. Ensure required headers and query params are present in your request, and that the `Content-Type` matches what the endpoint expects.
 
 ### Variant not switching
 
-- Check variant exists in endpoint detail (`/_admin/endpoints/:method/**`)
-- Confirm `X-Mock-Variant` value exactly matches variant name
-- Check whether `requestMatch` constraints are filtering that variant
+- Use `GET /_admin/endpoints/:method/**` to confirm the variant name exists.
+- Confirm `X-Mock-Variant` header value exactly matches the variant name (case-sensitive).
+- Check whether `requestMatch` constraints in the variant's `request_rules` are filtering it out.

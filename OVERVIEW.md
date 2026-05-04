@@ -12,11 +12,11 @@ moqserver automates this by reading your API definition or recorded traffic and 
 
 ## Key Features
 
-- **OpenAPI-Driven** - Your spec is the source of truth
-- **AI-First Authoring Direction** - Use AI to analyze APIs, fill gaps, and generate better mocks
-- **No Configuration Needed** - Register endpoints automatically
-- **Multiple Responses** - Serve success/error/timeout variants
-- **Authentication Mocking** - Simulate auth without real tokens
+- **`.moqproj` Project Format** - Portable directory bundle containing all endpoints, variants, and fixtures
+- **AI-First Authoring Direction** - Use AI in Studio to analyze APIs, fill gaps, and generate better mocks
+- **Desktop Studio App** - Compose Multiplatform app for authoring and managing `.moqproj` projects
+- **Multiple Responses** - Serve success/error/timeout variants per endpoint
+- **Authentication Mocking** - Simulate bearer, basic, API key, OAuth2 auth without real tokens
 - **Simple to Deploy** - Docker container or standalone binary
 
 ## AI Provider Strategy
@@ -32,21 +32,23 @@ The planned authoring surface is a desktop Studio app. Provider settings live in
 
 ## Architecture at 10,000 Feet
 
-1. User provides OpenAPI spec (YAML/JSON)
-2. System parses spec into normalized endpoint definitions
+1. User authors endpoints in a `.moqproj` directory bundle (or imports via Studio from OpenAPI/HAR)
+2. Server loads the project: reads `project.yml`, `endpoints/*.yml`, and `fixtures/`
 3. Endpoints stored in memory for fast lookup
 4. HTTP server starts listening
 5. For each incoming request:
    - Validate auth if required
-   - Find matching endpoint
-   - Pick response variant (header → config → default)
+   - Validate required headers/query params/body
+   - Find matching endpoint (exact path, then path-param regex)
+   - Pick response variant (header → admin override → config → request match → default)
    - Return mock response
 
 ## Technology Stack
 
-- **Language**: Swift 5.10+
+- **Language**: Swift 5.10+ (server)
 - **Framework**: Vapor 4.121.x (async/await HTTP framework)
-- **Format Support**: OpenAPI 3.x (YAML/JSON)
+- **Format**: `.moqproj` directory bundle (YAML manifests + fixture files)
+- **Studio**: Kotlin + Compose Multiplatform desktop app
 - **Runtime**: macOS, Linux, Docker
 
 ## What It's NOT
@@ -60,7 +62,7 @@ The planned authoring surface is a desktop Studio app. Provider settings live in
 
 1. **Local Development**
    ```bash
-   swift run Run serve --spec ./api.yaml --port 8080
+   swift run Run serve --project ./my-api.moqproj --port 8080
    # Now you have a local mock API running
    ```
 
@@ -72,14 +74,15 @@ The planned authoring surface is a desktop Studio app. Provider settings live in
 
 3. **CI Pipeline**
    ```bash
-   docker run -p 8080:8080 moqserver serve --spec ./spec.yaml
+   docker run -p 8080:8080 \
+     -v "$PWD/my-api.moqproj:/app/project.moqproj:ro" \
+     moqserver serve --project /app/project.moqproj --hostname 0.0.0.0
    # Run integration tests against mock API
    ```
 
 ## Future Directions
 
-- AI-assisted mock generation and API analysis
-- desktop-first `.moqproj` authoring workflow and Studio app
+- AI-assisted mock generation and API analysis (active direction in Studio)
 - gRPC support (in addition to REST)
 - Webhook simulation
 - Response templating

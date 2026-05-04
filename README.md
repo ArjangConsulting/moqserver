@@ -53,31 +53,43 @@ In Studio, provider settings are configured directly by the user and used for bo
 make build
 ```
 
-### 2) Create a minimal OpenAPI spec
+### 2) Create a `.moqproj` project
+
+A `.moqproj` is a directory containing `project.yml`, `endpoints/*.yml`, and optional `fixtures/`.
+
+```text
+my-api.moqproj/
+├── project.yml
+├── endpoints/
+│   └── list-pets.yml
+└── fixtures/
+    └── pets.json
+```
+
+`project.yml`:
 
 ```yaml
-# openapi.yaml
-openapi: "3.0.3"
-info:
-  title: Demo API
-  version: "1.0.0"
-paths:
-  /pets:
-    get:
-      responses:
-        "200":
-          description: OK
-          content:
-            application/json:
-              example:
-                - id: 1
-                  name: Fido
-        "500":
-          description: Server error
-          content:
-            application/json:
-              example:
-                error: Internal server error
+version: "1"
+name: "My API Mock"
+```
+
+`endpoints/list-pets.yml`:
+
+```yaml
+id: list-pets
+method: GET
+path: /pets
+variants:
+  - name: success
+    default: true
+    status: 200
+    body:
+      - id: 1
+        name: Fido
+  - name: error-500
+    status: 500
+    body:
+      error: Internal server error
 ```
 
 ### 3) Start the server
@@ -86,13 +98,13 @@ From source:
 
 ```bash
 cd server
-swift run Run serve --spec ../openapi.yaml --port 8080
+swift run Run serve --project ../my-api.moqproj --port 8080
 ```
 
 Using a built binary:
 
 ```bash
-./server/.build/debug/Run serve --spec ./openapi.yaml --port 8080
+./server/.build/debug/Run serve --project ./my-api.moqproj --port 8080
 ```
 
 Docker:
@@ -100,8 +112,8 @@ Docker:
 ```bash
 docker build -t moqserver ./server
 docker run --rm -p 8080:8080 \
-  -v "$PWD/openapi.yaml:/app/spec/openapi.yaml:ro" \
-  moqserver serve --spec /app/spec/openapi.yaml --hostname 0.0.0.0 --port 8080
+  -v "$PWD/my-api.moqproj:/app/project.moqproj:ro" \
+  moqserver serve --project /app/project.moqproj --hostname 0.0.0.0 --port 8080
 ```
 
 ### 4) Call the mock API
@@ -120,53 +132,39 @@ curl -H "X-Mock-Variant: error-500" http://127.0.0.1:8080/pets
 cd server
 swift run Run --help
 swift run Run serve --help
-swift run Run init --help
+swift run Run validate --help
 ```
 
 `serve` options:
 
-- `--spec <path-or-url>` (required)
-- `--format <auto|openapi|har>` (default: `auto`)
+- `--project <path>` (required) — path to a `.moqproj` directory
 - `--port <port>` (default: `8080`)
 - `--hostname <host>` (default: `127.0.0.1`)
-- `--config <path>` optional YAML/JSON config
-- `--mocks <dir>` optional mock-file overlay directory
+- `--config <path>` — optional YAML/JSON config file
 
-`init` options:
+`validate` options:
 
-- `--spec <path-or-url>` (required)
-- `--format <auto|openapi|har>` (default: `auto`)
-- `--output <dir>` (default: `./mocks`)
+- `--project <path>` (required) — path to a `.moqproj` directory
 
 ## Common Examples
 
-### Start with config and mock overlays
+### Start with a config file
 
 ```bash
 cd server
 swift run Run serve \
-  --spec ../openapi.yaml \
+  --project ../my-api.moqproj \
   --config ../config/config.yaml \
-  --mocks ../mocks \
   --hostname 0.0.0.0 \
   --port 8080
 ```
 
-### Scaffold mock files from a spec
+### Validate a project before serving
 
 ```bash
 cd server
-swift run Run init --spec ../openapi.yaml --output ../mocks
+swift run Run validate --project ../my-api.moqproj
 ```
-
-### Import a HAR capture into moqserver mocks
-
-```bash
-cd server
-swift run Run init --spec ../session.har --format har --output ../mocks
-```
-
-This generates mock files plus `.meta.json` request-match metadata so different recorded requests to the same path can become separate variants.
 
 ### Change active variant via Admin API
 
@@ -188,11 +186,12 @@ curl -X DELETE http://127.0.0.1:8080/_admin/endpoints/GET/pets/variant
 
 For complete API and configuration docs with detailed examples:
 
-- [`docs/API_GUIDE.md`](docs/API_GUIDE.md)
-- [`OVERVIEW.md`](OVERVIEW.md)
-- [`ARCHITECTURE.md`](ARCHITECTURE.md)
-- [`docs/PROJECT_SPEC.md`](docs/PROJECT_SPEC.md)
-- [`samples/README.md`](samples/README.md) (iOS + Android showcase apps)
+- [`docs/API_GUIDE.md`](docs/API_GUIDE.md) — running the server, config reference, variant switching, auth, Docker
+- [`docs/ADMIN_API.md`](docs/ADMIN_API.md) — admin API reference with full response schemas and CI patterns
+- [`ARCHITECTURE.md`](ARCHITECTURE.md) — system design, module structure, request flow
+- [`OVERVIEW.md`](OVERVIEW.md) — product overview and key concepts
+- [`docs/FORMAT_IMPLEMENTATION.md`](docs/FORMAT_IMPLEMENTATION.md) — `.moqproj` format contract
+- [`samples/README.md`](samples/README.md) — iOS + Android showcase apps
 
 ## Studio Development
 
