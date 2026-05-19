@@ -111,27 +111,24 @@ internal fun buildURLImportAuth(state: ImportFromURLState): URLImportAuth? = whe
 	URLAuthType.NONE -> null
 }
 
-private suspend fun applyURLImportResult(
+private fun applyURLImportResult(
 	state: ImportFromURLState,
 	executionPlan: URLImportExecutionPlan,
 	currentProject: com.moqserver.studio.projectformat.MoqProject?,
 	fetched: com.moqserver.studio.imports.FetchedSpec,
 	spec: com.moqserver.studio.domain.ParsedSpec,
-	importHistoryRepo: ImportHistoryRepository,
 	appViewModel: StudioRootViewModel,
+	previouslyDeselectedIds: Set<String>,
 ): Boolean {
 	if (executionPlan.requiresProject) {
 		if (currentProject == null) {
 			return false
 		}
-		val previouslyDeselected = withContext(Dispatchers.IO) {
-			importHistoryRepo.loadDeselected(currentProject.projectPath)
-		}
 		appViewModel.startUpdateFromSpec(
 			spec = spec,
 			source = ImportSourceType.OPENAPI,
 			fileName = fetched.sourceName,
-			previouslyDeselectedIds = previouslyDeselected,
+			previouslyDeselectedIds = previouslyDeselectedIds,
 		)
 	} else {
 		appViewModel.startImport(spec, ImportSourceType.OPENAPI, fetched.sourceName)
@@ -143,6 +140,49 @@ private suspend fun applyURLImportResult(
 		fetched.resolvedUrl,
 	)
 	return true
+}
+
+private suspend fun performURLImport(
+	state: ImportFromURLState,
+	currentProject: com.moqserver.studio.projectformat.MoqProject?,
+	urlFetcher: OpenAPIURLFetcher,
+	openApiParser: OpenAPIImportParser,
+	importHistoryRepo: ImportHistoryRepository,
+	appViewModel: StudioRootViewModel,
+): Boolean {
+	val executionPlan = planURLImportExecution(state)
+	logger.info(
+		"{} {} spec from URL: {}",
+		executionPlan.operationLabel,
+		executionPlan.modeLabel,
+		state.url,
+	)
+	val auth = buildURLImportAuth(state)
+	val fetched = withContext(Dispatchers.IO) {
+		urlFetcher.fetchSpec(state.url, auth)
+	}
+	logger.info(
+		"Fetched spec from {} ({} chars), parsing...",
+		fetched.resolvedUrl,
+		fetched.content.length,
+	)
+	val spec = withContext(Dispatchers.IO) { openApiParser.parse(fetched.content) }
+	val previouslyDeselectedIds = if (executionPlan.requiresProject && currentProject != null) {
+		withContext(Dispatchers.IO) {
+			importHistoryRepo.loadDeselected(currentProject.projectPath)
+		}
+	} else {
+		emptySet()
+	}
+	return applyURLImportResult(
+		state = state,
+		executionPlan = executionPlan,
+		currentProject = currentProject,
+		fetched = fetched,
+		spec = spec,
+		appViewModel = appViewModel,
+		previouslyDeselectedIds = previouslyDeselectedIds,
+	)
 }
 
 fun main(args: Array<String>) {
@@ -512,31 +552,13 @@ fun main(args: Array<String>) {
                 if (currentState.url.isBlank() || currentState.loading) return
                 importURLState.value = currentState.copy(loading = true, error = null)
                 scope.launch(exceptionHandler) {
-                    try {
+					try {
 						val currentProject = appViewModel.state.value.project
-						val executionPlan = planURLImportExecution(currentState)
-						logger.info(
-							"{} {} spec from URL: {}",
-							executionPlan.operationLabel,
-							executionPlan.modeLabel,
-							currentState.url,
-						)
-						val auth = buildURLImportAuth(currentState)
-                        val fetched = withContext(Dispatchers.IO) {
-                            urlFetcher.fetchSpec(currentState.url, auth)
-                        }
-                        logger.info(
-                            "Fetched spec from {} ({} chars), parsing...",
-                            fetched.resolvedUrl,
-                            fetched.content.length,
-                        )
-                        val spec = withContext(Dispatchers.IO) { openApiParser.parse(fetched.content) }
-						val applied = applyURLImportResult(
+						val applied = performURLImport(
 							state = currentState,
-							executionPlan = executionPlan,
 							currentProject = currentProject,
-							fetched = fetched,
-							spec = spec,
+							urlFetcher = urlFetcher,
+							openApiParser = openApiParser,
 							importHistoryRepo = importHistoryRepo,
 							appViewModel = appViewModel,
 						)
