@@ -215,7 +215,7 @@ class ImportWorkflowTest {
 	@Test
 	fun `har parser can parse bundled sample fixture`() {
 		val parser = HARImportParser()
-		val fixture = File(findProjectRoot(), "server/Tests/MoqParsingTests/Fixtures/sample.har")
+		val fixture = File(findProjectRoot(), "server/Tests/MoqRuntimeTests/Fixtures/sample.har")
 
 		val parsed = parser.parse(fixture.readText())
 

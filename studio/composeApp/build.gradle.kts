@@ -23,12 +23,12 @@ kotlin {
                 implementation(projects.studioDesignSystem)
                 implementation(projects.studioDomain)
                 implementation(projects.studioProjectFormat)
-                implementation(compose.runtime)
-                implementation(compose.foundation)
-                implementation(compose.material3)
-                implementation(compose.materialIconsExtended)
-                implementation(compose.ui)
-                implementation(compose.components.resources)
+                implementation(libs.compose.runtime)
+                implementation(libs.compose.foundation)
+                implementation(libs.compose.material3)
+                implementation(libs.compose.material.icons.extended)
+                implementation(libs.compose.ui)
+                implementation(libs.compose.components.resources)
                 implementation(libs.navigation.compose)
                 implementation(libs.lifecycle.viewmodel.compose)
                 implementation(libs.coroutines.core)
@@ -47,7 +47,7 @@ kotlin {
                 implementation(projects.studioLogging)
                 implementation(projects.studioUi)
                 implementation(compose.desktop.currentOs)
-                implementation("org.jetbrains.compose.ui:ui-tooling-preview-desktop:1.10.3")
+                implementation(libs.compose.ui.tooling.preview.desktop)
                 implementation(libs.coroutines.swing)
                 implementation(libs.slf4j.simple)
             }
@@ -203,13 +203,13 @@ tasks.register("registerMacApp") {
             "App bundle not found at ${appBundle.absolutePath}"
         }
 
-        exec {
+        providers.exec {
             commandLine(
                 "/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister",
                 "-f",
                 appBundle.absolutePath,
             )
-        }
+        }.result.get()
     }
 }
 
