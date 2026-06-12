@@ -91,13 +91,21 @@ Studio is a Kotlin Multiplatform / Compose Multiplatform desktop application str
 
 | Module | Responsibility |
 |--------|----------------|
-| `composeApp` | Desktop entry point, Compose UI, screen navigation, desktop-specific concerns |
-| `studio-domain` | Pure Kotlin business logic, ViewModels, state machines — no I/O or Compose dependencies |
-| `studio-project-format` | `.moqproj` read/write, YAML serialization, format validation |
-| `studio-data` | File system access, preferences, AI provider integration |
+| `composeApp` | Desktop entry point, Compose UI, screen navigation, desktop-specific wiring |
+| `studio-domain` | Pure Kotlin business logic, `StudioRootViewModel`, state machines, `ImportModels`/`ImportConverter` — no I/O or Compose dependencies |
+| `studio-project-format` | `.moqproj` read/write (`ProjectRepository`), YAML serialization, format validation |
+| `studio-data` | Settings/credential/preferences adapters |
+| `studio-import` | OpenAPI and HAR import parsers (JVM-only) |
+| `studio-ai` | AI provider abstractions and registry (`AIProvider`); called directly from Studio |
+| `studio-ui` | Shared Compose UI components (badges, editors, tables) |
+| `studio-design-system` | Design tokens and theming (`StudioColors`, `StudioDimens`, `StudioTheme`) |
+| `studio-code-editor` | Code/JSON editor component |
 | `studio-export` | Code generation / export references feature |
+| `studio-logging` | Studio logging utilities (`StudioLogger`) |
 
 State ownership: `StudioRootViewModel` in `studio-domain` is the single source of truth for all workflow state. UI composables observe it but do not own state.
+
+> The authoritative module-boundary and dependency rules live in `studio/AGENTS.md`.
 
 ## Key Design Decisions
 

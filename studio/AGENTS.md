@@ -1,6 +1,6 @@
 # AGENTS.md
 
-Canonical note: This is the single source of truth for AI agent guidance in this repo. Other agent files should reference this file instead of duplicating content.
+Canonical note: This is the single source of truth for AI agent guidance for **Studio** (`studio/`). `studio/CLAUDE.md` is a stub that points here. For cross-repo workflow and the server product, see the root `AGENTS.md`.
 
 ## Mission and Scope
 - This repo is **moqserver Studio**, a desktop Compose app for authoring `.moqproj` projects (`README.md`, `composeApp/`).
