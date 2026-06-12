@@ -16,9 +16,8 @@ From the repository root:
 ```bash
 cd server
 swift run Run serve \
-  --spec ../samples/server/openapi.yaml \
+  --project ../samples/server/showcase.moqproj \
   --config ../samples/server/config.yaml \
-  --mocks ../samples/server/mocks \
   --port 8080
 ```
 

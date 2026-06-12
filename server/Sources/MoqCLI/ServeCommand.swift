@@ -40,6 +40,17 @@ public struct ServeCommand: AsyncParsableCommand {
             print("Loaded config from \(configPath)")
         }
 
+        let configErrors = serverConfig?.validationErrors() ?? []
+        if !configErrors.isEmpty {
+            for error in configErrors {
+                logger.error("Invalid config: \(error)")
+                print("Invalid config: \(error)")
+            }
+            throw ExitCode.failure
+        }
+
+        warnIfExposedWithoutAdminAuth(config: serverConfig)
+
         await store.configureVariantOverridePersistence(path: serverConfig?.overridesPersistencePath)
 
         logger.info("Loading project from \(project)")
@@ -53,13 +64,26 @@ public struct ServeCommand: AsyncParsableCommand {
 
         let app = try await buildApp(store: store, config: serverConfig, hostname: hostname, port: port)
 
-        defer {
-            Task {
-                try? await app.asyncShutdown()
-            }
+        do {
+            try await app.execute()
+        } catch {
+            try? await app.asyncShutdown()
+            throw error
         }
+        try await app.asyncShutdown()
+    }
 
-        try await app.execute()
+    /// Warns when the server is reachable from other machines but the admin API has no credentials.
+    private func warnIfExposedWithoutAdminAuth(config: ServerConfig?) {
+        let loopbackHostnames: Set<String> = ["127.0.0.1", "localhost", "::1"]
+        guard !loopbackHostnames.contains(hostname), config?.admin == nil else { return }
+        let warning = """
+        WARNING: Binding to \(hostname) without admin credentials. Anyone who can reach this host \
+        can list endpoints and change active variants via /_admin. Add an `admin` section with a \
+        bearerToken or apiKey to the config file to require authentication.
+        """
+        logger.warning("\(warning)")
+        print(warning)
     }
 
     // MARK: - Project Loading
@@ -81,7 +105,8 @@ public struct ServeCommand: AsyncParsableCommand {
         }
         if !errors.isEmpty {
             logger.error("Project validation failed", metadata: ["errors": "\(errors.count)"])
-            throw CleanExit.message("Aborting: project has \(errors.count) validation error(s). Run `moqserver validate --project \(path)` for details.")
+            print("Aborting: project has \(errors.count) validation error(s). Run `moqserver validate --project \(path)` for details.")
+            throw ExitCode.failure
         }
 
         let endpoints = try ProjectToRuntimeConverter.convert(project)

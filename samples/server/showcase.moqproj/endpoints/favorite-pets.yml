@@ -1,0 +1,29 @@
+id: favorite-pets
+alias: "Favorite Pets"
+method: GET
+path: /pets/favorites
+tags: [pets]
+
+auth:
+  type: bearer
+  verify: true
+  header_name: Authorization
+
+variants:
+  - name: success
+    default: true
+    status: 200
+    headers:
+      Content-Type: application/json
+    body:
+      - id: 1
+        name: "Fido"
+      - id: 3
+        name: "Buddy"
+
+  - name: unauthorized
+    status: 401
+    headers:
+      Content-Type: application/json
+    body:
+      error: "Invalid token"

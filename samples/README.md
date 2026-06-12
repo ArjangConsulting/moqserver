@@ -4,7 +4,7 @@ This directory contains end-to-end examples for using `moqserver` from mobile ap
 
 ## Included samples
 
-- [`server/`](./server): shared OpenAPI spec, config, and mock overlays used by both apps
+- [`server/`](./server): shared `.moqproj` project and server config used by both apps
 - [`ios/`](./ios): SwiftUI sample app with a checked-in Xcode project
 - [`android/`](./android): Android Studio project (Jetpack Compose)
 
@@ -15,9 +15,8 @@ Run this from the repository root:
 ```bash
 cd server
 swift run Run serve \
-  --spec ../samples/server/openapi.yaml \
+  --project ../samples/server/showcase.moqproj \
   --config ../samples/server/config.yaml \
-  --mocks ../samples/server/mocks \
   --port 8080
 ```
 

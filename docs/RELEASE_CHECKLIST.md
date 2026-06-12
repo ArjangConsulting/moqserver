@@ -7,7 +7,7 @@
 - [ ] Build succeeds in release mode: `make release`
 - [ ] Docker image builds: `make docker-build`
 - [ ] Run smoke test against Docker image manually
-- [ ] Review spec validation warnings for bundled examples
+- [ ] Review project validation warnings for bundled sample projects
 
 ## Version Bump
 
@@ -17,9 +17,8 @@
 
 ## Validation
 
-- [ ] `cd server && swift run Run serve --spec ../samples/server/openapi.yaml --port 8080` starts without errors
-- [ ] `cd server && swift run Run init --spec ../samples/server/openapi.yaml --output ../tmp/mocks` scaffolds files
-- [ ] `cd server && swift run Run validate-spec --spec ../samples/server/openapi.yaml` reports no errors
+- [ ] `cd server && swift run Run serve --project ../samples/server/showcase.moqproj --config ../samples/server/config.yaml --port 8080` starts without errors
+- [ ] `cd server && swift run Run validate --project ../samples/server/showcase.moqproj` reports no errors
 - [ ] Admin API (`GET /_admin/endpoints`) returns registered endpoints
 - [ ] Variant selection via `X-Mock-Variant` header works
 - [ ] Auth enforcement works (bearer, basic, API key)

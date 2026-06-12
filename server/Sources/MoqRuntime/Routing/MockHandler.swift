@@ -354,13 +354,17 @@ public struct MockHandler: Sendable {
         return cookies
     }
 
+    /// Upper bound for simulated delays. Caps misconfigured values that would otherwise
+    /// hang requests indefinitely or overflow the nanosecond conversion in `Task.sleep`.
+    private static let maxDelaySeconds: TimeInterval = 300
+
     private func effectiveDelay(for endpoint: Endpoint, variant: ResponseVariant, endpointKeyString: String) -> TimeInterval? {
         let variantDelay = variant.delay ?? config?.effectiveDelay(for: endpointKeyString) ?? 0
         let network = endpoint.network
         let latency = TimeInterval((network?.latencyMs ?? 0)) / 1000.0
         let jitterMs = network?.jitterMs ?? 0
         let jitter = jitterMs > 0 ? TimeInterval(Int.random(in: -jitterMs...jitterMs)) / 1000.0 : 0
-        let total = max(0, variantDelay + latency + jitter)
+        let total = min(max(0, variantDelay + latency + jitter), Self.maxDelaySeconds)
         return total > 0 ? total : nil
     }
 
@@ -428,9 +432,6 @@ struct GraphQLRequestBody {
     }
 
     func normalizedDocument() -> String {
-        query
-            .components(separatedBy: .whitespacesAndNewlines)
-            .filter { !$0.isEmpty }
-            .joined(separator: " ")
+        EndpointOperation.normalizeDocument(query)
     }
 }

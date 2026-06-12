@@ -76,6 +76,7 @@ class ProjectRepository(
         val persistedEndpoints = project.endpoints
             .sortedBy { it.id }
             .map { endpoint ->
+                requireSafeEndpointId(endpoint.id)
                 persistEndpoint(
                     endpoint = endpoint,
                     destinationRoot = dir,
@@ -114,8 +115,31 @@ class ProjectRepository(
     }
 
     fun readFixture(projectPath: String, bodyFile: String): String? {
-        val file = File(projectPath, bodyFile)
+        val file = resolveContainedFixture(File(projectPath), bodyFile)
+        if (file == null) {
+            logger.warn("Refusing to read fixture path outside the project bundle: {}", bodyFile)
+            return null
+        }
         return if (file.isFile) file.readText() else null
+    }
+
+    /**
+     * Resolves [relativePath] against [root], returning null unless the result stays inside
+     * the project's fixtures directory. Guards against `..`/absolute body_file values from
+     * untrusted .moqproj bundles escaping the bundle on read or save.
+     */
+    private fun resolveContainedFixture(root: File, relativePath: String): File? {
+        if (!relativePath.startsWith("${MoqProjectFormat.FIXTURES_DIR}/")) return null
+        val file = File(root, relativePath)
+        val rootPath = root.canonicalFile.toPath()
+        val filePath = file.canonicalFile.toPath()
+        return if (filePath.startsWith(rootPath)) file else null
+    }
+
+    private fun requireSafeEndpointId(id: String) {
+        require(id.isNotBlank() && '/' !in id && '\\' !in id && id != "." && id != "..") {
+            "Endpoint id \"$id\" is not a safe file name."
+        }
     }
 
     private fun persistEndpoint(
@@ -155,14 +179,18 @@ class ProjectRepository(
             else -> bodyFile ?: buildFixturePath(endpoint, variant)
         }
 
-        val targetFile = File(destinationRoot, persistedBodyFile)
+        val targetFile = resolveContainedFixture(destinationRoot, persistedBodyFile)
+            ?: error(
+                "Refusing to write fixture for endpoint \"${endpoint.id}\" variant \"${variant.name}\": " +
+                    "body_file \"$persistedBodyFile\" escapes the project's ${MoqProjectFormat.FIXTURES_DIR}/ directory.",
+            )
         targetFile.parentFile?.mkdirs()
 
         if (body != null) {
             targetFile.writeBytes(serializeVariantBody(variant, body))
         } else if (bodyFile != null) {
-            val sourceFile = File(sourceRoot, bodyFile)
-            if (sourceFile.isFile && sourceFile.canonicalPath != targetFile.canonicalPath) {
+            val sourceFile = resolveContainedFixture(sourceRoot, bodyFile)
+            if (sourceFile != null && sourceFile.isFile && sourceFile.canonicalPath != targetFile.canonicalPath) {
                 sourceFile.copyTo(targetFile, overwrite = true)
             }
         }

@@ -1,3 +1,5 @@
+import Foundation
+
 /// GraphQL operation matching configuration.
 public struct EndpointOperation: Codable, Sendable, Equatable {
     /// The GraphQL operation type.
@@ -17,5 +19,14 @@ public struct EndpointOperation: Codable, Sendable, Equatable {
         case query
         case mutation
         case subscription
+    }
+
+    /// Collapses all whitespace runs to single spaces so documents can be
+    /// compared independently of formatting.
+    public static func normalizeDocument(_ document: String) -> String {
+        document
+            .components(separatedBy: .whitespacesAndNewlines)
+            .filter { !$0.isEmpty }
+            .joined(separator: " ")
     }
 }

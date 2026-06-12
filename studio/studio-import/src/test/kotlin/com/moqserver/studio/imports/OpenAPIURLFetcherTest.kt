@@ -311,4 +311,58 @@ class OpenAPIURLFetcherTest {
 		val result = OpenAPIURLFetcher.extractSwaggerBundleUrl(html, "https://myapi.example.com/swagger-ui/")
 		assertEquals("https://myapi.example.com/v3/api-docs", result)
 	}
+
+	// -- same-origin auth guard --
+
+	@Test
+	fun `isSameOrigin matches same scheme host and port`() {
+		assertTrue(OpenAPIURLFetcher.isSameOrigin("https://api.example.com/spec.json", "https://api.example.com/docs"))
+	}
+
+	@Test
+	fun `isSameOrigin treats default port as equal to explicit default`() {
+		assertTrue(OpenAPIURLFetcher.isSameOrigin("https://api.example.com:443/spec.json", "https://api.example.com/docs"))
+	}
+
+	@Test
+	fun `isSameOrigin rejects different host`() {
+		assertFalse(OpenAPIURLFetcher.isSameOrigin("https://attacker.example/spec.json", "https://api.example.com/docs"))
+	}
+
+	@Test
+	fun `isSameOrigin rejects different scheme`() {
+		assertFalse(OpenAPIURLFetcher.isSameOrigin("http://api.example.com/spec.json", "https://api.example.com/docs"))
+	}
+
+	@Test
+	fun `isSameOrigin rejects different port`() {
+		assertFalse(OpenAPIURLFetcher.isSameOrigin("https://api.example.com:8443/spec.json", "https://api.example.com/docs"))
+	}
+
+	@Test
+	fun `authForTarget keeps credentials for same-origin discovered URL`() {
+		val auth = URLImportAuth.Bearer("token")
+		val result = OpenAPIURLFetcher.authForTarget(
+			"https://api.example.com/openapi.json",
+			"https://api.example.com/docs",
+			auth,
+		)
+		assertEquals(auth, result)
+	}
+
+	@Test
+	fun `authForTarget drops credentials for cross-origin discovered URL`() {
+		val auth = URLImportAuth.Bearer("token")
+		val result = OpenAPIURLFetcher.authForTarget(
+			"https://attacker.example/openapi.json",
+			"https://api.example.com/docs",
+			auth,
+		)
+		assertNull(result)
+	}
+
+	@Test
+	fun `authForTarget passes through null auth`() {
+		assertNull(OpenAPIURLFetcher.authForTarget("https://api.example.com/spec.json", "https://api.example.com/docs", null))
+	}
 }

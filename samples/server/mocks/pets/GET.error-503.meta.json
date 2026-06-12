@@ -1,7 +1,0 @@
-{
-  "statusCode": 503,
-  "headers": {
-    "Retry-After": "2"
-  },
-  "delay": 0.7
-}
