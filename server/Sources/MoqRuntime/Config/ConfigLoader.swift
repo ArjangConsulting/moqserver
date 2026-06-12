@@ -20,25 +20,48 @@ public struct ConfigLoader: Sendable {
 
         let data = try Data(contentsOf: url)
 
-        let decoder = YAMLDecoder()
+        // Pick the decoder from the file extension so a malformed YAML file
+        // reports a YAML error instead of a confusing JSON fallback error.
+        if url.pathExtension.lowercased() == "json" {
+            do {
+                let config = try JSONDecoder().decode(ServerConfig.self, from: data)
+                logger.debug("Config loaded as JSON")
+                return config
+            } catch {
+                throw ConfigLoaderError.invalidConfig(url.path, "JSON: \(error)")
+            }
+        }
+
+        let yamlError: Error
         do {
-            let config = try decoder.decode(ServerConfig.self, from: data)
+            let config = try YAMLDecoder().decode(ServerConfig.self, from: data)
             logger.debug("Config loaded as YAML")
             return config
         } catch {
-            logger.debug("YAML decode failed, trying JSON fallback")
-            return try JSONDecoder().decode(ServerConfig.self, from: data)
+            yamlError = error
+        }
+
+        // Unknown extensions still get a JSON fallback, but a failure reports both attempts.
+        do {
+            let config = try JSONDecoder().decode(ServerConfig.self, from: data)
+            logger.debug("Config loaded as JSON after YAML decode failed")
+            return config
+        } catch {
+            throw ConfigLoaderError.invalidConfig(url.path, "YAML: \(yamlError); JSON: \(error)")
         }
     }
 }
 
 public enum ConfigLoaderError: Error, CustomStringConvertible {
     case fileNotFound(String)
+    case invalidConfig(String, String)
 
     public var description: String {
         switch self {
         case .fileNotFound(let path):
             return "Config file not found: \(path)"
+        case .invalidConfig(let path, let detail):
+            return "Could not decode config file \(path): \(detail)"
         }
     }
 }

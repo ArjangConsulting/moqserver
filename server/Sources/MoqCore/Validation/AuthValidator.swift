@@ -56,7 +56,8 @@ public struct AuthValidator: AuthValidating {
                 )
             }
             let token = String(authHeader.dropFirst("Bearer ".count))
-            if let validTokens = config?.bearerTokens, !validTokens.isEmpty, !validTokens.contains(token) {
+            if let validTokens = config?.bearerTokens, !validTokens.isEmpty,
+               !validTokens.contains(where: { SecureCompare.equals(token, $0) }) {
                 logger.debug("Invalid bearer token provided")
                 return .unauthorized(
                     message: "Invalid bearer token",
@@ -86,7 +87,10 @@ public struct AuthValidator: AuthValidating {
                 }
                 let parts = credString.split(separator: ":", maxSplits: 1)
                 guard parts.count == 2,
-                      validCreds.contains(where: { $0.username == parts[0] && $0.password == parts[1] }) else {
+                      validCreds.contains(where: {
+                          SecureCompare.equals(String(parts[0]), $0.username) &&
+                          SecureCompare.equals(String(parts[1]), $0.password)
+                      }) else {
                     logger.debug("Invalid basic auth credentials")
                     return .unauthorized(
                         message: "Invalid credentials",
@@ -110,7 +114,8 @@ public struct AuthValidator: AuthValidating {
                     wwwAuthenticate: nil
                 )
             }
-            if let validKeys = config?.apiKeys, let expectedKey = validKeys[headerName], value != expectedKey {
+            if let validKeys = config?.apiKeys, let expectedKey = validKeys[headerName],
+               !SecureCompare.equals(value, expectedKey) {
                 logger.debug("Invalid API key for header '\(headerName)'")
                 return .unauthorized(message: "Invalid API key", wwwAuthenticate: nil)
             }
@@ -129,7 +134,8 @@ public struct AuthValidator: AuthValidating {
 
             let token = String(authHeader.dropFirst("Bearer ".count))
             let validTokens = config?.oauth2Tokens ?? config?.bearerTokens
-            if let validTokens, !validTokens.isEmpty, !validTokens.contains(token) {
+            if let validTokens, !validTokens.isEmpty,
+               !validTokens.contains(where: { SecureCompare.equals(token, $0) }) {
                 logger.debug("Invalid or expired OAuth2 access token")
                 let scopeStr = requiredScopes.isEmpty ? "" : ", scope=\"\(requiredScopes.joined(separator: " "))\""
                 return .unauthorized(

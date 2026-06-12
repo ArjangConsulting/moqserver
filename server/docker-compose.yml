@@ -4,18 +4,16 @@ services:
     ports:
       - "8080:8080"
     volumes:
-      - ./spec:/app/spec:ro
-      - ./mocks:/app/mocks:ro
+      # Point this at the .moqproj bundle you want to serve.
+      - ./Tests/MoqFormatTests/Fixtures/sample-app.moqproj:/app/project.moqproj:ro
       - ./config:/app/config:ro
     command:
       - serve
-      - --spec
-      - /app/spec/openapi.yaml
+      - --project
+      - /app/project.moqproj
       - --hostname
       - "0.0.0.0"
       - --port
       - "8080"
-      - --mocks
-      - /app/mocks
       - --config
       - /app/config/config.yaml

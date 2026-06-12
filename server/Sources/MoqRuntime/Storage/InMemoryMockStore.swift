@@ -168,30 +168,31 @@ public actor InMemoryMockStore: MockStoring {
     private func loadPersistedOverridesIfAvailable() {
         guard let path = overridesPersistencePath else { return }
         let fileURL = URL(fileURLWithPath: path)
-        guard FileManager.default.fileExists(atPath: fileURL.path),
-              let data = try? Data(contentsOf: fileURL),
-              let loaded = try? JSONDecoder().decode([String: String].self, from: data) else {
-            return
+        guard FileManager.default.fileExists(atPath: fileURL.path) else { return }
+        do {
+            let data = try Data(contentsOf: fileURL)
+            variantOverrides = try JSONDecoder().decode([String: String].self, from: data)
+        } catch {
+            logger.warning("Failed to load persisted variant overrides from \(path): \(error). Starting with no overrides.")
         }
-        variantOverrides = loaded
     }
 
     private func persistVariantOverridesIfNeeded() {
         guard let path = overridesPersistencePath else { return }
         let fileURL = URL(fileURLWithPath: path)
         let directoryURL = fileURL.deletingLastPathComponent()
-        try? FileManager.default.createDirectory(
-            at: directoryURL, withIntermediateDirectories: true, attributes: nil)
-        if let data = try? JSONEncoder().encode(variantOverrides) {
-            try? data.write(to: fileURL)
+        do {
+            try FileManager.default.createDirectory(
+                at: directoryURL, withIntermediateDirectories: true, attributes: nil)
+            let data = try JSONEncoder().encode(variantOverrides)
+            try data.write(to: fileURL)
+        } catch {
+            logger.warning("Failed to persist variant overrides to \(path): \(error). Overrides will not survive a restart.")
         }
     }
 
     private static func normalizeGraphQLDocument(_ document: String?) -> String? {
         guard let document else { return nil }
-        return document
-            .components(separatedBy: .whitespacesAndNewlines)
-            .filter { !$0.isEmpty }
-            .joined(separator: " ")
+        return EndpointOperation.normalizeDocument(document)
     }
 }

@@ -11,6 +11,7 @@ import io.ktor.client.call.body
 import io.ktor.client.engine.cio.CIO
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.client.request.get
+import io.ktor.client.request.header
 import io.ktor.client.request.post
 import io.ktor.client.request.setBody
 import io.ktor.http.ContentType
@@ -42,7 +43,10 @@ class GeminiAIProvider(
     override suspend fun checkAvailability(): Boolean {
         if (apiKey.isBlank()) return false
         return try {
-            val response = httpClient.get("$baseUrl/v1beta/models?key=$apiKey")
+            // The key goes in a header, never in the URL: URLs leak into logs and proxies.
+            val response = httpClient.get("$baseUrl/v1beta/models") {
+                header(API_KEY_HEADER, apiKey)
+            }
             val available = response.status.isSuccess()
             logger.debug("Gemini availability check: {}", available)
             available
@@ -75,8 +79,9 @@ class GeminiAIProvider(
         )
 
         val response = try {
-            httpClient.post("$baseUrl/v1beta/models/$effectiveModel:generateContent?key=$apiKey") {
+            httpClient.post("$baseUrl/v1beta/models/$effectiveModel:generateContent") {
                 contentType(ContentType.Application.Json)
+                header(API_KEY_HEADER, apiKey)
                 setBody(requestBody)
             }
         } catch (e: Exception) {
@@ -186,7 +191,8 @@ class GeminiAIProvider(
         const val PROVIDER_ID = "gemini"
         const val DISPLAY_NAME = "Google Gemini"
         const val DEFAULT_BASE_URL = "https://generativelanguage.googleapis.com"
-        const val DEFAULT_MODEL = "gemini-1.5-flash"
+        const val DEFAULT_MODEL = "gemini-3.5-flash"
+        const val API_KEY_HEADER = "x-goog-api-key"
     }
 }
 

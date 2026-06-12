@@ -1,0 +1,15 @@
+id: public-health
+alias: "Health Check"
+method: GET
+path: /public/health
+tags: [public]
+
+variants:
+  - name: success
+    default: true
+    status: 200
+    headers:
+      Content-Type: application/json
+    body:
+      status: "ok"
+      service: "moqserver"

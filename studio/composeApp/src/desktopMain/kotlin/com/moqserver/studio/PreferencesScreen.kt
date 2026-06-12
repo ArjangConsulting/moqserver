@@ -67,7 +67,7 @@ private object PreferencesStrings {
 	const val ANTHROPIC_HINT = "Recommended default: claude-sonnet-4-6."
 	const val GEMINI_TITLE = "Google Gemini"
 	const val GEMINI_SUBTITLE = "Hosted - requires API key"
-	const val GEMINI_HINT = "Recommended default: gemini-1.5-flash."
+	const val GEMINI_HINT = "Recommended default: gemini-3.5-flash."
 	const val BASE_URL = "Base URL"
 	const val DEFAULT_MODEL = "Default Model"
 	const val API_KEY = "API Key"

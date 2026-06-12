@@ -72,6 +72,24 @@ internal suspend fun openProject(
 }
 
 /**
+ * Persists [project] to [path] and updates view-model state and the recent-projects list.
+ * Shared by Save, Save As, and the import confirmation flows.
+ */
+internal suspend fun persistProject(
+    project: com.moqserver.studio.projectformat.MoqProject,
+    path: String,
+    repo: ProjectRepository,
+    appViewModel: StudioRootViewModel,
+    recentProjectsRepo: RecentProjectsRepository,
+    ioDispatcher: CoroutineDispatcher,
+) {
+    runOnIo(ioDispatcher) { repo.save(project, path) }
+    appViewModel.projectSaved(path)
+    appViewModel.addRecentProject(path)
+    runOnIo(ioDispatcher) { recentProjectsRepo.save(appViewModel.state.value.recentProjects) }
+}
+
+/**
  * If the current project has unsaved changes, prompts the user to confirm closing.
  * Returns `true` when the transition may proceed (user confirmed), `false` on cancel.
  */

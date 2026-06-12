@@ -1,7 +1,11 @@
 globalDelay: 0.0
 variantOverrides:
-  "GET /public/health": "default"
+  "GET /public/health": "success"
 auth:
+  # bearerTokens validates endpoints with `auth: type: bearer, verify: true`.
+  # The same token doubles as the OAuth2 access token issued by POST /_auth/token.
+  bearerTokens:
+    - "sample-oauth-token"
   oauth2Tokens:
     - "sample-oauth-token"
   oauth2Clients:
@@ -10,7 +14,6 @@ auth:
   oauth2TokenScopes:
     sample-oauth-token:
       - "read:pets"
-mocksDirectory: "./samples/server/mocks"
 overridesPersistencePath: "./samples/server/runtime/overrides.json"
 admin:
   bearerToken: "admin-token"

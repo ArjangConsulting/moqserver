@@ -68,6 +68,6 @@ data class GeminiSettings(
     companion object {
         /** Keep in sync with GeminiAIProvider defaults in studio-ai. */
         const val DEFAULT_BASE_URL = "https://generativelanguage.googleapis.com"
-        const val DEFAULT_MODEL = "gemini-1.5-flash"
+        const val DEFAULT_MODEL = "gemini-3.5-flash"
     }
 }

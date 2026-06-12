@@ -12,9 +12,12 @@ struct MockErrorMiddleware: AsyncMiddleware {
         } catch {
             let status: HTTPResponseStatus
             let body: ErrorResponse
+            var headers = HTTPHeaders()
 
             if let abortError = error as? AbortError {
                 status = abortError.status
+                // Preserve headers attached to the abort (e.g. WWW-Authenticate challenges).
+                headers = abortError.headers
                 body = ErrorResponse(
                     error: abortError.reason,
                     code: statusToCode(abortError.status)
@@ -32,7 +35,7 @@ struct MockErrorMiddleware: AsyncMiddleware {
                 logger.error("Unexpected error handling \(request.method) \(request.url.path): \(error)")
             }
 
-            let response = Response(status: status)
+            let response = Response(status: status, headers: headers)
             response.headers.contentType = .json
             response.body = .init(data: body.jsonData())
             return response

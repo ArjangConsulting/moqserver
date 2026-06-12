@@ -6,17 +6,12 @@ import io.ktor.client.engine.cio.CIO
 import io.ktor.client.plugins.HttpTimeout
 import io.ktor.client.request.get
 import io.ktor.client.request.header
-import io.ktor.client.statement.bodyAsChannel
 import io.ktor.client.statement.bodyAsText
 import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.Url
 import io.ktor.http.isSuccess
-import io.ktor.utils.io.readRemaining
-import kotlinx.io.readByteArray
-import java.io.File
 import java.net.URI
-import java.nio.charset.Charset
 import java.util.Base64
 import javax.net.ssl.SSLException
 
@@ -69,24 +64,14 @@ class OpenAPIURLFetcher(
 	private val logger = loggerFor<OpenAPIURLFetcher>()
 	private val readResponseBody: suspend (io.ktor.client.statement.HttpResponse) -> String = { response ->
 		val contentLength = response.headers[HttpHeaders.ContentLength]?.toLongOrNull() ?: 0L
-		if (contentLength > LARGE_RESPONSE_THRESHOLD) {
-			logger.info("Large response detected ({} bytes), streaming to temp file", contentLength)
-			val tempFile = File.createTempFile("moqstudio-import-", ".tmp")
-			try {
-				val channel = response.bodyAsChannel()
-				val bytes = channel.readRemaining().readByteArray()
-				tempFile.writeBytes(bytes)
-				logger.info("Streamed {} bytes to temp file: {}", tempFile.length(), tempFile.absolutePath)
-				tempFile.readText(Charset.defaultCharset())
-			} finally {
-				if (tempFile.exists()) {
-					tempFile.delete()
-					logger.debug("Cleaned up temp file: {}", tempFile.absolutePath)
-				}
-			}
-		} else {
-			response.bodyAsText()
+		if (contentLength > MAX_RESPONSE_BYTES) {
+			raise(responseTooLargeException(contentLength))
 		}
+		val body = response.bodyAsText()
+		if (body.length > MAX_RESPONSE_BYTES) {
+			raise(responseTooLargeException(body.length.toLong()))
+		}
+		body
 	}
 	private val fetchDiscoveredSpecAtUrl: suspend (String, URLImportAuth?) -> FetchedSpec = { specUrl, auth ->
 		val response = try {
@@ -195,13 +180,16 @@ class OpenAPIURLFetcher(
 		val discoveredUrl = discoverSpecUrlFromHtml(html, baseUrl)
 		if (discoveredUrl != null) {
 			logger.info("Discovered spec URL from HTML: {}", discoveredUrl)
-			return fetchDiscoveredSpecAtUrl(discoveredUrl, auth)
+			// Discovered URLs come from page content the user never typed. Only forward
+			// the user's credentials when the target shares the original URL's origin,
+			// so a hostile docs page cannot exfiltrate the token to another host.
+			return fetchDiscoveredSpecAtUrl(discoveredUrl, authForTarget(discoveredUrl, baseUrl, auth))
 		}
 
 		val candidateUrls = buildCandidateUrls(baseUrl)
 		if (candidateUrls != null) {
 			for (candidateUrl in candidateUrls) {
-				val result = tryFetchWellKnownSpecAtUrl(candidateUrl, auth)
+				val result = tryFetchWellKnownSpecAtUrl(candidateUrl, authForTarget(candidateUrl, baseUrl, auth))
 				if (result != null) {
 					logger.info("Found spec at well-known path: {}", candidateUrl)
 					return result
@@ -245,8 +233,17 @@ class OpenAPIURLFetcher(
 
 	private fun raise(error: URLFetchException): Nothing = throw error
 
+	private fun responseTooLargeException(size: Long): URLFetchException {
+		return URLFetchException(
+			"The response is too large to import (${size / BYTES_PER_MEGABYTE} MB, limit ${MAX_RESPONSE_BYTES / BYTES_PER_MEGABYTE} MB). " +
+				"Provide a direct link to the OpenAPI spec file instead.",
+			technicalDetail = "Response size $size exceeds MAX_RESPONSE_BYTES=$MAX_RESPONSE_BYTES",
+		)
+	}
+
 	companion object {
-		private const val LARGE_RESPONSE_THRESHOLD = 1_048_576L // 1 MB
+		private const val BYTES_PER_MEGABYTE = 1_048_576L
+		private const val MAX_RESPONSE_BYTES = 50 * BYTES_PER_MEGABYTE
 		private const val BODY_PREFIX_LENGTH = 200
 		private const val ACCEPT_YAML = "application/x-yaml"
 		private const val ACCEPT_JSON = "application/json"
@@ -347,6 +344,32 @@ class OpenAPIURLFetcher(
 				}
 			}
 			return null
+		}
+
+		/** Returns [auth] only when [targetUrl] shares scheme, host, and port with [baseUrl]. */
+		internal fun authForTarget(targetUrl: String, baseUrl: String, auth: URLImportAuth?): URLImportAuth? {
+			if (auth == null) return null
+			return if (isSameOrigin(targetUrl, baseUrl)) auth else null
+		}
+
+		internal fun isSameOrigin(targetUrl: String, baseUrl: String): Boolean {
+			val target = parseOrigin(targetUrl) ?: return false
+			val base = parseOrigin(baseUrl) ?: return false
+			return target == base
+		}
+
+		private data class UrlOrigin(val scheme: String, val host: String, val port: Int)
+
+		private fun parseOrigin(url: String): UrlOrigin? {
+			val uri = try {
+				URI(url)
+			} catch (_: Exception) {
+				return null
+			}
+			val scheme = uri.scheme?.lowercase() ?: return null
+			val host = uri.host?.lowercase() ?: return null
+			val port = if (uri.port > 0) uri.port else defaultPortForScheme(scheme)
+			return UrlOrigin(scheme = scheme, host = host, port = port)
 		}
 
 		internal fun resolveRelativeUrl(rawUrl: String, baseUrl: String): String {

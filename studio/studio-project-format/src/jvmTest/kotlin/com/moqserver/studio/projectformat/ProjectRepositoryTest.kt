@@ -857,4 +857,114 @@ class ProjectRepositoryTest {
         is JsonArray -> YamlValue.Array(element.map(::jsonElementToYamlValue))
         is JsonObject -> YamlValue.Obj(element.mapValues { (_, value) -> jsonElementToYamlValue(value) })
     }
+
+	// -- path containment --
+
+	private fun projectWithBodyFile(bodyFile: String, sourcePath: String) = MoqProject(
+		manifest = ProjectManifest(
+			name = "Traversal Test",
+			defaults = ProjectDefaults(
+				auth = ProjectAuthConfig(type = AuthType.NONE, verify = false),
+				network = NetworkBehavior(),
+			),
+		),
+		endpoints = listOf(
+			EndpointDocument(
+				id = "get-items",
+				method = "GET",
+				path = "/api/items",
+				variants = listOf(
+					ProjectVariant(
+						name = "success",
+						isDefault = true,
+						status = 200,
+						body = YamlValue.Str("ok"),
+						bodyFile = null,
+					),
+					ProjectVariant(
+						name = "escape",
+						status = 200,
+						body = YamlValue.Str("payload"),
+						bodyFile = bodyFile,
+					),
+				),
+			),
+		),
+		projectPath = sourcePath,
+	)
+
+	@Test
+	fun `save rejects body_file outside the fixtures directory`() {
+		val tempDir = kotlin.io.path.createTempDirectory("moqproj-traversal").toFile()
+		val escaped = File(tempDir.parentFile, "moqproj-escaped-${'$'}{tempDir.name}.txt")
+		try {
+			val project = projectWithBodyFile("../${'$'}{escaped.name}", tempDir.absolutePath)
+			assertFailsWith<IllegalStateException> {
+				repo.save(project, tempDir.absolutePath)
+			}
+			assertFalse(escaped.exists())
+		} finally {
+			tempDir.deleteRecursively()
+			escaped.delete()
+		}
+	}
+
+	@Test
+	fun `save rejects body_file that escapes via fixtures dot-dot`() {
+		val tempDir = kotlin.io.path.createTempDirectory("moqproj-traversal-dotdot").toFile()
+		val escaped = File(tempDir.parentFile, "moqproj-dotdot-${'$'}{tempDir.name}.txt")
+		try {
+			val project = projectWithBodyFile("fixtures/../../${'$'}{escaped.name}", tempDir.absolutePath)
+			assertFailsWith<IllegalStateException> {
+				repo.save(project, tempDir.absolutePath)
+			}
+			assertFalse(escaped.exists())
+		} finally {
+			tempDir.deleteRecursively()
+			escaped.delete()
+		}
+	}
+
+	@Test
+	fun `save rejects endpoint id containing path separators`() {
+		val tempDir = kotlin.io.path.createTempDirectory("moqproj-bad-id").toFile()
+		try {
+			val project = projectWithBodyFile("fixtures/ok.txt", tempDir.absolutePath)
+			val malicious = project.copy(
+				endpoints = project.endpoints.map { it.copy(id = "../escape") },
+			)
+			assertFailsWith<IllegalArgumentException> {
+				repo.save(malicious, tempDir.absolutePath)
+			}
+		} finally {
+			tempDir.deleteRecursively()
+		}
+	}
+
+	@Test
+	fun `readFixture refuses paths outside the fixtures directory`() {
+		val tempDir = kotlin.io.path.createTempDirectory("moqproj-read-traversal").toFile()
+		val secret = File(tempDir.parentFile, "moqproj-secret-${'$'}{tempDir.name}.txt")
+		try {
+			secret.writeText("sensitive")
+			assertNull(repo.readFixture(tempDir.absolutePath, "../${'$'}{secret.name}"))
+			assertNull(repo.readFixture(tempDir.absolutePath, "fixtures/../../${'$'}{secret.name}"))
+		} finally {
+			tempDir.deleteRecursively()
+			secret.delete()
+		}
+	}
+
+	@Test
+	fun `readFixture still reads fixtures inside the project`() {
+		val tempDir = kotlin.io.path.createTempDirectory("moqproj-read-ok").toFile()
+		try {
+			val fixturesDir = File(tempDir, "fixtures")
+			fixturesDir.mkdirs()
+			File(fixturesDir, "body.json").writeText("{\"ok\":true}")
+			assertEquals("{\"ok\":true}", repo.readFixture(tempDir.absolutePath, "fixtures/body.json"))
+		} finally {
+			tempDir.deleteRecursively()
+		}
+	}
 }

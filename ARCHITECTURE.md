@@ -75,7 +75,6 @@ The server is split into focused, layered Swift targets:
 | Target | Responsibility |
 |--------|----------------|
 | `MoqCore` | Framework-agnostic domain types, protocols, auth models, request validation |
-| `MoqParsing` | OpenAPI 3.0/3.1 + HAR parsing, spec validation (used at import time in Studio) |
 | `MoqFormat` | `.moqproj` file loading, writing, validation, runtime model conversion |
 | `MoqRuntime` | Vapor app, routing, mock storage (`InMemoryMockStore`), admin API, auth enforcement |
 | `MoqCLI` | ArgumentParser subcommands (`serve`, `validate`) wiring everything together |
@@ -83,7 +82,7 @@ The server is split into focused, layered Swift targets:
 
 Dependency direction (no cycles):
 ```
-Run → MoqCLI → MoqRuntime → MoqFormat → MoqParsing → MoqCore
+Run → MoqCLI → MoqRuntime → MoqFormat → MoqCore
 ```
 
 ## Studio Architecture

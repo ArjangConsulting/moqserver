@@ -590,10 +590,7 @@ fun main(args: Array<String>) {
 
             suspend fun saveProject(project: com.moqserver.studio.projectformat.MoqProject) {
                 logger.info("Saving project '{}' to: {}", project.manifest.name, project.projectPath)
-                withContext(Dispatchers.IO) { repo.save(project, project.projectPath) }
-                appViewModel.projectSaved(project.projectPath)
-                appViewModel.addRecentProject(project.projectPath)
-                withContext(Dispatchers.IO) { recentProjectsRepo.save(appViewModel.state.value.recentProjects) }
+                persistProject(project, project.projectPath, repo, appViewModel, recentProjectsRepo, Dispatchers.IO)
             }
 
             suspend fun saveProjectAs(project: com.moqserver.studio.projectformat.MoqProject) {
@@ -608,10 +605,7 @@ fun main(args: Array<String>) {
                     return
                 }
                 logger.info("Saving project '{}' as: {}", project.manifest.name, path)
-                withContext(Dispatchers.IO) { repo.save(project, path) }
-                appViewModel.projectSaved(path)
-                appViewModel.addRecentProject(path)
-                withContext(Dispatchers.IO) { recentProjectsRepo.save(appViewModel.state.value.recentProjects) }
+                persistProject(project, path, repo, appViewModel, recentProjectsRepo, Dispatchers.IO)
                 lastFileDirectory.value = File(path).parentFile?.canonicalPath ?: path
             }
 
@@ -952,12 +946,7 @@ fun main(args: Array<String>) {
 											importHistoryRepo.saveDeselected(projectPath, deselectedIds)
 										}
 										if (persistImportedProject) {
-											withContext(Dispatchers.IO) { repo.save(project, projectPath) }
-											appViewModel.projectSaved(projectPath)
-											appViewModel.addRecentProject(projectPath)
-											withContext(Dispatchers.IO) {
-												recentProjectsRepo.save(appViewModel.state.value.recentProjects)
-											}
+											persistProject(project, projectPath, repo, appViewModel, recentProjectsRepo, Dispatchers.IO)
 										}
 										logger.info(
 											"Update import applied: {} endpoint(s) staged in {}",
@@ -976,12 +965,7 @@ fun main(args: Array<String>) {
 											try {
 												val project = appViewModel.confirmImport(path) ?: return@launch
 												if (persistImportedProject) {
-													withContext(Dispatchers.IO) { repo.save(project, path) }
-													appViewModel.projectSaved(path)
-													appViewModel.addRecentProject(path)
-													withContext(Dispatchers.IO) {
-														recentProjectsRepo.save(appViewModel.state.value.recentProjects)
-													}
+													persistProject(project, path, repo, appViewModel, recentProjectsRepo, Dispatchers.IO)
 												}
 												lastFileDirectory.value = File(path).parentFile?.canonicalPath ?: path
 												logger.info(

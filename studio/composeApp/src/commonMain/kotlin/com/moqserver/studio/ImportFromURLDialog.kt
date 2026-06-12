@@ -39,6 +39,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 
 private object ImportURLStrings {
@@ -62,6 +64,8 @@ private object ImportURLStrings {
 	const val CANCEL_BUTTON = "Cancel"
 	const val FETCHING = "Fetching spec..."
 	const val AUTH_HELPER = "Add credentials if the API docs require authentication."
+	const val SHOW_SECRET = "Show"
+	const val HIDE_SECRET = "Hide"
 }
 
 /**
@@ -235,6 +239,7 @@ internal fun ImportFromURLDialog(
 
 						when (state.authType) {
 							URLAuthType.BEARER -> {
+								var revealToken by remember { mutableStateOf(false) }
 								OutlinedTextField(
 									value = state.bearerToken,
 									onValueChange = onBearerTokenChange,
@@ -249,11 +254,18 @@ internal fun ImportFromURLDialog(
 									modifier = Modifier.fillMaxWidth(),
 									textStyle = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace),
 									enabled = !state.loading,
+									visualTransformation = if (revealToken) VisualTransformation.None else PasswordVisualTransformation(),
+									trailingIcon = {
+										TextButton(onClick = { revealToken = !revealToken }) {
+											Text(if (revealToken) ImportURLStrings.HIDE_SECRET else ImportURLStrings.SHOW_SECRET)
+										}
+									},
 									keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
 									keyboardActions = KeyboardActions(onDone = { submitOnEnter() }),
 								)
 							}
 							URLAuthType.BASIC -> {
+								var revealPassword by remember { mutableStateOf(false) }
 								OutlinedTextField(
 									value = state.basicUsername,
 									onValueChange = onBasicUsernameChange,
@@ -272,6 +284,12 @@ internal fun ImportFromURLDialog(
 									modifier = Modifier.fillMaxWidth(),
 									textStyle = MaterialTheme.typography.bodySmall,
 									enabled = !state.loading,
+									visualTransformation = if (revealPassword) VisualTransformation.None else PasswordVisualTransformation(),
+									trailingIcon = {
+										TextButton(onClick = { revealPassword = !revealPassword }) {
+											Text(if (revealPassword) ImportURLStrings.HIDE_SECRET else ImportURLStrings.SHOW_SECRET)
+										}
+									},
 									keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
 									keyboardActions = KeyboardActions(onDone = { submitOnEnter() }),
 								)

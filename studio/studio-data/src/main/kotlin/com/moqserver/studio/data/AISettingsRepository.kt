@@ -39,14 +39,14 @@ class AISettingsRepository(
     }
 
     fun save(settings: AISettings) {
-        persistCredential(OPENAI_API_KEY_CREDENTIAL, settings.openai.apiKey)
-        persistCredential(ANTHROPIC_API_KEY_CREDENTIAL, settings.anthropic.apiKey)
-        persistCredential(GEMINI_API_KEY_CREDENTIAL, settings.gemini.apiKey)
+        val openaiInFile = persistCredential(OPENAI_API_KEY_CREDENTIAL, settings.openai.apiKey)
+        val anthropicInFile = persistCredential(ANTHROPIC_API_KEY_CREDENTIAL, settings.anthropic.apiKey)
+        val geminiInFile = persistCredential(GEMINI_API_KEY_CREDENTIAL, settings.gemini.apiKey)
 
         val persistedSettings = settings.copy(
-            openai = settings.openai.copy(apiKey = ""),
-            anthropic = settings.anthropic.copy(apiKey = ""),
-            gemini = settings.gemini.copy(apiKey = ""),
+            openai = settings.openai.copy(apiKey = if (openaiInFile) settings.openai.apiKey else ""),
+            anthropic = settings.anthropic.copy(apiKey = if (anthropicInFile) settings.anthropic.apiKey else ""),
+            gemini = settings.gemini.copy(apiKey = if (geminiInFile) settings.gemini.apiKey else ""),
         )
 
         settingsFile.parentFile?.mkdirs()
@@ -64,16 +64,28 @@ class AISettingsRepository(
         legacyFallback
     }
 
+    /**
+     * Stores [value] in the secure credential store.
+     * Returns `true` when the platform has no secure storage and the key must be kept
+     * in the settings file instead (plaintext fallback, matched by [loadCredential]).
+     */
     private fun persistCredential(
         credentialKey: String,
         value: String,
-    ) {
+    ): Boolean {
         try {
             if (value.isBlank()) {
                 credentialStore.delete(credentialKey)
             } else {
                 credentialStore.write(credentialKey, value)
             }
+            return false
+        } catch (e: SecureStorageUnavailableException) {
+            logger.warn(
+                "No secure credential storage on this platform; '$credentialKey' will be stored " +
+                    "in plain text in ${settingsFile.path}. ${e.message}",
+            )
+            return value.isNotBlank()
         } catch (e: Exception) {
             throw IllegalStateException("Failed to save secure credential '$credentialKey': ${e.message}", e)
         }

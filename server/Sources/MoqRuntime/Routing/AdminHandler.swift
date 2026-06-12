@@ -139,14 +139,15 @@ public struct AdminHandler: Sendable {
         if let bearerToken = admin.bearerToken {
             challenges.append("Bearer realm=\"mock-server-admin\"")
             if let auth = req.headers.first(name: .authorization),
-               auth == "Bearer \(bearerToken)" {
+               SecureCompare.equals(auth, "Bearer \(bearerToken)") {
                 authenticated = true
             }
         }
 
         if let apiKey = admin.apiKey {
             let header = admin.apiKeyHeader ?? "X-Admin-Key"
-            if req.headers.first(name: header) == apiKey {
+            if let provided = req.headers.first(name: header),
+               SecureCompare.equals(provided, apiKey) {
                 authenticated = true
             }
         }

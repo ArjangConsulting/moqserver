@@ -87,6 +87,34 @@ class AISettingsRepositoryTest {
 
         settingsFile.delete()
     }
+
+    @Test
+    fun `save falls back to the settings file when secure storage is unavailable`() {
+        val settingsFile = File.createTempFile("ai-settings", ".json")
+        val repository = AISettingsRepository(
+            settingsFile = settingsFile,
+            credentialStore = UnavailableCredentialStore(),
+        )
+
+        repository.save(AISettings(openai = OpenAISettings(apiKey = "openai-secret")))
+
+        val persisted = settingsFile.readText()
+        assertTrue(persisted.contains("openai-secret"))
+        assertEquals("openai-secret", repository.load().openai.apiKey)
+
+        settingsFile.delete()
+    }
+}
+
+private class UnavailableCredentialStore : SecureCredentialStore {
+    override fun read(key: String): String? = null
+
+    override fun write(key: String, value: String) {
+        if (value.isBlank()) return
+        throw SecureStorageUnavailableException("TestOS")
+    }
+
+    override fun delete(key: String) = Unit
 }
 
 private class FakeSecureCredentialStore : SecureCredentialStore {

@@ -1,0 +1,34 @@
+id: list-pets
+alias: "List Pets"
+method: GET
+path: /pets
+tags: [pets]
+
+variants:
+  - name: success
+    default: true
+    status: 200
+    headers:
+      Content-Type: application/json
+    body:
+      - id: 1
+        name: "Fido"
+      - id: 2
+        name: "Whiskers"
+
+  - name: error-500
+    status: 500
+    headers:
+      Content-Type: application/json
+    body:
+      error: "Internal server error"
+
+  - name: error-503
+    status: 503
+    headers:
+      Content-Type: application/json
+      Retry-After: "2"
+    delay_ms: 700
+    body:
+      error: "Service unavailable from mock overlay"
+      hint: "Try again later"

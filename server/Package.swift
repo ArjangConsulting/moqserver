@@ -10,13 +10,17 @@ let package = Package(
         .package(url: "https://github.com/vapor/vapor.git", from: "4.121.4"),
         .package(url: "https://github.com/jpsim/Yams.git", from: "6.2.1"),
         .package(url: "https://github.com/apple/swift-argument-parser.git", from: "1.7.1"),
+        .package(url: "https://github.com/apple/swift-log.git", from: "1.12.0"),
     ],
     targets: [
         // MARK: - MoqCore
         // Framework-agnostic domain types, protocols, and validation logic.
-        // Zero external dependencies.
+        // Depends only on swift-log (already in the graph via Vapor).
         .target(
             name: "MoqCore",
+            dependencies: [
+                .product(name: "Logging", package: "swift-log"),
+            ],
             path: "Sources/MoqCore"
         ),
 

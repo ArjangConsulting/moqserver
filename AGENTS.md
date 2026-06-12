@@ -45,7 +45,7 @@ Do not duplicate those product guides in new files unless the repo structure cha
 - Server test: `make test`
 - Server smoke tests: `make smoke`
 - Server end-to-end tests: `make e2e`
-- Server run sample spec: `make run`
+- Server run sample project: `make run`
 - Server release build: `make release`
 - Docker image: `make docker-build`
 - Docker compose run: `make docker-run`
@@ -63,16 +63,15 @@ Do not duplicate those product guides in new files unless the repo structure cha
 - Full test suite: `cd server && swift test`
 - Single test target: `cd server && swift test --filter MoqRuntimeTests`
 - Single test case: `cd server && swift test --filter "testAdminAPI"`
-- Run server: `cd server && swift run Run serve --spec ../samples/server/openapi.yaml --port 8080`
-- Validate OpenAPI spec: `cd server && swift run Run validate-spec --spec ../samples/server/openapi.yaml`
-- Validate project bundle: `cd server && swift run Run validate path/to/project.moqproj`
+- Run server: `cd server && swift run Run serve --project Tests/MoqFormatTests/Fixtures/sample-app.moqproj --port 8080`
+- Validate project bundle: `cd server && swift run Run validate --project path/to/project.moqproj`
 
 ## Server Test Targets
 - `MoqCoreTests`
-- `MoqParsingTests`
 - `MoqFormatTests`
 - `MoqRuntimeTests`
 - `MoqIntegrationTests`
+- `MoqCLITests`
 
 ## Server Testing Notes
 - `swift test --filter` accepts a target name or a test name substring.

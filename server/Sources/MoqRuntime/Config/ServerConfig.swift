@@ -94,6 +94,17 @@ public struct ServerConfig: Codable, Sendable, ServerConfiguring {
         }
     }
 
+    /// Configuration problems that should prevent server startup.
+    public func validationErrors() -> [String] {
+        var errors: [String] = []
+        if let admin, admin.bearerToken == nil, admin.apiKey == nil {
+            errors.append(
+                "The `admin` section must set `bearerToken` or `apiKey`. An empty admin block would reject every admin request with no way to authenticate."
+            )
+        }
+        return errors
+    }
+
     public func variantOverride(for endpointKey: String) -> String? {
         variantOverrides?[endpointKey]
     }

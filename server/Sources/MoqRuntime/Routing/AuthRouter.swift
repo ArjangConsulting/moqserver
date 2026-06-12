@@ -3,6 +3,8 @@ import Foundation
 import Logging
 import Vapor
 
+import MoqCore
+
 private let logger = Logger(label: "moqserver.runtime.AuthRouter")
 
 /// Mock OAuth2/auth endpoints under `/_auth/*`.
@@ -67,7 +69,9 @@ public struct AuthRouter {
 
         if let clients = config?.auth?.oauth2Clients, !clients.isEmpty {
             guard let id = finalClientId, let secret = finalClientSecret,
-                  clients.contains(where: { $0.clientId == id && $0.clientSecret == secret }) else {
+                  clients.contains(where: {
+                      SecureCompare.equals(id, $0.clientId) && SecureCompare.equals(secret, $0.clientSecret)
+                  }) else {
                 return oauthErrorResponse(error: "invalid_client", description: "Invalid client credentials")
             }
         }
@@ -81,7 +85,9 @@ public struct AuthRouter {
 
         if let validCreds = config?.auth?.basicCredentials, !validCreds.isEmpty {
             guard let u = username, let p = password,
-                  validCreds.contains(where: { $0.username == u && $0.password == p }) else {
+                  validCreds.contains(where: {
+                      SecureCompare.equals(u, $0.username) && SecureCompare.equals(p, $0.password)
+                  }) else {
                 return oauthErrorResponse(error: "invalid_grant", description: "Invalid username or password")
             }
         }
@@ -104,18 +110,31 @@ public struct AuthRouter {
         let redirectUri = req.query[String.self, at: "redirect_uri"] ?? "http://localhost/callback"
         let state = req.query[String.self, at: "state"]
 
-        var location = "\(redirectUri)?code=mock-auth-code-\(UUID().uuidString.prefix(8))"
+        // Build the redirect with URLComponents so the code and state values are
+        // properly percent-encoded instead of interpolated raw into the header.
+        guard var components = URLComponents(string: redirectUri) else {
+            return oauthErrorResponse(error: "invalid_request", description: "redirect_uri is not a valid URL")
+        }
+        var queryItems = components.queryItems ?? []
+        queryItems.append(URLQueryItem(name: "code", value: "mock-auth-code-\(UUID().uuidString.prefix(8))"))
         if let state {
-            location += "&state=\(state)"
+            queryItems.append(URLQueryItem(name: "state", value: state))
+        }
+        components.queryItems = queryItems
+
+        guard let location = components.string else {
+            return oauthErrorResponse(error: "invalid_request", description: "redirect_uri is not a valid URL")
         }
 
+        let messageBody: [String: Any] = ["message": "Redirecting to \(redirectUri)"]
+        let bodyData = (try? JSONSerialization.data(withJSONObject: messageBody)) ?? Data()
         return Response(
             status: .found,
             headers: [
                 "Location": location,
                 "Content-Type": "application/json",
             ],
-            body: .init(data: Data(#"{"message":"Redirecting to \#(redirectUri)"}"#.utf8))
+            body: .init(data: bodyData)
         )
     }
 
