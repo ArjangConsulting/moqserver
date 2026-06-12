@@ -3,7 +3,7 @@
 This file is the repo-level operating guide for coding agents working in `moqserver`.
 
 Read this first, then follow the product-specific guide:
-- Server: `server/CLAUDE.md`
+- Server: `server/AGENTS.md`
 - Studio: `studio/AGENTS.md`
 
 Do not duplicate those product guides in new files unless the repo structure changes. Keep this file focused on cross-repo workflow, command discovery, and shared expectations.
@@ -17,9 +17,9 @@ Do not duplicate those product guides in new files unless the repo structure cha
 
 ## Instruction Sources
 - Root guidance: this file.
-- Server details: `server/CLAUDE.md`.
+- Server details: `server/AGENTS.md`.
 - Studio details: `studio/AGENTS.md`.
-- Studio `CLAUDE.md` is only a stub that points back to `studio/AGENTS.md`.
+- Each product's `CLAUDE.md` (`server/CLAUDE.md`, `studio/CLAUDE.md`) and the root `CLAUDE.md` are stubs that point back to the matching `AGENTS.md`.
 - Cursor rules: none found in `.cursor/rules/` or `.cursorrules`.
 - Copilot rules: none found in `.github/copilot-instructions.md`.
 
@@ -105,7 +105,7 @@ Do not duplicate those product guides in new files unless the repo structure cha
 - Kotlin compilation warnings are treated as errors in all Studio subprojects.
 
 ## Server Style
-- Follow `server/CLAUDE.md` for architecture and module responsibilities.
+- Follow `server/AGENTS.md` for architecture and module responsibilities.
 - Sort imports alphabetically when editing Swift files.
 - Remove unused imports.
 - Group imports as: system frameworks, third-party packages, internal modules.
