@@ -48,5 +48,5 @@ private func toReferenceName(_ source: String, fallbackPrefix: String) -> String
         return baseName
     }
 
-    return fallbackPrefix + firstCharacter.uppercased() + baseName.dropFirst()
+    return fallbackPrefix + String(firstCharacter).uppercased() + baseName.dropFirst()
 }
