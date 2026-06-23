@@ -138,21 +138,22 @@ compose.desktop {
                 // Code signing — set MOQSERVER_STUDIO_SIGNING_IDENTITY env var to enable
                 // e.g. "Developer ID Application: Your Name (TEAMID)"
                 val signingIdentity = System.getenv("MOQSERVER_STUDIO_SIGNING_IDENTITY")
-                if (signingIdentity != null) {
+                if (!signingIdentity.isNullOrBlank()) {
                     signing {
                         sign.set(true)
                         identity.set(signingIdentity)
                     }
                 }
-                // Notarization — set MOQSERVER_STUDIO_APPLE_ID and MOQSERVER_STUDIO_NOTARIZATION_PASSWORD
+                // Notarization (notarytool) — requires Apple ID, an app-specific password, and Team ID.
+                // Set MOQSERVER_STUDIO_APPLE_ID, MOQSERVER_STUDIO_NOTARIZATION_PASSWORD, MOQSERVER_STUDIO_TEAM_ID.
                 val appleId = System.getenv("MOQSERVER_STUDIO_APPLE_ID")
                 val notarizationPassword = System.getenv("MOQSERVER_STUDIO_NOTARIZATION_PASSWORD")
                 val teamId = System.getenv("MOQSERVER_STUDIO_TEAM_ID")
-                if (appleId != null && notarizationPassword != null) {
+                if (!appleId.isNullOrBlank() && !notarizationPassword.isNullOrBlank() && !teamId.isNullOrBlank()) {
                     notarization {
                         this.appleID.set(appleId)
                         this.password.set(notarizationPassword)
-                        if (teamId != null) this.teamID.set(teamId)
+                        this.teamID.set(teamId)
                     }
                 }
             }

@@ -1,5 +1,6 @@
 import Foundation
 import Testing
+
 @testable import MoqCore
 
 @Suite("GlobalRules, RequestRules, RuleMatcher — Codable & Init Tests")
@@ -125,13 +126,13 @@ struct RulesTests {
     @Test("RequestRules decode from JSON with snake_case keys")
     func requestRulesDecodeSnakeCase() throws {
         let json = """
-        {
-            "headers": [{"name": "X-Custom", "required": true, "match_type": "require"}],
-            "verify_cookies": true,
-            "query_params": [{"name": "page"}],
-            "cookies": [{"name": "session_id", "match_type": "not_empty"}]
-        }
-        """.data(using: .utf8)!
+            {
+                "headers": [{"name": "X-Custom", "required": true, "match_type": "require"}],
+                "verify_cookies": true,
+                "query_params": [{"name": "page"}],
+                "cookies": [{"name": "session_id", "match_type": "not_empty"}]
+            }
+            """.data(using: .utf8)!
         let rules = try JSONDecoder().decode(RequestRules.self, from: json)
         #expect(rules.headers?.first?.name == "X-Custom")
         #expect(rules.verifyCookies == true)

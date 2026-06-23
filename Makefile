@@ -1,4 +1,4 @@
-.PHONY: build test smoke e2e run clean release docker-build docker-run studio-build studio-package studio-run studio-test studio-lint studio-dmg studio-deb studio-msi studio-uber-jar install-hooks
+.PHONY: build test smoke e2e run clean release lint-server format-server docker-build docker-run studio-build studio-package studio-run studio-test studio-lint studio-dmg studio-deb studio-msi studio-uber-jar install-hooks
 
 # ── Server (Swift) ──────────────────────────────────────────────
 
@@ -23,6 +23,12 @@ clean:
 
 release:
 	cd server && swift build -c release
+
+lint-server:
+	cd server && swift-format lint --strict --recursive --configuration .swift-format Sources Tests Package.swift
+
+format-server:
+	cd server && swift-format format -i --recursive --configuration .swift-format Sources Tests Package.swift
 
 docker-build:
 	docker build -t moqserver ./server

@@ -16,7 +16,8 @@ public enum EndpointAlias {
         }
 
         let verb = defaultVerb(method: method, path: path)
-        let segments = path
+        let segments =
+            path
             .split(separator: "?", maxSplits: 1, omittingEmptySubsequences: false)
             .first?
             .split(separator: "/")
@@ -25,10 +26,12 @@ public enum EndpointAlias {
             .filter { !$0.isEmpty }
             .filter { !isIgnoredPathSegment($0) } ?? []
 
-        let resourceTokens = segments
+        let resourceTokens =
+            segments
             .filter { !isPathParameter($0) }
             .flatMap(tokenize)
-        let parameterTokens = segments
+        let parameterTokens =
+            segments
             .filter(isPathParameter)
             .flatMap { segment in
                 tokenize(String(segment.dropFirst().dropLast()))
@@ -82,7 +85,8 @@ public enum EndpointAlias {
             options: .regularExpression
         )
 
-        return sanitized
+        return
+            sanitized
             .split(whereSeparator: \.isWhitespace)
             .map(String.init)
             .map { token in

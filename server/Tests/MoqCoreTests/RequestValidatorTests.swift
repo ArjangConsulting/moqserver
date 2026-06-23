@@ -1,5 +1,6 @@
 import Foundation
 import Testing
+
 @testable import MoqCore
 
 struct RequestValidatorTests {
@@ -62,7 +63,9 @@ struct RequestValidatorTests {
 
     @Test("Header value mismatch fails with specific code")
     func headerValueMismatch() {
-        let endpoint = makeEndpoint(headerRules: [RuleMatcher(name: "Accept", match: "application/json", matchType: .equalTo)])
+        let endpoint = makeEndpoint(headerRules: [
+            RuleMatcher(name: "Accept", match: "application/json", matchType: .equalTo)
+        ])
         let result = validator.validate(
             endpoint: endpoint,
             context: RequestContext(headers: ["accept": "text/plain"])

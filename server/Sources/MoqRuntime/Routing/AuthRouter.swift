@@ -1,9 +1,7 @@
 import Foundation
-
 import Logging
-import Vapor
-
 import MoqCore
+import Vapor
 
 private let logger = Logger(label: "moqserver.runtime.AuthRouter")
 
@@ -55,7 +53,8 @@ public struct AuthRouter {
             return handleRefreshTokenGrant()
         default:
             logger.warning("Unsupported grant type: \(grantType)")
-            return oauthErrorResponse(error: "unsupported_grant_type", description: "Grant type '\(grantType)' is not supported")
+            return oauthErrorResponse(
+                error: "unsupported_grant_type", description: "Grant type '\(grantType)' is not supported")
         }
     }
 
@@ -69,9 +68,10 @@ public struct AuthRouter {
 
         if let clients = config?.auth?.oauth2Clients, !clients.isEmpty {
             guard let id = finalClientId, let secret = finalClientSecret,
-                  clients.contains(where: {
-                      SecureCompare.equals(id, $0.clientId) && SecureCompare.equals(secret, $0.clientSecret)
-                  }) else {
+                clients.contains(where: {
+                    SecureCompare.equals(id, $0.clientId) && SecureCompare.equals(secret, $0.clientSecret)
+                })
+            else {
                 return oauthErrorResponse(error: "invalid_client", description: "Invalid client credentials")
             }
         }
@@ -85,9 +85,10 @@ public struct AuthRouter {
 
         if let validCreds = config?.auth?.basicCredentials, !validCreds.isEmpty {
             guard let u = username, let p = password,
-                  validCreds.contains(where: {
-                      SecureCompare.equals(u, $0.username) && SecureCompare.equals(p, $0.password)
-                  }) else {
+                validCreds.contains(where: {
+                    SecureCompare.equals(u, $0.username) && SecureCompare.equals(p, $0.password)
+                })
+            else {
                 return oauthErrorResponse(error: "invalid_grant", description: "Invalid username or password")
             }
         }
@@ -147,10 +148,11 @@ public struct AuthRouter {
 
         let accessToken: String
         if !requestedScopes.isEmpty,
-           let matched = configuredTokens.first(where: { token in
-               let granted = Set(tokenScopes[token] ?? [])
-               return requestedScopes.isSubset(of: granted)
-           }) {
+            let matched = configuredTokens.first(where: { token in
+                let granted = Set(tokenScopes[token] ?? [])
+                return requestedScopes.isSubset(of: granted)
+            })
+        {
             accessToken = matched
         } else {
             accessToken = configuredTokens.first ?? "mock-access-token-\(UUID().uuidString.prefix(8))"
@@ -197,12 +199,14 @@ public struct AuthRouter {
 
     private func extractBasicAuth(req: Request) -> (String?, String?) {
         guard let authHeader = req.headers.first(name: .authorization),
-              authHeader.lowercased().hasPrefix("basic ") else {
+            authHeader.lowercased().hasPrefix("basic ")
+        else {
             return (nil, nil)
         }
         let encoded = String(authHeader.dropFirst("Basic ".count))
         guard let decoded = Data(base64Encoded: encoded),
-              let credString = String(data: decoded, encoding: .utf8) else {
+            let credString = String(data: decoded, encoding: .utf8)
+        else {
             return (nil, nil)
         }
         let parts = credString.split(separator: ":", maxSplits: 1)

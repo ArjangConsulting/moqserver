@@ -3,14 +3,17 @@ import Testing
 import Vapor
 import VaporTesting
 import XCTVapor
+
 @testable import MoqCore
 @testable import MoqFormat
 @testable import MoqRuntime
 
 /// Run Vapor requests through the swift-testing helper.
-private func withApp(_ app: Application, _ method: HTTPMethod, _ path: String,
-                     headers: HTTPHeaders = [:],
-                     check: @Sendable (TestingHTTPResponse) async throws -> Void) async throws {
+private func withApp(
+    _ app: Application, _ method: HTTPMethod, _ path: String,
+    headers: HTTPHeaders = [:],
+    check: @Sendable (TestingHTTPResponse) async throws -> Void
+) async throws {
     try await app.testing().test(method, path, headers: headers, afterResponse: check)
 }
 
@@ -43,11 +46,14 @@ struct SmokeTests {
         defer { Task { try? await app.asyncShutdown() } }
 
         // REST endpoint with auth
-        try await withApp(app, .GET, "/api/v1/users", headers: [
-            "Authorization": "Bearer valid-token",
-            "Accept": "application/json",
-            "Cookie": "session_id=smoke-test",
-        ]) { res in
+        try await withApp(
+            app, .GET, "/api/v1/users",
+            headers: [
+                "Authorization": "Bearer valid-token",
+                "Accept": "application/json",
+                "Cookie": "session_id=smoke-test",
+            ]
+        ) { res in
             #expect(res.status == .ok)
         }
 

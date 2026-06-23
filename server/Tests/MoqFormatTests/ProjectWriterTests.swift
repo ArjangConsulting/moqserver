@@ -1,5 +1,6 @@
 import Foundation
 import Testing
+
 @testable import MoqCore
 @testable import MoqFormat
 
@@ -93,8 +94,10 @@ struct ProjectWriterTests {
         try writer.write(project, to: path2)
 
         // Compare project.yml
-        let yml1 = try String(contentsOfFile: (path1 as NSString).appendingPathComponent("project.yml"), encoding: .utf8)
-        let yml2 = try String(contentsOfFile: (path2 as NSString).appendingPathComponent("project.yml"), encoding: .utf8)
+        let yml1 = try String(
+            contentsOfFile: (path1 as NSString).appendingPathComponent("project.yml"), encoding: .utf8)
+        let yml2 = try String(
+            contentsOfFile: (path2 as NSString).appendingPathComponent("project.yml"), encoding: .utf8)
         #expect(yml1 == yml2)
 
         // Compare endpoint files
@@ -105,8 +108,10 @@ struct ProjectWriterTests {
         #expect(files1 == files2)
 
         for file in files1 {
-            let content1 = try String(contentsOfFile: (endDir1 as NSString).appendingPathComponent(file), encoding: .utf8)
-            let content2 = try String(contentsOfFile: (endDir2 as NSString).appendingPathComponent(file), encoding: .utf8)
+            let content1 = try String(
+                contentsOfFile: (endDir1 as NSString).appendingPathComponent(file), encoding: .utf8)
+            let content2 = try String(
+                contentsOfFile: (endDir2 as NSString).appendingPathComponent(file), encoding: .utf8)
             #expect(content1 == content2)
         }
     }
@@ -175,7 +180,8 @@ struct ProjectWriterTests {
                     path: "/users",
                     requestRules: RequestRules(
                         headers: [
-                            RuleMatcher(name: "X-Request-ID", match: "^req-.*", required: true, matchType: .matchesRegex)
+                            RuleMatcher(
+                                name: "X-Request-ID", match: "^req-.*", required: true, matchType: .matchesRegex)
                         ]
                     ),
                     variants: [
@@ -280,7 +286,8 @@ struct ProjectWriterTests {
                 variants: [
                     ProjectVariant(name: "null-body", status: 200, body: .null),
                     ProjectVariant(name: "string-body", status: 201, body: .string("hello")),
-                    ProjectVariant(name: "array-body", status: 202, body: .array([.int(1), .string("two"), .bool(true)])),
+                    ProjectVariant(
+                        name: "array-body", status: 202, body: .array([.int(1), .string("two"), .bool(true)])),
                     ProjectVariant(name: "empty-object", status: 203, body: .object([:])),
                     ProjectVariant(
                         name: "nested-object",
@@ -291,10 +298,11 @@ struct ProjectWriterTests {
                         ])
                     ),
                 ]
-            ),
+            )
         ])
 
-        let outputPath = (NSTemporaryDirectory() as NSString).appendingPathComponent("body-shapes-\(UUID().uuidString).moqproj")
+        let outputPath = (NSTemporaryDirectory() as NSString).appendingPathComponent(
+            "body-shapes-\(UUID().uuidString).moqproj")
         defer { try? FileManager.default.removeItem(atPath: outputPath) }
 
         try writer.write(project, to: outputPath)
@@ -329,7 +337,9 @@ struct ProjectWriterTests {
                     path: "/graphql",
                     auth: ProjectAuthConfig(type: .apiKey, verify: true, headerName: "X-API-Key"),
                     requestRules: RequestRules(
-                        headers: [RuleMatcher(name: "Accept", match: "application/json", required: true, matchType: .equalTo)],
+                        headers: [
+                            RuleMatcher(name: "Accept", match: "application/json", required: true, matchType: .equalTo)
+                        ],
                         verifyCookies: false,
                         queryParams: [],
                         cookies: []
@@ -338,23 +348,30 @@ struct ProjectWriterTests {
                     network: NetworkBehavior(latencyMs: 5, jitterMs: 1, packetLossPercent: 12.5),
                     variants: [
                         ProjectVariant(name: "default", status: 200, requestMatch: RequestMatch()),
-                        ProjectVariant(name: "query-match", status: 201, requestMatch: RequestMatch(query: ["mode": "full"])),
-                        ProjectVariant(name: "header-match", status: 202, requestMatch: RequestMatch(headers: ["X-Role": "admin"])),
-                        ProjectVariant(name: "body-match", status: 203, requestMatch: RequestMatch(bodyContains: "currentUser")),
+                        ProjectVariant(
+                            name: "query-match", status: 201, requestMatch: RequestMatch(query: ["mode": "full"])),
+                        ProjectVariant(
+                            name: "header-match", status: 202, requestMatch: RequestMatch(headers: ["X-Role": "admin"])),
+                        ProjectVariant(
+                            name: "body-match", status: 203, requestMatch: RequestMatch(bodyContains: "currentUser")),
                     ]
-                ),
+                )
             ]
         )
 
-        let outputPath = (NSTemporaryDirectory() as NSString).appendingPathComponent("writer-rules-\(UUID().uuidString).moqproj")
+        let outputPath = (NSTemporaryDirectory() as NSString).appendingPathComponent(
+            "writer-rules-\(UUID().uuidString).moqproj")
         defer { try? FileManager.default.removeItem(atPath: outputPath) }
 
         try writer.write(project, to: outputPath)
 
-        let manifestYAML = try String(contentsOfFile: (outputPath as NSString).appendingPathComponent("project.yml"), encoding: .utf8)
+        let manifestYAML = try String(
+            contentsOfFile: (outputPath as NSString).appendingPathComponent("project.yml"), encoding: .utf8)
         #expect(manifestYAML.contains("required_headers: []"))
 
-        let endpointYAML = try String(contentsOfFile: (outputPath as NSString).appendingPathComponent("endpoints/graphql-users.yml"), encoding: .utf8)
+        let endpointYAML = try String(
+            contentsOfFile: (outputPath as NSString).appendingPathComponent("endpoints/graphql-users.yml"),
+            encoding: .utf8)
         #expect(endpointYAML.contains("query_params: []"))
         #expect(endpointYAML.contains("cookies: []"))
         #expect(endpointYAML.contains("header_name: X-API-Key"))
@@ -378,9 +395,10 @@ struct ProjectWriterTests {
         let loader = ProjectLoader()
         let project = makeProject(
             name: "Writer: \"Quotes\" #Test",
-            globalRules: GlobalRules(requiredHeaders: [
-                RuleMatcher(name: "X-Env", match: "true", required: true),
-            ], verifyCookies: false),
+            globalRules: GlobalRules(
+                requiredHeaders: [
+                    RuleMatcher(name: "X-Env", match: "true", required: true)
+                ], verifyCookies: false),
             endpoints: [
                 EndpointDocument(
                     id: "quoted-fields",
@@ -388,28 +406,34 @@ struct ProjectWriterTests {
                     path: "/quoted",
                     requestRules: RequestRules(
                         queryParams: [
-                            RuleMatcher(name: "search", match: " spaced ", required: false),
+                            RuleMatcher(name: "search", match: " spaced ", required: false)
                         ]
                     ),
                     variants: [
                         ProjectVariant(name: "special-string", status: 200, body: .string("say \"hi\": #tag")),
                         ProjectVariant(name: "spaced-string", status: 201, body: .string(" spaced ")),
-                        ProjectVariant(name: "special-bool-string", status: 202, body: .array([.null, .double(1.5), .string("true") ])),
+                        ProjectVariant(
+                            name: "special-bool-string", status: 202,
+                            body: .array([.null, .double(1.5), .string("true")])),
                     ]
-                ),
+                )
             ]
         )
 
-        let outputPath = (NSTemporaryDirectory() as NSString).appendingPathComponent("writer-quoted-\(UUID().uuidString).moqproj")
+        let outputPath = (NSTemporaryDirectory() as NSString).appendingPathComponent(
+            "writer-quoted-\(UUID().uuidString).moqproj")
         defer { try? FileManager.default.removeItem(atPath: outputPath) }
 
         try writer.write(project, to: outputPath)
 
-        let manifestYAML = try String(contentsOfFile: (outputPath as NSString).appendingPathComponent("project.yml"), encoding: .utf8)
+        let manifestYAML = try String(
+            contentsOfFile: (outputPath as NSString).appendingPathComponent("project.yml"), encoding: .utf8)
         #expect(manifestYAML.contains("required_headers:"))
         #expect(manifestYAML.contains(#"match: "true""#))
 
-        let endpointYAML = try String(contentsOfFile: (outputPath as NSString).appendingPathComponent("endpoints/quoted-fields.yml"), encoding: .utf8)
+        let endpointYAML = try String(
+            contentsOfFile: (outputPath as NSString).appendingPathComponent("endpoints/quoted-fields.yml"),
+            encoding: .utf8)
         #expect(endpointYAML.contains("query_params:"))
         #expect(endpointYAML.contains(#"match: " spaced ""#))
         #expect(endpointYAML.contains(#"body: "say \"hi\": #tag""#))
@@ -422,6 +446,8 @@ struct ProjectWriterTests {
         #expect(endpoint.requestRules?.queryParams?.first?.match == " spaced ")
         #expect(endpoint.variants.first { $0.name == "special-string" }?.body == .string("say \"hi\": #tag"))
         #expect(endpoint.variants.first { $0.name == "spaced-string" }?.body == .string(" spaced "))
-        #expect(endpoint.variants.first { $0.name == "special-bool-string" }?.body == .array([.null, .double(1.5), .string("true")]))
+        #expect(
+            endpoint.variants.first { $0.name == "special-bool-string" }?.body
+                == .array([.null, .double(1.5), .string("true")]))
     }
 }

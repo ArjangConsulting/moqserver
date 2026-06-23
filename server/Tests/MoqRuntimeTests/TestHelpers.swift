@@ -1,5 +1,4 @@
 import Foundation
-
 import MoqCore
 
 /// Shared endpoint factory for MoqRuntimeTests.
@@ -23,7 +22,7 @@ func makeTestEndpoint(
             statusCode: .ok,
             headers: [("Content-Type", "application/json")],
             body: Data(#"{"ok":true}"#.utf8)
-        ),
+        )
     ]
     return Endpoint(
         key: EndpointKey(method: method, path: path),

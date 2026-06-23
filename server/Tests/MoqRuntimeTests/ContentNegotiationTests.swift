@@ -3,6 +3,7 @@ import Testing
 import Vapor
 import VaporTesting
 import XCTVapor
+
 @testable import MoqCore
 @testable import MoqRuntime
 
@@ -91,7 +92,9 @@ struct ContentNegotiationTests {
         defer { Task { try? await app.asyncShutdown() } }
 
         // Prefer XML over JSON via quality factors
-        try await app.testing().test(.GET, "/pets", headers: ["Accept": "application/json;q=0.5, application/xml;q=1.0"]) { res async in
+        try await app.testing().test(
+            .GET, "/pets", headers: ["Accept": "application/json;q=0.5, application/xml;q=1.0"]
+        ) { res async in
             #expect(res.status == .ok)
             let contentType = res.headers.first(name: .contentType)
             #expect(contentType == "application/xml")
@@ -137,10 +140,13 @@ struct ContentNegotiationTests {
         let app = try await buildApp(store: store)
         defer { Task { try? await app.asyncShutdown() } }
 
-        try await app.testing().test(.GET, "/pets", headers: [
-            "Accept": "application/xml",
-            "X-Mock-Variant": "default"
-        ]) { res async in
+        try await app.testing().test(
+            .GET, "/pets",
+            headers: [
+                "Accept": "application/xml",
+                "X-Mock-Variant": "default",
+            ]
+        ) { res async in
             #expect(res.status == .ok)
             // Should return JSON because variant "default" is explicitly requested
             let contentType = res.headers.first(name: .contentType)

@@ -17,7 +17,9 @@ struct ErrorResponseTests {
 
     @Test("ErrorResponse with all common error codes")
     func errorResponseAllCodes() throws {
-        let codes = ["bad_request", "unauthorized", "forbidden", "not_found", "unsupported_media_type", "internal_error"]
+        let codes = [
+            "bad_request", "unauthorized", "forbidden", "not_found", "unsupported_media_type", "internal_error",
+        ]
         for code in codes {
             let response = ErrorResponse(error: "test: \(code)", code: code)
             let data = response.jsonData()

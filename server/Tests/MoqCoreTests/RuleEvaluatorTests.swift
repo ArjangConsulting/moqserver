@@ -1,5 +1,6 @@
 import Foundation
 import Testing
+
 @testable import MoqCore
 
 struct RuleEvaluatorTests {
@@ -9,10 +10,14 @@ struct RuleEvaluatorTests {
         #expect(RuleEvaluator.evaluate(.init(name: "a", match: "x", matchType: .equalTo), actualValue: "x") == nil)
         #expect(RuleEvaluator.evaluate(.init(name: "a", match: "y", matchType: .notEqualTo), actualValue: "x") == nil)
         #expect(RuleEvaluator.evaluate(.init(name: "a", match: "bc", matchType: .contains), actualValue: "abcd") == nil)
-        #expect(RuleEvaluator.evaluate(.init(name: "a", match: "zz", matchType: .notContains), actualValue: "abcd") == nil)
-        #expect(RuleEvaluator.evaluate(.init(name: "a", match: "ab", matchType: .beginsWith), actualValue: "abcd") == nil)
+        #expect(
+            RuleEvaluator.evaluate(.init(name: "a", match: "zz", matchType: .notContains), actualValue: "abcd") == nil)
+        #expect(
+            RuleEvaluator.evaluate(.init(name: "a", match: "ab", matchType: .beginsWith), actualValue: "abcd") == nil)
         #expect(RuleEvaluator.evaluate(.init(name: "a", match: "cd", matchType: .endsWith), actualValue: "abcd") == nil)
-        #expect(RuleEvaluator.evaluate(.init(name: "a", match: "^ab.+", matchType: .matchesRegex), actualValue: "abcd") == nil)
+        #expect(
+            RuleEvaluator.evaluate(.init(name: "a", match: "^ab.+", matchType: .matchesRegex), actualValue: "abcd")
+                == nil)
         #expect(RuleEvaluator.evaluate(.init(name: "a", matchType: .isEmpty), actualValue: "") == nil)
         #expect(RuleEvaluator.evaluate(.init(name: "a", matchType: .notEmpty), actualValue: "x") == nil)
         #expect(RuleEvaluator.evaluate(.init(name: "a", match: "1", matchType: .gt), actualValue: "2") == nil)

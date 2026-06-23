@@ -9,9 +9,9 @@ This document is the execution roadmap for evolving moqserver from a single Swif
 
 Product and architecture context lives in:
 
-- `docs/PROJECT_SPEC.md`
+- `docs/internal/PROJECT_SPEC.md`
 - `docs/STUDIO_ARCHITECTURE.md`
-- `docs/STUDIO_IMPLEMENTATION_PLAN.md`
+- `docs/internal/STUDIO_IMPLEMENTATION_PLAN.md`
 
 ## Delivery Principles
 
@@ -25,12 +25,12 @@ Product and architecture context lives in:
 
 ## Phase 0: Documentation and Planning — COMPLETE
 
-- [x] `docs/V1_SCOPE.md`
+- [x] `docs/internal/V1_SCOPE.md`
 - [x] `docs/FORMAT_IMPLEMENTATION.md`
-- [x] `docs/STUDIO_IMPLEMENTATION_PLAN.md`
-- [x] `docs/SERVER_MODULARIZATION_PLAN.md`
-- [x] `docs/TEST_STRATEGY.md`
-- [x] `docs/PROJECT_SPEC.md`
+- [x] `docs/internal/STUDIO_IMPLEMENTATION_PLAN.md`
+- [x] `docs/internal/SERVER_MODULARIZATION_PLAN.md`
+- [x] `docs/internal/TEST_STRATEGY.md`
+- [x] `docs/internal/PROJECT_SPEC.md`
 - [x] `format/schema.json` (JSON Schema for .moqproj)
 
 ---

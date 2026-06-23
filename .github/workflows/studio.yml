@@ -13,7 +13,34 @@ on:
       - "studio/**"
 
 jobs:
+  lint:
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: studio
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7.0.0
+
+      - name: Set up Temurin 21
+        uses: actions/setup-java@v5.3.0
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v6.2.0
+        with:
+          cache-provider: basic
+
+      - name: Lint (detekt)
+        run: ./gradlew detektAll
+
   test:
+    needs: lint
+
     runs-on: ubuntu-latest
 
     defaults:
@@ -37,3 +64,31 @@ jobs:
 
       - name: Run Studio tests
         run: ./gradlew test :composeApp:compileKotlinDesktop
+
+  package-macos:
+    needs: lint
+
+    runs-on: macos-latest
+
+    defaults:
+      run:
+        working-directory: studio
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7.0.0
+
+      - name: Set up Temurin 21
+        uses: actions/setup-java@v5.3.0
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v6.2.0
+        with:
+          cache-provider: basic
+
+      # Validates the native macOS packaging path (app image) without signing.
+      - name: Build distributable app image
+        run: ./gradlew :composeApp:createDistributable

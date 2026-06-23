@@ -19,8 +19,34 @@ on:
       - "Makefile"
 
 jobs:
-  test:
+  lint:
     runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: server
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7.0.0
+
+      - name: Set up Swift
+        uses: swift-actions/setup-swift@v2.4.0
+        with:
+          swift-version: "6.2"
+
+      - name: Lint (swift-format)
+        run: swift-format lint --strict --recursive --configuration .swift-format Sources Tests Package.swift
+
+  test:
+    needs: lint
+
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+
+    runs-on: ${{ matrix.os }}
 
     defaults:
       run:

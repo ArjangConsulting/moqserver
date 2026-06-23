@@ -12,6 +12,8 @@ dependencies {
     implementation(libs.compose.ui)
     implementation(projects.studioDesignSystem)
     implementation(projects.studioProjectFormat)
+
+    testImplementation(kotlin("test"))
 }
 
 kotlin {

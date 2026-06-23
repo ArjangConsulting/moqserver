@@ -1,5 +1,4 @@
 import Foundation
-
 import Logging
 
 private let logger = Logger(label: "moqserver.core.RequestValidator")
@@ -20,13 +19,16 @@ public struct RequestValidator: RequestValidating {
             return error
         }
 
-        let cookieValues = endpoint.verifyCookies ? mergedCookieValues(endpoint.cookieRules, cookies: context.cookies) : context.cookies
+        let cookieValues =
+            endpoint.verifyCookies
+            ? mergedCookieValues(endpoint.cookieRules, cookies: context.cookies) : context.cookies
         if let error = validateRules(endpoint.cookieRules, values: cookieValues, kind: .cookie) {
             logger.debug("Request validation failed: \(error.message)")
             return error
         }
         if endpoint.verifyCookies,
-           let error = validateCookiePresence(context.cookies, explicitRules: endpoint.cookieRules) {
+            let error = validateCookiePresence(context.cookies, explicitRules: endpoint.cookieRules)
+        {
             logger.debug("Request validation failed: \(error.message)")
             return error
         }
@@ -41,7 +43,8 @@ public struct RequestValidator: RequestValidating {
         }
 
         if context.hasBody, !endpoint.acceptedContentTypes.isEmpty {
-            let requestType = (context.contentType ?? "")
+            let requestType =
+                (context.contentType ?? "")
                 .split(separator: ";")
                 .first
                 .map { String($0).trimmingCharacters(in: .whitespacesAndNewlines).lowercased() } ?? ""
@@ -53,7 +56,8 @@ public struct RequestValidator: RequestValidating {
                 return RequestValidationError(
                     statusCode: .unsupportedMediaType,
                     code: .unsupportedContentType,
-                    message: "Unsupported Content-Type '\(requestType)'. Expected one of: \(supported.joined(separator: ", "))"
+                    message:
+                        "Unsupported Content-Type '\(requestType)'. Expected one of: \(supported.joined(separator: ", "))"
                 )
             }
         }

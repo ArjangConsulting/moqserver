@@ -3,14 +3,17 @@ import Testing
 import Vapor
 import VaporTesting
 import XCTVapor
+
 @testable import MoqCore
 @testable import MoqFormat
 @testable import MoqRuntime
 
 /// Run Vapor requests through the swift-testing helper.
-private func withApp(_ app: Application, _ method: HTTPMethod, _ path: String,
-                     headers: HTTPHeaders = [:],
-                     check: @Sendable (TestingHTTPResponse) async throws -> Void) async throws {
+private func withApp(
+    _ app: Application, _ method: HTTPMethod, _ path: String,
+    headers: HTTPHeaders = [:],
+    check: @Sendable (TestingHTTPResponse) async throws -> Void
+) async throws {
     try await app.testing().test(method, path, headers: headers, afterResponse: check)
 }
 
@@ -49,32 +52,41 @@ struct EndToEndTests {
         }
 
         // Missing cookie fails before success path
-        try await withApp(app, .GET, "/api/v1/users", headers: [
-            "Authorization": "Bearer valid-token",
-            "Accept": "application/json",
-        ]) { res in
+        try await withApp(
+            app, .GET, "/api/v1/users",
+            headers: [
+                "Authorization": "Bearer valid-token",
+                "Accept": "application/json",
+            ]
+        ) { res in
             #expect(res.status == .badRequest)
             #expect(res.body.string.contains("missing_required_cookie"))
         }
 
         // With valid token, required Accept header, and cookie
-        try await withApp(app, .GET, "/api/v1/users", headers: [
-            "Authorization": "Bearer valid-token",
-            "Accept": "application/json",
-            "Cookie": "session_id=abc123",
-        ]) { res in
+        try await withApp(
+            app, .GET, "/api/v1/users",
+            headers: [
+                "Authorization": "Bearer valid-token",
+                "Accept": "application/json",
+                "Cookie": "session_id=abc123",
+            ]
+        ) { res in
             #expect(res.status == .ok)
             let body = res.body.string
             #expect(body.contains("Test User"))
         }
 
         // Select "empty" variant
-        try await withApp(app, .GET, "/api/v1/users", headers: [
-            "Authorization": "Bearer valid-token",
-            "Accept": "application/json",
-            "Cookie": "session_id=abc123",
-            "X-Mock-Variant": "empty",
-        ]) { res in
+        try await withApp(
+            app, .GET, "/api/v1/users",
+            headers: [
+                "Authorization": "Bearer valid-token",
+                "Accept": "application/json",
+                "Cookie": "session_id=abc123",
+                "X-Mock-Variant": "empty",
+            ]
+        ) { res in
             #expect(res.status == .ok)
             let body = res.body.string
             #expect(body.contains("\"total\""))
@@ -156,11 +168,14 @@ struct EndToEndTests {
         let app = try await buildApp(store: store, config: config)
         defer { Task { try? await app.asyncShutdown() } }
 
-        try await withApp(app, .GET, "/api/v1/users", headers: [
-            "Authorization": "Bearer valid-token",
-            "Accept": "application/json",
-            "Cookie": "session_id=abc123",
-        ]) { res in
+        try await withApp(
+            app, .GET, "/api/v1/users",
+            headers: [
+                "Authorization": "Bearer valid-token",
+                "Accept": "application/json",
+                "Cookie": "session_id=abc123",
+            ]
+        ) { res in
             #expect(res.status == .ok)
             #expect(res.body.string.contains("Test User"))
         }

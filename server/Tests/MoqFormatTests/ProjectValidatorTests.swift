@@ -1,5 +1,6 @@
 import Foundation
 import Testing
+
 @testable import MoqCore
 @testable import MoqFormat
 
@@ -79,8 +80,12 @@ struct ProjectValidatorTests {
     @Test("Rejects duplicate endpoint reference names")
     func rejectsDuplicateEndpointReferenceNames() {
         let project = makeProject(endpoints: [
-            EndpointDocument(id: "pets", referenceName: "petsApi", method: "GET", path: "/pets", variants: [ProjectVariant(name: "default", status: 200)]),
-            EndpointDocument(id: "pets-2", referenceName: "petsApi", method: "GET", path: "/pets-2", variants: [ProjectVariant(name: "default", status: 200)]),
+            EndpointDocument(
+                id: "pets", referenceName: "petsApi", method: "GET", path: "/pets",
+                variants: [ProjectVariant(name: "default", status: 200)]),
+            EndpointDocument(
+                id: "pets-2", referenceName: "petsApi", method: "GET", path: "/pets-2",
+                variants: [ProjectVariant(name: "default", status: 200)]),
         ])
         let errors = validator.validate(project).filter { $0.severity == .error }
         #expect(errors.contains { $0.message.contains("Duplicate endpoint reference_name") })
@@ -89,7 +94,7 @@ struct ProjectValidatorTests {
     @Test("Rejects reserved paths")
     func rejectsReservedPaths() {
         let project = makeProject(endpoints: [
-            sampleEndpoint(id: "health-mock", path: "/health"),
+            sampleEndpoint(id: "health-mock", path: "/health")
         ])
         let errors = validator.validate(project).filter { $0.severity == .error }
         #expect(errors.contains { $0.message.contains("reserved") })
@@ -101,7 +106,7 @@ struct ProjectValidatorTests {
             sampleEndpoint(variants: [
                 ProjectVariant(name: "a", isDefault: true, status: 200),
                 ProjectVariant(name: "b", isDefault: true, status: 500),
-            ]),
+            ])
         ])
         let errors = validator.validate(project).filter { $0.severity == .error }
         #expect(errors.contains { $0.message.contains("Only one variant") })
@@ -114,7 +119,7 @@ struct ProjectValidatorTests {
                 ProjectVariant(name: "default", referenceName: "bad name", status: 200),
                 ProjectVariant(name: "error", referenceName: "bad_name", status: 500),
                 ProjectVariant(name: "error-2", referenceName: "bad_name", status: 502),
-            ]),
+            ])
         ])
         let errors = validator.validate(project).filter { $0.severity == .error }
         #expect(errors.contains { $0.message.contains("must start with a letter or underscore") })
@@ -125,8 +130,8 @@ struct ProjectValidatorTests {
     func rejectsEmptyVariantRequestMatch() {
         let project = makeProject(endpoints: [
             sampleEndpoint(variants: [
-                ProjectVariant(name: "default", status: 200, requestMatch: RequestMatch()),
-            ]),
+                ProjectVariant(name: "default", status: 200, requestMatch: RequestMatch())
+            ])
         ])
 
         let errors = validator.validate(project).filter { $0.severity == .error }
@@ -141,8 +146,8 @@ struct ProjectValidatorTests {
                     name: "default",
                     status: 200,
                     requestMatch: RequestMatch(query: ["": "pets"], headers: ["": "admin"])
-                ),
-            ]),
+                )
+            ])
         ])
 
         let errors = validator.validate(project).filter { $0.severity == .error }
@@ -159,8 +164,8 @@ struct ProjectValidatorTests {
                     status: 200,
                     body: .string("hello"),
                     bodyFile: "fixtures/test.json"
-                ),
-            ]),
+                )
+            ])
         ])
         let errors = validator.validate(project).filter { $0.severity == .error }
         #expect(errors.contains { $0.message.contains("both body and body_file") })
@@ -170,8 +175,8 @@ struct ProjectValidatorTests {
     func rejectsBodyFileOutsideFixtures() {
         let project = makeProject(endpoints: [
             sampleEndpoint(variants: [
-                ProjectVariant(name: "bad", status: 200, bodyFile: "other/data.json"),
-            ]),
+                ProjectVariant(name: "bad", status: 200, bodyFile: "other/data.json")
+            ])
         ])
         let errors = validator.validate(project).filter { $0.severity == .error }
         #expect(errors.contains { $0.message.contains("must start with \"fixtures/\"") })
@@ -181,8 +186,8 @@ struct ProjectValidatorTests {
     func rejectsPathTraversal() {
         let project = makeProject(endpoints: [
             sampleEndpoint(variants: [
-                ProjectVariant(name: "bad", status: 200, bodyFile: "fixtures/../../../etc/passwd"),
-            ]),
+                ProjectVariant(name: "bad", status: 200, bodyFile: "fixtures/../../../etc/passwd")
+            ])
         ])
         let errors = validator.validate(project).filter { $0.severity == .error }
         #expect(errors.contains { $0.message.contains("path traversal") })
@@ -191,7 +196,7 @@ struct ProjectValidatorTests {
     @Test("Rejects invalid endpoint ID format")
     func rejectsInvalidIdFormat() {
         let project = makeProject(endpoints: [
-            sampleEndpoint(id: "Invalid_Id"),
+            sampleEndpoint(id: "Invalid_Id")
         ])
         let errors = validator.validate(project).filter { $0.severity == .error }
         #expect(errors.contains { $0.message.contains("lowercase alphanumeric") })
@@ -208,7 +213,7 @@ struct ProjectValidatorTests {
                     path: "/test",
                     auth: ProjectAuthConfig(type: .apiKey, verify: true),
                     variants: [ProjectVariant(name: "default", status: 200)]
-                ),
+                )
             ],
             projectPath: "/tmp/test.moqproj"
         )
@@ -219,7 +224,7 @@ struct ProjectValidatorTests {
     @Test("Validates GraphQL endpoint requires operation")
     func graphQLRequiresOperation() {
         let project = makeProject(endpoints: [
-            sampleEndpoint(id: "graphql-test", method: "POST", path: "/graphql"),
+            sampleEndpoint(id: "graphql-test", method: "POST", path: "/graphql")
         ])
         let errors = validator.validate(project).filter { $0.severity == .error }
         #expect(errors.contains { $0.message.contains("must define an operation") })
@@ -234,7 +239,7 @@ struct ProjectValidatorTests {
                 path: "/graphql",
                 operation: EndpointOperation(type: .query),
                 variants: [ProjectVariant(name: "default", status: 200)]
-            ),
+            )
         ])
         let errors = validator.validate(project).filter { $0.severity == .error }
         #expect(errors.contains { $0.message.contains("at least one of") })
@@ -249,7 +254,7 @@ struct ProjectValidatorTests {
                 path: "/users/query",
                 operation: EndpointOperation(type: .query, name: "UsersQuery"),
                 variants: [ProjectVariant(name: "default", status: 200)]
-            ),
+            )
         ])
 
         let warnings = validator.validate(project).filter { $0.severity == .warning }
@@ -265,7 +270,7 @@ struct ProjectValidatorTests {
                 path: "/graphql",
                 operation: EndpointOperation(type: .query, document: "  \n  "),
                 variants: [ProjectVariant(name: "default", status: 200)]
-            ),
+            )
         ])
 
         let errors = validator.validate(project).filter { $0.severity == .error }
@@ -275,7 +280,7 @@ struct ProjectValidatorTests {
     @Test("Rejects invalid HTTP method and non-absolute path")
     func rejectsInvalidMethodAndPath() {
         let project = makeProject(endpoints: [
-            sampleEndpoint(method: "TRACE", path: "pets"),
+            sampleEndpoint(method: "TRACE", path: "pets")
         ])
 
         let errors = validator.validate(project).filter { $0.severity == .error }
@@ -289,7 +294,7 @@ struct ProjectValidatorTests {
             sampleEndpoint(variants: [
                 ProjectVariant(name: "default", status: 200),
                 ProjectVariant(name: "default", status: 500),
-            ]),
+            ])
         ])
         let errors = validator.validate(project).filter { $0.severity == .error }
         #expect(errors.contains { $0.message.contains("Duplicate variant name") })
@@ -298,7 +303,8 @@ struct ProjectValidatorTests {
     @Test("Sample project passes validation")
     func sampleProjectPasses() throws {
         let loader = ProjectLoader()
-        let path = Bundle.module.url(forResource: "sample-app.moqproj", withExtension: nil, subdirectory: "Fixtures")!.path
+        let path = Bundle.module.url(forResource: "sample-app.moqproj", withExtension: nil, subdirectory: "Fixtures")!
+            .path
         let project = try loader.load(from: path)
         let errors = validator.validate(project).filter { $0.severity == .error }
         #expect(errors.isEmpty)

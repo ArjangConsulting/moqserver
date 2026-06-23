@@ -1,5 +1,6 @@
 import Foundation
 import Testing
+
 @testable import MoqRuntime
 
 struct ConfigTests {
@@ -41,11 +42,11 @@ struct ConfigTests {
         defer { try? FileManager.default.removeItem(atPath: tempPath) }
 
         let json = """
-        {
-            "globalDelay": 0.5,
-            "variantOverrides": {"GET /users": "error-404"}
-        }
-        """
+            {
+                "globalDelay": 0.5,
+                "variantOverrides": {"GET /users": "error-404"}
+            }
+            """
         try json.data(using: .utf8)!.write(to: URL(fileURLWithPath: tempPath))
 
         let loader = ConfigLoader()

@@ -1,5 +1,6 @@
 import Foundation
 import Testing
+
 @testable import MoqCore
 @testable import MoqFormat
 
@@ -14,7 +15,8 @@ struct ProjectLoaderTests {
         endpointFiles: [String: String] = [:],
         createEndpointsDirectory: Bool = true
     ) throws -> String {
-        let root = (NSTemporaryDirectory() as NSString).appendingPathComponent("loader-test-\(UUID().uuidString).moqproj")
+        let root = (NSTemporaryDirectory() as NSString).appendingPathComponent(
+            "loader-test-\(UUID().uuidString).moqproj")
         try FileManager.default.createDirectory(atPath: root, withIntermediateDirectories: true)
 
         if let manifestYAML {
@@ -51,7 +53,8 @@ struct ProjectLoaderTests {
         """
     }
 
-    func endpointYAML(id: String, method: String = "GET", path: String = "/\(UUID().uuidString.lowercased())") -> String {
+    func endpointYAML(id: String, method: String = "GET", path: String = "/\(UUID().uuidString.lowercased())") -> String
+    {
         """
         id: \(id)
         alias: "\(id)"
@@ -184,7 +187,8 @@ struct ProjectLoaderTests {
 
     @Test("Rejects paths that are not directories")
     func rejectsNonDirectoryPath() throws {
-        let filePath = (NSTemporaryDirectory() as NSString).appendingPathComponent("loader-file-\(UUID().uuidString).txt")
+        let filePath = (NSTemporaryDirectory() as NSString).appendingPathComponent(
+            "loader-file-\(UUID().uuidString).txt")
         try "test".write(toFile: filePath, atomically: true, encoding: .utf8)
         defer { try? FileManager.default.removeItem(atPath: filePath) }
 
@@ -211,7 +215,8 @@ struct ProjectLoaderTests {
 
     @Test("Rejects invalid manifest YAML")
     func rejectsInvalidManifest() throws {
-        let projectPath = try makeTempProject(manifestYAML: "defaults: [", endpointFiles: ["a.yml": endpointYAML(id: "a")])
+        let projectPath = try makeTempProject(
+            manifestYAML: "defaults: [", endpointFiles: ["a.yml": endpointYAML(id: "a")])
         defer { try? FileManager.default.removeItem(atPath: projectPath) }
 
         do {
@@ -250,7 +255,8 @@ struct ProjectLoaderTests {
 
     @Test("Rejects invalid endpoint YAML")
     func rejectsInvalidEndpointYAML() throws {
-        let projectPath = try makeTempProject(manifestYAML: validManifestYAML, endpointFiles: ["broken.yml": "variants: ["])
+        let projectPath = try makeTempProject(
+            manifestYAML: validManifestYAML, endpointFiles: ["broken.yml": "variants: ["])
         defer { try? FileManager.default.removeItem(atPath: projectPath) }
 
         do {

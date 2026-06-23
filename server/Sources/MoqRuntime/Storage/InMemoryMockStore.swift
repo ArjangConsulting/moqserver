@@ -1,5 +1,4 @@
 import Foundation
-
 import Logging
 import MoqCore
 
@@ -64,11 +63,11 @@ public actor InMemoryMockStore: MockStoring {
                 $0.operation?.type == type && $0.operation?.name == nil
             }) {
                 if let normalizedDocument,
-                   let documentMatch = list.first(where: {
-                       $0.operation?.type == type &&
-                       $0.operation?.name == nil &&
-                       Self.normalizeGraphQLDocument($0.operation?.document) == normalizedDocument
-                   }) {
+                    let documentMatch = list.first(where: {
+                        $0.operation?.type == type && $0.operation?.name == nil
+                            && Self.normalizeGraphQLDocument($0.operation?.document) == normalizedDocument
+                    })
+                {
                     return documentMatch
                 }
                 return match
@@ -76,9 +75,10 @@ public actor InMemoryMockStore: MockStoring {
         }
 
         if let normalizedDocument,
-           let documentMatch = list.first(where: {
-               Self.normalizeGraphQLDocument($0.operation?.document) == normalizedDocument
-           }) {
+            let documentMatch = list.first(where: {
+                Self.normalizeGraphQLDocument($0.operation?.document) == normalizedDocument
+            })
+        {
             return documentMatch
         }
 
@@ -173,7 +173,8 @@ public actor InMemoryMockStore: MockStoring {
             let data = try Data(contentsOf: fileURL)
             variantOverrides = try JSONDecoder().decode([String: String].self, from: data)
         } catch {
-            logger.warning("Failed to load persisted variant overrides from \(path): \(error). Starting with no overrides.")
+            logger.warning(
+                "Failed to load persisted variant overrides from \(path): \(error). Starting with no overrides.")
         }
     }
 
@@ -187,7 +188,8 @@ public actor InMemoryMockStore: MockStoring {
             let data = try JSONEncoder().encode(variantOverrides)
             try data.write(to: fileURL)
         } catch {
-            logger.warning("Failed to persist variant overrides to \(path): \(error). Overrides will not survive a restart.")
+            logger.warning(
+                "Failed to persist variant overrides to \(path): \(error). Overrides will not survive a restart.")
         }
     }
 

@@ -1,5 +1,6 @@
 import Foundation
 import Testing
+
 @testable import MoqCore
 
 struct AnyCodableValueTests {
@@ -19,14 +20,16 @@ struct AnyCodableValueTests {
         let data = Data(#"{"items":[1,true,{"name":"moq"}],"meta":null}"#.utf8)
         let value = try JSONDecoder().decode(AnyCodableValue.self, from: data)
 
-        #expect(value == .object([
-            "items": .array([
-                .int(1),
-                .bool(true),
-                .object(["name": .string("moq")]),
-            ]),
-            "meta": .null,
-        ]))
+        #expect(
+            value
+                == .object([
+                    "items": .array([
+                        .int(1),
+                        .bool(true),
+                        .object(["name": .string("moq")]),
+                    ]),
+                    "meta": .null,
+                ]))
     }
 
     @Test("Encodes values back to JSON")
@@ -62,7 +65,8 @@ struct AnyCodableValueTests {
 
     @Test("Serializes objects and scalars to JSON data")
     func serializesToJSONData() throws {
-        let objectData = try #require(AnyCodableValue.object(["b": .int(2), "a": .string("x")]).toJSONData(prettyPrinted: true))
+        let objectData = try #require(
+            AnyCodableValue.object(["b": .int(2), "a": .string("x")]).toJSONData(prettyPrinted: true))
         let objectString = try #require(String(data: objectData, encoding: .utf8))
         #expect(objectString.contains("\"a\" : \"x\""))
         #expect(objectString.contains("\"b\" : 2"))
