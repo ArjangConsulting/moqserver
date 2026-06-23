@@ -12,7 +12,7 @@
 ## Version Bump
 
 - [ ] Update version in relevant files (if applicable)
-- [ ] Update `CHANGELOG.md` with release notes
+- [ ] Draft release notes for the GitHub Release (per-tag notes live in GitHub Releases, not a `CHANGELOG.md`)
 - [ ] Commit version bump
 
 ## Validation
@@ -32,8 +32,10 @@
 - [ ] Package macOS DMG: `make studio-dmg`
 - [ ] Package Linux deb: `make studio-deb` (on Linux)
 - [ ] Verify .app opens and can load a `.moqproj` project
-- [ ] (Optional) Code sign: set `MOQSERVER_STUDIO_SIGNING_IDENTITY` env var
-- [ ] (Optional) Notarize: set `MOQSERVER_STUDIO_APPLE_ID`, `MOQSERVER_STUDIO_NOTARIZATION_PASSWORD`, `MOQSERVER_STUDIO_TEAM_ID`
+- [ ] Signing is handled by the `Release` workflow when secrets are configured —
+      see `docs/RELEASE_SIGNING.md`. macOS (Developer ID + notarization) and Linux
+      (GPG detached signature) are wired; Windows is unsigned for now. Missing
+      secrets fall back to unsigned builds, never a failure.
 
 ## Release
 
@@ -42,4 +44,6 @@
 - [ ] Build release binary: `make release`
 - [ ] Verify release binary runs correctly
 - [ ] Build Studio packages for target platforms
-- [ ] Attach Studio DMG/deb to GitHub release
+- [ ] Publish the GitHub Release with the drafted notes
+- [ ] Attach Studio DMG/deb and the server release binary to the GitHub Release
+      (the `Release` workflow does this automatically when a `v*` tag is pushed)

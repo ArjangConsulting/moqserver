@@ -41,10 +41,12 @@ public struct EndpointDocument: Codable, Sendable, Equatable {
     ) {
         let normalizedReferenceName = referenceName?.trimmingCharacters(in: .whitespacesAndNewlines)
         self.id = id
-        self.alias = EndpointAlias.normalized(alias: alias)
+        self.alias =
+            EndpointAlias.normalized(alias: alias)
             ?? EndpointAlias.defaultAlias(method: method, path: path, operation: operation)
         self.description = description
-        self.referenceName = normalizedReferenceName.flatMap { $0.isEmpty ? nil : $0 }
+        self.referenceName =
+            normalizedReferenceName.flatMap { $0.isEmpty ? nil : $0 }
             ?? defaultReferenceNameForEndpointId(id)
         self.method = method
         self.path = path

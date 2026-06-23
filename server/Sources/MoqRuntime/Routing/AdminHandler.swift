@@ -83,7 +83,8 @@ public struct AdminHandler: Sendable {
 
     private func resolveEndpoint(req: Request) async throws -> (Endpoint, String) {
         guard let method = req.parameters.get("method") else {
-            throw Abort(.badRequest, reason: "Missing method parameter. Expected URL format: /_admin/endpoints/:method/path")
+            throw Abort(
+                .badRequest, reason: "Missing method parameter. Expected URL format: /_admin/endpoints/:method/path")
         }
 
         let catchall = req.parameters.getCatchall().joined(separator: "/")
@@ -100,14 +101,16 @@ public struct AdminHandler: Sendable {
 
         guard let endpoint = await store.lookup(method: httpMethod, path: apiPath) else {
             let allEndpoints = await store.allEndpoints()
-            let matchingPaths = allEndpoints
+            let matchingPaths =
+                allEndpoints
                 .filter { $0.key.path == apiPath }
                 .map { $0.key.method.rawValue }
             let hint: String
             if matchingPaths.isEmpty {
                 hint = "Use GET /_admin/endpoints to list all available endpoints."
             } else {
-                hint = "Path exists with methods: \(matchingPaths.joined(separator: ", ")). Requested: \(httpMethod.rawValue)"
+                hint =
+                    "Path exists with methods: \(matchingPaths.joined(separator: ", ")). Requested: \(httpMethod.rawValue)"
             }
             throw Abort(.notFound, reason: "Endpoint not found: \(keyString). \(hint)")
         }
@@ -122,7 +125,8 @@ public struct AdminHandler: Sendable {
         case .basic: return "basic"
         case .apiKey(let header): return "apiKey(\(header))"
         case .oauth2(let scopes): return scopes.isEmpty ? "oauth2" : "oauth2(\(scopes.joined(separator: ", ")))"
-        case .openIdConnect(let scopes): return scopes.isEmpty ? "openIdConnect" : "openIdConnect(\(scopes.joined(separator: ", ")))"
+        case .openIdConnect(let scopes):
+            return scopes.isEmpty ? "openIdConnect" : "openIdConnect(\(scopes.joined(separator: ", ")))"
         case .allOf(let requirements):
             return "allOf(\(requirements.map(authRequirementString).joined(separator: ", ")))"
         case .anyOf(let requirements):
@@ -139,7 +143,8 @@ public struct AdminHandler: Sendable {
         if let bearerToken = admin.bearerToken {
             challenges.append("Bearer realm=\"mock-server-admin\"")
             if let auth = req.headers.first(name: .authorization),
-               SecureCompare.equals(auth, "Bearer \(bearerToken)") {
+                SecureCompare.equals(auth, "Bearer \(bearerToken)")
+            {
                 authenticated = true
             }
         }
@@ -147,7 +152,8 @@ public struct AdminHandler: Sendable {
         if let apiKey = admin.apiKey {
             let header = admin.apiKeyHeader ?? "X-Admin-Key"
             if let provided = req.headers.first(name: header),
-               SecureCompare.equals(provided, apiKey) {
+                SecureCompare.equals(provided, apiKey)
+            {
                 authenticated = true
             }
         }

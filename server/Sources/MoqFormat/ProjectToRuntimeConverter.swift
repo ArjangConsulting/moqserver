@@ -1,7 +1,5 @@
 import Foundation
-
 import Logging
-
 import MoqCore
 
 private let logger = Logger(label: "moqserver.format.ProjectToRuntimeConverter")
@@ -132,7 +130,7 @@ public enum ProjectToRuntimeConverter {
         var merged = globalRules ?? []
         for rule in endpointRules ?? [] {
             if let index = merged.firstIndex(where: { $0.name == rule.name }) {
-                merged[index] = rule   // endpoint rule overrides global rule with same name
+                merged[index] = rule  // endpoint rule overrides global rule with same name
             } else {
                 merged.append(rule)
             }

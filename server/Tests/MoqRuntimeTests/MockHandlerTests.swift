@@ -3,6 +3,7 @@ import Testing
 import Vapor
 import VaporTesting
 import XCTVapor
+
 @testable import MoqCore
 @testable import MoqRuntime
 
@@ -29,10 +30,14 @@ struct MockHandlerTests {
     @Test("X-Mock-Variant header selects specific variant")
     func variantHeaderSelection() async throws {
         let store = InMemoryMockStore()
-        await store.register(makeTestEndpoint(method: .get, path: "/pets", variants: [
-            ResponseVariant(name: "default", statusCode: .ok, body: Data(#"{"status":"ok"}"#.utf8)),
-            ResponseVariant(name: "error-500", statusCode: .internalServerError, body: Data(#"{"error":"fail"}"#.utf8)),
-        ]))
+        await store.register(
+            makeTestEndpoint(
+                method: .get, path: "/pets",
+                variants: [
+                    ResponseVariant(name: "default", statusCode: .ok, body: Data(#"{"status":"ok"}"#.utf8)),
+                    ResponseVariant(
+                        name: "error-500", statusCode: .internalServerError, body: Data(#"{"error":"fail"}"#.utf8)),
+                ]))
 
         let app = try await buildApp(store: store)
         defer { Task { try? await app.asyncShutdown() } }
@@ -47,10 +52,17 @@ struct MockHandlerTests {
     @Test("X-Mock-Variant can select variant by reference name")
     func variantHeaderSelectionByReferenceName() async throws {
         let store = InMemoryMockStore()
-        await store.register(makeTestEndpoint(method: .get, path: "/pets", variants: [
-            ResponseVariant(name: "Default", referenceName: "defaultVariant", statusCode: .ok, body: Data(#"{"status":"ok"}"#.utf8)),
-            ResponseVariant(name: "Server Error", referenceName: "serverError", statusCode: .internalServerError, body: Data(#"{"error":"fail"}"#.utf8)),
-        ]))
+        await store.register(
+            makeTestEndpoint(
+                method: .get, path: "/pets",
+                variants: [
+                    ResponseVariant(
+                        name: "Default", referenceName: "defaultVariant", statusCode: .ok,
+                        body: Data(#"{"status":"ok"}"#.utf8)),
+                    ResponseVariant(
+                        name: "Server Error", referenceName: "serverError", statusCode: .internalServerError,
+                        body: Data(#"{"error":"fail"}"#.utf8)),
+                ]))
 
         let app = try await buildApp(store: store)
         defer { Task { try? await app.asyncShutdown() } }
@@ -65,10 +77,13 @@ struct MockHandlerTests {
     @Test("Admin override takes precedence over default")
     func adminOverrideSelection() async throws {
         let store = InMemoryMockStore()
-        await store.register(makeTestEndpoint(method: .get, path: "/pets", variants: [
-            ResponseVariant(name: "default", statusCode: .ok, body: Data("{}".utf8)),
-            ResponseVariant(name: "error-500", statusCode: .internalServerError, body: Data("{}".utf8)),
-        ]))
+        await store.register(
+            makeTestEndpoint(
+                method: .get, path: "/pets",
+                variants: [
+                    ResponseVariant(name: "default", statusCode: .ok, body: Data("{}".utf8)),
+                    ResponseVariant(name: "error-500", statusCode: .internalServerError, body: Data("{}".utf8)),
+                ]))
         await store.setVariantOverride(for: "GET /pets", variant: "error-500")
 
         let app = try await buildApp(store: store)
@@ -82,10 +97,13 @@ struct MockHandlerTests {
     @Test("X-Mock-Variant header overrides admin override")
     func headerOverridesAdmin() async throws {
         let store = InMemoryMockStore()
-        await store.register(makeTestEndpoint(method: .get, path: "/pets", variants: [
-            ResponseVariant(name: "default", statusCode: .ok, body: Data("{}".utf8)),
-            ResponseVariant(name: "error-500", statusCode: .internalServerError, body: Data("{}".utf8)),
-        ]))
+        await store.register(
+            makeTestEndpoint(
+                method: .get, path: "/pets",
+                variants: [
+                    ResponseVariant(name: "default", statusCode: .ok, body: Data("{}".utf8)),
+                    ResponseVariant(name: "error-500", statusCode: .internalServerError, body: Data("{}".utf8)),
+                ]))
         await store.setVariantOverride(for: "GET /pets", variant: "error-500")
 
         let app = try await buildApp(store: store)
@@ -99,10 +117,13 @@ struct MockHandlerTests {
     @Test("Config variant override is used when no header or admin override")
     func configOverride() async throws {
         let store = InMemoryMockStore()
-        await store.register(makeTestEndpoint(method: .get, path: "/pets", variants: [
-            ResponseVariant(name: "default", statusCode: .ok, body: Data("{}".utf8)),
-            ResponseVariant(name: "error-404", statusCode: .notFound, body: Data("{}".utf8)),
-        ]))
+        await store.register(
+            makeTestEndpoint(
+                method: .get, path: "/pets",
+                variants: [
+                    ResponseVariant(name: "default", statusCode: .ok, body: Data("{}".utf8)),
+                    ResponseVariant(name: "error-404", statusCode: .notFound, body: Data("{}".utf8)),
+                ]))
 
         let config = ServerConfig(variantOverrides: ["GET /pets": "error-404"])
         let app = try await buildApp(store: store, config: config)
@@ -131,14 +152,17 @@ struct MockHandlerTests {
     func variantNotFoundNoMatch() async throws {
         let store = InMemoryMockStore()
         // Create endpoint with only a constrained variant that won't match
-        await store.register(makeTestEndpoint(method: .get, path: "/constrained", variants: [
-            ResponseVariant(
-                name: "only-admin",
-                statusCode: .ok,
-                body: Data("{}".utf8),
-                requestMatch: RequestMatch(headers: ["X-Role": "admin"])
-            ),
-        ]))
+        await store.register(
+            makeTestEndpoint(
+                method: .get, path: "/constrained",
+                variants: [
+                    ResponseVariant(
+                        name: "only-admin",
+                        statusCode: .ok,
+                        body: Data("{}".utf8),
+                        requestMatch: RequestMatch(headers: ["X-Role": "admin"])
+                    )
+                ]))
 
         let app = try await buildApp(store: store)
         defer { Task { try? await app.asyncShutdown() } }
@@ -156,14 +180,17 @@ struct MockHandlerTests {
     @Test("Response includes variant headers")
     func responseHeaders() async throws {
         let store = InMemoryMockStore()
-        await store.register(makeTestEndpoint(method: .get, path: "/test", variants: [
-            ResponseVariant(
-                name: "default",
-                statusCode: .ok,
-                headers: [("Content-Type", "application/json"), ("X-Custom", "value")],
-                body: Data("{}".utf8)
-            ),
-        ]))
+        await store.register(
+            makeTestEndpoint(
+                method: .get, path: "/test",
+                variants: [
+                    ResponseVariant(
+                        name: "default",
+                        statusCode: .ok,
+                        headers: [("Content-Type", "application/json"), ("X-Custom", "value")],
+                        body: Data("{}".utf8)
+                    )
+                ]))
 
         let app = try await buildApp(store: store)
         defer { Task { try? await app.asyncShutdown() } }
@@ -177,9 +204,12 @@ struct MockHandlerTests {
     @Test("Response with nil body returns empty body")
     func emptyBody() async throws {
         let store = InMemoryMockStore()
-        await store.register(makeTestEndpoint(method: .delete, path: "/items", variants: [
-            ResponseVariant(name: "default", statusCode: HTTPStatusCode(code: 204), body: nil),
-        ]))
+        await store.register(
+            makeTestEndpoint(
+                method: .delete, path: "/items",
+                variants: [
+                    ResponseVariant(name: "default", statusCode: HTTPStatusCode(code: 204), body: nil)
+                ]))
 
         let app = try await buildApp(store: store)
         defer { Task { try? await app.asyncShutdown() } }
@@ -195,19 +225,22 @@ struct MockHandlerTests {
     @Test("Variant with requestMatch on query is selected when query matches")
     func requestMatchQuery() async throws {
         let store = InMemoryMockStore()
-        await store.register(makeTestEndpoint(method: .get, path: "/search", variants: [
-            ResponseVariant(
-                name: "default",
-                statusCode: .ok,
-                body: Data(#"{"results":"all"}"#.utf8)
-            ),
-            ResponseVariant(
-                name: "filtered",
-                statusCode: .ok,
-                body: Data(#"{"results":"filtered"}"#.utf8),
-                requestMatch: RequestMatch(query: ["type": "active"])
-            ),
-        ]))
+        await store.register(
+            makeTestEndpoint(
+                method: .get, path: "/search",
+                variants: [
+                    ResponseVariant(
+                        name: "default",
+                        statusCode: .ok,
+                        body: Data(#"{"results":"all"}"#.utf8)
+                    ),
+                    ResponseVariant(
+                        name: "filtered",
+                        statusCode: .ok,
+                        body: Data(#"{"results":"filtered"}"#.utf8),
+                        requestMatch: RequestMatch(query: ["type": "active"])
+                    ),
+                ]))
 
         let app = try await buildApp(store: store)
         defer { Task { try? await app.asyncShutdown() } }
@@ -226,19 +259,22 @@ struct MockHandlerTests {
     @Test("Variant with requestMatch on headers is selected when header matches")
     func requestMatchHeaders() async throws {
         let store = InMemoryMockStore()
-        await store.register(makeTestEndpoint(method: .get, path: "/data", variants: [
-            ResponseVariant(
-                name: "default",
-                statusCode: .ok,
-                body: Data(#"{"format":"default"}"#.utf8)
-            ),
-            ResponseVariant(
-                name: "admin",
-                statusCode: .ok,
-                body: Data(#"{"format":"admin"}"#.utf8),
-                requestMatch: RequestMatch(headers: ["X-Role": "admin"])
-            ),
-        ]))
+        await store.register(
+            makeTestEndpoint(
+                method: .get, path: "/data",
+                variants: [
+                    ResponseVariant(
+                        name: "default",
+                        statusCode: .ok,
+                        body: Data(#"{"format":"default"}"#.utf8)
+                    ),
+                    ResponseVariant(
+                        name: "admin",
+                        statusCode: .ok,
+                        body: Data(#"{"format":"admin"}"#.utf8),
+                        requestMatch: RequestMatch(headers: ["X-Role": "admin"])
+                    ),
+                ]))
 
         let app = try await buildApp(store: store)
         defer { Task { try? await app.asyncShutdown() } }
@@ -296,24 +332,34 @@ struct MockHandlerTests {
     @Test("GraphQL anonymous document resolves matching endpoint")
     func graphqlAnonymousDocumentResolution() async throws {
         let store = InMemoryMockStore()
-        await store.register(Endpoint(
-            key: EndpointKey(method: .post, path: "/graphql"),
-            authRequirement: .none,
-            variants: [ResponseVariant(name: "current-user", statusCode: .ok, body: Data(#"{"data":{"currentUser":{"id":"123"}}}"#.utf8))],
-            operation: EndpointOperation(
-                type: .query,
-                document: "query { currentUser { id name } }"
-            )
-        ))
-        await store.register(Endpoint(
-            key: EndpointKey(method: .post, path: "/graphql"),
-            authRequirement: .none,
-            variants: [ResponseVariant(name: "current-account", statusCode: .ok, body: Data(#"{"data":{"currentAccount":{"id":"999"}}}"#.utf8))],
-            operation: EndpointOperation(
-                type: .query,
-                document: "query { currentAccount { id } }"
-            )
-        ))
+        await store.register(
+            Endpoint(
+                key: EndpointKey(method: .post, path: "/graphql"),
+                authRequirement: .none,
+                variants: [
+                    ResponseVariant(
+                        name: "current-user", statusCode: .ok,
+                        body: Data(#"{"data":{"currentUser":{"id":"123"}}}"#.utf8))
+                ],
+                operation: EndpointOperation(
+                    type: .query,
+                    document: "query { currentUser { id name } }"
+                )
+            ))
+        await store.register(
+            Endpoint(
+                key: EndpointKey(method: .post, path: "/graphql"),
+                authRequirement: .none,
+                variants: [
+                    ResponseVariant(
+                        name: "current-account", statusCode: .ok,
+                        body: Data(#"{"data":{"currentAccount":{"id":"999"}}}"#.utf8))
+                ],
+                operation: EndpointOperation(
+                    type: .query,
+                    document: "query { currentAccount { id } }"
+                )
+            ))
 
         let app = try await buildApp(store: store)
         defer { Task { try? await app.asyncShutdown() } }
@@ -334,11 +380,12 @@ struct MockHandlerTests {
     @Test("Cookie validation returns specific error code")
     func cookieValidation() async throws {
         let store = InMemoryMockStore()
-        await store.register(makeTestEndpoint(
-            method: .get,
-            path: "/needs-cookie",
-            cookieRules: [RuleMatcher(name: "session_id", matchType: .notEmpty)]
-        ))
+        await store.register(
+            makeTestEndpoint(
+                method: .get,
+                path: "/needs-cookie",
+                cookieRules: [RuleMatcher(name: "session_id", matchType: .notEmpty)]
+            ))
 
         let app = try await buildApp(store: store)
         defer { Task { try? await app.asyncShutdown() } }
@@ -353,11 +400,12 @@ struct MockHandlerTests {
     @Test("Packet loss simulation returns 503")
     func packetLossSimulation() async throws {
         let store = InMemoryMockStore()
-        await store.register(makeTestEndpoint(
-            method: .get,
-            path: "/lossy",
-            network: NetworkBehavior(latencyMs: 0, jitterMs: 0, packetLossPercent: 100)
-        ))
+        await store.register(
+            makeTestEndpoint(
+                method: .get,
+                path: "/lossy",
+                network: NetworkBehavior(latencyMs: 0, jitterMs: 0, packetLossPercent: 100)
+            ))
 
         let app = try await buildApp(store: store)
         defer { Task { try? await app.asyncShutdown() } }

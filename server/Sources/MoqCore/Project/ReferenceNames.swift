@@ -13,7 +13,8 @@ public func defaultReferenceNameForVariantName(_ name: String) -> String {
 }
 
 private func toReferenceName(_ source: String, fallbackPrefix: String) -> String {
-    let normalizedSource = source
+    let normalizedSource =
+        source
         .trimmingCharacters(in: .whitespacesAndNewlines)
         .replacingOccurrences(
             of: "([a-z0-9])([A-Z])",
@@ -23,7 +24,8 @@ private func toReferenceName(_ source: String, fallbackPrefix: String) -> String
         .replacingOccurrences(of: "[^A-Za-z0-9_]+", with: " ", options: .regularExpression)
         .trimmingCharacters(in: .whitespacesAndNewlines)
 
-    let tokens = normalizedSource
+    let tokens =
+        normalizedSource
         .split(whereSeparator: { $0.isWhitespace })
         .map(String.init)
         .compactMap { token -> String? in

@@ -22,10 +22,12 @@ struct MockErrorMiddleware: AsyncMiddleware {
                     error: abortError.reason,
                     code: statusToCode(abortError.status)
                 )
-                logger.warning("Request error \(status.code): \(abortError.reason)", metadata: [
-                    "path": "\(request.url.path)",
-                    "status": "\(status.code)",
-                ])
+                logger.warning(
+                    "Request error \(status.code): \(abortError.reason)",
+                    metadata: [
+                        "path": "\(request.url.path)",
+                        "status": "\(status.code)",
+                    ])
             } else {
                 status = .internalServerError
                 body = ErrorResponse(

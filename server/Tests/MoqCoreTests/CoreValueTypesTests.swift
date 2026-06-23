@@ -1,5 +1,6 @@
 import Foundation
 import Testing
+
 @testable import MoqCore
 
 struct CoreValueTypesTests {
@@ -38,7 +39,8 @@ struct CoreValueTypesTests {
 
     @Test("Endpoint merges required rules and falls back to default variant")
     func endpointMergesRequiredRulesAndSelectsVariants() {
-        let defaultVariant = ResponseVariant(name: "Success Response", referenceName: "success-response", isDefault: true)
+        let defaultVariant = ResponseVariant(
+            name: "Success Response", referenceName: "success-response", isDefault: true)
         let alternateVariant = ResponseVariant(name: "Error")
         let pageRule = RuleMatcher(name: "page", match: "1", matchType: .equalTo)
         let endpoint = Endpoint(

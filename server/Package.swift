@@ -19,7 +19,7 @@ let package = Package(
         .target(
             name: "MoqCore",
             dependencies: [
-                .product(name: "Logging", package: "swift-log"),
+                .product(name: "Logging", package: "swift-log")
             ],
             path: "Sources/MoqCore"
         ),
@@ -64,7 +64,7 @@ let package = Package(
         .executableTarget(
             name: "Run",
             dependencies: [
-                .target(name: "MoqCLI"),
+                .target(name: "MoqCLI")
             ],
             path: "Sources/Run"
         ),
@@ -73,7 +73,7 @@ let package = Package(
         .testTarget(
             name: "MoqCoreTests",
             dependencies: [
-                .target(name: "MoqCore"),
+                .target(name: "MoqCore")
             ],
             path: "Tests/MoqCoreTests"
         ),
@@ -85,7 +85,7 @@ let package = Package(
             ],
             path: "Tests/MoqFormatTests",
             resources: [
-                .copy("Fixtures"),
+                .copy("Fixtures")
             ]
         ),
         .testTarget(
@@ -98,7 +98,7 @@ let package = Package(
             ],
             path: "Tests/MoqRuntimeTests",
             resources: [
-                .copy("Fixtures"),
+                .copy("Fixtures")
             ]
         ),
         .testTarget(
@@ -112,7 +112,7 @@ let package = Package(
             ],
             path: "Tests/MoqIntegrationTests",
             resources: [
-                .copy("Fixtures"),
+                .copy("Fixtures")
             ]
         ),
         .testTarget(

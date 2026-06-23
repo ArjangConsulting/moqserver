@@ -1,5 +1,6 @@
 import Foundation
 import Testing
+
 @testable import MoqCore
 @testable import MoqRuntime
 
@@ -117,11 +118,13 @@ struct InMemoryMockStoreTests {
         await store.register(makeGraphQLEndpoint(operationName: "GetUser", body: #"{"data":{"user":{}}}"#))
         await store.register(makeGraphQLEndpoint(operationName: "ListPets", body: #"{"data":{"pets":[]}}"#))
 
-        let user = await store.lookupGraphQL(method: .post, path: "/graphql", operationName: "GetUser", operationType: .query, normalizedDocument: nil)
+        let user = await store.lookupGraphQL(
+            method: .post, path: "/graphql", operationName: "GetUser", operationType: .query, normalizedDocument: nil)
         #expect(user != nil)
         #expect(user?.operation?.name == "GetUser")
 
-        let pets = await store.lookupGraphQL(method: .post, path: "/graphql", operationName: "ListPets", operationType: .query, normalizedDocument: nil)
+        let pets = await store.lookupGraphQL(
+            method: .post, path: "/graphql", operationName: "ListPets", operationType: .query, normalizedDocument: nil)
         #expect(pets != nil)
         #expect(pets?.operation?.name == "ListPets")
     }
@@ -131,7 +134,8 @@ struct InMemoryMockStoreTests {
         let store = InMemoryMockStore()
         await store.register(makeGraphQLEndpoint(operationName: "GetUser"))
 
-        let result = await store.lookupGraphQL(method: .post, path: "/graphql", operationName: "DeleteUser", operationType: nil, normalizedDocument: nil)
+        let result = await store.lookupGraphQL(
+            method: .post, path: "/graphql", operationName: "DeleteUser", operationType: nil, normalizedDocument: nil)
         // Falls back to first registered
         #expect(result?.operation?.name == "GetUser")
     }
@@ -140,27 +144,31 @@ struct InMemoryMockStoreTests {
     func graphqlLookupByType() async {
         let store = InMemoryMockStore()
         await store.register(makeGraphQLEndpoint(operationName: nil, operationType: .mutation, body: #"{"data":{}}"#))
-        await store.register(makeGraphQLEndpoint(operationName: "GetUser", operationType: .query, body: #"{"data":{"user":{}}}"#))
+        await store.register(
+            makeGraphQLEndpoint(operationName: "GetUser", operationType: .query, body: #"{"data":{"user":{}}}"#))
 
-        let mutation = await store.lookupGraphQL(method: .post, path: "/graphql", operationName: nil, operationType: .mutation, normalizedDocument: nil)
+        let mutation = await store.lookupGraphQL(
+            method: .post, path: "/graphql", operationName: nil, operationType: .mutation, normalizedDocument: nil)
         #expect(mutation?.operation?.type == .mutation)
     }
 
     @Test("GraphQL lookup by normalized document for anonymous operations")
     func graphqlLookupByDocument() async {
         let store = InMemoryMockStore()
-        await store.register(makeGraphQLEndpoint(
-            operationName: nil,
-            operationType: .query,
-            document: "query { currentUser { id name } }",
-            body: #"{"data":{"currentUser":{"id":"1"}}}"#
-        ))
-        await store.register(makeGraphQLEndpoint(
-            operationName: nil,
-            operationType: .query,
-            document: "query { currentAccount { id } }",
-            body: #"{"data":{"currentAccount":{"id":"2"}}}"#
-        ))
+        await store.register(
+            makeGraphQLEndpoint(
+                operationName: nil,
+                operationType: .query,
+                document: "query { currentUser { id name } }",
+                body: #"{"data":{"currentUser":{"id":"1"}}}"#
+            ))
+        await store.register(
+            makeGraphQLEndpoint(
+                operationName: nil,
+                operationType: .query,
+                document: "query { currentAccount { id } }",
+                body: #"{"data":{"currentAccount":{"id":"2"}}}"#
+            ))
 
         let result = await store.lookupGraphQL(
             method: .post,
@@ -197,22 +205,24 @@ struct InMemoryMockStoreTests {
     @Test("Merging variants updates existing names and appends new ones")
     func mergeVariants() async throws {
         let store = InMemoryMockStore()
-        await store.register(Endpoint(
-            key: EndpointKey(method: .get, path: "/pets"),
-            authRequirement: .none,
-            variants: [
-                ResponseVariant(name: "default", statusCode: .ok, body: Data("old".utf8)),
-            ]
-        ))
+        await store.register(
+            Endpoint(
+                key: EndpointKey(method: .get, path: "/pets"),
+                authRequirement: .none,
+                variants: [
+                    ResponseVariant(name: "default", statusCode: .ok, body: Data("old".utf8))
+                ]
+            ))
 
-        await store.mergeVariants(from: Endpoint(
-            key: EndpointKey(method: .get, path: "/pets"),
-            authRequirement: .none,
-            variants: [
-                ResponseVariant(name: "default", statusCode: .ok, body: Data("new".utf8)),
-                ResponseVariant(name: "error-404", statusCode: .notFound, body: Data("missing".utf8)),
-            ]
-        ))
+        await store.mergeVariants(
+            from: Endpoint(
+                key: EndpointKey(method: .get, path: "/pets"),
+                authRequirement: .none,
+                variants: [
+                    ResponseVariant(name: "default", statusCode: .ok, body: Data("new".utf8)),
+                    ResponseVariant(name: "error-404", statusCode: .notFound, body: Data("missing".utf8)),
+                ]
+            ))
 
         let endpoint = await store.lookup(method: .get, path: "/pets")
         #expect(endpoint?.variants.count == 2)
@@ -223,7 +233,8 @@ struct InMemoryMockStoreTests {
 
     @Test("Variant override persistence survives store recreation")
     func variantOverridePersistence() async {
-        let persistencePath = (NSTemporaryDirectory() as NSString).appendingPathComponent("variant-overrides-\(UUID().uuidString).json")
+        let persistencePath = (NSTemporaryDirectory() as NSString).appendingPathComponent(
+            "variant-overrides-\(UUID().uuidString).json")
         defer { try? FileManager.default.removeItem(atPath: persistencePath) }
 
         let firstStore = InMemoryMockStore()
@@ -244,7 +255,8 @@ struct InMemoryMockStoreTests {
         await store.register(makeGraphQLEndpoint(operationName: "GetUser", body: "first"))
         await store.register(makeGraphQLEndpoint(operationName: "GetUser", body: "second"))
 
-        let endpoint = await store.lookupGraphQL(method: .post, path: "/graphql", operationName: "GetUser", operationType: .query, normalizedDocument: nil)
+        let endpoint = await store.lookupGraphQL(
+            method: .post, path: "/graphql", operationName: "GetUser", operationType: .query, normalizedDocument: nil)
         let body = try #require(endpoint?.variants.first?.body)
         #expect(String(data: body, encoding: .utf8) == "second")
         #expect((await store.allEndpoints()).count == 1)

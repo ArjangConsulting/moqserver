@@ -78,10 +78,10 @@ public struct ServeCommand: AsyncParsableCommand {
         let loopbackHostnames: Set<String> = ["127.0.0.1", "localhost", "::1"]
         guard !loopbackHostnames.contains(hostname), config?.admin == nil else { return }
         let warning = """
-        WARNING: Binding to \(hostname) without admin credentials. Anyone who can reach this host \
-        can list endpoints and change active variants via /_admin. Add an `admin` section with a \
-        bearerToken or apiKey to the config file to require authentication.
-        """
+            WARNING: Binding to \(hostname) without admin credentials. Anyone who can reach this host \
+            can list endpoints and change active variants via /_admin. Add an `admin` section with a \
+            bearerToken or apiKey to the config file to require authentication.
+            """
         logger.warning("\(warning)")
         print(warning)
     }
@@ -105,7 +105,9 @@ public struct ServeCommand: AsyncParsableCommand {
         }
         if !errors.isEmpty {
             logger.error("Project validation failed", metadata: ["errors": "\(errors.count)"])
-            print("Aborting: project has \(errors.count) validation error(s). Run `moqserver validate --project \(path)` for details.")
+            print(
+                "Aborting: project has \(errors.count) validation error(s). Run `moqserver validate --project \(path)` for details."
+            )
             throw ExitCode.failure
         }
 
@@ -113,7 +115,9 @@ public struct ServeCommand: AsyncParsableCommand {
         for endpoint in endpoints {
             await store.register(endpoint)
         }
-        logger.info("Loaded project", metadata: ["name": "\(project.manifest.name)", "path": "\(path)", "endpoints": "\(endpoints.count)"])
+        logger.info(
+            "Loaded project",
+            metadata: ["name": "\(project.manifest.name)", "path": "\(path)", "endpoints": "\(endpoints.count)"])
         print("Loaded project \"\(project.manifest.name)\" from \(path)")
     }
 }

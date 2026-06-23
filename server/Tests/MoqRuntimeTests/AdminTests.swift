@@ -3,6 +3,7 @@ import Testing
 import Vapor
 import VaporTesting
 import XCTVapor
+
 @testable import MoqCore
 @testable import MoqRuntime
 
@@ -69,7 +70,8 @@ struct AdminTests {
             authRequirement: .none,
             variants: [
                 ResponseVariant(name: "default", body: Data(#"{"mock":true}"#.utf8)),
-                ResponseVariant(name: "error-500", statusCode: .internalServerError, body: Data(#"{"error":"mock"}"#.utf8))
+                ResponseVariant(
+                    name: "error-500", statusCode: .internalServerError, body: Data(#"{"error":"mock"}"#.utf8)),
             ]
         )
         await store.mergeVariants(from: mockEndpoint)
@@ -104,7 +106,8 @@ struct AdminTests {
             #expect(res.status == .unauthorized)
         }
 
-        try await app.testing().test(.GET, "/_admin/endpoints", headers: ["Authorization": "Bearer admin-token"]) { res async in
+        try await app.testing().test(.GET, "/_admin/endpoints", headers: ["Authorization": "Bearer admin-token"]) {
+            res async in
             #expect(res.status == .ok)
         }
     }
@@ -198,9 +201,12 @@ struct AdminTests {
         let app = try await buildApp(store: store)
         defer { Task { try? await app.asyncShutdown() } }
 
-        try await app.testing().test(.PUT, "/_admin/endpoints/GET/pets/variant", beforeRequest: { req async throws in
-            try req.content.encode(SetVariantRequest(variant: "error-500"))
-        }) { res async in
+        try await app.testing().test(
+            .PUT, "/_admin/endpoints/GET/pets/variant",
+            beforeRequest: { req async throws in
+                try req.content.encode(SetVariantRequest(variant: "error-500"))
+            }
+        ) { res async in
             #expect(res.status == .ok)
             let msg = try? res.content.decode(MessageResponse.self)
             #expect(msg?.message.contains("error-500") == true)
@@ -219,9 +225,12 @@ struct AdminTests {
         let app = try await buildApp(store: store)
         defer { Task { try? await app.asyncShutdown() } }
 
-        try await app.testing().test(.PUT, "/_admin/endpoints/GET/pets/variant", beforeRequest: { req async throws in
-            try req.content.encode(SetVariantRequest(variant: "nonexistent"))
-        }) { res async in
+        try await app.testing().test(
+            .PUT, "/_admin/endpoints/GET/pets/variant",
+            beforeRequest: { req async throws in
+                try req.content.encode(SetVariantRequest(variant: "nonexistent"))
+            }
+        ) { res async in
             #expect(res.status == .badRequest)
         }
     }

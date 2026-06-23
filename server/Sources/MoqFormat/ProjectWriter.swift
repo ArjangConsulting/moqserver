@@ -1,7 +1,5 @@
 import Foundation
-
 import Logging
-
 import MoqCore
 import Yams
 
@@ -78,11 +76,13 @@ public struct ProjectWriter: ProjectWriting {
 
         // Key ordering per FORMAT_IMPLEMENTATION.md
         lines.append("id: \(endpoint.id)")
-        let alias = endpoint.alias ?? EndpointAlias.defaultAlias(
-            method: endpoint.method,
-            path: endpoint.path,
-            operation: endpoint.operation
-        )
+        let alias =
+            endpoint.alias
+            ?? EndpointAlias.defaultAlias(
+                method: endpoint.method,
+                path: endpoint.path,
+                operation: endpoint.operation
+            )
         lines.append("alias: \(yamlQuote(alias))")
         if let description = endpoint.description {
             lines.append("description: \(yamlQuote(description))")
@@ -179,7 +179,8 @@ public struct ProjectWriter: ProjectWriting {
         }
 
         if let requestMatch = variant.requestMatch,
-           !requestMatch.query.isEmpty || !requestMatch.headers.isEmpty || requestMatch.bodyContains != nil {
+            !requestMatch.query.isEmpty || !requestMatch.headers.isEmpty || requestMatch.bodyContains != nil
+        {
             lines.append("\(pad)  request_match:")
             if !requestMatch.query.isEmpty {
                 lines.append("\(pad)    query:")

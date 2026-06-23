@@ -1,5 +1,4 @@
 import Foundation
-
 import Logging
 
 private let logger = Logger(label: "moqserver.core.RuleEvaluator")
@@ -13,7 +12,8 @@ public enum RuleEvaluator {
 
     public static func evaluate(_ rule: RuleMatcher, actualValue: String?) -> Failure? {
         let matchType = resolvedMatchType(for: rule)
-        logger.trace("Evaluating rule '\(rule.name)' with matchType=\(matchType) against value=\(actualValue ?? "<nil>")")
+        logger.trace(
+            "Evaluating rule '\(rule.name)' with matchType=\(matchType) against value=\(actualValue ?? "<nil>")")
 
         switch matchType {
         case .require:
@@ -35,9 +35,11 @@ public enum RuleEvaluator {
                 $0.range(of: $1, options: .regularExpression) != nil
             }
         case .isEmpty:
-            return (actualValue ?? "").isEmpty ? nil : .mismatch(expectedDescription: "be empty", actualValue: actualValue)
+            return (actualValue ?? "").isEmpty
+                ? nil : .mismatch(expectedDescription: "be empty", actualValue: actualValue)
         case .notEmpty:
-            return isPresent(actualValue) ? nil : .mismatch(expectedDescription: "not be empty", actualValue: actualValue)
+            return isPresent(actualValue)
+                ? nil : .mismatch(expectedDescription: "not be empty", actualValue: actualValue)
         case .gt:
             return compareNumeric(actualValue, against: rule.match, symbol: ">") { $0 > $1 }
         case .gte:
@@ -93,7 +95,8 @@ public enum RuleEvaluator {
             return .missing(name: "")
         }
         guard let actualNumber = Double(actualValue),
-              let expectedNumber = Double(expectedValue) else {
+            let expectedNumber = Double(expectedValue)
+        else {
             return .mismatch(expectedDescription: "be \(symbol) '\(expectedValue)'", actualValue: actualValue)
         }
         return predicate(actualNumber, expectedNumber)

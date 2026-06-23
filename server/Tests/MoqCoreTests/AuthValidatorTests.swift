@@ -1,5 +1,6 @@
 import Foundation
 import Testing
+
 @testable import MoqCore
 
 struct AuthValidatorTests {
@@ -96,7 +97,8 @@ struct AuthValidatorTests {
     @Test("API key rejects missing header value")
     func apiKeyRejectsMissingValue() {
         let validator = AuthValidator(config: config)
-        let result = validator.evaluate(.apiKey(headerName: "X-API-Key"), context: AuthContext(authorizationHeader: nil))
+        let result = validator.evaluate(
+            .apiKey(headerName: "X-API-Key"), context: AuthContext(authorizationHeader: nil))
 
         if case .unauthorized(let msg, let challenge) = result {
             #expect(msg.contains("API key required"))
@@ -109,7 +111,8 @@ struct AuthValidatorTests {
     @Test("API key rejects invalid header value")
     func apiKeyRejectsInvalidValue() {
         let validator = AuthValidator(config: config)
-        let result = validator.evaluate(.apiKey(headerName: "X-API-Key"), context: AuthContext(authorizationHeader: "wrong-key"))
+        let result = validator.evaluate(
+            .apiKey(headerName: "X-API-Key"), context: AuthContext(authorizationHeader: "wrong-key"))
 
         if case .unauthorized(let msg, let challenge) = result {
             #expect(msg.contains("Invalid API key"))
@@ -122,7 +125,8 @@ struct AuthValidatorTests {
     @Test("API key accepts expected header value")
     func apiKeyAcceptsMatchingValue() {
         let validator = AuthValidator(config: config)
-        let result = validator.evaluate(.apiKey(headerName: "X-API-Key"), context: AuthContext(authorizationHeader: "valid-key"))
+        let result = validator.evaluate(
+            .apiKey(headerName: "X-API-Key"), context: AuthContext(authorizationHeader: "valid-key"))
         #expect(result == .allowed)
     }
 
@@ -140,14 +144,16 @@ struct AuthValidatorTests {
     @Test("OAuth2 accepts valid token with sufficient scopes")
     func oauth2Valid() {
         let validator = AuthValidator(config: config)
-        let result = validator.evaluate(.oauth2(scopes: ["read"]), context: AuthContext(authorizationHeader: "Bearer valid-oauth-token"))
+        let result = validator.evaluate(
+            .oauth2(scopes: ["read"]), context: AuthContext(authorizationHeader: "Bearer valid-oauth-token"))
         #expect(result == .allowed)
     }
 
     @Test("OAuth2 rejects invalid token with invalid_token challenge")
     func oauth2RejectsInvalidToken() {
         let validator = AuthValidator(config: config)
-        let result = validator.evaluate(.oauth2(scopes: ["read"]), context: AuthContext(authorizationHeader: "Bearer wrong-token"))
+        let result = validator.evaluate(
+            .oauth2(scopes: ["read"]), context: AuthContext(authorizationHeader: "Bearer wrong-token"))
 
         if case .unauthorized(let msg, let challenge) = result {
             #expect(msg.contains("Invalid or expired access token"))
@@ -161,7 +167,8 @@ struct AuthValidatorTests {
     @Test("OAuth2 rejects insufficient scope")
     func oauth2InsufficientScope() {
         let validator = AuthValidator(config: config)
-        let result = validator.evaluate(.oauth2(scopes: ["admin"]), context: AuthContext(authorizationHeader: "Bearer valid-oauth-token"))
+        let result = validator.evaluate(
+            .oauth2(scopes: ["admin"]), context: AuthContext(authorizationHeader: "Bearer valid-oauth-token"))
         if case .forbidden(_, let challenge) = result {
             #expect(challenge?.contains("insufficient_scope") == true)
         } else {
@@ -172,7 +179,8 @@ struct AuthValidatorTests {
     @Test("OAuth2 forbids scoped access when token scope map is missing")
     func oauth2MissingScopeMapForScopedRequirement() {
         let validator = AuthValidator(config: AuthConfig(oauth2Tokens: ["valid-oauth-token"]))
-        let result = validator.evaluate(.oauth2(scopes: ["admin"]), context: AuthContext(authorizationHeader: "Bearer valid-oauth-token"))
+        let result = validator.evaluate(
+            .oauth2(scopes: ["admin"]), context: AuthContext(authorizationHeader: "Bearer valid-oauth-token"))
 
         if case .forbidden(let msg, let challenge) = result {
             #expect(msg.contains("Insufficient scope"))
@@ -186,7 +194,9 @@ struct AuthValidatorTests {
     @Test("OpenID Connect uses OAuth2 bearer token validation")
     func openIdConnectValidatesLikeOauth2() {
         let validator = AuthValidator(config: config)
-        let result = validator.evaluate(.openIdConnect(scopes: ["write:pets"]), context: AuthContext(authorizationHeader: "Bearer valid-oauth-token"))
+        let result = validator.evaluate(
+            .openIdConnect(scopes: ["write:pets"]),
+            context: AuthContext(authorizationHeader: "Bearer valid-oauth-token"))
         #expect(result == .allowed)
     }
 

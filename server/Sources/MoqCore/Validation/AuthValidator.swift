@@ -1,5 +1,4 @@
 import Foundation
-
 import Logging
 
 private let logger = Logger(label: "moqserver.core.AuthValidator")
@@ -48,7 +47,8 @@ public struct AuthValidator: AuthValidating {
 
         case .bearer:
             guard let authHeader = context.authorizationHeader,
-                  authHeader.lowercased().hasPrefix("bearer ") else {
+                authHeader.lowercased().hasPrefix("bearer ")
+            else {
                 logger.debug("Bearer token missing from request")
                 return .unauthorized(
                     message: "Bearer token required",
@@ -57,7 +57,8 @@ public struct AuthValidator: AuthValidating {
             }
             let token = String(authHeader.dropFirst("Bearer ".count))
             if let validTokens = config?.bearerTokens, !validTokens.isEmpty,
-               !validTokens.contains(where: { SecureCompare.equals(token, $0) }) {
+                !validTokens.contains(where: { SecureCompare.equals(token, $0) })
+            {
                 logger.debug("Invalid bearer token provided")
                 return .unauthorized(
                     message: "Invalid bearer token",
@@ -68,7 +69,8 @@ public struct AuthValidator: AuthValidating {
 
         case .basic:
             guard let authHeader = context.authorizationHeader,
-                  authHeader.lowercased().hasPrefix("basic ") else {
+                authHeader.lowercased().hasPrefix("basic ")
+            else {
                 logger.debug("Basic auth header missing from request")
                 return .unauthorized(
                     message: "Basic auth required",
@@ -78,7 +80,8 @@ public struct AuthValidator: AuthValidating {
             let encoded = String(authHeader.dropFirst("Basic ".count))
             if let validCreds = config?.basicCredentials, !validCreds.isEmpty {
                 guard let decoded = Data(base64Encoded: encoded),
-                      let credString = String(data: decoded, encoding: .utf8) else {
+                    let credString = String(data: decoded, encoding: .utf8)
+                else {
                     logger.debug("Invalid basic auth encoding")
                     return .unauthorized(
                         message: "Invalid basic auth encoding",
@@ -87,10 +90,11 @@ public struct AuthValidator: AuthValidating {
                 }
                 let parts = credString.split(separator: ":", maxSplits: 1)
                 guard parts.count == 2,
-                      validCreds.contains(where: {
-                          SecureCompare.equals(String(parts[0]), $0.username) &&
-                          SecureCompare.equals(String(parts[1]), $0.password)
-                      }) else {
+                    validCreds.contains(where: {
+                        SecureCompare.equals(String(parts[0]), $0.username)
+                            && SecureCompare.equals(String(parts[1]), $0.password)
+                    })
+                else {
                     logger.debug("Invalid basic auth credentials")
                     return .unauthorized(
                         message: "Invalid credentials",
@@ -115,7 +119,8 @@ public struct AuthValidator: AuthValidating {
                 )
             }
             if let validKeys = config?.apiKeys, let expectedKey = validKeys[headerName],
-               !SecureCompare.equals(value, expectedKey) {
+                !SecureCompare.equals(value, expectedKey)
+            {
                 logger.debug("Invalid API key for header '\(headerName)'")
                 return .unauthorized(message: "Invalid API key", wwwAuthenticate: nil)
             }
@@ -123,7 +128,8 @@ public struct AuthValidator: AuthValidating {
 
         case .oauth2(let requiredScopes), .openIdConnect(let requiredScopes):
             guard let authHeader = context.authorizationHeader,
-                  authHeader.lowercased().hasPrefix("bearer ") else {
+                authHeader.lowercased().hasPrefix("bearer ")
+            else {
                 logger.debug("OAuth2 access token missing from request")
                 let scopeStr = requiredScopes.isEmpty ? "" : ", scope=\"\(requiredScopes.joined(separator: " "))\""
                 return .unauthorized(
@@ -135,7 +141,8 @@ public struct AuthValidator: AuthValidating {
             let token = String(authHeader.dropFirst("Bearer ".count))
             let validTokens = config?.oauth2Tokens ?? config?.bearerTokens
             if let validTokens, !validTokens.isEmpty,
-               !validTokens.contains(where: { SecureCompare.equals(token, $0) }) {
+                !validTokens.contains(where: { SecureCompare.equals(token, $0) })
+            {
                 logger.debug("Invalid or expired OAuth2 access token")
                 let scopeStr = requiredScopes.isEmpty ? "" : ", scope=\"\(requiredScopes.joined(separator: " "))\""
                 return .unauthorized(
@@ -150,7 +157,8 @@ public struct AuthValidator: AuthValidating {
                     let scopeStr = requiredScopes.joined(separator: " ")
                     return .forbidden(
                         message: "Insufficient scope",
-                        wwwAuthenticate: "Bearer realm=\"mock-server\", error=\"insufficient_scope\", scope=\"\(scopeStr)\""
+                        wwwAuthenticate:
+                            "Bearer realm=\"mock-server\", error=\"insufficient_scope\", scope=\"\(scopeStr)\""
                     )
                 }
 
@@ -161,7 +169,8 @@ public struct AuthValidator: AuthValidating {
                     let scopeStr = requiredScopes.joined(separator: " ")
                     return .forbidden(
                         message: "Insufficient scope",
-                        wwwAuthenticate: "Bearer realm=\"mock-server\", error=\"insufficient_scope\", scope=\"\(scopeStr)\""
+                        wwwAuthenticate:
+                            "Bearer realm=\"mock-server\", error=\"insufficient_scope\", scope=\"\(scopeStr)\""
                     )
                 }
             }

@@ -3,6 +3,7 @@ import Testing
 import Vapor
 import VaporTesting
 import XCTVapor
+
 @testable import MoqCore
 @testable import MoqRuntime
 
@@ -52,7 +53,8 @@ struct AuthValidationTests {
         let app = try await buildApp(store: store, config: config)
         defer { Task { try? await app.asyncShutdown() } }
 
-        try await app.testing().test(.GET, "/secured", headers: ["Authorization": "Bearer valid-oauth-token"]) { res async in
+        try await app.testing().test(.GET, "/secured", headers: ["Authorization": "Bearer valid-oauth-token"]) {
+            res async in
             #expect(res.status == .ok)
         }
     }
@@ -80,7 +82,8 @@ struct AuthValidationTests {
         let app = try await buildApp(store: store, config: config)
         defer { Task { try? await app.asyncShutdown() } }
 
-        try await app.testing().test(.GET, "/secured-scope", headers: ["Authorization": "Bearer valid-oauth-token"]) { res async in
+        try await app.testing().test(.GET, "/secured-scope", headers: ["Authorization": "Bearer valid-oauth-token"]) {
+            res async in
             #expect(res.status == .forbidden)
             let wwwAuth = res.headers.first(name: "WWW-Authenticate")
             #expect(wwwAuth?.contains("insufficient_scope") == true)
@@ -268,7 +271,8 @@ struct AuthValidationTests {
         try await app.testing().test(
             .POST, "/_auth/token",
             headers: ["Content-Type": "application/x-www-form-urlencoded"],
-            body: ByteBuffer(string: "grant_type=authorization_code&code=any-code&redirect_uri=http://localhost/callback")
+            body: ByteBuffer(
+                string: "grant_type=authorization_code&code=any-code&redirect_uri=http://localhost/callback")
         ) { res async in
             #expect(res.status == .ok)
             let body = res.body.string
@@ -355,7 +359,8 @@ struct AuthValidationTests {
         try await app.testing().test(
             .POST, "/_auth/token",
             headers: ["Content-Type": "application/x-www-form-urlencoded"],
-            body: ByteBuffer(string: "grant_type=client_credentials&client_id=client1&client_secret=secret1&scope=admin%20read")
+            body: ByteBuffer(
+                string: "grant_type=client_credentials&client_id=client1&client_secret=secret1&scope=admin%20read")
         ) { res async in
             #expect(res.status == .ok)
             let body = res.body.string
@@ -421,7 +426,8 @@ struct AuthValidationTests {
         let app = try await buildApp(store: store, config: config)
         defer { Task { try? await app.asyncShutdown() } }
 
-        try await app.testing().test(.GET, "/_auth/authorize?redirect_uri=http://example.com/cb&state=xyz") { res async in
+        try await app.testing().test(.GET, "/_auth/authorize?redirect_uri=http://example.com/cb&state=xyz") {
+            res async in
             #expect(res.status == .found)
             let location = res.headers.first(name: "Location")
             #expect(location != nil)

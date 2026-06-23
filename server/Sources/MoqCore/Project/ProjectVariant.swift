@@ -32,7 +32,8 @@ public struct ProjectVariant: Codable, Sendable, Equatable {
     ) {
         let normalizedReferenceName = referenceName?.trimmingCharacters(in: .whitespacesAndNewlines)
         self.name = name
-        self.referenceName = normalizedReferenceName.flatMap { $0.isEmpty ? nil : $0 }
+        self.referenceName =
+            normalizedReferenceName.flatMap { $0.isEmpty ? nil : $0 }
             ?? defaultReferenceNameForVariantName(name)
         self.isDefault = isDefault
         self.status = status

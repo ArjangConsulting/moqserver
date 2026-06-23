@@ -25,24 +25,24 @@ private data class StatusBadgeColors(val background: Color, val foreground: Colo
 @Composable
 private fun statusBadgeColors(status: Int): StatusBadgeColors {
 	val isDark = MaterialTheme.colorScheme.surface.luminance() < 0.5f
-	return when (status) {
-		in 200..299 -> when {
+	return when (httpStatusClass(status)) {
+		HttpStatusClass.SUCCESS -> when {
 			isDark -> StatusBadgeColors(StudioColors.httpSuccessContainerDark, StudioColors.httpSuccessOnContainerDark)
 			else -> StatusBadgeColors(StudioColors.httpSuccessContainerLight, StudioColors.httpSuccessOnContainerLight)
 		}
-		in 300..399 -> when {
+		HttpStatusClass.REDIRECT -> when {
 			isDark -> StatusBadgeColors(StudioColors.httpRedirectContainerDark, StudioColors.httpRedirectOnContainerDark)
 			else -> StatusBadgeColors(StudioColors.httpRedirectContainerLight, StudioColors.httpRedirectOnContainerLight)
 		}
-		in 400..499 -> when {
+		HttpStatusClass.CLIENT_ERROR -> when {
 			isDark -> StatusBadgeColors(StudioColors.httpClientErrorContainerDark, StudioColors.httpClientErrorOnContainerDark)
 			else -> StatusBadgeColors(StudioColors.httpClientErrorContainerLight, StudioColors.httpClientErrorOnContainerLight)
 		}
-		in 500..599 -> when {
+		HttpStatusClass.SERVER_ERROR -> when {
 			isDark -> StatusBadgeColors(StudioColors.httpServerErrorContainerDark, StudioColors.httpServerErrorOnContainerDark)
 			else -> StatusBadgeColors(StudioColors.httpServerErrorContainerLight, StudioColors.httpServerErrorOnContainerLight)
 		}
-		else -> when {
+		HttpStatusClass.OTHER -> when {
 			isDark -> StatusBadgeColors(StudioColors.httpUnknownContainerDark, StudioColors.httpUnknownOnContainerDark)
 			else -> StatusBadgeColors(StudioColors.httpUnknownContainerLight, StudioColors.httpUnknownOnContainerLight)
 		}
@@ -51,13 +51,12 @@ private fun statusBadgeColors(status: Int): StatusBadgeColors {
 
 @Composable
 fun MethodBadge(method: String) {
-	val color = when (method.uppercase()) {
-		"GET" -> MaterialTheme.colorScheme.primary
-		"POST" -> MaterialTheme.colorScheme.tertiary
-		"PUT" -> MaterialTheme.colorScheme.secondary
-		"PATCH" -> MaterialTheme.colorScheme.secondary
-		"DELETE" -> MaterialTheme.colorScheme.error
-		else -> MaterialTheme.colorScheme.outline
+	val color = when (httpMethodRole(method)) {
+		HttpMethodRole.PRIMARY -> MaterialTheme.colorScheme.primary
+		HttpMethodRole.TERTIARY -> MaterialTheme.colorScheme.tertiary
+		HttpMethodRole.SECONDARY -> MaterialTheme.colorScheme.secondary
+		HttpMethodRole.ERROR -> MaterialTheme.colorScheme.error
+		HttpMethodRole.OUTLINE -> MaterialTheme.colorScheme.outline
 	}
 
 	Text(

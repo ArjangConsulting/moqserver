@@ -8,7 +8,7 @@ For cross-repo workflow and shared expectations, see the root `AGENTS.md`.
 
 ## Tech Stack
 
-- **Language**: Swift 5.10+
+- **Language**: Swift 5.10+ (package `swift-tools-version:5.10`); built and tested with the Swift 6.2 toolchain in CI
 - **Framework**: Vapor 4.121.x (async/await only — prepared for Vapor 5 migration)
 - **Project Format**: `.moqproj` directory bundles (YAML manifest + endpoint files, parsed with Yams)
 - **CLI**: ArgumentParser (decoupled from Vapor lifecycle)
@@ -46,11 +46,9 @@ The server is split into focused Swift package targets (see `Package.swift`):
 
 Dependency direction: `Run → MoqCLI → MoqRuntime → MoqFormat → MoqCore`
 
-> **Note:** `Sources/MoqCompanionAI/` exists on disk but is **not** a target in
-> `Package.swift` and is not built by the package, Makefile, or CI. Treat it as
-> experimental/legacy. AI provider calls now live in Studio (`studio-ai`), not in a
-> server-side companion process. Do not assume it compiles or ships; confirm with the
-> maintainer before reviving or removing it.
+> **Note:** AI provider calls live in Studio (`studio-ai`), not in a server-side
+> companion process. The server is intentionally AI-free at runtime so that mocks
+> serve deterministically.
 
 ## Architecture
 

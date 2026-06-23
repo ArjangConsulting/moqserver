@@ -37,7 +37,8 @@ public struct ValidateCommand: ParsableCommand {
             logger.info("Project is valid", metadata: ["name": "\(moqProject.manifest.name)"])
             print("Project \"\(moqProject.manifest.name)\" is valid.")
         } else {
-            logger.warning("Project validation issues", metadata: ["errors": "\(errors.count)", "warnings": "\(warnings.count)"])
+            logger.warning(
+                "Project validation issues", metadata: ["errors": "\(errors.count)", "warnings": "\(warnings.count)"])
             print("\n\(errors.count) error(s), \(warnings.count) warning(s)")
         }
 

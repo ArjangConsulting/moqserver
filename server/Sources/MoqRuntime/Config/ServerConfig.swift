@@ -54,7 +54,9 @@ public struct ServerConfig: Codable, Sendable, ServerConfiguring {
         public func toAuthConfig() -> AuthConfig {
             AuthConfig(
                 bearerTokens: bearerTokens,
-                basicCredentials: basicCredentials?.map { BasicCredential(username: $0.username, password: $0.password) },
+                basicCredentials: basicCredentials?.map {
+                    BasicCredential(username: $0.username, password: $0.password)
+                },
                 apiKeys: apiKeys,
                 oauth2Tokens: oauth2Tokens,
                 oauth2TokenScopes: oauth2TokenScopes

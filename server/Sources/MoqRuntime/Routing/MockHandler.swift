@@ -1,5 +1,4 @@
 import Foundation
-
 import Logging
 import MoqCore
 import Vapor
@@ -170,7 +169,9 @@ public struct MockHandler: Sendable {
         }
     }
 
-    private func authErrorResponse(status: Vapor.HTTPResponseStatus, message: String, wwwAuthenticate: String?) -> Response {
+    private func authErrorResponse(
+        status: Vapor.HTTPResponseStatus, message: String, wwwAuthenticate: String?
+    ) -> Response {
         var headers: HTTPHeaders = ["Content-Type": "application/json"]
         if let wwwAuthenticate {
             headers.add(name: "WWW-Authenticate", value: wwwAuthenticate)
@@ -197,7 +198,8 @@ public struct MockHandler: Sendable {
         }
 
         // Try variants with explicit requestMatch constraints first
-        if let constrained = primaryCandidates.first(where: { $0.requestMatch != nil && variantMatches($0, req: req) }) {
+        if let constrained = primaryCandidates.first(where: { $0.requestMatch != nil && variantMatches($0, req: req) })
+        {
             return constrained
         }
 
@@ -228,7 +230,7 @@ public struct MockHandler: Sendable {
     /// Parsed Accept header entry with quality factor.
     private struct AcceptEntry {
         let mediaType: String  // e.g. "application/json", "text/*", "*/*"
-        let quality: Double    // 0.0–1.0 (default 1.0)
+        let quality: Double  // 0.0–1.0 (default 1.0)
     }
 
     /// Parses an Accept header into entries sorted by quality (descending).
@@ -242,7 +244,8 @@ public struct MockHandler: Sendable {
             var quality = 1.0
             for segment in segments.dropFirst() {
                 if segment.lowercased().hasPrefix("q="),
-                   let q = Double(segment.dropFirst(2)) {
+                    let q = Double(segment.dropFirst(2))
+                {
                     quality = q
                 }
             }
@@ -275,9 +278,10 @@ public struct MockHandler: Sendable {
         if variantType == accept { return true }
 
         let acceptParts = accept.split(separator: "/", maxSplits: 1).map(String.init)
-        let variantParts = variantType.split(separator: ";").first.map {
-            $0.trimmingCharacters(in: .whitespaces)
-        }?.split(separator: "/", maxSplits: 1).map(String.init) ?? []
+        let variantParts =
+            variantType.split(separator: ";").first.map {
+                $0.trimmingCharacters(in: .whitespaces)
+            }?.split(separator: "/", maxSplits: 1).map(String.init) ?? []
 
         guard acceptParts.count == 2, variantParts.count == 2 else { return false }
 
@@ -301,7 +305,8 @@ public struct MockHandler: Sendable {
 
         if let snippet = match.bodyContains {
             guard let bodyString = requestBodyString(req),
-                  bodyString.contains(snippet) else {
+                bodyString.contains(snippet)
+            else {
                 return false
             }
         }
@@ -358,7 +363,9 @@ public struct MockHandler: Sendable {
     /// hang requests indefinitely or overflow the nanosecond conversion in `Task.sleep`.
     private static let maxDelaySeconds: TimeInterval = 300
 
-    private func effectiveDelay(for endpoint: Endpoint, variant: ResponseVariant, endpointKeyString: String) -> TimeInterval? {
+    private func effectiveDelay(
+        for endpoint: Endpoint, variant: ResponseVariant, endpointKeyString: String
+    ) -> TimeInterval? {
         let variantDelay = variant.delay ?? config?.effectiveDelay(for: endpointKeyString) ?? 0
         let network = endpoint.network
         let latency = TimeInterval((network?.latencyMs ?? 0)) / 1000.0
@@ -402,8 +409,9 @@ public struct MockHandler: Sendable {
     /// Parses a GraphQL JSON request body: `{ "query": "...", "operationName": "...", "variables": {...} }`
     private func parseGraphQLBody(_ req: Request) -> GraphQLRequestBody? {
         guard let bodyData = req.body.data,
-              let bytes = bodyData.getBytes(at: bodyData.readerIndex, length: bodyData.readableBytes),
-              let json = try? JSONSerialization.jsonObject(with: Data(bytes)) as? [String: Any] else {
+            let bytes = bodyData.getBytes(at: bodyData.readerIndex, length: bodyData.readableBytes),
+            let json = try? JSONSerialization.jsonObject(with: Data(bytes)) as? [String: Any]
+        else {
             return nil
         }
         // Must have a "query" field to be considered GraphQL

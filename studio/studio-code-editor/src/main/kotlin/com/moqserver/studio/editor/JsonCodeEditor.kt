@@ -35,7 +35,7 @@ fun JsonCodeEditor(
 	)
 }
 
-private class JsonEditorPanel(
+internal class JsonEditorPanel(
 	initialText: String,
 	onTextChange: (String) -> Unit,
 	syntaxStyle: String,
@@ -43,7 +43,7 @@ private class JsonEditorPanel(
 	backgroundColor: Color,
 	foregroundColor: Color,
 ) : JPanel(BorderLayout()) {
-	private val textArea = RSyntaxTextArea(20, 80).apply {
+	internal val textArea = RSyntaxTextArea(20, 80).apply {
 		text = initialText
 		syntaxEditingStyle = syntaxStyle
 		isEditable = !readOnly
