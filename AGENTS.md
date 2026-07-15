@@ -37,6 +37,7 @@ Do not duplicate those product guides in new files unless the repo structure cha
 - Do not move logic across products.
 - Add or update tests with behavior changes unless the change is truly trivial.
 - If skipping tests, say why in the final summary.
+- Shared format CI is defined in `.github/workflows/format.yml`; security automation is in `.github/workflows/security.yml` and `.github/dependabot.yml`.
 
 ## Common Commands
 - Run all commands from the repo root unless noted otherwise.
@@ -63,8 +64,8 @@ Do not duplicate those product guides in new files unless the repo structure cha
 - Full test suite: `cd server && swift test`
 - Single test target: `cd server && swift test --filter MoqRuntimeTests`
 - Single test case: `cd server && swift test --filter "testAdminAPI"`
-- Run server: `cd server && swift run Run serve --project Tests/MoqFormatTests/Fixtures/sample-app.moqproj --port 8080`
-- Validate project bundle: `cd server && swift run Run validate --project path/to/project.moqproj`
+- Run server: `cd server && swift run moqserver serve --project Tests/MoqFormatTests/Fixtures/sample-app.moqproj --port 8080`
+- Validate project bundle: `cd server && swift run moqserver validate --project path/to/project.moqproj`
 
 ## Server Test Targets
 - `MoqCoreTests`

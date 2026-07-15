@@ -12,6 +12,7 @@ val macBundleIconName = "moqserver-studio.icns"
 val macAppIconFile = "src/desktopMain/resources/icons/icon.icns"
 val linuxAppIconFile = "src/desktopMain/resources/icons/icon.png"
 val windowsAppIconFile = "src/desktopMain/resources/icons/icon.ico"
+val nativePackageVersion = project.version.toString().substringBefore('-').substringBefore('+')
 
 kotlin {
     jvm("desktop")
@@ -64,11 +65,14 @@ kotlin {
 compose.desktop {
     application {
         mainClass = "com.moqserver.studio.MainKt"
-        jvmArgs += listOf("-Dapple.awt.application.name=moqserver Studio")
+        jvmArgs += listOf(
+            "-Dapple.awt.application.name=moqserver Studio",
+            "-Dmoqserver.studio.version=${project.version}",
+        )
 
         nativeDistributions {
             packageName = "moqserver-studio"
-            packageVersion = project.version.toString()
+            packageVersion = nativePackageVersion
             description = "Desktop authoring tool for moqserver projects"
             vendor = "moqserver"
             copyright = "Copyright 2026 moqserver contributors"

@@ -4,6 +4,7 @@ import com.moqserver.studio.projectformat.MatchType
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
+import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 
@@ -374,6 +375,33 @@ class HARImportParserTest {
 		// JWT header and payload are preserved, only signature is stripped
 		val customToken = response.headers["X-Correlation-Token"]
 		assertEquals("$jwtHeader.$jwtPayload.redacted", customToken)
+	}
+
+	@Test
+	fun `redacts sensitive response json fields and discloses heuristic limitation`() {
+		val har = harDocument(
+			entry(
+				request = """
+					"method": "GET",
+					"url": "https://api.test/session"
+				""".trimIndent(),
+				response = """
+					"status": 200,
+					"content": {
+					  "mimeType": "application/json",
+					  "text": "{\"token\":\"secret\",\"profile\":{\"email\":\"person@example.com\",\"name\":\"Sam\"}}"
+					}
+				""".trimIndent(),
+			),
+		)
+
+		val spec = parser.parse(har)
+		val body = spec.endpoints.single().responses.single().body.orEmpty()
+
+		assertFalse(body.contains("secret"))
+		assertFalse(body.contains("person@example.com"))
+		assertTrue(body.contains("[redacted]"))
+		assertTrue(spec.warnings.single().contains("heuristically"))
 	}
 
 	private fun harDocument(vararg entries: String, creator: String = "", version: String = "1.2"): String {

@@ -1,4 +1,4 @@
-// swift-tools-version:5.10
+// swift-tools-version:6.1
 import PackageDescription
 
 let package = Package(
@@ -6,11 +6,15 @@ let package = Package(
     platforms: [
         .macOS(.v12)
     ],
+    products: [
+        .executable(name: "moqserver", targets: ["Run"])
+    ],
     dependencies: [
-        .package(url: "https://github.com/vapor/vapor.git", from: "4.121.4"),
-        .package(url: "https://github.com/jpsim/Yams.git", from: "6.2.1"),
-        .package(url: "https://github.com/apple/swift-argument-parser.git", from: "1.7.1"),
-        .package(url: "https://github.com/apple/swift-log.git", from: "1.12.0"),
+        .package(url: "https://github.com/vapor/vapor.git", from: "4.122.0"),
+        .package(url: "https://github.com/jpsim/Yams.git", from: "6.2.2"),
+        .package(url: "https://github.com/apple/swift-argument-parser.git", from: "1.8.2"),
+        .package(url: "https://github.com/apple/swift-log.git", from: "1.14.0"),
+        .package(url: "https://github.com/apple/swift-nio.git", from: "2.101.2"),
     ],
     targets: [
         // MARK: - MoqCore
@@ -41,6 +45,7 @@ let package = Package(
             name: "MoqRuntime",
             dependencies: [
                 .target(name: "MoqCore"),
+                .product(name: "NIOCore", package: "swift-nio"),
                 .product(name: "Vapor", package: "vapor"),
                 .product(name: "Yams", package: "Yams"),
             ],

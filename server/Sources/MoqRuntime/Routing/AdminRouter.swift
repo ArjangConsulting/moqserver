@@ -5,7 +5,7 @@ private let logger = Logger(label: "moqserver.runtime.AdminRouter")
 
 /// Registers admin API routes under /_admin/*.
 /// Must be registered BEFORE catch-all mock routes.
-public struct AdminRouter {
+public struct AdminRouter: Sendable {
     let handler: AdminHandler
 
     public init(handler: AdminHandler) {

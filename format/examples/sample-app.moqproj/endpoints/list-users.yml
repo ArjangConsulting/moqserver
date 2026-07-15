@@ -1,5 +1,6 @@
 id: list-users
 alias: "List Users"
+description: "Returns the users visible to the caller"
 method: GET
 path: /api/v1/users
 tags: [users, core]
@@ -19,6 +20,7 @@ request_rules:
 
 variants:
   - name: success
+    description: "A populated user list"
     default: true
     status: 200
     headers:
@@ -27,7 +29,13 @@ variants:
     delay_ms: 50
 
   - name: empty
+    description: "Selected when the empty query flag is present"
     status: 200
+    headers:
+      Content-Type: "application/json"
+    request_match:
+      query:
+        empty: "true"
     body:
       users: []
       total: 0

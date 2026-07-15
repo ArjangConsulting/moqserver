@@ -745,6 +745,21 @@ class ProjectRepositoryTest {
     }
 
     @Test
+    fun `failed save leaves existing destination unchanged`() {
+        val destination = kotlin.io.path.createTempDirectory("moqproj-transaction").toFile()
+        val marker = File(destination, "marker.txt").apply { writeText("original") }
+        val project = projectWithBodyFile("fixtures/missing.json", destination.absolutePath)
+
+        try {
+            assertFailsWith<IllegalArgumentException> { repo.save(project, destination.absolutePath) }
+            assertEquals("original", marker.readText())
+            assertFalse(File(destination, MoqProjectFormat.MANIFEST_FILE).exists())
+        } finally {
+            destination.deleteRecursively()
+        }
+    }
+
+    @Test
     fun `save externalizes inline response bodies into fixture files`() {
         val endpoint = EndpointDocument(
             id = "get-notes",
@@ -899,7 +914,7 @@ class ProjectRepositoryTest {
 		val escaped = File(tempDir.parentFile, "moqproj-escaped-${'$'}{tempDir.name}.txt")
 		try {
 			val project = projectWithBodyFile("../${'$'}{escaped.name}", tempDir.absolutePath)
-			assertFailsWith<IllegalStateException> {
+			assertFailsWith<IllegalArgumentException> {
 				repo.save(project, tempDir.absolutePath)
 			}
 			assertFalse(escaped.exists())
@@ -915,7 +930,7 @@ class ProjectRepositoryTest {
 		val escaped = File(tempDir.parentFile, "moqproj-dotdot-${'$'}{tempDir.name}.txt")
 		try {
 			val project = projectWithBodyFile("fixtures/../../${'$'}{escaped.name}", tempDir.absolutePath)
-			assertFailsWith<IllegalStateException> {
+			assertFailsWith<IllegalArgumentException> {
 				repo.save(project, tempDir.absolutePath)
 			}
 			assertFalse(escaped.exists())

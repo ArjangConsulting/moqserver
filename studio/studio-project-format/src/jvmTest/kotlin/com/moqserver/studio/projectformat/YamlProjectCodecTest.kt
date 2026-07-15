@@ -592,4 +592,36 @@ class YamlProjectCodecTest {
 		assertEquals(MatchType.CONTAINS, decoded.requestRules.headers[1].matchType)
 		assertEquals(MatchType.MATCHES_REGEX, decoded.requestRules.headers[2].matchType)
 	}
+
+	@Test
+	fun `decode rejects unknown auth type`() {
+		val yaml = """
+			version: "1"
+			name: Test
+			defaults:
+			  auth:
+			    type: typo
+			    verify: false
+			  network: {}
+		""".trimIndent()
+
+		val error = assertFailsWith<IllegalArgumentException> { codec.decodeManifest(yaml) }
+		assertTrue(error.message.orEmpty().contains("Unknown auth.type value"))
+	}
+
+	@Test
+	fun `decode rejects unknown match and operation enum values`() {
+		val endpointYaml = """
+			id: test
+			method: GET
+			path: /test
+			operation:
+			  type: typo
+			variants:
+			  - name: default
+			    status: 200
+		""".trimIndent()
+
+		assertFailsWith<IllegalArgumentException> { codec.decodeEndpoint(endpointYaml) }
+	}
 }

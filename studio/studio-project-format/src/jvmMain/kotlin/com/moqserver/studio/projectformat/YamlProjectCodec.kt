@@ -55,7 +55,7 @@ class YamlProjectCodec {
             "basic" -> AuthType.BASIC
             "api-key" -> AuthType.API_KEY
             "header" -> AuthType.HEADER
-            else -> AuthType.NONE
+            else -> throw unknownEnum("auth.type", typeStr)
         }
         return ProjectAuthConfig(
             type = type,
@@ -104,7 +104,7 @@ class YamlProjectCodec {
             "gte" -> MatchType.GTE
             "lt" -> MatchType.LT
             "lte" -> MatchType.LTE
-            else -> null
+            else -> throw unknownEnum("match_type", value)
         }
     }
 
@@ -167,7 +167,7 @@ class YamlProjectCodec {
             "query" -> OperationType.QUERY
             "mutation" -> OperationType.MUTATION
             "subscription" -> OperationType.SUBSCRIPTION
-            else -> OperationType.QUERY
+            else -> throw unknownEnum("operation.type", typeStr)
         }
         return EndpointOperation(
             type = type,
@@ -175,6 +175,9 @@ class YamlProjectCodec {
             document = map.str("document"),
         )
     }
+
+    private fun unknownEnum(field: String, value: String): IllegalArgumentException =
+        IllegalArgumentException("Unknown $field value: \"$value\".")
 
     private fun parseVariant(map: Map<*, *>): ProjectVariant {
         val name = map.str("name") ?: throw missing("name", "variant")

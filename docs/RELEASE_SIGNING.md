@@ -1,100 +1,57 @@
 # Release Signing
 
-How Studio release artifacts are signed across platforms. Signing in the
-`Release` workflow (`.github/workflows/release.yml`) is **secret-gated**: if a
-platform's secrets are absent, the workflow still builds and uploads **unsigned**
-artifacts plus SHA-256 checksums, so a release never blocks on certificates.
+Stable releases fail during preflight unless all required macOS signing/notarization and Linux signing credentials are available. Explicit SemVer prereleases, for example `1.2.3-rc.1`, may publish unsigned packages. Every artifact also receives a portable OpenSSL SHA-256 checksum and GitHub build-provenance attestation.
 
-| Platform | Mechanism | Status | Required secrets |
-|----------|-----------|--------|------------------|
-| macOS | Developer ID signing + notarization (notarytool) | Wired | `APPLE_*` (below) |
-| Linux | GPG detached signature (`.deb.asc`) + SHA-256 | Wired (key optional) | `GPG_PRIVATE_KEY`, `GPG_PASSPHRASE` |
-| Windows | Authenticode on the MSI | Unsigned for now | — (see below) |
-
-All artifacts always get a `*.sha256` checksum file regardless of signing.
+| Platform | Stable release policy | Required secrets |
+|----------|-----------------------|------------------|
+| macOS | Developer ID signed, notarized, and stapled | All `APPLE_*` secrets below |
+| Linux | GPG detached signature | `GPG_PRIVATE_KEY`, `GPG_PASSPHRASE` |
+| Windows | No stable MSI until Authenticode is configured | Prerelease MSI is unsigned |
 
 ## macOS
 
-Signing/notarization is configured in `studio/composeApp/build.gradle.kts`
-(`compose.desktop.application.nativeDistributions.macOS`) and driven by env vars,
-which CI maps from secrets.
-
-**Prerequisites**
-
-1. Apple Developer Program membership ($99/year).
-2. A **Developer ID Application** certificate. Create it in the Apple Developer
-   portal, install into your login keychain, then export as a `.p12` (with a
-   password). This cert is for distribution **outside** the App Store.
-3. An **app-specific password** for your Apple ID (appleid.apple.com → Sign-In and
-   Security → App-Specific Passwords) for notarytool.
-4. Your **Team ID** (Apple Developer → Membership).
-
-**Repository secrets**
+Create a Developer ID Application certificate for distribution outside the App Store, export it as a password-protected PKCS#12 file, and create an Apple ID app-specific password for `notarytool`.
 
 | Secret | Value |
 |--------|-------|
-| `APPLE_CERTIFICATE_P12_BASE64` | `base64 -i DeveloperID.p12` output |
-| `APPLE_CERTIFICATE_PASSWORD` | password used when exporting the `.p12` |
-| `APPLE_SIGNING_IDENTITY` | e.g. `Developer ID Application: Your Name (TEAMID)` |
-| `APPLE_ID` | Apple ID email used for notarization |
-| `APPLE_NOTARIZATION_PASSWORD` | the app-specific password |
-| `APPLE_TEAM_ID` | your 10-character Team ID |
+| `APPLE_CERTIFICATE_P12_BASE64` | Base64-encoded `.p12` certificate |
+| `APPLE_CERTIFICATE_PASSWORD` | `.p12` export password |
+| `APPLE_SIGNING_IDENTITY` | `Developer ID Application: Name (TEAMID)` |
+| `APPLE_ID` | Notarization Apple ID |
+| `APPLE_NOTARIZATION_PASSWORD` | App-specific password |
+| `APPLE_TEAM_ID` | Apple Developer Team ID |
 
-With all of the above present, CI runs `:composeApp:notarizeDmg` (signs the app,
-builds the DMG, submits to notarytool, and staples the ticket). With only the
-certificate secrets, it signs but does not notarize. With none, it builds an
-unsigned DMG.
-
-To base64-encode the certificate:
-
-```bash
-base64 -i DeveloperID.p12 | pbcopy   # macOS, copies to clipboard
-```
+Encode the certificate on macOS with `base64 -i DeveloperID.p12 | pbcopy`. The workflow imports it into a temporary keychain and runs `:composeApp:notarizeDmg` for stable tags.
 
 ## Linux
 
-Linux has no OS-level code signing. We publish a **detached GPG signature** and a
-SHA-256 checksum next to the `.deb` so users can verify authenticity.
-
-**Generate a signing key (one time)**
+Generate a dedicated release key and keep only its public key in public distribution channels:
 
 ```bash
-gpg --quick-generate-key "moqserver releases <releases@moqserver.example>" rsa4096 sign 2y
+gpg --quick-generate-key "moqserver releases" rsa4096 sign 2y
 gpg --armor --export-secret-keys <KEY_ID> > moqserver-release-private.asc
-gpg --armor --export <KEY_ID> > moqserver-release-public.asc   # publish this
+gpg --armor --export <KEY_ID> > moqserver-release-public.asc
 ```
 
-**Repository secrets**
-
-| Secret | Value |
-|--------|-------|
-| `GPG_PRIVATE_KEY` | contents of `moqserver-release-private.asc` |
-| `GPG_PASSPHRASE` | passphrase for that key |
-
-Publish the **public** key (`moqserver-release-public.asc`) in the repo or release
-notes so users can run:
+Store the private key content in `GPG_PRIVATE_KEY` and its passphrase in `GPG_PASSPHRASE`. Users verify a release with:
 
 ```bash
-gpg --import moqserver-release-public.asc
 gpg --verify moqserver-studio_*.deb.asc moqserver-studio_*.deb
-sha256sum -c moqserver-studio_*.deb.sha256
+openssl dgst -sha256 -r moqserver-studio_*.deb
 ```
 
-## Windows (future)
+Compare the OpenSSL digest to the downloaded `.sha256` file. The checksum files use the widely supported `<digest> *<filename>` format and contain no runner-specific paths.
 
-Windows artifacts are currently **unsigned** (the MSI is built and checksummed but
-not Authenticode-signed). Since June 2023, OV code-signing keys must live on
-hardware or a cloud HSM, so a plain `.pfx` on a runner is not an option.
+## Provenance
 
-Recommended path when ready:
+GitHub generates Sigstore-backed attestations for server archives, Studio packages, and the GHCR image. After downloading an artifact:
 
-- **Azure Trusted Signing** (~$10/month) — sign with
-  [`azure/trusted-signing-action`](https://github.com/Azure/trusted-signing-action),
-  or
-- **jsign** — a pure-Java Authenticode signer that can run on the Linux runner and
-  sign the MSI via Azure Key Vault / AWS KMS / GCP KMS, avoiding a Windows signing
-  job entirely.
+```bash
+gh attestation verify <artifact> --repo ArjangConsulting/moqserver
+```
 
-When adopted, add the signing step after `:composeApp:packageMsi` in the
-`studio-windows` job and gate it on the cloud-HSM secrets, mirroring the macOS and
-Linux pattern.
+Checksums detect corruption; GPG or platform signing establishes publisher identity; attestations tie an artifact to the GitHub Actions build.
+
+## Windows
+
+The release workflow intentionally omits MSI files from stable releases until Authenticode signing is configured through a hardware- or cloud-backed key provider. Azure Trusted Signing or `jsign` with a supported KMS are suitable future integrations. Do not weaken stable preflight to publish an unsigned MSI.

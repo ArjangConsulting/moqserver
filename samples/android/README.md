@@ -15,7 +15,7 @@ From the repository root:
 
 ```bash
 cd server
-swift run Run serve \
+swift run moqserver serve \
   --project ../samples/server/showcase.moqproj \
   --config ../samples/server/config.yaml \
   --port 8080
@@ -29,6 +29,8 @@ Open `samples/android` in Android Studio and run the `app` module.
 
 - Android Emulator: `http://10.0.2.2:8080`
 - Physical device on same network: `http://<your-mac-lan-ip>:8080`
+
+The debug build permits cleartext HTTP for this local workflow. Release builds disable cleartext traffic; use HTTPS for a distributed build.
 
 ## Test flow
 

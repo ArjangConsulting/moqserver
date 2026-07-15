@@ -6,11 +6,13 @@ import io.ktor.client.engine.cio.CIO
 import io.ktor.client.plugins.HttpTimeout
 import io.ktor.client.request.get
 import io.ktor.client.request.header
-import io.ktor.client.statement.bodyAsText
+import io.ktor.client.statement.bodyAsChannel
 import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.Url
 import io.ktor.http.isSuccess
+import io.ktor.utils.io.readAvailable
+import java.io.ByteArrayOutputStream
 import java.net.URI
 import java.util.Base64
 import javax.net.ssl.SSLException
@@ -56,7 +58,7 @@ class URLFetchException(
  *    and fetches the actual spec.
  *
  * Supports optional Bearer or Basic authentication for protected endpoints.
- * Large responses are streamed to a temp file to avoid excessive memory usage.
+ * Responses are streamed with a hard byte limit to avoid excessive memory usage.
  */
 class OpenAPIURLFetcher(
 	private val client: HttpClient = defaultClient(),
@@ -67,11 +69,20 @@ class OpenAPIURLFetcher(
 		if (contentLength > MAX_RESPONSE_BYTES) {
 			raise(responseTooLargeException(contentLength))
 		}
-		val body = response.bodyAsText()
-		if (body.length > MAX_RESPONSE_BYTES) {
-			raise(responseTooLargeException(body.length.toLong()))
+		val channel = response.bodyAsChannel()
+		val output = ByteArrayOutputStream()
+		val buffer = ByteArray(RESPONSE_BUFFER_BYTES)
+		var totalBytes = 0L
+		var read = channel.readAvailable(buffer)
+		while (read >= 0) {
+			if (read > 0) {
+				totalBytes += read
+				if (totalBytes > MAX_RESPONSE_BYTES) raise(responseTooLargeException(totalBytes))
+				output.write(buffer, 0, read)
+			}
+			read = channel.readAvailable(buffer)
 		}
-		body
+		output.toString(Charsets.UTF_8)
 	}
 	private val fetchDiscoveredSpecAtUrl: suspend (String, URLImportAuth?) -> FetchedSpec = { specUrl, auth ->
 		val response = try {
@@ -101,7 +112,7 @@ class OpenAPIURLFetcher(
 			if (!response.status.isSuccess()) {
 				null
 			} else {
-				val body = response.bodyAsText()
+				val body = readResponseBody(response)
 				asFetchedSpec(body, response.headers[HttpHeaders.ContentType].orEmpty(), candidateUrl)
 			}
 		} catch (e: Exception) {
@@ -245,6 +256,7 @@ class OpenAPIURLFetcher(
 		private const val BYTES_PER_MEGABYTE = 1_048_576L
 		private const val MAX_RESPONSE_BYTES = 50 * BYTES_PER_MEGABYTE
 		private const val BODY_PREFIX_LENGTH = 200
+		private const val RESPONSE_BUFFER_BYTES = 8_192
 		private const val ACCEPT_YAML = "application/x-yaml"
 		private const val ACCEPT_JSON = "application/json"
 		private const val ACCEPT_HTML = "text/html"
@@ -540,7 +552,8 @@ class OpenAPIURLFetcher(
 				connectTimeoutMillis = CONNECT_TIMEOUT_MS
 				requestTimeoutMillis = REQUEST_TIMEOUT_MS
 			}
-			followRedirects = true
+			// Never forward user-supplied credentials to a redirect target implicitly.
+			followRedirects = false
 			expectSuccess = false
 		}
 	}

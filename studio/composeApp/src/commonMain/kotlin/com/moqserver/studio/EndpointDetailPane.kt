@@ -61,6 +61,7 @@ fun EndpointDetailPane(
     aiBodyError: String? = null,
     onVariantReferenceSyncPreferenceChange: (String, VariantReferenceSyncPreference?) -> Unit = { _, _ -> },
     onGenerateBody: (ProjectVariant, String) -> Unit = { _, _ -> },
+    readFixture: (String, String) -> String? = { _, _ -> null },
     initialVariantName: String? = null,
 ) {
     var showDeleteConfirm by remember { mutableStateOf(false) }
@@ -103,6 +104,7 @@ fun EndpointDetailPane(
             originalEndpoint = originalEndpoint,
             onUpdateEndpoint = onUpdateEndpoint,
             projectPath = projectPath,
+            readFixture = readFixture,
             variantReferenceSyncPreference = variantReferenceSyncPreference,
             aiAvailable = aiAvailable,
             aiProvider = aiProvider,
@@ -248,6 +250,7 @@ private fun VariantSection(
     originalEndpoint: EndpointDocument? = null,
     onUpdateEndpoint: (EndpointDocument) -> Unit,
     projectPath: String = "",
+    readFixture: (String, String) -> String? = { _, _ -> null },
     variantReferenceSyncPreference: VariantReferenceSyncPreference? = null,
     aiAvailable: Boolean = false,
     aiProvider: AIProviderInfo? = null,
@@ -336,6 +339,7 @@ private fun VariantSection(
             activeVariantIndex = activeVariantIndex,
             requestRules = requestRules,
             projectPath = projectPath,
+            readFixture = readFixture,
             variantReferenceSyncPreference = variantReferenceSyncPreference,
             aiProvider = aiProvider,
             aiAvailable = aiAvailable,
@@ -437,6 +441,7 @@ private fun VariantDetailCard(
     activeVariantIndex: Int,
     requestRules: RequestRules,
     projectPath: String,
+    readFixture: (String, String) -> String?,
     variantReferenceSyncPreference: VariantReferenceSyncPreference?,
     aiProvider: AIProviderInfo?,
     aiAvailable: Boolean,
@@ -500,8 +505,9 @@ private fun VariantDetailCard(
 					canGenerateWithAi = aiAvailable,
 					isGeneratingWithAi = aiBodyGenerating,
 					generationError = aiBodyError,
-					onGenerateBody = onGenerateBody,
+                    onGenerateBody = onGenerateBody,
                     projectPath = projectPath,
+                    readFixture = readFixture,
                     onUpdate = { updated ->
                         onUpdateEndpoint(endpoint.updateVariant(activeVariantIndex, updated))
                     },

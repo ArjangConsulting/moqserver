@@ -8,21 +8,21 @@ From source:
 
 ```bash
 cd server
-swift run Run serve --project ../path/to/my-api.moqproj
+swift run moqserver serve --project ../path/to/my-api.moqproj
 ```
 
 With explicit host and port:
 
 ```bash
 cd server
-swift run Run serve --project ../path/to/my-api.moqproj --hostname 0.0.0.0 --port 8080
+swift run moqserver serve --project ../path/to/my-api.moqproj --hostname 0.0.0.0 --port 8080
 ```
 
 With a runtime config file:
 
 ```bash
 cd server
-swift run Run serve \
+swift run moqserver serve \
   --project ../path/to/my-api.moqproj \
   --config ../config/config.yaml \
   --hostname 0.0.0.0 \
@@ -60,6 +60,16 @@ Minimal `project.yml`:
 version: "1"
 name: "My API Mock"
 description: "Mock for the My API service"
+defaults:
+  delay_ms: 0
+  auth:
+    type: none
+    verify: false
+    header_name: null
+  network:
+    latency_ms: 0
+    jitter_ms: 0
+    packet_loss_percent: 0
 ```
 
 Endpoint file example (`endpoints/list-users.yml`):
@@ -67,6 +77,7 @@ Endpoint file example (`endpoints/list-users.yml`):
 ```yaml
 id: list-users
 alias: "List Users"
+reference_name: listUsers
 method: GET
 path: /api/v1/users
 tags: [users, core]
@@ -83,6 +94,7 @@ request_rules:
 
 variants:
   - name: success
+    reference_name: success
     default: true
     status: 200
     headers:
@@ -114,7 +126,7 @@ Before serving, validate your project for errors:
 
 ```bash
 cd server
-swift run Run validate --project ../path/to/my-api.moqproj
+swift run moqserver validate --project ../path/to/my-api.moqproj
 ```
 
 Exits `0` if valid. Exits non-zero and prints diagnostics if there are errors or warnings.
@@ -132,7 +144,7 @@ Supported HTTP methods for mock endpoints:
 
 `GET`, `POST`, `PUT`, `PATCH`, `DELETE`, `HEAD`, `OPTIONS`, `TRACE`, `CONNECT`
 
-Path templates like `/users/{id}` are matched at runtime using path-parameter regex. Exact matches are tried before regex.
+Path templates like `/users/{id}` are registered as native Vapor path parameters and matched by Vapor's router.
 
 ## 5. Response Variant Selection
 
@@ -141,9 +153,9 @@ Variant selection priority (highest to lowest):
 1. `X-Mock-Variant` request header — exact variant name
 2. Admin runtime override set via `PUT /_admin/.../variant`
 3. Config file `variantOverrides` map
-4. `requestMatch` constraints (query params, headers, body substring)
+4. `request_match` constraints (query params, headers, body substring)
 5. `Accept` header content negotiation
-6. First variant in the endpoint file (the effective default)
+6. The marked default, then the first eligible variant
 
 Force a specific variant via header:
 
@@ -170,7 +182,7 @@ Configured per-endpoint in the endpoint YAML via the `auth` block:
 
 ```yaml
 auth:
-  type: bearer       # none | bearer | basic | apiKey | oauth2 | openIdConnect
+  type: bearer       # none | bearer | basic | api-key | header
   verify: true       # if false, presence is not enforced
   header_name: Authorization
 ```
@@ -181,9 +193,8 @@ Auth types:
 - `none` — no auth required
 - `bearer` — `Authorization: Bearer <token>`
 - `basic` — `Authorization: Basic <base64>`
-- `apiKey` — custom header name specified in `header_name`
-- `oauth2` — OAuth2 bearer with optional scope enforcement
-- `openIdConnect` — OpenID Connect bearer
+- `api-key` — custom API key header specified in `header_name`
+- `header` — custom required header specified in `header_name`
 
 ### 7.1 Bearer Example
 
@@ -276,10 +287,10 @@ Error response:
 
 ### 8.2 GET `/_auth/authorize`
 
-Returns a `302` redirect to `redirect_uri` with mock `code` and optional `state`.
+Returns a `302` redirect to an allowlisted `redirect_uri` with mock `code` and optional `state`. The default allowlist contains `http://localhost/callback`; configure `auth.oauth2RedirectUris` for other clients.
 
 ```bash
-curl -i "http://127.0.0.1:8080/_auth/authorize?redirect_uri=http://example.com/cb&state=xyz"
+curl -i "http://127.0.0.1:8080/_auth/authorize?response_type=code&redirect_uri=http://localhost/callback&state=xyz"
 ```
 
 ## 9. Admin API (`/_admin/*`)
@@ -373,6 +384,8 @@ auth:
     valid-oauth-token:
       - "read:users"
       - "write:users"
+  oauth2RedirectUris:
+    - "http://localhost/callback"
 
 # Path for persisting runtime variant overrides across restarts
 overridesPersistencePath: "./tmp/variant-overrides.json"
@@ -397,6 +410,7 @@ admin:
 | `auth.oauth2Tokens` | `string[]` | Valid OAuth2 bearer tokens |
 | `auth.oauth2Clients` | `{clientId, clientSecret}[]` | Valid OAuth2 client credentials |
 | `auth.oauth2TokenScopes` | `map[string]string[]` | Scopes granted per OAuth2 token |
+| `auth.oauth2RedirectUris` | `string[]` | Exact redirect URIs accepted by the mock authorization endpoint |
 | `overridesPersistencePath` | `string` | File path for persisting admin variant overrides |
 | `admin.bearerToken` | `string` | Bearer token required for admin routes |
 | `admin.apiKeyHeader` | `string` | API key header name for admin routes (default: `X-Admin-Key`) |
@@ -436,18 +450,18 @@ docker compose up --build
 
 ## 13. Troubleshooting
 
-### SwiftPM executable target name
+### SwiftPM executable product name
 
-The package's executable target is `Run`, while the binary name for packaged releases is `moqserver`. When running from source:
+The package's public executable product and packaged release binary are both named `moqserver`:
 
 ```bash
 cd server
-swift run Run serve --project ../my-api.moqproj
+swift run moqserver serve --project ../my-api.moqproj
 ```
 
 ### Server exits immediately at startup
 
-Project validation failed. Read the diagnostic output — it lists specific fields or endpoints with errors. Fix them and re-run. Use `swift run Run validate --project ...` to validate without starting the server.
+Project validation failed. Read the diagnostic output — it lists specific fields or endpoints with errors. Fix them and re-run. Use `swift run moqserver validate --project ...` to validate without starting the server.
 
 ### 404 for an expected endpoint
 
@@ -463,4 +477,4 @@ Inspect `request_rules` in the endpoint YAML. Ensure required headers and query 
 
 - Use `GET /_admin/endpoints/:method/**` to confirm the variant name exists.
 - Confirm `X-Mock-Variant` header value exactly matches the variant name (case-sensitive).
-- Check whether `requestMatch` constraints in the variant's `request_rules` are filtering it out.
+- Check whether `request_match` constraints on the variant are filtering it out.

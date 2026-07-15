@@ -94,10 +94,34 @@ struct ProjectValidatorTests {
     @Test("Rejects reserved paths")
     func rejectsReservedPaths() {
         let project = makeProject(endpoints: [
-            sampleEndpoint(id: "health-mock", path: "/health")
+            sampleEndpoint(id: "health-mock", path: "/health"),
+            sampleEndpoint(id: "admin-mock", path: "/_admin/custom"),
+            sampleEndpoint(id: "auth-mock", path: "/_auth/custom"),
         ])
         let errors = validator.validate(project).filter { $0.severity == .error }
-        #expect(errors.contains { $0.message.contains("reserved") })
+        #expect(errors.filter { $0.message.contains("reserved") }.count == 3)
+    }
+
+    @Test("Rejects equivalent normalized REST routes")
+    func rejectsEquivalentRoutes() {
+        let project = makeProject(endpoints: [
+            sampleEndpoint(id: "user-by-id", path: "/users/{id}"),
+            sampleEndpoint(id: "user-by-name", path: "//users/{name}/"),
+        ])
+
+        let errors = validator.validate(project).filter { $0.severity == .error }
+        #expect(errors.contains { $0.message.contains("Duplicate REST route") })
+    }
+
+    @Test("Allows equivalent templates for different methods")
+    func allowsEquivalentRoutesForDifferentMethods() {
+        let project = makeProject(endpoints: [
+            sampleEndpoint(id: "get-user", method: "GET", path: "/users/{id}"),
+            sampleEndpoint(id: "delete-user", method: "DELETE", path: "/users/{name}"),
+        ])
+
+        let errors = validator.validate(project).filter { $0.severity == .error }
+        #expect(!errors.contains { $0.message.contains("Duplicate REST route") })
     }
 
     @Test("Rejects multiple default variants")
@@ -180,6 +204,74 @@ struct ProjectValidatorTests {
         ])
         let errors = validator.validate(project).filter { $0.severity == .error }
         #expect(errors.contains { $0.message.contains("must start with \"fixtures/\"") })
+    }
+
+    @Test("Rejects fixture symlinks that escape the project")
+    func rejectsEscapingFixtureSymlink() throws {
+        let root = URL(fileURLWithPath: NSTemporaryDirectory())
+            .appendingPathComponent("moqserver-fixture-test-\(UUID().uuidString)")
+        let projectURL = root.appendingPathComponent("test.moqproj")
+        let fixturesURL = projectURL.appendingPathComponent("fixtures")
+        try FileManager.default.createDirectory(at: fixturesURL, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let outsideURL = root.appendingPathComponent("secret.json")
+        try Data("secret".utf8).write(to: outsideURL)
+        try FileManager.default.createSymbolicLink(
+            at: fixturesURL.appendingPathComponent("secret.json"),
+            withDestinationURL: outsideURL
+        )
+        let project = MoqProject(
+            manifest: sampleManifest(),
+            endpoints: [
+                sampleEndpoint(variants: [
+                    ProjectVariant(name: "default", status: 200, bodyFile: "fixtures/secret.json")
+                ])
+            ],
+            projectPath: projectURL.path
+        )
+
+        let errors = validator.validate(project).filter { $0.severity == .error }
+        #expect(errors.contains { $0.message.contains("inside the project's fixtures directory") })
+    }
+
+    @Test("Rejects invalid response and network simulation values")
+    func rejectsInvalidNumericValues() {
+        let endpoint = EndpointDocument(
+            id: "invalid-network",
+            method: "GET",
+            path: "/network",
+            network: NetworkBehavior(latencyMs: -1, jitterMs: -2, packetLossPercent: 101),
+            variants: [ProjectVariant(name: "default", status: 99, delayMs: -1)]
+        )
+        let project = makeProject(endpoints: [endpoint])
+
+        let errors = validator.validate(project).filter { $0.severity == .error }
+        #expect(errors.contains { $0.field == "variants[0].status" })
+        #expect(errors.contains { $0.field == "variants[0].delay_ms" })
+        #expect(errors.contains { $0.field == "network.latency_ms" })
+        #expect(errors.contains { $0.field == "network.jitter_ms" })
+        #expect(errors.contains { $0.field == "network.packet_loss_percent" })
+    }
+
+    @Test("Rejects combined delay overflow")
+    func rejectsDelayOverflow() {
+        let manifest = ProjectManifest(
+            version: "1",
+            name: "Test",
+            defaults: ProjectDefaults(
+                delayMs: Int.max,
+                auth: ProjectAuthConfig(type: .none, verify: false),
+                network: NetworkBehavior()
+            )
+        )
+        let project = MoqProject(
+            manifest: manifest,
+            endpoints: [sampleEndpoint(variants: [ProjectVariant(name: "default", status: 200, delayMs: 1)])],
+            projectPath: "/tmp/test.moqproj"
+        )
+
+        let errors = validator.validate(project).filter { $0.severity == .error }
+        #expect(errors.contains { $0.message.contains("integer range") })
     }
 
     @Test("Rejects path traversal in body_file")

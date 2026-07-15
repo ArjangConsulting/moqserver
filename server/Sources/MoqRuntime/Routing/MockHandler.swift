@@ -118,8 +118,10 @@ public struct MockHandler: Sendable {
                 detail: "\(requestedInfo)\(acceptInfo). Available variants: [\(availableNames)]",
                 hint: "Use X-Mock-Variant header or PUT /_admin/endpoints/:method/**/variant to select a variant"
             )
+            let hasUnmatchedAccept = variantName == nil && req.headers.first(name: .accept) != nil
+            let status: Vapor.HTTPResponseStatus = hasUnmatchedAccept ? .notAcceptable : .notFound
             return Response(
-                status: .notFound,
+                status: status,
                 headers: ["Content-Type": "application/json"],
                 body: .init(data: errorResponse.jsonData())
             )
@@ -211,6 +213,7 @@ public struct MockHandler: Sendable {
             if let negotiated = bestVariantForAccept(candidates: unconstrained, acceptTypes: acceptTypes) {
                 return negotiated
             }
+            return nil
         }
 
         // Fall back to first matching variant
@@ -233,7 +236,7 @@ public struct MockHandler: Sendable {
         let quality: Double  // 0.0–1.0 (default 1.0)
     }
 
-    /// Parses an Accept header into entries sorted by quality (descending).
+    /// Parses an Accept header into media ranges and quality factors.
     private func parseAcceptHeader(_ header: String) -> [AcceptEntry] {
         header.split(separator: ",").compactMap { part in
             let trimmed = part.trimmingCharacters(in: .whitespaces)
@@ -243,27 +246,41 @@ public struct MockHandler: Sendable {
             guard let mediaType = segments.first else { return nil }
             var quality = 1.0
             for segment in segments.dropFirst() {
-                if segment.lowercased().hasPrefix("q="),
-                    let q = Double(segment.dropFirst(2))
-                {
+                if segment.lowercased().hasPrefix("q=") {
+                    guard let q = Double(segment.dropFirst(2)), (0...1).contains(q) else { return nil }
                     quality = q
                 }
             }
             return AcceptEntry(mediaType: mediaType.lowercased(), quality: quality)
-        }.sorted { $0.quality > $1.quality }
+        }
     }
 
     /// Returns the best variant matching the Accept preference list.
     private func bestVariantForAccept(candidates: [ResponseVariant], acceptTypes: [AcceptEntry]) -> ResponseVariant? {
-        for accept in acceptTypes {
-            for variant in candidates {
-                let variantType = variantContentType(variant)?.lowercased() ?? ""
-                if mediaTypeMatches(variantType, accept: accept.mediaType) {
-                    return variant
-                }
+        var bestMatch: (variant: ResponseVariant, quality: Double)?
+        for variant in candidates {
+            let variantType = variantContentType(variant)?.lowercased() ?? ""
+            let matches = acceptTypes.compactMap { accept -> (specificity: Int, quality: Double)? in
+                guard mediaTypeMatches(variantType, accept: accept.mediaType) else { return nil }
+                return (mediaTypeSpecificity(accept.mediaType), accept.quality)
+            }
+            guard
+                let effective = matches.max(by: {
+                    $0.specificity == $1.specificity ? $0.quality < $1.quality : $0.specificity < $1.specificity
+                }), effective.quality > 0
+            else {
+                continue
+            }
+            if bestMatch == nil || effective.quality > bestMatch?.quality ?? 0 {
+                bestMatch = (variant, effective.quality)
             }
         }
-        return nil
+        return bestMatch?.variant
+    }
+
+    private func mediaTypeSpecificity(_ mediaType: String) -> Int {
+        if mediaType == "*/*" { return 0 }
+        return mediaType.hasSuffix("/*") ? 1 : 2
     }
 
     private func variantContentType(_ variant: ResponseVariant) -> String? {
@@ -296,7 +313,7 @@ public struct MockHandler: Sendable {
         guard let match = variant.requestMatch else { return true }
 
         for (name, expected) in match.query {
-            guard req.query[String.self, at: name] == expected else { return false }
+            guard extractQueryParameters(from: req)[name] == expected else { return false }
         }
 
         for (name, expected) in match.headers {
@@ -323,17 +340,22 @@ public struct MockHandler: Sendable {
         guard let queryString = req.url.query else { return [:] }
         var params: [String: String] = [:]
         for pair in queryString.split(separator: "&") {
-            let parts = pair.split(separator: "=", maxSplits: 1)
+            let parts = pair.split(separator: "=", maxSplits: 1, omittingEmptySubsequences: false)
             if parts.count == 2 {
-                let name = String(parts[0]).removingPercentEncoding ?? String(parts[0])
-                let value = String(parts[1]).removingPercentEncoding ?? String(parts[1])
+                let name = decodeQueryComponent(parts[0])
+                let value = decodeQueryComponent(parts[1])
                 params[name] = value
             } else if parts.count == 1 {
-                let name = String(parts[0]).removingPercentEncoding ?? String(parts[0])
+                let name = decodeQueryComponent(parts[0])
                 params[name] = ""
             }
         }
         return params
+    }
+
+    private func decodeQueryComponent(_ component: Substring) -> String {
+        let formEncoded = String(component).replacingOccurrences(of: "+", with: " ")
+        return formEncoded.removingPercentEncoding ?? formEncoded
     }
 
     private func extractHeaders(from req: Request) -> [String: String] {

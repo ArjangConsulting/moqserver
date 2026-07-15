@@ -153,4 +153,45 @@ struct ContentNegotiationTests {
             #expect(contentType == "application/json")
         }
     }
+
+    @Test("Accept q=0 is not selectable")
+    func zeroQualityIsRejected() async throws {
+        let store = InMemoryMockStore()
+        await store.register(makeMultiContentEndpoint())
+        let app = try await buildApp(store: store)
+        defer { Task { try? await app.asyncShutdown() } }
+
+        try await app.testing().test(.GET, "/pets", headers: ["Accept": "application/json;q=0"]) { res async in
+            #expect(res.status == .notAcceptable)
+        }
+    }
+
+    @Test("Specific q=0 exclusion overrides wildcard")
+    func specificExclusionOverridesWildcard() async throws {
+        let store = InMemoryMockStore()
+        await store.register(makeMultiContentEndpoint())
+        let app = try await buildApp(store: store)
+        defer { Task { try? await app.asyncShutdown() } }
+
+        try await app.testing().test(
+            .GET,
+            "/pets",
+            headers: ["Accept": "application/json;q=0, */*;q=1"]
+        ) { res async in
+            #expect(res.status == .ok)
+            #expect(res.headers.first(name: .contentType) == "application/xml")
+        }
+    }
+
+    @Test("Unmatched Accept does not fall back")
+    func unmatchedAcceptIsRejected() async throws {
+        let store = InMemoryMockStore()
+        await store.register(makeMultiContentEndpoint())
+        let app = try await buildApp(store: store)
+        defer { Task { try? await app.asyncShutdown() } }
+
+        try await app.testing().test(.GET, "/pets", headers: ["Accept": "image/png"]) { res async in
+            #expect(res.status == .notAcceptable)
+        }
+    }
 }

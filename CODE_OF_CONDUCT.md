@@ -2,6 +2,8 @@
 
 This project follows the Contributor Covenant Code of Conduct, version 2.1.
 
+The complete authoritative text is available at https://www.contributor-covenant.org/version/2/1/code_of_conduct/.
+
 ## Our Pledge
 
 We pledge to make participation in this project a harassment-free experience for everyone, regardless of age, body size, disability, ethnicity, sex characteristics, gender identity and expression, level of experience, education, socio-economic status, nationality, personal appearance, race, religion, or sexual identity and orientation.
@@ -28,3 +30,5 @@ Examples of unacceptable behavior include:
 Project maintainers are responsible for clarifying and enforcing standards of acceptable behavior and may remove, edit, or reject comments, commits, code, wiki edits, issues, and other contributions that are not aligned with this Code of Conduct.
 
 Instances of abusive, harassing, or otherwise unacceptable behavior may be reported through the repository owner's GitHub profile until a dedicated project contact is published.
+
+All reports will be reviewed promptly and handled as confidentially as practical. Maintainers may issue a correction, warning, temporary ban, or permanent ban based on impact and pattern of behavior. This policy is adapted from Contributor Covenant 2.1, available under the Creative Commons Attribution 4.0 License.

@@ -84,6 +84,9 @@ public enum ProjectToRuntimeConverter {
         defaults: ProjectDefaults,
         projectPath: String
     ) throws -> ResponseVariant {
+        guard (100...599).contains(variant.status) else {
+            throw ProjectConversionError.invalidStatus(variant.status)
+        }
         let statusCode = HTTPStatusCode(code: UInt(variant.status))
 
         // Build headers
@@ -100,8 +103,10 @@ public enum ProjectToRuntimeConverter {
         // Resolve body
         let body: Data?
         if let bodyFile = variant.bodyFile {
-            let fixturePath = (projectPath as NSString).appendingPathComponent(bodyFile)
-            body = try Data(contentsOf: URL(fileURLWithPath: fixturePath))
+            guard let fixtureURL = FixturePathResolver.resolve(bodyFile: bodyFile, projectPath: projectPath) else {
+                throw ProjectConversionError.fixtureOutsideProject(bodyFile)
+            }
+            body = try Data(contentsOf: fixtureURL)
         } else if let bodyValue = variant.body {
             body = bodyValue.toJSONData(prettyPrinted: false)
         } else {
@@ -111,7 +116,11 @@ public enum ProjectToRuntimeConverter {
         // Calculate delay
         let variantDelay = variant.delayMs ?? 0
         let defaultDelay = defaults.delayMs
-        let totalDelayMs = variantDelay + defaultDelay
+        guard variantDelay >= 0, defaultDelay >= 0 else {
+            throw ProjectConversionError.invalidDelay
+        }
+        let (totalDelayMs, overflow) = variantDelay.addingReportingOverflow(defaultDelay)
+        guard !overflow else { throw ProjectConversionError.delayOverflow }
         let delay: TimeInterval? = totalDelayMs > 0 ? TimeInterval(totalDelayMs) / 1000.0 : nil
 
         return ResponseVariant(
@@ -145,4 +154,11 @@ public enum ProjectToRuntimeConverter {
             packetLossPercent: override?.packetLossPercent ?? defaults.packetLossPercent
         )
     }
+}
+
+public enum ProjectConversionError: Error, Equatable {
+    case delayOverflow
+    case fixtureOutsideProject(String)
+    case invalidDelay
+    case invalidStatus(Int)
 }

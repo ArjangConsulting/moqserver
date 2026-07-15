@@ -776,7 +776,7 @@ fun main(args: Array<String>) {
                             executeAIAction(action, aiRegistry, appViewModel, Dispatchers.IO)
                         }
                     },
-                    onGenerateBody = { endpointId, variantReferenceName, prompt ->
+						onGenerateBody = { endpointId, variantReferenceName, prompt ->
                         scope.launch(exceptionHandler) {
                             generateBodyForVariant(
                                 endpointId = endpointId,
@@ -787,7 +787,8 @@ fun main(args: Array<String>) {
                                 ioDispatcher = Dispatchers.IO,
                             )
                         }
-                    },
+						},
+						readFixture = repo::readFixture,
 					variantReferenceSyncPreference = state.project?.projectPath?.let {
 						aiSettings.value.variantReferenceSyncByProject[it]
 					},

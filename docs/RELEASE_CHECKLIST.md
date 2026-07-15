@@ -1,49 +1,39 @@
 # Release Checklist
 
-## Pre-Release
+Releases use bare SemVer tags such as `1.2.3` and `1.2.3-rc.1`. Do not prefix tags with `v`. Per-release notes belong in GitHub Releases; do not add a changelog file.
 
-- [ ] All tests pass: `make test`
-- [ ] Integration and smoke tests pass: `make e2e`
-- [ ] Build succeeds in release mode: `make release`
-- [ ] Docker image builds: `make docker-build`
-- [ ] Run smoke test against Docker image manually
-- [ ] Review project validation warnings for bundled sample projects
+## Before Tagging
 
-## Version Bump
+- [ ] Confirm the intended version and whether it is stable or an explicitly marked prerelease.
+- [ ] Run `make test`, `make smoke`, `make e2e`, `make studio-test`, and `make studio-lint`.
+- [ ] Run `make release`, `make docker-build`, and the applicable Studio packaging task.
+- [ ] Validate `format/examples/sample-app.moqproj` and `samples/server/showcase.moqproj` with the server.
+- [ ] Confirm the canonical format test loads the example through Studio: `cd studio && ./gradlew :studio-project-format:jvmTest --tests "com.moqserver.studio.projectformat.CanonicalFormatCompatibilityTest"`.
+- [ ] Build the mobile samples or confirm the `Mobile Samples` workflow is green.
+- [ ] Review dependency, CodeQL, and container scan results.
+- [ ] Draft GitHub Release notes including compatibility or migration notes.
 
-- [ ] Update version in relevant files (if applicable)
-- [ ] Draft release notes for the GitHub Release (per-tag notes live in GitHub Releases, not a `CHANGELOG.md`)
-- [ ] Commit version bump
+## Signing Preflight
 
-## Validation
+- [ ] For a stable release, confirm every macOS certificate/notarization and Linux GPG secret in [`RELEASE_SIGNING.md`](RELEASE_SIGNING.md) is configured. Missing credentials intentionally fail the workflow before artifacts are built.
+- [ ] Confirm the published Linux GPG public key is current.
+- [ ] Use a prerelease tag if unsigned artifacts are intentionally required. Windows MSI artifacts are currently available only for prereleases.
 
-- [ ] `cd server && swift run Run serve --project ../samples/server/showcase.moqproj --config ../samples/server/config.yaml --port 8080` starts without errors
-- [ ] `cd server && swift run Run validate --project ../samples/server/showcase.moqproj` reports no errors
-- [ ] Admin API (`GET /_admin/endpoints`) returns registered endpoints
-- [ ] Variant selection via `X-Mock-Variant` header works
-- [ ] Auth enforcement works (bearer, basic, API key)
-- [ ] Content negotiation via `Accept` header works
+## Tag And Publish
 
-## Studio Packaging
+```bash
+git tag 1.2.3
+git push origin 1.2.3
+```
 
-- [ ] Studio builds: `make studio-build`
-- [ ] Studio runs: `make studio-run`
-- [ ] Verify AI provider settings and Test Connection succeed for configured providers
-- [ ] Package macOS DMG: `make studio-dmg`
-- [ ] Package Linux deb: `make studio-deb` (on Linux)
-- [ ] Verify .app opens and can load a `.moqproj` project
-- [ ] Signing is handled by the `Release` workflow when secrets are configured —
-      see `docs/RELEASE_SIGNING.md`. macOS (Developer ID + notarization) and Linux
-      (GPG detached signature) are wired; Windows is unsigned for now. Missing
-      secrets fall back to unsigned builds, never a failure.
+- [ ] Confirm the release workflow passes verification before artifact jobs start.
+- [ ] Confirm server archives contain an executable named `moqserver` and pass the packaged-binary validation smoke test.
+- [ ] Confirm checksums, signatures where required, SBOM, and GitHub attestations exist.
+- [ ] Confirm the GHCR image tag exists and the high/critical vulnerability scan passed.
+- [ ] Confirm the GitHub Release is published only after all required jobs succeed.
+- [ ] Install each artifact on a supported host and run a basic sample request.
+- [ ] Verify `gh attestation verify <artifact> --repo ArjangConsulting/moqserver` for at least one artifact.
 
-## Release
+## Rollback
 
-- [ ] Create git tag: `git tag v<version>`
-- [ ] Push tag: `git push origin v<version>`
-- [ ] Build release binary: `make release`
-- [ ] Verify release binary runs correctly
-- [ ] Build Studio packages for target platforms
-- [ ] Publish the GitHub Release with the drafted notes
-- [ ] Attach Studio DMG/deb and the server release binary to the GitHub Release
-      (the `Release` workflow does this automatically when a `v*` tag is pushed)
+Do not reuse or move a published tag. If publication is incorrect, mark the release unavailable, document the reason, fix forward, and publish a new SemVer version.

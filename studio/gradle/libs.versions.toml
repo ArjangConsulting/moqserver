@@ -1,18 +1,19 @@
 [versions]
 kotlin = "2.3.21"
-compose = "1.11.0"
+compose = "1.11.1"
 compose-material3 = "1.11.0-alpha07"
 compose-material-icons = "1.7.3"
 coroutines = "1.11.0"
 serialization = "1.11.0"
-ktor = "3.5.0"
+ktor = "3.5.1"
 navigation = "2.9.2"
 lifecycle = "2.10.0"
-rsyntaxtextarea = "3.6.2"
+rsyntaxtextarea = "3.6.3"
 snakeyaml = "3.0.1"
-swagger-parser = "2.1.42"
+swagger-parser = "2.1.45"
 slf4j = "2.0.18"
 detekt = "1.23.8"
+kover = "0.9.8"
 
 [libraries]
 coroutines-core = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-core", version.ref = "coroutines" }
@@ -45,3 +46,4 @@ kotlin-serialization = { id = "org.jetbrains.kotlin.plugin.serialization", versi
 compose-multiplatform = { id = "org.jetbrains.compose", version.ref = "compose" }
 compose-compiler = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
 detekt = { id = "io.gitlab.arturbosch.detekt", version.ref = "detekt" }
+kover = { id = "org.jetbrains.kotlinx.kover", version.ref = "kover" }

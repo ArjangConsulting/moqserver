@@ -32,6 +32,10 @@ public func buildApp(
         requestValidator: requestValidator
     )
 
+    app.get("health") { _ async -> [String: String] in
+        ["status": "ready"]
+    }
+
     let authRouter = AuthRouter(config: config)
     authRouter.registerRoutes(on: app)
 

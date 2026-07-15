@@ -33,6 +33,7 @@ public struct ServerConfig: Codable, Sendable, ServerConfiguring {
         public var oauth2Tokens: [String]?
         public var oauth2Clients: [OAuth2Client]?
         public var oauth2TokenScopes: [String: [String]]?
+        public var oauth2RedirectUris: [String]?
 
         public init(
             bearerTokens: [String]? = nil,
@@ -40,7 +41,8 @@ public struct ServerConfig: Codable, Sendable, ServerConfiguring {
             apiKeys: [String: String]? = nil,
             oauth2Tokens: [String]? = nil,
             oauth2Clients: [OAuth2Client]? = nil,
-            oauth2TokenScopes: [String: [String]]? = nil
+            oauth2TokenScopes: [String: [String]]? = nil,
+            oauth2RedirectUris: [String]? = nil
         ) {
             self.bearerTokens = bearerTokens
             self.basicCredentials = basicCredentials
@@ -48,6 +50,7 @@ public struct ServerConfig: Codable, Sendable, ServerConfiguring {
             self.oauth2Tokens = oauth2Tokens
             self.oauth2Clients = oauth2Clients
             self.oauth2TokenScopes = oauth2TokenScopes
+            self.oauth2RedirectUris = oauth2RedirectUris
         }
 
         /// Convert to MoqCore's AuthConfig for use with AuthValidator.
@@ -104,7 +107,30 @@ public struct ServerConfig: Codable, Sendable, ServerConfiguring {
                 "The `admin` section must set `bearerToken` or `apiKey`. An empty admin block would reject every admin request with no way to authenticate."
             )
         }
+        if let globalDelay, !globalDelay.isFinite || globalDelay < 0 {
+            errors.append("globalDelay must be finite and non-negative.")
+        }
+        for (endpoint, delay) in delayOverrides ?? [:] where !delay.isFinite || delay < 0 {
+            errors.append("delayOverrides[\(endpoint)] must be finite and non-negative.")
+        }
+        for redirectUri in auth?.oauth2RedirectUris ?? [] where Self.validRedirectURI(redirectUri) == nil {
+            errors.append("OAuth redirect URI is invalid: \(redirectUri)")
+        }
         return errors
+    }
+
+    static func validRedirectURI(_ value: String) -> URLComponents? {
+        guard let components = URLComponents(string: value),
+            let scheme = components.scheme?.lowercased(),
+            scheme == "http" || scheme == "https",
+            components.host != nil,
+            components.user == nil,
+            components.password == nil,
+            components.fragment == nil
+        else {
+            return nil
+        }
+        return components
     }
 
     public func variantOverride(for endpointKey: String) -> String? {

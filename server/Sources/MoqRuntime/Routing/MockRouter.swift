@@ -7,7 +7,7 @@ private let logger = Logger(label: "moqserver.runtime.MockRouter")
 /// Registers per-endpoint Vapor routes and a catch-all fallback for unmapped paths.
 /// Path parameters in `{param}` OpenAPI style are converted to Vapor's `:param` syntax,
 /// so Vapor's own router handles path matching natively — no regex needed.
-public struct MockRouter {
+public struct MockRouter: Sendable {
     let handler: MockHandler
     let endpoints: [Endpoint]
 
@@ -19,10 +19,15 @@ public struct MockRouter {
     public func registerRoutes(on app: Application) {
         logger.info("Registering \(endpoints.count) endpoint route(s)")
 
+        var registeredRoutes: Set<String> = []
         for endpoint in endpoints {
             let vaporComponents = MockRouter.pathComponents(for: endpoint.key.path)
             let key = endpoint.key
             let method = HTTPMethod(rawValue: key.method.rawValue)
+            let routeIdentity = "\(method.rawValue) \(key.path)"
+            guard registeredRoutes.insert(routeIdentity).inserted else {
+                continue
+            }
 
             app.on(method, vaporComponents) { req async throws -> Response in
                 try await handler.handle(req: req, matchedKey: key)

@@ -99,4 +99,15 @@ struct ConfigTests {
         #expect(config.effectiveDelay(for: "POST /pets") == 2.0)
         #expect(config.effectiveDelay(for: "GET /unknown") == 1.0)
     }
+
+    @Test("Server config rejects invalid delays and redirect URIs")
+    func rejectsInvalidRuntimeValues() {
+        let config = ServerConfig(
+            globalDelay: -.infinity,
+            delayOverrides: ["GET /pets": -1],
+            auth: .init(oauth2RedirectUris: ["javascript:alert(1)"])
+        )
+
+        #expect(config.validationErrors().count == 3)
+    }
 }

@@ -6,14 +6,13 @@ private let logger = Logger(label: "moqserver.format.ProjectValidator")
 
 /// Validates a MoqProject against schema-level and semantic rules.
 public struct ProjectValidator: ProjectValidating {
-    private let reservedPaths: Set<String> = ["/health", "/__admin/endpoints"]
-
     public init() {}
 
     public func validate(_ project: MoqProject) -> [ValidationDiagnostic] {
         logger.info("Validating project '\(project.manifest.name)'")
         var diagnostics: [ValidationDiagnostic] = []
         var seenEndpointReferenceNames: [String: String] = [:]
+        var seenRoutes: [String: String] = [:]
 
         // Rule 1: project.yml must exist (already enforced by loader, but validate version)
         if project.manifest.version != "1" {
@@ -92,8 +91,10 @@ public struct ProjectValidator: ProjectValidating {
                 seenEndpointReferenceNames[endpoint.referenceName] = fileName
             }
 
+            let normalizedPath = normalizePath(endpoint.path)
+
             // Rule 5: Reserved paths
-            if reservedPaths.contains(endpoint.path) {
+            if isReservedPath(normalizedPath) {
                 diagnostics.append(
                     .init(
                         severity: .error,
@@ -101,6 +102,22 @@ public struct ProjectValidator: ProjectValidating {
                         file: fileName,
                         field: "path"
                     ))
+            }
+
+            if endpoint.operation == nil {
+                let routeKey = "\(endpoint.method.uppercased()) \(routeTemplateKey(normalizedPath))"
+                if let existing = seenRoutes[routeKey] {
+                    diagnostics.append(
+                        .init(
+                            severity: .error,
+                            message:
+                                "Duplicate REST route \"\(endpoint.method.uppercased()) \(endpoint.path)\" (equivalent to route in \(existing)).",
+                            file: fileName,
+                            field: "path"
+                        ))
+                } else {
+                    seenRoutes[routeKey] = fileName
+                }
             }
 
             // Rule 6: At least one variant
@@ -131,6 +148,36 @@ public struct ProjectValidator: ProjectValidating {
             var seenVariantReferenceNames: Set<String> = []
             for (index, variant) in endpoint.variants.enumerated() {
                 let variantField = "variants[\(index)]"
+
+                if !(100...599).contains(variant.status) {
+                    diagnostics.append(
+                        .init(
+                            severity: .error,
+                            message: "Variant status must be between 100 and 599.",
+                            file: fileName,
+                            field: "\(variantField).status"
+                        ))
+                }
+
+                if let delayMs = variant.delayMs, delayMs < 0 {
+                    diagnostics.append(
+                        .init(
+                            severity: .error,
+                            message: "Variant delay_ms must be non-negative.",
+                            file: fileName,
+                            field: "\(variantField).delay_ms"
+                        ))
+                } else if let delayMs = variant.delayMs,
+                    project.manifest.defaults.delayMs.addingReportingOverflow(delayMs).overflow
+                {
+                    diagnostics.append(
+                        .init(
+                            severity: .error,
+                            message: "Combined default and variant delay_ms exceeds the supported integer range.",
+                            file: fileName,
+                            field: "\(variantField).delay_ms"
+                        ))
+                }
 
                 // Variant name uniqueness
                 if seenVariantNames.contains(variant.name) {
@@ -227,10 +274,14 @@ public struct ProjectValidator: ProjectValidating {
                                 file: fileName,
                                 field: "\(variantField).body_file"
                             ))
-                    } else {
-                        // Check that the fixture file exists
-                        let fixturePath = (project.projectPath as NSString).appendingPathComponent(bodyFile)
-                        if !FileManager.default.fileExists(atPath: fixturePath) {
+                    } else if let fixtureURL = FixturePathResolver.resolve(
+                        bodyFile: bodyFile,
+                        projectPath: project.projectPath
+                    ) {
+                        var isDirectory: ObjCBool = false
+                        if !FileManager.default.fileExists(atPath: fixtureURL.path, isDirectory: &isDirectory)
+                            || isDirectory.boolValue
+                        {
                             diagnostics.append(
                                 .init(
                                     severity: .error,
@@ -239,6 +290,14 @@ public struct ProjectValidator: ProjectValidating {
                                     field: "\(variantField).body_file"
                                 ))
                         }
+                    } else {
+                        diagnostics.append(
+                            .init(
+                                severity: .error,
+                                message: "body_file must resolve to a file inside the project's fixtures directory.",
+                                file: fileName,
+                                field: "\(variantField).body_file"
+                            ))
                     }
 
                     // Reject path traversal
@@ -258,6 +317,8 @@ public struct ProjectValidator: ProjectValidating {
             if let auth = endpoint.auth {
                 diagnostics.append(contentsOf: validateAuth(auth, file: fileName, field: "auth"))
             }
+
+            diagnostics.append(contentsOf: validateNetwork(endpoint.network, file: fileName, field: "network"))
 
             // Rule 12: verify_cookies must be boolean (enforced by Codable, but check presence)
             // (Handled automatically by Codable decoding)
@@ -298,6 +359,21 @@ public struct ProjectValidator: ProjectValidating {
                 file: "project.yml",
                 field: "defaults.auth"
             ))
+        diagnostics.append(
+            contentsOf: validateNetwork(
+                project.manifest.defaults.network,
+                file: "project.yml",
+                field: "defaults.network"
+            ))
+        if project.manifest.defaults.delayMs < 0 {
+            diagnostics.append(
+                .init(
+                    severity: .error,
+                    message: "Default delay_ms must be non-negative.",
+                    file: "project.yml",
+                    field: "defaults.delay_ms"
+                ))
+        }
 
         let errors = diagnostics.filter { $0.severity == .error }
         let warnings = diagnostics.filter { $0.severity == .warning }
@@ -328,6 +404,61 @@ public struct ProjectValidator: ProjectValidating {
         }
 
         return diagnostics
+    }
+
+    private func validateNetwork(_ network: NetworkBehavior?, file: String, field: String) -> [ValidationDiagnostic] {
+        guard let network else { return [] }
+        var diagnostics: [ValidationDiagnostic] = []
+
+        if let latencyMs = network.latencyMs, latencyMs < 0 {
+            diagnostics.append(
+                .init(
+                    severity: .error,
+                    message: "latency_ms must be non-negative.",
+                    file: file,
+                    field: "\(field).latency_ms"
+                ))
+        }
+        if let jitterMs = network.jitterMs, jitterMs < 0 {
+            diagnostics.append(
+                .init(
+                    severity: .error,
+                    message: "jitter_ms must be non-negative.",
+                    file: file,
+                    field: "\(field).jitter_ms"
+                ))
+        }
+        if let packetLossPercent = network.packetLossPercent,
+            !packetLossPercent.isFinite || !(0...100).contains(packetLossPercent)
+        {
+            diagnostics.append(
+                .init(
+                    severity: .error,
+                    message: "packet_loss_percent must be finite and between 0 and 100.",
+                    file: file,
+                    field: "\(field).packet_loss_percent"
+                ))
+        }
+
+        return diagnostics
+    }
+
+    private func normalizePath(_ path: String) -> String {
+        let components = path.split(separator: "/", omittingEmptySubsequences: true)
+        return components.isEmpty ? "/" : "/" + components.joined(separator: "/")
+    }
+
+    private func routeTemplateKey(_ path: String) -> String {
+        path.split(separator: "/", omittingEmptySubsequences: true)
+            .map { segment in
+                segment.hasPrefix("{") && segment.hasSuffix("}") ? "{}" : String(segment)
+            }
+            .joined(separator: "/")
+    }
+
+    private func isReservedPath(_ path: String) -> Bool {
+        path == "/health" || path == "/_admin" || path.hasPrefix("/_admin/") || path == "/_auth"
+            || path.hasPrefix("/_auth/")
     }
 
     // MARK: - GraphQL Validation
