@@ -65,4 +65,12 @@ jobs:
         run: swift build
 
       - name: Run server tests
-        run: swift test
+        run: swift test --enable-code-coverage
+
+      - name: Upload Server coverage
+        if: ${{ matrix.os == 'ubuntu-latest' }}
+        uses: actions/upload-artifact@v7.0.1
+        with:
+          name: server-coverage
+          path: server/.build/debug/codecov/moqserver.json
+          if-no-files-found: error

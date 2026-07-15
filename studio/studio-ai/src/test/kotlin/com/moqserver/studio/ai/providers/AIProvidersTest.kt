@@ -63,6 +63,21 @@ class AnthropicAIProviderTest {
 	}
 
 	@Test
+	fun `hosted provider refuses insecure custom base URL before sending key`() = runTest {
+		var requestCount = 0
+		val client = mockClient {
+			requestCount += 1
+			respond("[]", HttpStatusCode.OK, jsonHeaders())
+		}
+		val provider = AnthropicAIProvider(apiKey = "secret", baseUrl = "http://example.com", httpClient = client)
+
+		val issues = provider.validateConfig()
+
+		assertTrue(issues.single().contains("HTTPS"))
+		assertEquals(0, requestCount)
+	}
+
+	@Test
 	fun `complete returns parsed result on success`() = runTest {
 		val responseBody = """
 			{

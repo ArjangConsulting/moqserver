@@ -25,6 +25,17 @@ struct MockHandlerTests {
         }
     }
 
+    @Test("Health route reports readiness")
+    func healthRoute() async throws {
+        let app = try await buildApp(store: InMemoryMockStore())
+        defer { Task { try? await app.asyncShutdown() } }
+
+        try await app.testing().test(.GET, "/health") { res async in
+            #expect(res.status == .ok)
+            #expect(res.body.string.contains("ready"))
+        }
+    }
+
     // MARK: - Variant Selection
 
     @Test("X-Mock-Variant header selects specific variant")
@@ -253,6 +264,31 @@ struct MockHandlerTests {
         try await app.testing().test(.GET, "/search") { res async in
             let body = String(buffer: res.body)
             #expect(body.contains("all"))
+        }
+    }
+
+    @Test("Query matching decodes form plus and percent escapes")
+    func requestMatchDecodesQuery() async throws {
+        let store = InMemoryMockStore()
+        await store.register(
+            makeTestEndpoint(
+                method: .get,
+                path: "/search",
+                variants: [
+                    ResponseVariant(name: "default", statusCode: .ok, body: Data("default".utf8)),
+                    ResponseVariant(
+                        name: "matched",
+                        statusCode: .ok,
+                        body: Data("matched".utf8),
+                        requestMatch: RequestMatch(query: ["term name": "swift server"])
+                    ),
+                ]
+            ))
+        let app = try await buildApp(store: store)
+        defer { Task { try? await app.asyncShutdown() } }
+
+        try await app.testing().test(.GET, "/search?term%20name=swift+server") { res async in
+            #expect(res.body.string == "matched")
         }
     }
 

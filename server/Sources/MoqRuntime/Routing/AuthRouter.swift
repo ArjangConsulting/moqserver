@@ -7,7 +7,7 @@ private let logger = Logger(label: "moqserver.runtime.AuthRouter")
 
 /// Mock OAuth2/auth endpoints under `/_auth/*`.
 /// Provides a token endpoint that issues mock access tokens for testing.
-public struct AuthRouter {
+public struct AuthRouter: Sendable {
     let config: ServerConfig?
 
     public init(config: ServerConfig? = nil) {
@@ -50,7 +50,7 @@ public struct AuthRouter {
             return handleAuthorizationCodeGrant(req: req)
         case "refresh_token":
             logger.debug("Handling refresh_token grant")
-            return handleRefreshTokenGrant()
+            return handleRefreshTokenGrant(req: req)
         default:
             logger.warning("Unsupported grant type: \(grantType)")
             return oauthErrorResponse(
@@ -66,11 +66,17 @@ public struct AuthRouter {
         let finalClientId = clientId ?? headerClientId
         let finalClientSecret = clientSecret ?? headerClientSecret
 
+        guard let finalClientId, !finalClientId.isEmpty, let finalClientSecret, !finalClientSecret.isEmpty else {
+            return oauthErrorResponse(error: "invalid_client", description: "Missing client credentials")
+        }
+
         if let clients = config?.auth?.oauth2Clients, !clients.isEmpty {
-            guard let id = finalClientId, let secret = finalClientSecret,
+            guard
                 clients.contains(where: {
-                    SecureCompare.equals(id, $0.clientId) && SecureCompare.equals(secret, $0.clientSecret)
-                })
+                    SecureCompare.equals(finalClientId, $0.clientId)
+                        && SecureCompare.equals(finalClientSecret, $0.clientSecret)
+                }
+                )
             else {
                 return oauthErrorResponse(error: "invalid_client", description: "Invalid client credentials")
             }
@@ -83,11 +89,16 @@ public struct AuthRouter {
         let username = try? req.content.get(String.self, at: "username")
         let password = try? req.content.get(String.self, at: "password")
 
+        guard let username, !username.isEmpty, let password, !password.isEmpty else {
+            return oauthErrorResponse(error: "invalid_grant", description: "Missing username or password")
+        }
+
         if let validCreds = config?.auth?.basicCredentials, !validCreds.isEmpty {
-            guard let u = username, let p = password,
+            guard
                 validCreds.contains(where: {
-                    SecureCompare.equals(u, $0.username) && SecureCompare.equals(p, $0.password)
-                })
+                    SecureCompare.equals(username, $0.username) && SecureCompare.equals(password, $0.password)
+                }
+                )
             else {
                 return oauthErrorResponse(error: "invalid_grant", description: "Invalid username or password")
             }
@@ -97,23 +108,36 @@ public struct AuthRouter {
     }
 
     private func handleAuthorizationCodeGrant(req: Request) -> Response {
-        guard let _ = try? req.content.get(String.self, at: "code") else {
+        guard let code = try? req.content.get(String.self, at: "code"), !code.isEmpty else {
             return oauthErrorResponse(error: "invalid_grant", description: "Missing authorization code")
+        }
+        guard let redirectUri = try? req.content.get(String.self, at: "redirect_uri"),
+            isAllowedRedirectURI(redirectUri)
+        else {
+            return oauthErrorResponse(error: "invalid_grant", description: "Invalid redirect_uri")
         }
         return tokenResponse(scope: try? req.content.get(String.self, at: "scope"))
     }
 
-    private func handleRefreshTokenGrant() -> Response {
+    private func handleRefreshTokenGrant(req: Request) -> Response {
+        guard let refreshToken = try? req.content.get(String.self, at: "refresh_token"), !refreshToken.isEmpty else {
+            return oauthErrorResponse(error: "invalid_grant", description: "Missing refresh_token")
+        }
         return tokenResponse(scope: nil)
     }
 
     private func handleAuthorize(req: Request) -> Response {
-        let redirectUri = req.query[String.self, at: "redirect_uri"] ?? "http://localhost/callback"
+        guard req.query[String.self, at: "response_type"] == "code" else {
+            return oauthErrorResponse(error: "unsupported_response_type", description: "response_type must be code")
+        }
+        guard let redirectUri = req.query[String.self, at: "redirect_uri"], isAllowedRedirectURI(redirectUri) else {
+            return oauthErrorResponse(error: "invalid_request", description: "redirect_uri is not allowed")
+        }
         let state = req.query[String.self, at: "state"]
 
         // Build the redirect with URLComponents so the code and state values are
         // properly percent-encoded instead of interpolated raw into the header.
-        guard var components = URLComponents(string: redirectUri) else {
+        guard var components = ServerConfig.validRedirectURI(redirectUri) else {
             return oauthErrorResponse(error: "invalid_request", description: "redirect_uri is not a valid URL")
         }
         var queryItems = components.queryItems ?? []
@@ -212,5 +236,11 @@ public struct AuthRouter {
         let parts = credString.split(separator: ":", maxSplits: 1)
         guard parts.count == 2 else { return (nil, nil) }
         return (String(parts[0]), String(parts[1]))
+    }
+
+    private func isAllowedRedirectURI(_ redirectUri: String) -> Bool {
+        guard ServerConfig.validRedirectURI(redirectUri) != nil else { return false }
+        let allowed = config?.auth?.oauth2RedirectUris ?? ["http://localhost/callback"]
+        return allowed.contains(redirectUri)
     }
 }

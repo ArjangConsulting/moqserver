@@ -108,6 +108,7 @@ fun App(
     onRemoveRecentProject: (String) -> Unit = {},
     onAIAction: (AIAction) -> Unit = {},
     onGenerateBody: (String, String, String) -> Unit = { _, _, _ -> },
+    readFixture: (String, String) -> String? = { _, _ -> null },
     onVariantReferenceSyncPreferenceChange: (String, VariantReferenceSyncPreference?) -> Unit = { _, _ -> },
 ) {
     val state by appViewModel.state.collectAsState()
@@ -138,6 +139,7 @@ fun App(
                     variantReferenceSyncPreference = variantReferenceSyncPreference,
                     onAIAction = onAIAction,
                     onGenerateBody = onGenerateBody,
+                    readFixture = readFixture,
                     onVariantReferenceSyncPreferenceChange = onVariantReferenceSyncPreferenceChange,
                     viewModel = appViewModel,
                 )
@@ -294,6 +296,7 @@ internal fun StudioWorkspaceScreen(
     variantReferenceSyncPreference: VariantReferenceSyncPreference?,
     onAIAction: (AIAction) -> Unit,
     onGenerateBody: (String, String, String) -> Unit,
+    readFixture: (String, String) -> String? = { _, _ -> null },
     onVariantReferenceSyncPreferenceChange: (String, VariantReferenceSyncPreference?) -> Unit,
     viewModel: StudioRootViewModel,
 ) {
@@ -338,6 +341,7 @@ internal fun StudioWorkspaceScreen(
                                     onGenerateBody = { variant, prompt ->
 							onGenerateBody(endpoint.id, variant.referenceName, prompt)
 						},
+                                    readFixture = readFixture,
                                     initialVariantName = state.pendingVariantName,
                                 )
                             }

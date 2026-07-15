@@ -65,6 +65,7 @@ internal fun BodyTab(
 	generationError: String?,
 	onGenerateBody: (String) -> Unit,
 	projectPath: String = "",
+	readFixture: (String, String) -> String? = { _, _ -> null },
 	onUpdate: (ProjectVariant) -> Unit,
 ) {
 	val bodyFile = variant.bodyFile
@@ -73,10 +74,8 @@ internal fun BodyTab(
 	var aiPrompt by remember(variant.referenceName) { mutableStateOf("") }
 
 	val fileContent = if (bodyFile != null) {
-		remember(projectPath, bodyFile) {
-			runCatching {
-				java.io.File(projectPath, bodyFile).takeIf { it.isFile }?.readText()
-			}.getOrNull()
+		remember(projectPath, bodyFile, readFixture) {
+			runCatching { readFixture(projectPath, bodyFile) }.getOrNull()
 		}
 	} else {
 		null

@@ -16,7 +16,8 @@ struct AuthValidationTests {
             apiKeys: ["X-API-Key": "valid-key"],
             oauth2Tokens: ["valid-oauth-token"],
             oauth2Clients: [.init(clientId: "client1", clientSecret: "secret1")],
-            oauth2TokenScopes: ["valid-oauth-token": ["read", "write:pets"]]
+            oauth2TokenScopes: ["valid-oauth-token": ["read", "write:pets"]],
+            oauth2RedirectUris: ["http://example.com/cb", "http://localhost/callback"]
         )
     )
 
@@ -245,6 +246,22 @@ struct AuthValidationTests {
         }
     }
 
+    @Test("Token endpoint requires client credentials even without configured clients")
+    func tokenRequiresClientCredentials() async throws {
+        let app = try await buildApp(store: InMemoryMockStore())
+        defer { Task { try? await app.asyncShutdown() } }
+
+        try await app.testing().test(
+            .POST,
+            "/_auth/token",
+            headers: ["Content-Type": "application/x-www-form-urlencoded"],
+            body: ByteBuffer(string: "grant_type=client_credentials")
+        ) { res async in
+            #expect(res.status == .badRequest)
+            #expect(res.body.string.contains("invalid_client"))
+        }
+    }
+
     @Test("Token endpoint supports password grant")
     func tokenPasswordGrant() async throws {
         let store = InMemoryMockStore()
@@ -411,7 +428,7 @@ struct AuthValidationTests {
         try await app.testing().test(
             .POST, "/_auth/token",
             headers: ["Content-Type": "application/x-www-form-urlencoded"],
-            body: ByteBuffer(string: "grant_type=refresh_token")
+            body: ByteBuffer(string: "grant_type=refresh_token&refresh_token=mock-refresh")
         ) { res async in
             #expect(res.status == .ok)
             let body = res.body.string
@@ -426,7 +443,10 @@ struct AuthValidationTests {
         let app = try await buildApp(store: store, config: config)
         defer { Task { try? await app.asyncShutdown() } }
 
-        try await app.testing().test(.GET, "/_auth/authorize?redirect_uri=http://example.com/cb&state=xyz") {
+        try await app.testing().test(
+            .GET,
+            "/_auth/authorize?response_type=code&redirect_uri=http://example.com/cb&state=xyz"
+        ) {
             res async in
             #expect(res.status == .found)
             let location = res.headers.first(name: "Location")
@@ -436,17 +456,28 @@ struct AuthValidationTests {
         }
     }
 
-    @Test("Authorize endpoint uses default redirect URI when omitted")
-    func authorizeUsesDefaultRedirectUri() async throws {
+    @Test("Authorize endpoint requires response type and redirect URI")
+    func authorizeRequiresFields() async throws {
         let store = InMemoryMockStore()
         let app = try await buildApp(store: store, config: config)
         defer { Task { try? await app.asyncShutdown() } }
 
         try await app.testing().test(.GET, "/_auth/authorize") { res async in
-            #expect(res.status == .found)
-            let location = res.headers.first(name: "Location")
-            #expect(location?.contains("http://localhost/callback?code=mock-auth-code-") == true)
-            #expect(location?.contains("state=") == false)
+            #expect(res.status == .badRequest)
+            #expect(res.body.string.contains("unsupported_response_type"))
+        }
+    }
+
+    @Test("Authorize endpoint rejects unconfigured redirect URI")
+    func authorizeRejectsUnconfiguredRedirect() async throws {
+        let app = try await buildApp(store: InMemoryMockStore(), config: config)
+        defer { Task { try? await app.asyncShutdown() } }
+
+        try await app.testing().test(
+            .GET,
+            "/_auth/authorize?response_type=code&redirect_uri=https://attacker.example/callback"
+        ) { res async in
+            #expect(res.status == .badRequest)
         }
     }
 }

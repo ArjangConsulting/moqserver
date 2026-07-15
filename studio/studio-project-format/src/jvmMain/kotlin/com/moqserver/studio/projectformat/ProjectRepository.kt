@@ -8,7 +8,11 @@ import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import java.io.File
+import java.nio.file.AtomicMoveNotSupportedException
+import java.nio.file.Files
+import java.nio.file.StandardCopyOption
 import java.util.Base64
+import java.util.UUID
 
 class ProjectRepository(
     private val codec: YamlProjectCodec = YamlProjectCodec(),
@@ -50,17 +54,40 @@ class ProjectRepository(
             }
         }
 
-        logger.info("Project loaded: {} with {} endpoints", manifest.name, endpoints.size)
-        return MoqProject(
+        val project = MoqProject(
             manifest = manifest,
             endpoints = endpoints,
             projectPath = dir.canonicalPath,
         )
+        logger.info("Project loaded: {} with {} endpoints", manifest.name, endpoints.size)
+        return project
     }
 
     fun save(project: MoqProject, path: String) {
         logger.info("Saving project {} to {}", project.manifest.name, path)
-        val dir = File(path)
+        requireValid(project, "Project cannot be saved")
+
+        val destination = File(path).absoluteFile
+        val parent = destination.parentFile ?: error("Project path must have a parent directory: $path")
+        parent.mkdirs()
+        val transactionId = UUID.randomUUID().toString()
+        val staging = File(parent, ".${destination.name}.tmp-$transactionId")
+        val backup = File(parent, ".${destination.name}.backup-$transactionId")
+
+        var replacementCompleted = false
+        try {
+            writeProject(project, staging)
+            replaceProject(staging, destination, backup)
+            replacementCompleted = true
+        } finally {
+            staging.deleteRecursively()
+            if (replacementCompleted || destination.exists()) {
+                backup.deleteRecursively()
+            }
+        }
+    }
+
+    private fun writeProject(project: MoqProject, dir: File) {
         val endpointsDir = File(dir, MoqProjectFormat.ENDPOINTS_DIR)
         val fixturesDir = File(dir, MoqProjectFormat.FIXTURES_DIR)
 
@@ -72,7 +99,7 @@ class ProjectRepository(
         File(dir, MoqProjectFormat.MANIFEST_FILE).writeText(manifestYaml)
 
         val referencedFixtures = mutableSetOf<String>()
-        val sourceRoot = File(project.projectPath)
+        val sourceRoot = File(project.projectPath).canonicalFile
         val persistedEndpoints = project.endpoints
             .sortedBy { it.id }
             .map { endpoint ->
@@ -112,6 +139,49 @@ class ProjectRepository(
             persistedEndpoints.size,
             referencedFixtures.size,
         )
+    }
+
+    private fun requireValid(project: MoqProject, context: String) {
+        val validator = ProjectValidator { projectPath, bodyFile ->
+            resolveContainedFixture(File(projectPath), bodyFile)?.isFile == true
+        }
+        val errors = validator.validate(project).filter { it.severity == ValidationDiagnostic.Severity.ERROR }
+        require(errors.isEmpty()) {
+            "$context:\n${errors.joinToString("\n") { "- ${it.message}" }}"
+        }
+    }
+
+    private fun replaceProject(staging: File, destination: File, backup: File) {
+        if (!destination.exists()) {
+            moveDirectory(staging, destination)
+            return
+        }
+
+        moveDirectory(destination, backup)
+        try {
+            moveDirectory(staging, destination)
+        } catch (error: Exception) {
+            if (destination.exists()) destination.deleteRecursively()
+            try {
+                moveDirectory(backup, destination)
+            } catch (restoreError: Exception) {
+                error.addSuppressed(restoreError)
+            }
+            throw error
+        }
+        backup.deleteRecursively()
+    }
+
+    private fun moveDirectory(source: File, destination: File) {
+        try {
+            Files.move(
+                source.toPath(),
+                destination.toPath(),
+                StandardCopyOption.ATOMIC_MOVE,
+            )
+        } catch (_: AtomicMoveNotSupportedException) {
+            Files.move(source.toPath(), destination.toPath())
+        }
     }
 
     fun readFixture(projectPath: String, bodyFile: String): String? {
@@ -190,9 +260,11 @@ class ProjectRepository(
             targetFile.writeBytes(serializeVariantBody(variant, body))
         } else if (bodyFile != null) {
             val sourceFile = resolveContainedFixture(sourceRoot, bodyFile)
-            if (sourceFile != null && sourceFile.isFile && sourceFile.canonicalPath != targetFile.canonicalPath) {
-                sourceFile.copyTo(targetFile, overwrite = true)
-            }
+                ?.takeIf(File::isFile)
+                ?: error(
+                    "Missing fixture for endpoint \"${endpoint.id}\" variant \"${variant.name}\": $bodyFile",
+                )
+            sourceFile.copyTo(targetFile, overwrite = true)
         }
 
         referencedFixtures += persistedBodyFile

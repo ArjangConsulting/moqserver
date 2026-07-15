@@ -2,13 +2,17 @@
 
 ## Supported Versions
 
-Security fixes are handled on the `main` branch until formal release branches exist.
+| Version | Supported |
+|---------|-----------|
+| Latest stable release | Yes |
+| Current `main` branch | Yes |
+| Prereleases and older releases | Best effort; reproduce on latest stable |
 
 ## Reporting a Vulnerability
 
 Please do not open public issues for suspected vulnerabilities.
 
-Report privately using GitHub Security Advisories if available for this repository. If advisories are not enabled, contact the maintainers through the project owner profile and include enough detail to reproduce the issue.
+Report privately with the repository's **Security > Report a vulnerability** form. If private vulnerability reporting is unavailable, contact the repository owner privately; do not disclose the issue publicly.
 
 Helpful details include:
 

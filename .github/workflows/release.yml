@@ -3,226 +3,358 @@ name: Release
 on:
   push:
     tags:
-      - "v*"
+      - "[0-9]*.[0-9]*.[0-9]*"
 
-# The release is created as a draft with auto-generated notes. A maintainer
-# reviews and publishes it (see docs/RELEASE_CHECKLIST.md). Per-tag notes live
-# in GitHub Releases, not a CHANGELOG.md.
-#
-# Signing is secret-gated: when the relevant secrets are absent the workflow
-# still builds and uploads UNSIGNED artifacts, so releases never block on certs.
-# See docs/RELEASE_SIGNING.md for the secret names and setup.
 permissions:
-  contents: write
+  contents: read
 
 defaults:
   run:
     shell: bash
 
 jobs:
-  create-release:
+  preflight:
     runs-on: ubuntu-latest
+    outputs:
+      prerelease: ${{ steps.version.outputs.prerelease }}
+      version: ${{ steps.version.outputs.version }}
+    env:
+      APPLE_CERTIFICATE_P12_BASE64: ${{ secrets.APPLE_CERTIFICATE_P12_BASE64 }}
+      APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+      APPLE_ID: ${{ secrets.APPLE_ID }}
+      APPLE_NOTARIZATION_PASSWORD: ${{ secrets.APPLE_NOTARIZATION_PASSWORD }}
+      APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+      APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+      GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
+      GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
     steps:
-      - name: Check out repository
-        uses: actions/checkout@v7.0.0
-
-      - name: Create draft release
-        env:
-          GH_TOKEN: ${{ github.token }}
+      - name: Validate version and signing credentials
+        id: version
         run: |
-          if ! gh release view "${GITHUB_REF_NAME}" >/dev/null 2>&1; then
-            gh release create "${GITHUB_REF_NAME}" \
-              --draft \
-              --title "${GITHUB_REF_NAME}" \
-              --generate-notes
+          VERSION="${GITHUB_REF_NAME}"
+          if [[ ! "${VERSION}" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-((0|[1-9][0-9]*)|([0-9]*[A-Za-z-][0-9A-Za-z-]*))(\.((0|[1-9][0-9]*)|([0-9]*[A-Za-z-][0-9A-Za-z-]*)))*)?(\+[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?$ ]]; then
+            echo "Tag must be bare SemVer, for example 1.2.3 or 1.2.3-rc.1" >&2
+            exit 1
+          fi
+          PRERELEASE=false
+          VERSION_WITHOUT_BUILD="${VERSION%%+*}"
+          if [[ "${VERSION_WITHOUT_BUILD}" == *-* ]]; then
+            PRERELEASE=true
+          fi
+          echo "version=${VERSION}" >> "${GITHUB_OUTPUT}"
+          echo "prerelease=${PRERELEASE}" >> "${GITHUB_OUTPUT}"
+
+          apple_values=(APPLE_CERTIFICATE_P12_BASE64 APPLE_CERTIFICATE_PASSWORD APPLE_ID \
+            APPLE_NOTARIZATION_PASSWORD APPLE_SIGNING_IDENTITY APPLE_TEAM_ID)
+          apple_count=0
+          for name in "${apple_values[@]}"; do
+            if [[ -n "${!name}" ]]; then ((apple_count += 1)); fi
+          done
+          if (( apple_count != 0 && apple_count != ${#apple_values[@]} )); then
+            echo "Apple signing credentials must be either complete or entirely absent." >&2
+            exit 1
+          fi
+          if [[ -n "${GPG_PRIVATE_KEY}" && -z "${GPG_PASSPHRASE}" ]] || \
+            [[ -z "${GPG_PRIVATE_KEY}" && -n "${GPG_PASSPHRASE}" ]]; then
+            echo "GPG_PRIVATE_KEY and GPG_PASSPHRASE must be configured together." >&2
+            exit 1
           fi
 
+          if [[ "${PRERELEASE}" == false ]]; then
+            missing=()
+            for name in APPLE_CERTIFICATE_P12_BASE64 APPLE_CERTIFICATE_PASSWORD APPLE_ID \
+              APPLE_NOTARIZATION_PASSWORD APPLE_SIGNING_IDENTITY APPLE_TEAM_ID \
+              GPG_PRIVATE_KEY GPG_PASSPHRASE; do
+              if [[ -z "${!name}" ]]; then missing+=("${name}"); fi
+            done
+            if (( ${#missing[@]} )); then
+              echo "Stable releases require signing and notarization credentials: ${missing[*]}" >&2
+              exit 1
+            fi
+          fi
+
+  verify:
+    needs: preflight
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7.0.0
+      - uses: swift-actions/setup-swift@v2.4.0
+        with:
+          swift-version: "6.2"
+      - uses: actions/setup-java@v5.5.0
+        with:
+          distribution: temurin
+          java-version: "21"
+      - uses: gradle/actions/setup-gradle@v6.2.0
+        with:
+          cache-provider: basic
+      - name: Verify server
+        working-directory: server
+        run: swift-format lint --strict --recursive --configuration .swift-format Sources Tests Package.swift && swift test -c release
+      - name: Verify Studio and release version
+        working-directory: studio
+        run: ./gradlew -PreleaseVersion="${{ needs.preflight.outputs.version }}" detektAll test :composeApp:compileKotlinDesktop
+      - name: Verify canonical projects in both products
+        run: |
+          server/.build/release/moqserver validate --project format/examples/sample-app.moqproj
+          server/.build/release/moqserver validate --project samples/server/showcase.moqproj
+          studio/gradlew -p studio :studio-project-format:jvmTest \
+            --tests "com.moqserver.studio.projectformat.CanonicalFormatCompatibilityTest"
+
   server-binary:
-    needs: create-release
+    needs: [preflight, verify]
+    permissions:
+      contents: read
+      id-token: write
+      attestations: write
     strategy:
       fail-fast: false
       matrix:
         include:
           - os: ubuntu-latest
             suffix: linux-x86_64
-            sha: sha256sum
           - os: macos-latest
             suffix: macos-arm64
-            sha: shasum -a 256
     runs-on: ${{ matrix.os }}
-    defaults:
-      run:
-        working-directory: server
     steps:
-      - name: Check out repository
-        uses: actions/checkout@v7.0.0
-
-      - name: Set up Swift
-        uses: swift-actions/setup-swift@v2.4.0
+      - uses: actions/checkout@v7.0.0
+      - uses: swift-actions/setup-swift@v2.4.0
         with:
           swift-version: "6.2"
-
-      - name: Build release binary
-        run: swift build -c release
-
-      - name: Package and checksum binary
+      - name: Build, smoke test, and archive server
+        working-directory: server
         run: |
+          swift build -c release --product moqserver
           BIN_DIR="$(swift build -c release --show-bin-path)"
-          ARCHIVE="moqserver-${GITHUB_REF_NAME}-${{ matrix.suffix }}.tar.gz"
-          tar -czf "${ARCHIVE}" -C "${BIN_DIR}" Run
-          ${{ matrix.sha }} "${ARCHIVE}" > "${ARCHIVE}.sha256"
-          echo "ARCHIVE=server/${ARCHIVE}" >> "${GITHUB_ENV}"
-
-      - name: Upload binary to release
-        env:
-          GH_TOKEN: ${{ github.token }}
-        working-directory: .
-        run: gh release upload "${GITHUB_REF_NAME}" "${ARCHIVE}" "${ARCHIVE}.sha256" --clobber
+          "${BIN_DIR}/moqserver" validate --project ../format/examples/sample-app.moqproj
+          STAGE="${RUNNER_TEMP}/moqserver"
+          mkdir -p "${STAGE}"
+          cp "${BIN_DIR}/moqserver" "${STAGE}/moqserver"
+          ARCHIVE="moqserver-${{ needs.preflight.outputs.version }}-${{ matrix.suffix }}.tar.gz"
+          tar -czf "${RUNNER_TEMP}/${ARCHIVE}" -C "${STAGE}" moqserver
+          DIGEST="$(openssl dgst -sha256 -r "${RUNNER_TEMP}/${ARCHIVE}" | cut -d' ' -f1)"
+          printf '%s *%s\n' "${DIGEST}" "${ARCHIVE}" > "${RUNNER_TEMP}/${ARCHIVE}.sha256"
+          echo "archive=${RUNNER_TEMP}/${ARCHIVE}" >> "${GITHUB_ENV}"
+      - uses: actions/attest@v4.1.1
+        with:
+          subject-path: ${{ env.archive }}
+      - uses: actions/upload-artifact@v7.0.1
+        with:
+          name: server-${{ matrix.suffix }}
+          path: |
+            ${{ env.archive }}
+            ${{ env.archive }}.sha256
+          if-no-files-found: error
 
   studio-macos:
-    needs: create-release
+    needs: [preflight, verify]
     runs-on: macos-latest
-    defaults:
-      run:
-        working-directory: studio
+    permissions:
+      contents: read
+      id-token: write
+      attestations: write
     env:
       APPLE_CERTIFICATE_P12_BASE64: ${{ secrets.APPLE_CERTIFICATE_P12_BASE64 }}
       APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+      MOQSERVER_STUDIO_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+      MOQSERVER_STUDIO_APPLE_ID: ${{ secrets.APPLE_ID }}
+      MOQSERVER_STUDIO_NOTARIZATION_PASSWORD: ${{ secrets.APPLE_NOTARIZATION_PASSWORD }}
+      MOQSERVER_STUDIO_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
     steps:
-      - name: Check out repository
-        uses: actions/checkout@v7.0.0
-
-      - name: Set up Temurin 21
-        uses: actions/setup-java@v5.3.0
+      - uses: actions/checkout@v7.0.0
+      - uses: actions/setup-java@v5.5.0
         with:
           distribution: temurin
           java-version: "21"
-
-      - name: Set up Gradle
-        uses: gradle/actions/setup-gradle@v6.2.0
+      - uses: gradle/actions/setup-gradle@v6.2.0
         with:
           cache-provider: basic
-
       - name: Import Apple signing certificate
         if: ${{ env.APPLE_CERTIFICATE_P12_BASE64 != '' }}
-        working-directory: .
         run: |
           KEYCHAIN_PATH="${RUNNER_TEMP}/signing.keychain-db"
           KEYCHAIN_PASSWORD="$(openssl rand -base64 24)"
-          CERT_PATH="${RUNNER_TEMP}/apple_cert.p12"
-          echo "${APPLE_CERTIFICATE_P12_BASE64}" | base64 --decode > "${CERT_PATH}"
+          echo "${APPLE_CERTIFICATE_P12_BASE64}" | base64 --decode > "${RUNNER_TEMP}/apple_cert.p12"
           security create-keychain -p "${KEYCHAIN_PASSWORD}" "${KEYCHAIN_PATH}"
-          security set-keychain-settings -lut 21600 "${KEYCHAIN_PATH}"
           security unlock-keychain -p "${KEYCHAIN_PASSWORD}" "${KEYCHAIN_PATH}"
-          security import "${CERT_PATH}" -P "${APPLE_CERTIFICATE_PASSWORD}" -A -t cert -f pkcs12 -k "${KEYCHAIN_PATH}"
+          security import "${RUNNER_TEMP}/apple_cert.p12" -P "${APPLE_CERTIFICATE_PASSWORD}" -A -t cert -f pkcs12 -k "${KEYCHAIN_PATH}"
           security set-key-partition-list -S apple-tool:,apple: -k "${KEYCHAIN_PASSWORD}" "${KEYCHAIN_PATH}" >/dev/null
           security list-keychain -d user -s "${KEYCHAIN_PATH}" login.keychain-db
-
-      - name: Package DMG (signs + notarizes when secrets are present)
-        env:
-          MOQSERVER_STUDIO_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
-          MOQSERVER_STUDIO_APPLE_ID: ${{ secrets.APPLE_ID }}
-          MOQSERVER_STUDIO_NOTARIZATION_PASSWORD: ${{ secrets.APPLE_NOTARIZATION_PASSWORD }}
-          MOQSERVER_STUDIO_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+      - name: Package Studio DMG
+        working-directory: studio
         run: |
-          if [ -n "${MOQSERVER_STUDIO_APPLE_ID}" ] && [ -n "${MOQSERVER_STUDIO_NOTARIZATION_PASSWORD}" ] && [ -n "${MOQSERVER_STUDIO_TEAM_ID}" ]; then
-            echo "Building signed + notarized DMG"
-            ./gradlew :composeApp:notarizeDmg
+          if [[ "${{ needs.preflight.outputs.prerelease }}" == false ]]; then
+            ./gradlew -PreleaseVersion="${{ needs.preflight.outputs.version }}" :composeApp:notarizeDmg
           else
-            echo "Notarization secrets absent — building DMG (signed only if identity present, else unsigned)"
-            ./gradlew :composeApp:packageDmg
+            ./gradlew -PreleaseVersion="${{ needs.preflight.outputs.version }}" :composeApp:packageDmg
           fi
-
-      - name: Checksum and upload DMG
-        env:
-          GH_TOKEN: ${{ github.token }}
-        working-directory: .
-        run: |
-          for f in studio/composeApp/build/compose/binaries/main/dmg/*.dmg; do
-            shasum -a 256 "${f}" > "${f}.sha256"
-            gh release upload "${GITHUB_REF_NAME}" "${f}" "${f}.sha256" --clobber
+          for file in composeApp/build/compose/binaries/main/dmg/*.dmg; do
+            DIGEST="$(openssl dgst -sha256 -r "${file}" | cut -d' ' -f1)"
+            printf '%s *%s\n' "${DIGEST}" "$(basename "${file}")" > "${file}.sha256"
           done
+      - uses: actions/attest@v4.1.1
+        with:
+          subject-path: studio/composeApp/build/compose/binaries/main/dmg/*.dmg
+      - uses: actions/upload-artifact@v7.0.1
+        with:
+          name: studio-macos
+          path: studio/composeApp/build/compose/binaries/main/dmg/*
+          if-no-files-found: error
 
   studio-linux:
-    needs: create-release
+    needs: [preflight, verify]
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: studio
+    permissions:
+      contents: read
+      id-token: write
+      attestations: write
     env:
       GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
       GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
     steps:
-      - name: Check out repository
-        uses: actions/checkout@v7.0.0
-
-      - name: Set up Temurin 21
-        uses: actions/setup-java@v5.3.0
+      - uses: actions/checkout@v7.0.0
+      - uses: actions/setup-java@v5.5.0
         with:
           distribution: temurin
           java-version: "21"
-
-      - name: Set up Gradle
-        uses: gradle/actions/setup-gradle@v6.2.0
+      - uses: gradle/actions/setup-gradle@v6.2.0
         with:
           cache-provider: basic
-
-      - name: Package DEB
-        run: ./gradlew :composeApp:packageDeb
-
-      - name: Import GPG key
-        if: ${{ env.GPG_PRIVATE_KEY != '' }}
-        working-directory: .
-        run: echo "${GPG_PRIVATE_KEY}" | gpg --batch --import
-
-      - name: Sign, checksum, and upload DEB
-        env:
-          GH_TOKEN: ${{ github.token }}
-        working-directory: .
-        run: |
-          for f in studio/composeApp/build/compose/binaries/main/deb/*.deb; do
-            sha256sum "${f}" > "${f}.sha256"
-            ASSETS=("${f}" "${f}.sha256")
-            if [ -n "${GPG_PRIVATE_KEY}" ]; then
-              gpg --batch --yes --pinentry-mode loopback --passphrase "${GPG_PASSPHRASE}" \
-                --detach-sign --armor "${f}"
-              ASSETS+=("${f}.asc")
-            fi
-            gh release upload "${GITHUB_REF_NAME}" "${ASSETS[@]}" --clobber
-          done
-
-  studio-windows:
-    needs: create-release
-    runs-on: windows-latest
-    defaults:
-      run:
+      - name: Package, sign, and checksum Studio DEB
         working-directory: studio
-    steps:
-      - name: Check out repository
-        uses: actions/checkout@v7.0.0
+        run: |
+          ./gradlew -PreleaseVersion="${{ needs.preflight.outputs.version }}" :composeApp:packageDeb
+          if [[ -n "${GPG_PRIVATE_KEY}" ]]; then
+            printf '%s' "${GPG_PRIVATE_KEY}" | gpg --batch --import
+          fi
+          for file in composeApp/build/compose/binaries/main/deb/*.deb; do
+            DIGEST="$(openssl dgst -sha256 -r "${file}" | cut -d' ' -f1)"
+            printf '%s *%s\n' "${DIGEST}" "$(basename "${file}")" > "${file}.sha256"
+            if [[ -n "${GPG_PRIVATE_KEY}" ]]; then
+              gpg --batch --yes --pinentry-mode loopback --passphrase "${GPG_PASSPHRASE}" --detach-sign --armor "${file}"
+            fi
+          done
+      - uses: actions/attest@v4.1.1
+        with:
+          subject-path: studio/composeApp/build/compose/binaries/main/deb/*.deb
+      - uses: actions/upload-artifact@v7.0.1
+        with:
+          name: studio-linux
+          path: studio/composeApp/build/compose/binaries/main/deb/*
+          if-no-files-found: error
 
-      - name: Set up Temurin 21
-        uses: actions/setup-java@v5.3.0
+  studio-windows-prerelease:
+    if: ${{ needs.preflight.outputs.prerelease == 'true' }}
+    needs: [preflight, verify]
+    runs-on: windows-latest
+    permissions:
+      contents: read
+      id-token: write
+      attestations: write
+    steps:
+      - uses: actions/checkout@v7.0.0
+      - uses: actions/setup-java@v5.5.0
         with:
           distribution: temurin
           java-version: "21"
-
-      - name: Set up Gradle
-        uses: gradle/actions/setup-gradle@v6.2.0
+      - uses: gradle/actions/setup-gradle@v6.2.0
         with:
           cache-provider: basic
+      - name: Package unsigned prerelease MSI
+        working-directory: studio
+        run: |
+          ./gradlew -PreleaseVersion="${{ needs.preflight.outputs.version }}" :composeApp:packageMsi
+          for file in composeApp/build/compose/binaries/main/msi/*.msi; do
+            DIGEST="$(openssl dgst -sha256 -r "${file}" | cut -d' ' -f1)"
+            printf '%s *%s\n' "${DIGEST}" "$(basename "${file}")" > "${file}.sha256"
+          done
+      - uses: actions/attest@v4.1.1
+        with:
+          subject-path: studio/composeApp/build/compose/binaries/main/msi/*.msi
+      - uses: actions/upload-artifact@v7.0.1
+        with:
+          name: studio-windows
+          path: studio/composeApp/build/compose/binaries/main/msi/*
+          if-no-files-found: error
 
-      # Windows artifacts are currently UNSIGNED (validated build only).
-      # See docs/RELEASE_SIGNING.md for the Azure Trusted Signing / jsign path.
-      - name: Package MSI
-        run: ./gradlew :composeApp:packageMsi
+  sbom:
+    needs: [preflight, verify]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7.0.0
+      - uses: anchore/sbom-action@v0.24.0
+        with:
+          path: .
+          format: cyclonedx-json
+          output-file: moqserver-${{ needs.preflight.outputs.version }}-sbom.cdx.json
+          upload-artifact: false
+      - uses: actions/upload-artifact@v7.0.1
+        with:
+          name: sbom
+          path: moqserver-${{ needs.preflight.outputs.version }}-sbom.cdx.json
+          if-no-files-found: error
 
-      - name: Checksum and upload MSI
+  docker:
+    needs: [preflight, verify]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+      attestations: write
+    steps:
+      - uses: actions/checkout@v7.0.0
+      - uses: docker/setup-buildx-action@v4.2.0
+      - uses: docker/login-action@v4.4.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
+      - name: Build server image for scanning
+        uses: docker/build-push-action@v7.3.0
+        with:
+          context: server
+          load: true
+          tags: ghcr.io/arjangconsulting/moqserver/server:${{ needs.preflight.outputs.version }}
+      - uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          image-ref: ghcr.io/arjangconsulting/moqserver/server:${{ needs.preflight.outputs.version }}
+          severity: CRITICAL,HIGH
+          ignore-unfixed: true
+          exit-code: "1"
+      - name: Publish scanned server image
+        run: docker push ghcr.io/arjangconsulting/moqserver/server:${{ needs.preflight.outputs.version }}
+      - name: Resolve published image digest
+        id: publish-image
+        run: |
+          DIGEST="$(docker buildx imagetools inspect \
+            ghcr.io/arjangconsulting/moqserver/server:${{ needs.preflight.outputs.version }} \
+            --format '{{json .Manifest.Digest}}' | tr -d '"')"
+          echo "digest=${DIGEST}" >> "${GITHUB_OUTPUT}"
+      - uses: actions/attest@v4.1.1
+        with:
+          subject-name: ghcr.io/arjangconsulting/moqserver/server
+          subject-digest: ${{ steps.publish-image.outputs.digest }}
+          push-to-registry: true
+
+  publish:
+    if: ${{ always() && needs.preflight.result == 'success' && needs.verify.result == 'success' && needs.server-binary.result == 'success' && needs.studio-macos.result == 'success' && needs.studio-linux.result == 'success' && (needs.studio-windows-prerelease.result == 'success' || needs.studio-windows-prerelease.result == 'skipped') && needs.sbom.result == 'success' && needs.docker.result == 'success' }}
+    needs: [preflight, verify, server-binary, studio-macos, studio-linux, studio-windows-prerelease, sbom, docker]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7.0.0
+      - uses: actions/download-artifact@v8.0.1
+        with:
+          path: release-assets
+          merge-multiple: true
+      - name: Create, populate, and publish GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
-        working-directory: .
         run: |
-          for f in studio/composeApp/build/compose/binaries/main/msi/*.msi; do
-            sha256sum "${f}" > "${f}.sha256"
-            gh release upload "${GITHUB_REF_NAME}" "${f}" "${f}.sha256" --clobber
-          done
+          FLAGS=(--draft --verify-tag --title "${GITHUB_REF_NAME}" --generate-notes)
+          if [[ "${{ needs.preflight.outputs.prerelease }}" == true ]]; then FLAGS+=(--prerelease); fi
+          gh release create "${GITHUB_REF_NAME}" "${FLAGS[@]}"
+          gh release upload "${GITHUB_REF_NAME}" release-assets/*
+          gh release edit "${GITHUB_REF_NAME}" --draft=false

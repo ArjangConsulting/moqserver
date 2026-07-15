@@ -15,7 +15,7 @@ From the repository root:
 
 ```bash
 cd server
-swift run Run serve \
+swift run moqserver serve \
   --project ../samples/server/showcase.moqproj \
   --config ../samples/server/config.yaml \
   --port 8080
@@ -31,6 +31,8 @@ swift run Run serve \
 
 - iOS Simulator on same Mac as server: `http://127.0.0.1:8080`
 - Physical iPhone on same network: `http://<your-mac-lan-ip>:8080`
+
+The Debug configuration enables local-network transport for the sample. Release configuration keeps the normal App Transport Security policy; use HTTPS outside local development.
 
 ## Test flow
 

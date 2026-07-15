@@ -44,13 +44,15 @@ Required top-level types (Swift names in `MoqCore/Project/`):
 - `EndpointDocument` — a single endpoint file with method, path, variants, etc.
 - `EndpointOperation` — GraphQL operation matching config (type, name, document)
 - `RequestRules` — required headers, query params, cookie verification config
-- `ProjectVariant` — a single response variant (name, status, body/body_file, headers, delay_ms)
+- `ProjectVariant` — a response variant (name, optional description/reference_name, status, string headers, request_match, body/body_file, delay_ms)
 - `ProjectAuthConfig` — per-endpoint auth config (type, verify, header_name)
 - `NetworkBehavior` — network simulation settings (latency_ms, jitter_ms, packet_loss_percent)
 
 Note: `body_file` references within `ProjectVariant` are plain `String` fields (relative paths into `fixtures/`); there is no separate `FixtureReference` type. The runtime auth domain type `AuthRequirement` is distinct from `ProjectAuthConfig` — the former is the internal representation after conversion, the latter is the on-disk format model.
 
 ## Serialization Rules
+
+`reference_name` is optional on endpoint and variant documents. Both products derive the same code-friendly default when it is absent. Response `headers` and `request_match.query`/`request_match.headers` values are strings; quote values that YAML could otherwise parse as numbers or booleans.
 
 ### YAML loading
 
@@ -148,6 +150,8 @@ Preferred ownership model:
 - shared documentation defines the contract
 - Studio implements the same contract using equivalent domain rules
 - cross-language golden tests verify both sides agree
+
+The `Project Format` workflow validates every canonical YAML document against `format/schema.json`, then loads the canonical bundle through both products. Changes under `format/` also trigger the normal Server and Studio workflows.
 
 ## Acceptance Criteria
 

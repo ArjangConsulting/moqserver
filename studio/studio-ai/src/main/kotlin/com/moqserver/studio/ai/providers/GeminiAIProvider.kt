@@ -41,7 +41,7 @@ class GeminiAIProvider(
     )
 
     override suspend fun checkAvailability(): Boolean {
-        if (apiKey.isBlank()) return false
+        if (apiKey.isBlank() || hostedBaseUrlIssue(baseUrl) != null) return false
         return try {
             // The key goes in a header, never in the URL: URLs leak into logs and proxies.
             val response = httpClient.get("$baseUrl/v1beta/models") {
@@ -62,6 +62,10 @@ class GeminiAIProvider(
             issues += "$DISPLAY_NAME API key is not configured."
             return issues
         }
+        hostedBaseUrlIssue(baseUrl)?.let {
+            issues += it
+            return issues
+        }
         if (!checkAvailability()) {
             issues += "Could not reach $DISPLAY_NAME API. Check your API key and network."
         }
@@ -69,6 +73,7 @@ class GeminiAIProvider(
     }
 
     override suspend fun complete(prompt: String, model: String?, temperature: Double?): AICompletionResult {
+        hostedBaseUrlIssue(baseUrl)?.let { throw AIProviderException.Unavailable(DISPLAY_NAME, it, retryable = false) }
         val effectiveModel = model ?: defaultModel
         val start = System.currentTimeMillis()
         logger.info("Sending completion request to Gemini model {}", effectiveModel)
@@ -197,6 +202,7 @@ class GeminiAIProvider(
 }
 
 private fun defaultClient() = HttpClient(CIO) {
+    followRedirects = false
     install(ContentNegotiation) {
         json(Json { ignoreUnknownKeys = true })
     }

@@ -1,11 +1,10 @@
 # Build stage
-FROM swift:5.10-jammy AS builder
+FROM swift:6.2-jammy AS builder
 WORKDIR /app
 COPY Package.swift Package.resolved ./
 RUN swift package resolve
 COPY Sources/ Sources/
-COPY Tests/ Tests/
-RUN swift build -c release --static-swift-stdlib
+RUN swift build -c release --product moqserver --static-swift-stdlib
 
 # Runtime stage
 FROM ubuntu:jammy
@@ -15,7 +14,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && useradd --system --create-home --home-dir /app moqserver
 
 WORKDIR /app
-COPY --from=builder /app/.build/release/Run /usr/local/bin/moqserver
+COPY --from=builder /app/.build/release/moqserver /usr/local/bin/moqserver
 
 USER moqserver
 EXPOSE 8080

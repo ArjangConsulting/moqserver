@@ -30,7 +30,7 @@ make studio-lint    # Studio detekt lint
 Useful direct commands:
 
 ```bash
-cd server && swift run Run serve --project ../format/examples/sample-app.moqproj --port 8080
+cd server && swift run moqserver serve --project ../format/examples/sample-app.moqproj --port 8080
 cd studio && ./gradlew :composeApp:compileKotlinDesktop
 ```
 
@@ -56,4 +56,4 @@ When filing an issue, include:
 - The command you ran.
 - The expected result.
 - The actual output or error.
-- A minimal OpenAPI/HAR/`.moqproj` example when relevant.
+- A minimal `.moqproj` example or Studio import input when relevant.

@@ -7,7 +7,7 @@
   "$defs": {
     "httpMethod": {
       "type": "string",
-      "enum": ["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"]
+      "enum": ["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS", "TRACE", "CONNECT"]
     },
     "authType": {
       "type": "string",
@@ -24,8 +24,25 @@
         "minLength": 1
       },
       "additionalProperties": {
-        "type": ["string", "number", "boolean"]
+        "type": "string"
       }
+    },
+    "requestMatch": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "query": {
+          "$ref": "#/$defs/headersMap"
+        },
+        "headers": {
+          "$ref": "#/$defs/headersMap"
+        },
+        "body_contains": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "minProperties": 1
     },
     "networkConfig": {
       "type": "object",
@@ -186,6 +203,9 @@
           "type": "string",
           "pattern": "^[A-Za-z_][A-Za-z0-9_]*$"
         },
+        "description": {
+          "type": "string"
+        },
         "default": {
           "type": "boolean"
         },
@@ -197,6 +217,9 @@
         "headers": {
           "$ref": "#/$defs/headersMap"
         },
+        "request_match": {
+          "$ref": "#/$defs/requestMatch"
+        },
         "body": {},
         "body_file": {
           "type": "string",
@@ -207,7 +230,7 @@
           "minimum": 0
         }
       },
-      "required": ["name", "reference_name", "status"],
+      "required": ["name", "status"],
       "allOf": [
         {
           "not": {
@@ -269,7 +292,7 @@
           }
         }
       },
-      "required": ["id", "reference_name", "method", "path", "variants"]
+      "required": ["id", "method", "path", "variants"]
     },
     "projectManifest": {
       "type": "object",

@@ -14,7 +14,7 @@ Run this from the repository root:
 
 ```bash
 cd server
-swift run Run serve \
+swift run moqserver serve \
   --project ../samples/server/showcase.moqproj \
   --config ../samples/server/config.yaml \
   --port 8080

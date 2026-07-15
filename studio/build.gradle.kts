@@ -5,14 +5,16 @@ plugins {
 	alias(libs.plugins.compose.multiplatform) apply false
 	alias(libs.plugins.compose.compiler) apply false
 	alias(libs.plugins.detekt)
+	alias(libs.plugins.kover)
 }
 
 allprojects {
 	group = "com.moqserver"
-	version = "1.0.0"
+	version = providers.gradleProperty("releaseVersion").get()
 }
 
 subprojects {
+	apply(plugin = "org.jetbrains.kotlinx.kover")
 	tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompilationTask<*>>().configureEach {
 		compilerOptions {
 			allWarningsAsErrors.set(true)
@@ -33,6 +35,20 @@ subprojects {
 
 	dependencies {
 		"detektPlugins"("io.gitlab.arturbosch.detekt:detekt-formatting:${rootProject.libs.versions.detekt.get()}")
+	}
+}
+
+dependencies {
+	subprojects.forEach { kover(it) }
+}
+
+kover {
+	reports {
+		verify {
+			rule("Aggregate line coverage") {
+				minBound(35)
+			}
+		}
 	}
 }
 

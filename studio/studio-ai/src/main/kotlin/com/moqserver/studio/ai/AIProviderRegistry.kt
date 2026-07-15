@@ -37,19 +37,9 @@ class AIProviderRegistry(private val providers: List<AIProvider>) {
         request: CompanionRequest,
     ): CompanionResponse<GenerateVariantsResult> {
         val prompt = PromptBuilder.buildGenerateVariantsPrompt(request)
-        logger.info("=== AI PROMPT FOR generateVariants ===\n{}\n=== END PROMPT ===", prompt)
         val completion = runCompletion(provider, prompt, request)
-        logger.info(
-            "=== AI RAW RESPONSE ({} chars) ===\n{}\n=== END RESPONSE ===",
-            completion.text.length,
-            completion.text,
-        )
         val result = ResponseParser.parseGenerateVariantsResponse(completion.text)
-        logger.info(
-            "=== PARSED RESULT: {} variant(s). First body preview: {} ===",
-            result.variants.size,
-            result.variants.firstOrNull()?.body?.take(500) ?: "<none>",
-        )
+        logger.debug("Parsed {} generated variant(s)", result.variants.size)
         return wrapResponse(provider, completion, result)
     }
 

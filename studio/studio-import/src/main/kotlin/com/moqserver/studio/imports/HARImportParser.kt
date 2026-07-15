@@ -9,6 +9,10 @@ import com.moqserver.studio.projectformat.RuleMatcher
 import com.moqserver.studio.projectformat.defaultAliasForEndpoint
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
 import java.net.URI
 import java.util.*
 
@@ -39,6 +43,8 @@ class HARImportParser {
 		private const val REDIRECT_VARIANT_PREFIX = "redirect"
 		private const val ERROR_VARIANT_PREFIX = "error"
 		private const val REDACTED = "[redacted]"
+		private const val REDACTION_WARNING =
+			"HAR sensitive fields were redacted heuristically. Review imported response bodies because arbitrary secret names may not be detected."
 
 		/**
 		 * Header names (case-insensitive) whose values are always redacted.
@@ -103,13 +109,16 @@ class HARImportParser {
 
 		val grouped = mutableMapOf<GroupKey, MutableList<CapturedExchange>>()
 		val warnings = mutableListOf<String>()
+		var redactedResponseBody = false
 
 		for ((index, entry) in entries.withIndex()) {
 			parseEntry(entry, index + 1, warnings)?.let { parsedEntry ->
+				redactedResponseBody = redactedResponseBody || parsedEntry.responseBodyRedacted
 				val existing = grouped.getOrPut(parsedEntry.key) { mutableListOf() }
 				existing.add(parsedEntry.exchange)
 			}
 		}
+		if (redactedResponseBody) warnings += REDACTION_WARNING
 
 		val endpoints = grouped.entries
 			.sortedWith(compareBy({ it.key.path }, { it.key.method }))
@@ -181,20 +190,21 @@ class HARImportParser {
 		return headers
 	}
 
-	private fun responseBody(response: HarResponse): String? {
-		val text = response.content.text ?: return null
+	private fun responseBody(response: HarResponse): SanitizedBody {
+		val text = response.content.text ?: return SanitizedBody(null, false)
 
 		if (response.content.encoding?.lowercase() == "base64") {
 			if (!response.content.mimeType.isLikelyTextualMimeType()) {
-				return text
+				return SanitizedBody(text, false)
 			}
-			return try {
+			val decoded = try {
 				String(Base64.getDecoder().decode(text), Charsets.UTF_8)
 			} catch (_: Exception) {
 				text
 			}
+			return sanitizeStructuredBody(decoded, response.content.mimeType)
 		}
-		return text
+		return sanitizeStructuredBody(text, response.content.mimeType)
 	}
 
 	/**
@@ -215,15 +225,17 @@ class HARImportParser {
 		if (rawUrl.isBlank()) return warnAndSkip(warnings, entryNumber, "missing request URL")
 		val uri = parseRequestUri(rawUrl, entryNumber, warnings) ?: return null
 
+		val sanitizedBody = responseBody(response)
 		return ParsedHarEntry(
 			key = GroupKey(method, normalizedPath(uri)),
 			exchange = CapturedExchange(
 				statusCode = normalizedStatusCode(response.status),
 				headers = responseHeaders(response),
-				body = responseBody(response),
+				body = sanitizedBody.value,
 				cookies = extractRequestCookies(request),
 				queryParameters = requestQueryParameters(request, uri),
 			),
+			responseBodyRedacted = sanitizedBody.redacted,
 		)
 	}
 
@@ -389,6 +401,58 @@ class HARImportParser {
 	private fun redactJwt(value: String): String =
 		JWT_REGEX.replace(value) { match -> "${match.groupValues[1]}.${match.groupValues[2]}.redacted" }
 
+	private fun sanitizeStructuredBody(text: String, mimeType: String?): SanitizedBody {
+		if (mimeType.orEmpty().contains("json", ignoreCase = true)) {
+			val element = runCatching { json.parseToJsonElement(text) }.getOrNull() ?: return SanitizedBody(text, false)
+			val sanitized = sanitizeJson(element)
+			return SanitizedBody(sanitized.first.toString(), sanitized.second)
+		}
+		if (mimeType.orEmpty().contains("x-www-form-urlencoded", ignoreCase = true)) {
+			var redacted = false
+			val value = text.split('&').joinToString("&") { pair ->
+				val separator = pair.indexOf('=')
+				if (separator < 0) return@joinToString pair
+				val name = pair.substring(0, separator)
+				val decodedName = java.net.URLDecoder.decode(name, Charsets.UTF_8)
+				if (decodedName.lowercase() in SENSITIVE_PARAM_NAMES) {
+					redacted = true
+					"$name=${java.net.URLEncoder.encode(REDACTED, Charsets.UTF_8)}"
+				} else {
+					pair
+				}
+			}
+			return SanitizedBody(value, redacted)
+		}
+		val sanitized = redactJwt(text)
+		return SanitizedBody(sanitized, sanitized != text)
+	}
+
+	private fun sanitizeJson(element: JsonElement): Pair<JsonElement, Boolean> = when (element) {
+		is JsonObject -> {
+			var redacted = false
+			val values = element.mapValues { (key, value) ->
+				if (key.lowercase() in SENSITIVE_PARAM_NAMES) {
+					redacted = true
+					JsonPrimitive(REDACTED)
+				} else {
+					val child = sanitizeJson(value)
+					redacted = redacted || child.second
+					child.first
+				}
+			}
+			JsonObject(values) to redacted
+		}
+		is JsonArray -> {
+			val children = element.map(::sanitizeJson)
+			JsonArray(children.map { it.first }) to children.any { it.second }
+		}
+		is JsonPrimitive -> {
+			val original = element.content
+			val sanitized = redactJwt(original)
+			if (sanitized == original) element to false else JsonPrimitive(sanitized) to true
+		}
+	}
+
 	// -- HAR data model --
 
 	private data class GroupKey(val method: String, val path: String)
@@ -396,7 +460,10 @@ class HARImportParser {
 	private data class ParsedHarEntry(
 		val key: GroupKey,
 		val exchange: CapturedExchange,
+		val responseBodyRedacted: Boolean,
 	)
+
+	private data class SanitizedBody(val value: String?, val redacted: Boolean)
 
 	private data class CapturedExchange(
 		val statusCode: Int,

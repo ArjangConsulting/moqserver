@@ -25,8 +25,8 @@ swift build
 swift test
 swift test --filter MoqRuntimeTests   # single test target
 swift test --filter "testAdminAPI"     # single test case
-swift run Run serve --project Tests/MoqFormatTests/Fixtures/sample-app.moqproj --port 8080
-swift run Run validate --project path/to/project.moqproj
+swift run moqserver serve --project Tests/MoqFormatTests/Fixtures/sample-app.moqproj --port 8080
+swift run moqserver validate --project path/to/project.moqproj
 ```
 
 Makefile shortcuts (run from repo root): `make smoke` (`SmokeTests` filter) and

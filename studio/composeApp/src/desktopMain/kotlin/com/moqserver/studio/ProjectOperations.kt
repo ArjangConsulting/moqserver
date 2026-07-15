@@ -19,7 +19,7 @@ import java.awt.Window as AwtWindow
 private val logger = loggerFor<StudioRootViewModel>()
 
 internal const val STUDIO_APP_DISPLAY_NAME = "moqserver Studio"
-internal const val STUDIO_APP_VERSION = "1.0.0"
+internal val STUDIO_APP_VERSION: String = System.getProperty("moqserver.studio.version", "unknown")
 private const val STUDIO_APP_ICON_RESOURCE = "/icons/icon.png"
 
 internal enum class WindowCloseAction {

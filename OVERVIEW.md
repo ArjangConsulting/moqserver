@@ -62,7 +62,7 @@ The planned authoring surface is a desktop Studio app. Provider settings live in
 
 1. **Local Development**
    ```bash
-   swift run Run serve --project ./my-api.moqproj --port 8080
+   swift run moqserver serve --project ./my-api.moqproj --port 8080
    # Now you have a local mock API running
    ```
 

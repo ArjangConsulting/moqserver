@@ -98,7 +98,7 @@ struct AuthorizeEncodingTests {
         let encodedState = state.addingPercentEncoding(withAllowedCharacters: .alphanumerics)!
         try await app.testing().test(
             .GET,
-            "/_auth/authorize?redirect_uri=http://localhost/callback&state=\(encodedState)"
+            "/_auth/authorize?response_type=code&redirect_uri=http://localhost/callback&state=\(encodedState)"
         ) { res async in
             #expect(res.status == .found)
             let location = res.headers.first(name: .location) ?? ""
@@ -116,7 +116,7 @@ struct AuthorizeEncodingTests {
         defer { Task { try? await app.asyncShutdown() } }
 
         let badURI = "ht tp://bad uri".addingPercentEncoding(withAllowedCharacters: .alphanumerics)!
-        try await app.testing().test(.GET, "/_auth/authorize?redirect_uri=\(badURI)") { res async in
+        try await app.testing().test(.GET, "/_auth/authorize?response_type=code&redirect_uri=\(badURI)") { res async in
             #expect(res.status == .badRequest)
         }
     }

@@ -4,6 +4,7 @@ import com.moqserver.studio.domain.VariantReferenceSyncPreference
 import java.io.File
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
@@ -89,19 +90,71 @@ class AISettingsRepositoryTest {
     }
 
     @Test
-    fun `save falls back to the settings file when secure storage is unavailable`() {
+    fun `save refuses plaintext fallback when secure storage is unavailable`() {
         val settingsFile = File.createTempFile("ai-settings", ".json")
         val repository = AISettingsRepository(
             settingsFile = settingsFile,
             credentialStore = UnavailableCredentialStore(),
         )
 
-        repository.save(AISettings(openai = OpenAISettings(apiKey = "openai-secret")))
+        val error = assertFailsWith<IllegalStateException> {
+            repository.save(AISettings(openai = OpenAISettings(apiKey = "openai-secret")))
+        }
 
         val persisted = settingsFile.readText()
-        assertTrue(persisted.contains("openai-secret"))
-        assertEquals("openai-secret", repository.load().openai.apiKey)
+        assertFalse(persisted.contains("openai-secret"))
+        assertTrue(error.message.orEmpty().contains("secure credential storage is unavailable"))
 
+        settingsFile.delete()
+    }
+
+    @Test
+    fun `load removes and migrates legacy plaintext keys`() {
+        val settingsFile = File.createTempFile("ai-settings", ".json")
+        val credentialStore = FakeSecureCredentialStore()
+        val repository = AISettingsRepository(settingsFile, credentialStore)
+        settingsFile.writeText("""{"openai":{"apiKey":"legacy-secret"}}""")
+
+        val loaded = repository.load()
+
+        assertEquals("legacy-secret", loaded.openai.apiKey)
+        assertEquals("legacy-secret", credentialStore.read("openai.api-key"))
+        assertFalse(settingsFile.readText().contains("legacy-secret"))
+        settingsFile.delete()
+    }
+
+    @Test
+    fun `load retains legacy plaintext key when secure migration fails`() {
+        val settingsFile = File.createTempFile("ai-settings", ".json")
+        settingsFile.writeText("""{"openai":{"apiKey":"legacy-secret"}}""")
+        val repository = AISettingsRepository(settingsFile, UnavailableCredentialStore())
+
+        val loaded = repository.load()
+
+        assertEquals("legacy-secret", loaded.openai.apiKey)
+        assertTrue(settingsFile.readText().contains("legacy-secret"))
+        settingsFile.delete()
+    }
+
+    @Test
+    fun `save restores credentials when a later credential write fails`() {
+        val settingsFile = File.createTempFile("ai-settings", ".json")
+        val credentialStore = FailingCredentialStore("anthropic.api-key").apply {
+            write("openai.api-key", "old-openai")
+        }
+        val repository = AISettingsRepository(settingsFile, credentialStore)
+
+        assertFailsWith<IllegalStateException> {
+            repository.save(
+                AISettings(
+                    openai = OpenAISettings(apiKey = "new-openai"),
+                    anthropic = AnthropicSettings(apiKey = "new-anthropic"),
+                ),
+            )
+        }
+
+        assertEquals("old-openai", credentialStore.read("openai.api-key"))
+        assertEquals(null, credentialStore.read("anthropic.api-key"))
         settingsFile.delete()
     }
 }
@@ -123,6 +176,23 @@ private class FakeSecureCredentialStore : SecureCredentialStore {
     override fun read(key: String): String? = values[key]
 
     override fun write(key: String, value: String) {
+        values[key] = value
+    }
+
+    override fun delete(key: String) {
+        values.remove(key)
+    }
+}
+
+private class FailingCredentialStore(
+    private val failingKey: String,
+) : SecureCredentialStore {
+    private val values = mutableMapOf<String, String>()
+
+    override fun read(key: String): String? = values[key]
+
+    override fun write(key: String, value: String) {
+        if (key == failingKey) error("simulated write failure")
         values[key] = value
     }
 

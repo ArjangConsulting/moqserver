@@ -1,0 +1,49 @@
+name: Security
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  schedule:
+    - cron: "23 4 * * 1"
+
+permissions:
+  contents: read
+
+jobs:
+  dependency-review:
+    if: ${{ github.event_name == 'pull_request' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v7.0.0
+      - uses: actions/dependency-review-action@v5.0.0
+        with:
+          fail-on-severity: high
+
+  codeql:
+    runs-on: macos-latest
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - uses: actions/checkout@v7.0.0
+      - uses: github/codeql-action/init@v4.37.0
+        with:
+          languages: java-kotlin,swift
+      - uses: actions/setup-java@v5.5.0
+        with:
+          distribution: temurin
+          java-version: "21"
+      - uses: swift-actions/setup-swift@v2.4.0
+        with:
+          swift-version: "6.2"
+      - uses: gradle/actions/setup-gradle@v6.2.0
+        with:
+          cache-provider: basic
+      - name: Build analyzed products
+        run: |
+          swift build --package-path server
+          studio/gradlew -p studio :composeApp:compileKotlinDesktop
+      - uses: github/codeql-action/analyze@v4.37.0

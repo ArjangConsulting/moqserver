@@ -15,14 +15,14 @@ e2e:
 	cd server && swift test --filter MoqIntegrationTests
 
 run:
-	cd server && swift run Run serve --project Tests/MoqFormatTests/Fixtures/sample-app.moqproj --port 8080
+	cd server && swift run moqserver serve --project Tests/MoqFormatTests/Fixtures/sample-app.moqproj --port 8080
 
 clean:
 	cd server && swift package clean
 	cd studio && ./gradlew clean
 
 release:
-	cd server && swift build -c release
+	cd server && swift build -c release --product moqserver
 
 lint-server:
 	cd server && swift-format lint --strict --recursive --configuration .swift-format Sources Tests Package.swift

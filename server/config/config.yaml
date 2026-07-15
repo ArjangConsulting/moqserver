@@ -1,5 +1,0 @@
-# Config used by docker-compose.yml.
-# The container binds 0.0.0.0, so protect the /_admin API with a token.
-# Replace this demo value before exposing the server beyond your machine.
-admin:
-  bearerToken: "change-me-admin-token"

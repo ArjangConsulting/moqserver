@@ -1,0 +1,65 @@
+name: Project Format
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/format.yml"
+      - "format/**"
+      - "samples/server/**"
+      - "server/**"
+      - "studio/studio-project-format/**"
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/format.yml"
+      - "format/**"
+      - "samples/server/**"
+      - "server/**"
+      - "studio/studio-project-format/**"
+
+permissions:
+  contents: read
+
+jobs:
+  schema:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7.0.0
+      - name: Install schema validator
+        run: pipx install check-jsonschema==0.37.4
+      - name: Validate schema and canonical YAML documents
+        run: |
+          check-jsonschema --check-metaschema format/schema.json
+          check-jsonschema --schemafile format/schema.json \
+            format/examples/sample-app.moqproj/project.yml \
+            format/examples/sample-app.moqproj/endpoints/*.yml \
+            samples/server/showcase.moqproj/project.yml \
+            samples/server/showcase.moqproj/endpoints/*.yml
+
+  server-compatibility:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7.0.0
+      - uses: swift-actions/setup-swift@v2.4.0
+        with:
+          swift-version: "6.2"
+      - name: Load canonical projects with the server
+        working-directory: server
+        run: |
+          swift run moqserver validate --project ../format/examples/sample-app.moqproj
+          swift run moqserver validate --project ../samples/server/showcase.moqproj
+
+  studio-compatibility:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7.0.0
+      - uses: actions/setup-java@v5.5.0
+        with:
+          distribution: temurin
+          java-version: "21"
+      - uses: gradle/actions/setup-gradle@v6.2.0
+        with:
+          cache-provider: basic
+      - name: Load canonical project with Studio
+        working-directory: studio
+        run: ./gradlew :studio-project-format:jvmTest --tests "com.moqserver.studio.projectformat.CanonicalFormatCompatibilityTest"
