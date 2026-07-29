@@ -1,7 +1,9 @@
 import Foundation
 import Testing
+import Vapor
 
 @testable import MoqCore
+@testable import MoqRuntime
 
 @Suite("ErrorResponse encodes structured error payloads")
 struct ErrorResponseTests {
@@ -45,5 +47,31 @@ struct ErrorResponseTests {
         let c = ErrorResponse(error: "other", code: "not_found")
         #expect(a == b)
         #expect(a != c)
+    }
+}
+
+@Suite("MockErrorMiddleware cancellation")
+struct MockErrorMiddlewareCancellationTests {
+    private struct CancellingResponder: AsyncResponder {
+        func respond(to request: Request) async throws -> Response {
+            throw CancellationError()
+        }
+    }
+
+    @Test("Cancellation propagates instead of becoming an HTTP 500")
+    func cancellationPropagates() async throws {
+        let app = try await Application.make(.testing)
+        let request = Request(
+            application: app,
+            method: .GET,
+            url: "/cancelled",
+            peerCertificateChain: nil,
+            on: app.eventLoopGroup.any()
+        )
+
+        await #expect(throws: CancellationError.self) {
+            try await MockErrorMiddleware().respond(to: request, chainingTo: CancellingResponder())
+        }
+        try await app.asyncShutdown()
     }
 }

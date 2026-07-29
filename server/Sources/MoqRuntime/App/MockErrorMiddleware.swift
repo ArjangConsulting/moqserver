@@ -9,6 +9,8 @@ struct MockErrorMiddleware: AsyncMiddleware {
     func respond(to request: Request, chainingTo next: any AsyncResponder) async throws -> Response {
         do {
             return try await next.respond(to: request)
+        } catch let error as CancellationError {
+            throw error
         } catch {
             let status: HTTPResponseStatus
             let body: ErrorResponse
