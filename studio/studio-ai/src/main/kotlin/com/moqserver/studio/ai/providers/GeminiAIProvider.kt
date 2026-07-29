@@ -51,6 +51,7 @@ class GeminiAIProvider(
             logger.debug("Gemini availability check: {}", available)
             available
         } catch (e: Exception) {
+            e.rethrowIfCancellation()
             logger.warn("Gemini not reachable: {}", e.message)
             false
         }
@@ -90,6 +91,7 @@ class GeminiAIProvider(
                 setBody(requestBody)
             }
         } catch (e: Exception) {
+            e.rethrowIfCancellation()
             logger.error("Gemini request failed: {}", e.message, e)
             throw AIProviderException.Unavailable(DISPLAY_NAME, e.message ?: "network error", retryable = true)
         }

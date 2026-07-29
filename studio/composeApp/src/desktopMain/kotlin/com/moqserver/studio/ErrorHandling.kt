@@ -1,6 +1,7 @@
 package com.moqserver.studio
 
 import com.moqserver.studio.logging.loggerFor
+import kotlinx.coroutines.CancellationException
 import java.io.File
 import javax.swing.JOptionPane
 
@@ -45,10 +46,15 @@ internal fun reportRecoverable(
     throwable: Throwable,
     onUserMessage: (String) -> Unit,
 ) {
+    throwable.rethrowIfCancellation()
     val message = throwable.message ?: context
     errorLogger.error("{}: {}", context, message, throwable)
     appendCrashLog("$context: $message", throwable)
     onUserMessage(message)
+}
+
+internal fun Throwable.rethrowIfCancellation() {
+    if (this is CancellationException) throw this
 }
 
 internal fun isFailFastEnabled(): Boolean =

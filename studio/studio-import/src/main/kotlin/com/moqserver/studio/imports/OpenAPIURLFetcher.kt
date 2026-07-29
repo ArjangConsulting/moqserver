@@ -92,6 +92,7 @@ class OpenAPIURLFetcher(
 				applyAuth(auth)
 			}
 		} catch (e: Exception) {
+			e.rethrowIfCancellation()
 			raise(mapNetworkException(e, specUrl))
 		}
 		if (!response.status.isSuccess()) {
@@ -116,6 +117,7 @@ class OpenAPIURLFetcher(
 				asFetchedSpec(body, response.headers[HttpHeaders.ContentType].orEmpty(), candidateUrl)
 			}
 		} catch (e: Exception) {
+			e.rethrowIfCancellation()
 			logger.debug("Well-known path {} failed: {}", candidateUrl, e.message)
 			null
 		}
@@ -140,6 +142,7 @@ class OpenAPIURLFetcher(
 				applyAuth(auth)
 			}
 		} catch (e: Exception) {
+			e.rethrowIfCancellation()
 			raise(mapNetworkException(e, normalizedUrl))
 		}
 		if (!response.status.isSuccess()) {

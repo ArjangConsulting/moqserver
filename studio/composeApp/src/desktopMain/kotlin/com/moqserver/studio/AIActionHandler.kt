@@ -110,6 +110,7 @@ internal suspend fun refreshAIProviders(
 		logger.info("AI providers refreshed: {}/{} available", available, infos.size)
 		viewModel.aiProvidersLoaded(infos)
 	} catch (e: Exception) {
+		e.rethrowIfCancellation()
 		logger.warn("Failed to check AI provider availability: {}", e.message)
 		viewModel.aiProvidersLoadFailed(e.message ?: "Unknown error")
 	}
@@ -154,6 +155,7 @@ internal suspend fun executeAIAction(
 			}
 		}
 	} catch (e: Exception) {
+		e.rethrowIfCancellation()
 		reportRecoverable(
 			context = "AI action failed",
 			throwable = e,
@@ -337,6 +339,7 @@ private suspend fun requestGeneratedBody(
 
 		applyGeneratedBodyResult(context, generated, prompt, viewModel)
 	} catch (e: Exception) {
+		e.rethrowIfCancellation()
 		reportRecoverable(
 			context = "AI body generation failed",
 			throwable = e,
@@ -502,6 +505,7 @@ internal suspend fun generateImportMocksForEndpoint(
 			.map(::generatedVariantToParsedResponse)
 		viewModel.importAIGenerationCompleted(index, generatedResponses)
 	} catch (e: Exception) {
+		e.rethrowIfCancellation()
 		reportRecoverable(
 			context = "Import AI generation failed",
 			throwable = e,

@@ -51,6 +51,7 @@ class AnthropicAIProvider(
             logger.debug("Anthropic availability check: {}", available)
             available
         } catch (e: Exception) {
+            e.rethrowIfCancellation()
             logger.warn("Anthropic not reachable: {}", e.message)
             false
         }
@@ -93,6 +94,7 @@ class AnthropicAIProvider(
                 setBody(requestBody)
             }
         } catch (e: Exception) {
+            e.rethrowIfCancellation()
             logger.error("Anthropic request failed: {}", e.message, e)
             throw AIProviderException.Unavailable(DISPLAY_NAME, e.message ?: "network error", retryable = true)
         }

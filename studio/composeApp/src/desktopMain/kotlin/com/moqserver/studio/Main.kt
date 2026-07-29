@@ -578,6 +578,7 @@ fun main(args: Array<String>) {
                             error = e.message,
                         )
                     } catch (e: Exception) {
+                        e.rethrowIfCancellation()
                         logger.error("Failed to import from URL: {}", e.message)
                         importURLState.value = importURLState.value.copy(
                             loading = false,
@@ -807,6 +808,7 @@ fun main(args: Array<String>) {
                             try {
                                 withContext(Dispatchers.IO) { settingsRepo.save(settingsToSave) }
                             } catch (e: Exception) {
+                                e.rethrowIfCancellation()
                                 logger.error("Failed to save variant reference preference: {}", e.message)
                                 JOptionPane.showMessageDialog(
                                     window,
@@ -1014,6 +1016,7 @@ fun main(args: Array<String>) {
                                 try {
                                     withContext(Dispatchers.IO) { settingsRepo.save(settingsToSave) }
                                 } catch (e: Exception) {
+                                    e.rethrowIfCancellation()
                                     logger.error("Failed to save preferences: {}", e.message)
                                     JOptionPane.showMessageDialog(
                                         window,
@@ -1056,6 +1059,7 @@ fun main(args: Array<String>) {
                                 try {
                                     withContext(Dispatchers.IO) { settingsRepo.save(settingsToSave) }
                                 } catch (e: Exception) {
+                                    e.rethrowIfCancellation()
                                     logger.error("Failed to save preferences: {}", e.message)
                                     JOptionPane.showMessageDialog(
                                         window,
