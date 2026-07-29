@@ -51,6 +51,7 @@ class OpenAIAIProvider(
             logger.debug("OpenAI availability check: {}", available)
             available
         } catch (e: Exception) {
+            e.rethrowIfCancellation()
             logger.warn("OpenAI not reachable: {}", e.message)
             false
         }
@@ -91,6 +92,7 @@ class OpenAIAIProvider(
                 setBody(requestBody)
             }
         } catch (e: Exception) {
+            e.rethrowIfCancellation()
             logger.error("OpenAI request failed: {}", e.message, e)
             throw AIProviderException.Unavailable(DISPLAY_NAME, e.message ?: "network error", retryable = true)
         }

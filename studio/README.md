@@ -4,7 +4,7 @@ Desktop-first authoring surface for `.moqproj` files.
 
 ## Local development
 
-Use Java 21 for Gradle and IntelliJ. Java 17 may be sufficient for some IDE operations, but the Gradle modules use a Java 21 toolchain. The current Kotlin/Gradle setup does not load correctly on Java 25 and fails early with `IllegalArgumentException: 25.0.2`.
+Use Java 21 for Gradle and IntelliJ. It is the release CI version and the toolchain used by all Studio modules.
 
 Open the `studio/` directory as the IntelliJ project. That is the canonical IDE setup for the desktop app.
 

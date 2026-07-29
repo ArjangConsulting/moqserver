@@ -1,13 +1,29 @@
 package com.moqserver.studio.imports
 
+import io.ktor.client.HttpClient
+import io.ktor.client.engine.mock.MockEngine
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
 import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 class OpenAPIURLFetcherTest {
+
+	@Test
+	fun `fetch preserves coroutine cancellation`() = runTest {
+		val fetcher = OpenAPIURLFetcher(
+			HttpClient(MockEngine { throw CancellationException("cancelled") }),
+		)
+
+		assertFailsWith<CancellationException> {
+			fetcher.fetchSpec("https://example.com/openapi.json")
+		}
+	}
 
 	// -- normalizeUrl --
 

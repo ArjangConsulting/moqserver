@@ -185,20 +185,20 @@ This keeps the unavoidable Swing dependency boxed away from the rest of the app.
 
 ### Core UI and state
 
-- Compose Multiplatform `1.10.3`
-- Kotlin `2.3.21`
+- Compose Multiplatform `1.11.1`
+- Kotlin `2.4.10`
 - Navigation Compose `org.jetbrains.androidx.navigation:navigation-compose:2.9.2`
-- Lifecycle ViewModel Compose `org.jetbrains.androidx.lifecycle:lifecycle-viewmodel-compose:2.10.0`
-- Coroutines `1.10.2`
-- `kotlinx-coroutines-swing:1.10.2` for desktop `Dispatchers.Main`
+- Lifecycle ViewModel Compose `org.jetbrains.androidx.lifecycle:lifecycle-viewmodel-compose:2.11.0`
+- Coroutines `1.11.0`
+- `kotlinx-coroutines-swing:1.11.0` for desktop `Dispatchers.Main`
 
 ### Serialization and local APIs
 
 - `kotlinx-serialization-json:1.11.0`
-- Ktor client `3.4.3`
-- `ktor-client-content-negotiation:3.4.3`
-- `ktor-serialization-kotlinx-json:3.4.3`
-- `ktor-client-cio:3.4.3`
+- Ktor client `3.5.1`
+- `ktor-client-content-negotiation:3.5.1`
+- `ktor-serialization-kotlinx-json:3.5.1`
+- `ktor-client-cio:3.5.1`
 
 Use these for provider integrations and other local Studio networking needs.
 

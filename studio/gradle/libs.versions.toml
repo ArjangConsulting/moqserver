@@ -1,5 +1,5 @@
 [versions]
-kotlin = "2.3.21"
+kotlin = "2.4.10"
 compose = "1.11.1"
 compose-material3 = "1.11.0-alpha07"
 compose-material-icons = "1.7.3"
@@ -7,13 +7,13 @@ coroutines = "1.11.0"
 serialization = "1.11.0"
 ktor = "3.5.1"
 navigation = "2.9.2"
-lifecycle = "2.10.0"
-rsyntaxtextarea = "3.6.3"
+lifecycle = "2.11.0"
+rsyntaxtextarea = "4.0.1"
 snakeyaml = "3.0.1"
 swagger-parser = "2.1.45"
 slf4j = "2.0.18"
 detekt = "1.23.8"
-kover = "0.9.8"
+kover = "0.9.9"
 
 [libraries]
 coroutines-core = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-core", version.ref = "coroutines" }

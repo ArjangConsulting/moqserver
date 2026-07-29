@@ -50,6 +50,7 @@ class OllamaAIProvider(
             logger.debug("Ollama availability check at {}: {}", baseUrl, available)
             available
         } catch (e: Exception) {
+            e.rethrowIfCancellation()
             logger.warn("Ollama not reachable at {}: {}", baseUrl, e.message)
             false
         }
@@ -90,6 +91,7 @@ class OllamaAIProvider(
                 setBody(requestBody)
             }
         } catch (e: Exception) {
+            e.rethrowIfCancellation()
             logger.error("Ollama request failed: {}", e.message, e)
             throw AIProviderException.Unavailable(DISPLAY_NAME, e.message ?: "network error", retryable = true)
         }
