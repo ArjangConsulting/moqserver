@@ -313,8 +313,8 @@ struct ProjectWriterTests {
         #expect(yaml.contains(#"body: "hello""#))
         #expect(yaml.contains(#"body: [1, "two", true]"#))
         #expect(yaml.contains("body: {}"))
-        #expect(yaml.contains("nested:"))
-        #expect(yaml.contains("items: [1, 2]"))
+        #expect(yaml.contains(#""nested":"#))
+        #expect(yaml.contains(#""items": [1, 2]"#))
 
         let reloaded = try loader.load(from: outputPath)
         let variants = try #require(reloaded.endpoints.first?.variants)
@@ -374,7 +374,7 @@ struct ProjectWriterTests {
             encoding: .utf8)
         #expect(endpointYAML.contains("query_params: []"))
         #expect(endpointYAML.contains("cookies: []"))
-        #expect(endpointYAML.contains("header_name: X-API-Key"))
+        #expect(endpointYAML.contains(#"header_name: "X-API-Key""#))
         #expect(endpointYAML.contains("packet_loss_percent: 12.5"))
         #expect(endpointYAML.contains("document: |"))
         #expect(endpointYAML.components(separatedBy: "request_match:").count - 1 == 3)
@@ -449,5 +449,74 @@ struct ProjectWriterTests {
         #expect(
             endpoint.variants.first { $0.name == "special-bool-string" }?.body
                 == .array([.null, .double(1.5), .string("true")]))
+    }
+
+    @Test("Round-trips YAML-sensitive keys and escaped scalar content")
+    func roundTripsYAMLSensitiveContent() throws {
+        let project = makeProject(endpoints: [
+            EndpointDocument(
+                id: "escaped-content",
+                method: "GET",
+                path: "/escaped",
+                variants: [
+                    ProjectVariant(
+                        name: "colon: #variant",
+                        status: 200,
+                        headers: ["X-Description": "line one: #tag\\next"],
+                        body: .object([
+                            "key: #value": .string("first line\nsecond line\\tail")
+                        ])
+                    )
+                ]
+            )
+        ])
+        let outputPath = (NSTemporaryDirectory() as NSString).appendingPathComponent(
+            "writer-escaped-\(UUID().uuidString).moqproj")
+        defer { try? FileManager.default.removeItem(atPath: outputPath) }
+
+        try ProjectWriter().write(project, to: outputPath)
+        let reloaded = try ProjectLoader().load(from: outputPath)
+        let variant = try #require(reloaded.endpoints.first?.variants.first)
+
+        #expect(variant.name == "colon: #variant")
+        #expect(variant.headers?["X-Description"] == "line one: #tag\\next")
+        #expect(variant.body == .object(["key: #value": .string("first line\nsecond line\\tail")]))
+    }
+
+    @Test("Rejects endpoint IDs that could escape the endpoints directory")
+    func rejectsUnsafeEndpointID() {
+        let project = makeProject(endpoints: [
+            EndpointDocument(
+                id: "../escaped",
+                method: "GET",
+                path: "/escaped",
+                variants: [ProjectVariant(name: "default", status: 200)]
+            )
+        ])
+        let outputPath = (NSTemporaryDirectory() as NSString).appendingPathComponent(
+            "writer-invalid-id-\(UUID().uuidString).moqproj")
+        defer { try? FileManager.default.removeItem(atPath: outputPath) }
+
+        #expect(throws: ProjectWriteError.invalidEndpointID("../escaped")) {
+            try ProjectWriter().write(project, to: outputPath)
+        }
+    }
+
+    @Test("Rejects duplicate endpoint IDs instead of overwriting files")
+    func rejectsDuplicateEndpointIDs() {
+        let endpoint = EndpointDocument(
+            id: "duplicate",
+            method: "GET",
+            path: "/duplicate",
+            variants: [ProjectVariant(name: "default", status: 200)]
+        )
+        let project = makeProject(endpoints: [endpoint, endpoint])
+        let outputPath = (NSTemporaryDirectory() as NSString).appendingPathComponent(
+            "writer-duplicate-id-\(UUID().uuidString).moqproj")
+        defer { try? FileManager.default.removeItem(atPath: outputPath) }
+
+        #expect(throws: ProjectWriteError.duplicateEndpointID("duplicate")) {
+            try ProjectWriter().write(project, to: outputPath)
+        }
     }
 }

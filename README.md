@@ -13,7 +13,7 @@
 
 ## Quick Start
 
-Requirements: Swift 5.10 or newer. CI and releases use Swift 6.2.
+Requirements: Swift 6.1 or newer. CI and releases use Swift 6.2.
 
 ```bash
 git clone https://github.com/ArjangConsulting/moqserver.git

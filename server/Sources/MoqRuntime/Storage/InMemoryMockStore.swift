@@ -186,7 +186,7 @@ public actor InMemoryMockStore: MockStoring {
             try FileManager.default.createDirectory(
                 at: directoryURL, withIntermediateDirectories: true, attributes: nil)
             let data = try JSONEncoder().encode(variantOverrides)
-            try data.write(to: fileURL)
+            try data.write(to: fileURL, options: .atomic)
         } catch {
             logger.warning(
                 "Failed to persist variant overrides to \(path): \(error). Overrides will not survive a restart.")

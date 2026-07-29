@@ -11,6 +11,7 @@ public struct ProjectWriter: ProjectWriting {
 
     public func write(_ project: MoqProject, to path: String) throws {
         logger.info("Writing project '\(project.manifest.name)' to \(path)")
+        try validateEndpointIDs(project.endpoints)
         let fm = FileManager.default
         let projectPath = (path as NSString).standardizingPath
 
@@ -41,7 +42,7 @@ public struct ProjectWriter: ProjectWriting {
 
     private func encodeManifest(_ manifest: ProjectManifest) throws -> String {
         var lines: [String] = []
-        lines.append("version: \"\(manifest.version)\"")
+        lines.append("version: \(yamlQuote(manifest.version))")
         lines.append("name: \(yamlQuote(manifest.name))")
         if let desc = manifest.description {
             lines.append("description: \(yamlQuote(desc))")
@@ -75,7 +76,7 @@ public struct ProjectWriter: ProjectWriting {
         var lines: [String] = []
 
         // Key ordering per FORMAT_IMPLEMENTATION.md
-        lines.append("id: \(endpoint.id)")
+        lines.append("id: \(yamlQuote(endpoint.id))")
         let alias =
             endpoint.alias
             ?? EndpointAlias.defaultAlias(
@@ -88,10 +89,10 @@ public struct ProjectWriter: ProjectWriting {
             lines.append("description: \(yamlQuote(description))")
         }
         lines.append("reference_name: \(yamlQuote(endpoint.referenceName))")
-        lines.append("method: \(endpoint.method)")
-        lines.append("path: \(endpoint.path)")
+        lines.append("method: \(yamlQuote(endpoint.method))")
+        lines.append("path: \(yamlQuote(endpoint.path))")
         if let tags = endpoint.tags, !tags.isEmpty {
-            lines.append("tags: [\(tags.joined(separator: ", "))]")
+            lines.append("tags: [\(tags.map(yamlQuote).joined(separator: ", "))]")
         }
 
         if let operation = endpoint.operation {
@@ -99,7 +100,7 @@ public struct ProjectWriter: ProjectWriting {
             lines.append("operation:")
             lines.append("  type: \(operation.type.rawValue)")
             if let name = operation.name {
-                lines.append("  name: \(name)")
+                lines.append("  name: \(yamlQuote(name))")
             }
             if let document = operation.document {
                 lines.append("  document: |")
@@ -164,7 +165,7 @@ public struct ProjectWriter: ProjectWriting {
         let pad = String(repeating: " ", count: indent)
         var lines: [String] = []
 
-        lines.append("\(pad)- name: \(variant.name)")
+        lines.append("\(pad)- name: \(yamlQuote(variant.name))")
         lines.append("\(pad)  reference_name: \(yamlQuote(variant.referenceName))")
         if let isDefault = variant.isDefault, isDefault {
             lines.append("\(pad)  default: true")
@@ -174,7 +175,7 @@ public struct ProjectWriter: ProjectWriting {
         if let headers = variant.headers, !headers.isEmpty {
             lines.append("\(pad)  headers:")
             for (key, value) in headers.sorted(by: { $0.key < $1.key }) {
-                lines.append("\(pad)    \(key): \(value)")
+                lines.append("\(pad)    \(yamlQuote(key)): \(yamlQuote(value))")
             }
         }
 
@@ -185,13 +186,13 @@ public struct ProjectWriter: ProjectWriting {
             if !requestMatch.query.isEmpty {
                 lines.append("\(pad)    query:")
                 for (key, value) in requestMatch.query.sorted(by: { $0.key < $1.key }) {
-                    lines.append("\(pad)      \(key): \(yamlQuote(value))")
+                    lines.append("\(pad)      \(yamlQuote(key)): \(yamlQuote(value))")
                 }
             }
             if !requestMatch.headers.isEmpty {
                 lines.append("\(pad)    headers:")
                 for (key, value) in requestMatch.headers.sorted(by: { $0.key < $1.key }) {
-                    lines.append("\(pad)      \(key): \(yamlQuote(value))")
+                    lines.append("\(pad)      \(yamlQuote(key)): \(yamlQuote(value))")
                 }
             }
             if let bodyContains = requestMatch.bodyContains {
@@ -200,7 +201,7 @@ public struct ProjectWriter: ProjectWriting {
         }
 
         if let bodyFile = variant.bodyFile {
-            lines.append("\(pad)  body_file: \(bodyFile)")
+            lines.append("\(pad)  body_file: \(yamlQuote(bodyFile))")
         } else if let body = variant.body {
             switch body {
             case .null, .bool, .int, .double, .string:
@@ -234,7 +235,7 @@ public struct ProjectWriter: ProjectWriting {
         lines.append("\(pad)type: \(auth.type.rawValue)")
         lines.append("\(pad)verify: \(auth.verify)")
         if let headerName = auth.headerName {
-            lines.append("\(pad)header_name: \(headerName)")
+            lines.append("\(pad)header_name: \(yamlQuote(headerName))")
         } else {
             lines.append("\(pad)header_name: null")
         }
@@ -253,7 +254,7 @@ public struct ProjectWriter: ProjectWriting {
     private func encodeRuleMatcher(_ matcher: RuleMatcher, indent: Int) -> [String] {
         let pad = String(repeating: " ", count: indent)
         var lines: [String] = []
-        lines.append("\(pad)- name: \(matcher.name)")
+        lines.append("\(pad)- name: \(yamlQuote(matcher.name))")
         if let matchType = matcher.matchType {
             lines.append("\(pad)  match_type: \(matchType.rawValue)")
         }
@@ -290,16 +291,16 @@ public struct ProjectWriter: ProjectWriting {
             for (key, val) in dict.sorted(by: { $0.key < $1.key }) {
                 switch val {
                 case .object(let nested) where !nested.isEmpty:
-                    lines.append("\(key):")
+                    lines.append("\(yamlQuote(key)):")
                     let subYAML = encodeBodyValue(val, baseIndent: baseIndent + 2)
                     for subLine in subYAML.split(separator: "\n", omittingEmptySubsequences: false) {
                         lines.append("  \(subLine)")
                     }
                 case .array(let arr) where !arr.isEmpty:
                     // Use flow style for arrays
-                    lines.append("\(key): \(encodeFlowValue(val))")
+                    lines.append("\(yamlQuote(key)): \(encodeFlowValue(val))")
                 default:
-                    lines.append("\(key): \(encodeBodyValue(val, baseIndent: baseIndent))")
+                    lines.append("\(yamlQuote(key)): \(encodeBodyValue(val, baseIndent: baseIndent))")
                 }
             }
             return lines.joined(separator: "\n")
@@ -326,25 +327,61 @@ public struct ProjectWriter: ProjectWriting {
         case .object(let dict):
             if dict.isEmpty { return "{}" }
             let items = dict.sorted(by: { $0.key < $1.key }).map { key, val in
-                "\(key): \(encodeFlowValue(val))"
+                "\(yamlQuote(key)): \(encodeFlowValue(val))"
             }
             return "{\(items.joined(separator: ", "))}"
         }
     }
 
     private func yamlQuote(_ string: String) -> String {
-        if string.contains("\"") || string.contains("\n") || string.contains(":") || string.contains("#") {
-            let escaped = string.replacingOccurrences(of: "\"", with: "\\\"")
-            return "\"\(escaped)\""
+        let escaped = string.unicodeScalars.map { scalar -> String in
+            switch scalar.value {
+            case 0x08:
+                return "\\b"
+            case 0x09:
+                return "\\t"
+            case 0x0A:
+                return "\\n"
+            case 0x0C:
+                return "\\f"
+            case 0x0D:
+                return "\\r"
+            case 0x22:
+                return "\\\""
+            case 0x5C:
+                return "\\\\"
+            case 0x00...0x1F, 0x7F:
+                return String(format: "\\u%04X", scalar.value)
+            default:
+                return String(scalar)
+            }
         }
-        if string.isEmpty || string.hasPrefix(" ") || string.hasSuffix(" ") {
-            return "\"\(string)\""
+        return "\"\(escaped.joined())\""
+    }
+
+    private func validateEndpointIDs(_ endpoints: [EndpointDocument]) throws {
+        var seenIDs: Set<String> = []
+        for endpoint in endpoints {
+            guard endpoint.id.range(of: "^[a-z0-9][a-z0-9-]*$", options: .regularExpression) != nil else {
+                throw ProjectWriteError.invalidEndpointID(endpoint.id)
+            }
+            guard seenIDs.insert(endpoint.id).inserted else {
+                throw ProjectWriteError.duplicateEndpointID(endpoint.id)
+            }
         }
-        // Quote if it looks like a YAML special value
-        let lower = string.lowercased()
-        if ["true", "false", "null", "yes", "no", "on", "off"].contains(lower) {
-            return "\"\(string)\""
+    }
+}
+
+public enum ProjectWriteError: Error, CustomStringConvertible, Equatable {
+    case duplicateEndpointID(String)
+    case invalidEndpointID(String)
+
+    public var description: String {
+        switch self {
+        case .duplicateEndpointID(let id):
+            return "Cannot write duplicate endpoint id: \(id)"
+        case .invalidEndpointID(let id):
+            return "Cannot write invalid endpoint id: \(id)"
         }
-        return "\"\(string)\""
     }
 }
