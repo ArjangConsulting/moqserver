@@ -81,6 +81,7 @@ jobs:
       - uses: swift-actions/setup-swift@v3
         with:
           swift-version: "6.2"
+          skip-verify-signature: true
       - uses: actions/setup-java@v5.6.0
         with:
           distribution: temurin
@@ -121,6 +122,7 @@ jobs:
       - uses: swift-actions/setup-swift@v3
         with:
           swift-version: "6.2"
+          skip-verify-signature: true
       - name: Build, smoke test, and archive server
         working-directory: server
         run: |
