@@ -34,6 +34,7 @@ jobs:
         uses: swift-actions/setup-swift@v3
         with:
           swift-version: "6.2"
+          skip-verify-signature: true
 
       - name: Lint (swift-format)
         run: swift-format lint --strict --recursive --configuration .swift-format Sources Tests Package.swift
@@ -60,6 +61,7 @@ jobs:
         uses: swift-actions/setup-swift@v3
         with:
           swift-version: "6.2"
+          skip-verify-signature: true
 
       - name: Build server
         run: swift build
