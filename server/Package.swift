@@ -13,7 +13,7 @@ let package = Package(
         .package(url: "https://github.com/vapor/vapor.git", from: "4.122.0"),
         .package(url: "https://github.com/jpsim/Yams.git", from: "6.2.2"),
         .package(url: "https://github.com/apple/swift-argument-parser.git", from: "1.8.2"),
-        .package(url: "https://github.com/apple/swift-log.git", from: "1.14.0"),
+        .package(url: "https://github.com/apple/swift-log.git", from: "1.15.0"),
         .package(url: "https://github.com/apple/swift-nio.git", from: "2.101.3"),
     ],
     targets: [
