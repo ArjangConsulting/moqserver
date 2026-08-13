@@ -32,7 +32,7 @@ jobs:
       - uses: github/codeql-action/init@v4.37.0
         with:
           languages: java-kotlin,swift
-      - uses: actions/setup-java@v5.5.0
+      - uses: actions/setup-java@v5.6.0
         with:
           distribution: temurin
           java-version: "21"
