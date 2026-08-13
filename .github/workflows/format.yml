@@ -24,7 +24,7 @@ jobs:
   schema:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7.0.0
+      - uses: actions/checkout@v7.0.1
       - name: Install schema validator
         run: pipx install check-jsonschema==0.37.4
       - name: Validate schema and canonical YAML documents
@@ -39,7 +39,7 @@ jobs:
   server-compatibility:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7.0.0
+      - uses: actions/checkout@v7.0.1
       - uses: swift-actions/setup-swift@v3
         with:
           swift-version: "6.2"
@@ -52,7 +52,7 @@ jobs:
   studio-compatibility:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7.0.0
+      - uses: actions/checkout@v7.0.1
       - uses: actions/setup-java@v5.6.0
         with:
           distribution: temurin
