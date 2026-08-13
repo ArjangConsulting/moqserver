@@ -29,7 +29,7 @@ jobs:
       security-events: write
     steps:
       - uses: actions/checkout@v7.0.0
-      - uses: github/codeql-action/init@v4.37.0
+      - uses: github/codeql-action/init@v4.37.3
         with:
           languages: java-kotlin,swift
       - uses: actions/setup-java@v5.6.0
@@ -46,4 +46,4 @@ jobs:
         run: |
           swift build --package-path server
           studio/gradlew -p studio :composeApp:compileKotlinDesktop
-      - uses: github/codeql-action/analyze@v4.37.0
+      - uses: github/codeql-action/analyze@v4.37.3
