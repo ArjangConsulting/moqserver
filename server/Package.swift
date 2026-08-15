@@ -13,6 +13,7 @@ let package = Package(
     products: [
         .executable(name: "moqserver", targets: ["Run"]),
         .executable(name: "moq-mcp", targets: ["MoqMCPRun"]),
+        .executable(name: "moq-format", targets: ["MoqFormatServiceRun"]),
     ],
     dependencies: [
         .package(url: "https://github.com/vapor/vapor.git", from: "4.122.0"),
@@ -63,8 +64,23 @@ let package = Package(
             path: "Sources/MoqImport"
         ),
 
+        // MARK: - MoqService
+        // Transport-neutral .moqproj authoring surface: session model, project mutation, and
+        // validation (including a stateless whole-project overload). MoqMCP and moq-format both
+        // wrap this rather than each re-implementing it — they differ only in how a call arrives
+        // (MCP tool call vs. JSON-RPC over stdio) and how a result is framed.
+        .target(
+            name: "MoqService",
+            dependencies: [
+                .target(name: "MoqCore"),
+                .target(name: "MoqFormat"),
+                .target(name: "MoqImport"),
+            ],
+            path: "Sources/MoqService"
+        ),
+
         // MARK: - MoqMCP
-        // MCP server: session model, tools, and resources for agent-driven .moqproj authoring.
+        // MCP server: tool/resource adapter over MoqService for agent-driven .moqproj authoring.
         // Reusable library — MoqMCPRun below wraps it as the standalone `moq-mcp` executable.
         .target(
             name: "MoqMCP",
@@ -72,6 +88,7 @@ let package = Package(
                 .target(name: "MoqCore"),
                 .target(name: "MoqFormat"),
                 .target(name: "MoqImport"),
+                .target(name: "MoqService"),
                 .product(name: "MCP", package: "swift-sdk"),
             ],
             path: "Sources/MoqMCP",
@@ -88,6 +105,19 @@ let package = Package(
                 .target(name: "MoqMCP")
             ],
             path: "Sources/MoqMCPRun"
+        ),
+
+        // MARK: - MoqFormatServiceRun
+        // Thin @main entry point producing the standalone moq-format executable: MoqService over
+        // JSON-RPC 2.0, Content-Length-framed on stdio (LSP-style framing). Depends only on
+        // MoqCore + MoqFormat + MoqImport — deliberately not Vapor, and OpenAPIKit only because
+        // MoqImport needs it, so the binary this becomes stays small and fast to start.
+        .executableTarget(
+            name: "MoqFormatServiceRun",
+            dependencies: [
+                .target(name: "MoqService")
+            ],
+            path: "Sources/MoqFormatServiceRun"
         ),
 
         // MARK: - MoqRuntime
@@ -179,6 +209,16 @@ let package = Package(
                 .target(name: "MoqImport"),
             ],
             path: "Tests/MoqImportTests"
+        ),
+        .testTarget(
+            name: "MoqServiceTests",
+            dependencies: [
+                .target(name: "MoqCore"),
+                .target(name: "MoqFormat"),
+                .target(name: "MoqImport"),
+                .target(name: "MoqService"),
+            ],
+            path: "Tests/MoqServiceTests"
         ),
         .testTarget(
             name: "MoqMCPTests",

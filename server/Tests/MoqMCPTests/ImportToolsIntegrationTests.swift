@@ -6,7 +6,7 @@ import Testing
 
 struct ImportToolsIntegrationTests {
     func connectedClient() async throws -> Client {
-        let server = makeMoqMCPServer()
+        let server = await makeMoqMCPServer()
         let (clientTransport, serverTransport) = await InMemoryTransport.createConnectedPair()
         try await server.start(transport: serverTransport)
         let client = Client(name: "test-client", version: "1.0")

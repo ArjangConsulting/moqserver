@@ -3,7 +3,7 @@ import Testing
 
 @testable import MoqCore
 @testable import MoqFormat
-@testable import MoqMCP
+@testable import MoqService
 
 struct ProjectSessionTests {
     func tempPath(_ label: String) -> String {
@@ -19,7 +19,7 @@ struct ProjectSessionTests {
     @Test("currentStore throws before any project is opened")
     func currentStoreThrowsWhenClosed() async {
         let session = ProjectSession()
-        await #expect(throws: SessionError.self) {
+        await #expect(throws: MoqServiceError.self) {
             _ = try await session.currentStore()
         }
     }
@@ -85,7 +85,7 @@ struct ProjectSessionTests {
         try await store.addEndpoint(EndpointDocument(id: "get-a", method: "GET", path: "/a", variants: []))
         try await session.recordMutation(autosave: false)
 
-        await #expect(throws: SessionError.self) {
+        await #expect(throws: MoqServiceError.self) {
             try await session.open(path: otherPath, force: false)
         }
         // The dirty original project must still be the one open.
@@ -120,7 +120,7 @@ struct ProjectSessionTests {
     @Test("save clears dirty and requires an open project")
     func saveClearsDirty() async throws {
         let session = ProjectSession()
-        await #expect(throws: SessionError.self) {
+        await #expect(throws: MoqServiceError.self) {
             try await session.save()
         }
 
