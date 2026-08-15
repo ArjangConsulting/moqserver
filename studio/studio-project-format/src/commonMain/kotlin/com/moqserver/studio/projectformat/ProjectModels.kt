@@ -1,5 +1,8 @@
 package com.moqserver.studio.projectformat
 
+import kotlinx.serialization.SerialName
+import kotlinx.serialization.Serializable
+
 /**
  * Hand-written .moqproj types — the ones JSON Schema cannot describe.
  *
@@ -40,10 +43,14 @@ object MoqProjectFormat {
  * A loaded .moqproj project — the aggregate root for the project format.
  *
  * Not schema-derived: a project is a directory of documents plus the path it was loaded from,
- * which the document schema has no way to express.
+ * which the document schema has no way to express. `@Serializable` — matching
+ * `MoqCore.MoqProject`'s `Codable` conformance and `project_path` key — so a whole in-memory
+ * project can travel as one JSON payload to `moq-format`'s stateless `validate` call.
  */
+@Serializable
 data class MoqProject(
     val manifest: ProjectManifest,
     val endpoints: List<EndpointDocument>,
+    @SerialName("project_path")
     val projectPath: String,
 )
