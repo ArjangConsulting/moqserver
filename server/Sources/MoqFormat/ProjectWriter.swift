@@ -362,7 +362,7 @@ public struct ProjectWriter: ProjectWriting {
     private func validateEndpointIDs(_ endpoints: [EndpointDocument]) throws {
         var seenIDs: Set<String> = []
         for endpoint in endpoints {
-            guard endpoint.id.range(of: "^[a-z0-9][a-z0-9-]*$", options: .regularExpression) != nil else {
+            guard MoqFormatRules.isValidEndpointID(endpoint.id) else {
                 throw ProjectWriteError.invalidEndpointID(endpoint.id)
             }
             guard seenIDs.insert(endpoint.id).inserted else {

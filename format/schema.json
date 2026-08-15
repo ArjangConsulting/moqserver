@@ -7,7 +7,7 @@
   "$defs": {
     "httpMethod": {
       "type": "string",
-      "enum": ["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS", "TRACE", "CONNECT"]
+      "enum": ["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"]
     },
     "authType": {
       "type": "string",

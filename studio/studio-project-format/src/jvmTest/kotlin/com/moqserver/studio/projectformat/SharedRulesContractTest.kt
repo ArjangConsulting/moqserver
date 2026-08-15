@@ -8,9 +8,10 @@ import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 /**
- * Pins the format constants that Swift and Kotlin must agree on until `MoqFormatRules` unifies
- * them into a single generated source (see the "Swift format core + MCP server" plan, phase 1).
- * The Swift half of this contract lives at
+ * Pins the format constants that Swift and Kotlin must agree on. Swift now derives these from
+ * `MoqFormatRules` (`server/Sources/MoqCore/Project/MoqFormatRules.swift`); Kotlin still
+ * duplicates them by hand here until Studio delegates to the Swift core (see the "Swift format
+ * core + MCP server" plan). The Swift half of this contract lives at
  * `server/Tests/MoqFormatTests/SharedRulesContractTests.swift`.
  *
  * Changing a value here without updating the Swift counterpart reintroduces the exact class of

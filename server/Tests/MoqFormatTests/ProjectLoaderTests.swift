@@ -240,17 +240,19 @@ struct ProjectLoaderTests {
         }
     }
 
-    @Test("Rejects empty endpoints directory")
-    func rejectsEmptyEndpointsDirectory() throws {
+    @Test("Loads a structurally valid project with an empty endpoints directory")
+    func loadsEmptyEndpointsDirectory() throws {
+        // An empty endpoints/ directory is structurally loadable so a work-in-progress project
+        // can be saved and reopened while it's being authored. ProjectValidator, not the loader,
+        // is responsible for flagging zero endpoints as a semantic error.
         let projectPath = try makeTempProject(manifestYAML: validManifestYAML)
         defer { try? FileManager.default.removeItem(atPath: projectPath) }
 
-        do {
-            _ = try ProjectLoader().load(from: projectPath)
-            Issue.record("Expected noEndpointFiles error")
-        } catch let error as ProjectLoadError {
-            #expect(error.description.contains("No endpoint files found"))
-        }
+        let project = try ProjectLoader().load(from: projectPath)
+        #expect(project.endpoints.isEmpty)
+
+        let errors = ProjectValidator().validate(project).filter { $0.severity == .error }
+        #expect(errors.contains { $0.code == .noEndpoints })
     }
 
     @Test("Rejects invalid endpoint YAML")

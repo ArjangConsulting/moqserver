@@ -46,9 +46,9 @@ public struct ProjectLoader: ProjectLoading {
 
         logger.debug("Found \(endpointFiles.count) endpoint file(s) in \(endpointsDir)")
 
-        guard !endpointFiles.isEmpty else {
-            throw ProjectLoadError.noEndpointFiles(endpointsDir)
-        }
+        // An empty endpoints/ directory is a structurally valid (if incomplete) project: it lets
+        // a work-in-progress bundle be saved and reopened while it's being authored. Requiring at
+        // least one endpoint is a semantic rule enforced by ProjectValidator, not the loader.
 
         var endpoints: [EndpointDocument] = []
         for file in endpointFiles {
@@ -69,12 +69,15 @@ public struct ProjectLoader: ProjectLoading {
 }
 
 /// Errors that can occur when loading a .moqproj directory.
+///
+/// These are structural failures only — the bundle could not be parsed into a `MoqProject` at
+/// all. A structurally valid but semantically incomplete project (e.g. zero endpoints) loads
+/// successfully; use `ProjectValidator` to check semantic validity.
 public enum ProjectLoadError: Error, CustomStringConvertible {
     case notADirectory(String)
     case missingManifest(String)
     case invalidManifest(String, Error)
     case missingEndpointsDirectory(String)
-    case noEndpointFiles(String)
     case invalidEndpointFile(String, Error)
 
     public var description: String {
@@ -87,8 +90,6 @@ public enum ProjectLoadError: Error, CustomStringConvertible {
             return "Invalid project.yml at \(path): \(error)"
         case .missingEndpointsDirectory(let path):
             return "Missing endpoints/ directory at: \(path)"
-        case .noEndpointFiles(let path):
-            return "No endpoint files found in: \(path)"
         case .invalidEndpointFile(let path, let error):
             return "Invalid endpoint file \(path): \(error)"
         }
