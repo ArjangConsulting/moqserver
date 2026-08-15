@@ -2,9 +2,9 @@ import Foundation
 import Logging
 
 #if canImport(Glibc)
-    import Glibc
+import Glibc
 #elseif canImport(Darwin)
-    import Darwin
+import Darwin
 #endif
 
 private let logger = Logger(label: "moqserver.import.SpecFetcher")
@@ -215,13 +215,18 @@ public enum SpecFetchError: Error, CustomStringConvertible, Equatable, Sendable 
     public var description: String {
         switch self {
         case .invalidURL(let url): return "Invalid URL: \(url)"
-        case .unsupportedScheme(let scheme): return "Unsupported URL scheme \"\(scheme)\" — only http and https are allowed."
+        case .unsupportedScheme(let scheme):
+            return "Unsupported URL scheme \"\(scheme)\" — only http and https are allowed."
         case .embeddedCredentialsNotAllowed: return "URLs with embedded credentials (user:pass@host) are not allowed."
-        case .blockedAddress(let host): return "Refusing to fetch from \(host): resolves to a private, loopback, or reserved address."
+        case .blockedAddress(let host):
+            return "Refusing to fetch from \(host): resolves to a private, loopback, or reserved address."
         case .hostResolutionFailed(let host): return "Could not resolve host: \(host)"
-        case .redirectNotFollowed(let status, let url): return "\(url) responded with a redirect (HTTP \(status)); redirects are not followed. Provide the direct spec URL."
+        case .redirectNotFollowed(let status, let url):
+            return
+                "\(url) responded with a redirect (HTTP \(status)); redirects are not followed. Provide the direct spec URL."
         case .httpStatus(let status, let url): return "\(url) returned HTTP \(status)."
-        case .responseTooLarge(let bytes, let limit): return "Response too large (\(bytes) bytes, limit \(limit) bytes)."
+        case .responseTooLarge(let bytes, let limit):
+            return "Response too large (\(bytes) bytes, limit \(limit) bytes)."
         case .notUTF8(let url): return "Response from \(url) was not valid UTF-8 text."
         case .network(let message): return message
         }

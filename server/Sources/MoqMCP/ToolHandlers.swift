@@ -65,7 +65,8 @@ private struct CreateProjectInput: Decodable {
     let force: Bool?
 }
 
-private func handleCreateProject(_ params: CallTool.Parameters, session: ProjectSession) async throws -> CallTool.Result {
+private func handleCreateProject(_ params: CallTool.Parameters, session: ProjectSession) async throws -> CallTool.Result
+{
     let input = try decodeArguments(CreateProjectInput.self, from: params.arguments)
     let manifest = ProjectManifest(
         name: input.name, description: input.description,
@@ -120,7 +121,11 @@ private func describeProjectResult(session: ProjectSession) async throws -> Call
             name: project.manifest.name, description: project.manifest.description, path: project.projectPath,
             endpointCount: project.endpoints.count, dirty: dirty)
         return try CallTool.Result(
-            content: [.text(text: "Project '\(project.manifest.name)': \(project.endpoints.count) endpoint(s)", annotations: nil, _meta: nil)],
+            content: [
+                .text(
+                    text: "Project '\(project.manifest.name)': \(project.endpoints.count) endpoint(s)",
+                    annotations: nil, _meta: nil)
+            ],
             structuredContent: description)
     } catch {
         return try toolError(error)
@@ -158,7 +163,8 @@ private struct EndpointSummary: Codable {
     }
 }
 
-private func handleListEndpoints(_ params: CallTool.Parameters, session: ProjectSession) async throws -> CallTool.Result {
+private func handleListEndpoints(_ params: CallTool.Parameters, session: ProjectSession) async throws -> CallTool.Result
+{
     do {
         let store = try await session.currentStore()
         let project = await store.currentProject
@@ -171,7 +177,9 @@ private func handleListEndpoints(_ params: CallTool.Parameters, session: Project
 
         let filtered = project.endpoints.filter { endpoint in
             if let filterPath = input.filterPath, endpoint.path != filterPath { return false }
-            if let filterMethod = input.filterMethod, endpoint.method.uppercased() != filterMethod.uppercased() { return false }
+            if let filterMethod = input.filterMethod, endpoint.method.uppercased() != filterMethod.uppercased() {
+                return false
+            }
             if let filterTag = input.filterTag, !(endpoint.tags ?? []).contains(filterTag) { return false }
             return true
         }
@@ -202,7 +210,8 @@ private func handleGetEndpoint(_ params: CallTool.Parameters, session: ProjectSe
             return try toolError(code: "E_ENDPOINT_NOT_FOUND", message: "No endpoint with id: \(input.id)")
         }
         return try CallTool.Result(
-            content: [.text(text: "Endpoint \(endpoint.id)", annotations: nil, _meta: nil)], structuredContent: endpoint)
+            content: [.text(text: "Endpoint \(endpoint.id)", annotations: nil, _meta: nil)], structuredContent: endpoint
+        )
     } catch {
         return try toolError(error)
     }
@@ -239,7 +248,8 @@ private func handleSuggestEndpointID(_ params: CallTool.Parameters) throws -> Ca
     while normalized.hasSuffix("-") { normalized.removeLast() }
     let id = normalized.isEmpty ? "\(input.method.lowercased())-root" : "\(input.method.lowercased())-\(normalized)"
 
-    let alias = input.alias?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
+    let alias =
+        input.alias?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
         ? input.alias! : EndpointAlias.defaultAlias(method: input.method, path: input.path)
     let referenceName = suggestedEndpointReferenceName(preferredSource: alias, fallbackID: id)
 
@@ -249,7 +259,9 @@ private func handleSuggestEndpointID(_ params: CallTool.Parameters) throws -> Ca
 
 // MARK: - Endpoint mutation
 
-private func handleUpsertEndpoint(_ params: CallTool.Parameters, session: ProjectSession) async throws -> CallTool.Result {
+private func handleUpsertEndpoint(
+    _ params: CallTool.Parameters, session: ProjectSession
+) async throws -> CallTool.Result {
     do {
         let store = try await session.currentStore()
         let input = try decodeArguments(EndpointUpsertInput.self, from: params.arguments)
@@ -272,13 +284,16 @@ private func handleUpsertEndpoint(_ params: CallTool.Parameters, session: Projec
         }
         try await session.recordMutation(autosave: autosave)
         return try CallTool.Result(
-            content: [.text(text: "Upserted endpoint \(input.id)", annotations: nil, _meta: nil)], structuredContent: document)
+            content: [.text(text: "Upserted endpoint \(input.id)", annotations: nil, _meta: nil)],
+            structuredContent: document)
     } catch {
         return try toolError(error)
     }
 }
 
-private func handleRemoveEndpoint(_ params: CallTool.Parameters, session: ProjectSession) async throws -> CallTool.Result {
+private func handleRemoveEndpoint(
+    _ params: CallTool.Parameters, session: ProjectSession
+) async throws -> CallTool.Result {
     do {
         let store = try await session.currentStore()
         let input = try decodeArguments(EndpointIDInput.self, from: params.arguments)
@@ -298,7 +313,8 @@ private struct VariantEndpointRef: Decodable {
     enum CodingKeys: String, CodingKey { case endpointId = "endpoint_id" }
 }
 
-private func handleUpsertVariant(_ params: CallTool.Parameters, session: ProjectSession) async throws -> CallTool.Result {
+private func handleUpsertVariant(_ params: CallTool.Parameters, session: ProjectSession) async throws -> CallTool.Result
+{
     do {
         let store = try await session.currentStore()
         let ref = try decodeArguments(VariantEndpointRef.self, from: params.arguments)
@@ -308,7 +324,9 @@ private func handleUpsertVariant(_ params: CallTool.Parameters, session: Project
         try await store.upsertVariant(endpointID: ref.endpointId, variant)
         try await session.recordMutation(autosave: autosave)
         return try CallTool.Result(
-            content: [.text(text: "Upserted variant \(variant.name) on \(ref.endpointId)", annotations: nil, _meta: nil)],
+            content: [
+                .text(text: "Upserted variant \(variant.name) on \(ref.endpointId)", annotations: nil, _meta: nil)
+            ],
             structuredContent: variant)
     } catch {
         return try toolError(error)
@@ -324,7 +342,8 @@ private struct RemoveVariantInput: Decodable {
     }
 }
 
-private func handleRemoveVariant(_ params: CallTool.Parameters, session: ProjectSession) async throws -> CallTool.Result {
+private func handleRemoveVariant(_ params: CallTool.Parameters, session: ProjectSession) async throws -> CallTool.Result
+{
     do {
         let store = try await session.currentStore()
         let input = try decodeArguments(RemoveVariantInput.self, from: params.arguments)
@@ -332,7 +351,9 @@ private func handleRemoveVariant(_ params: CallTool.Parameters, session: Project
         try await store.removeVariant(endpointID: input.endpointId, name: input.name)
         try await session.recordMutation(autosave: autosave)
         return try CallTool.Result(
-            content: [.text(text: "Removed variant \(input.name) from \(input.endpointId)", annotations: nil, _meta: nil)])
+            content: [
+                .text(text: "Removed variant \(input.name) from \(input.endpointId)", annotations: nil, _meta: nil)
+            ])
     } catch {
         return try toolError(error)
     }
@@ -362,7 +383,11 @@ private func handleValidateProject(session: ProjectSession) async throws -> Call
             errorCount: errors.count, warningCount: diagnostics.count - errors.count,
             diagnostics: diagnostics.map(DiagnosticPayload.init))
         return try CallTool.Result(
-            content: [.text(text: "\(errors.count) error(s), \(diagnostics.count - errors.count) warning(s)", annotations: nil, _meta: nil)],
+            content: [
+                .text(
+                    text: "\(errors.count) error(s), \(diagnostics.count - errors.count) warning(s)", annotations: nil,
+                    _meta: nil)
+            ],
             structuredContent: result, isError: !errors.isEmpty)
     } catch {
         return try toolError(error)
@@ -414,7 +439,9 @@ private struct ImportSummary: Codable {
 /// Merges `spec` into the session's open project and reconciles the result back into `store`
 /// endpoint-by-endpoint (`merge` never removes endpoints, so this is always add-or-update, never
 /// remove).
-private func applyImport(_ spec: ParsedSpec, common: ImportInputCommon, store: ProjectStore) async throws -> ImportSummary {
+private func applyImport(
+    _ spec: ParsedSpec, common: ImportInputCommon, store: ProjectStore
+) async throws -> ImportSummary {
     let existing = await store.currentProject
     let existingIDs = Set(existing.endpoints.map(\.id))
     let merged = ImportConverter.merge(spec, selection: common.selection, policy: common.policy, into: existing)
@@ -457,7 +484,10 @@ private func handleImportHAR(_ params: CallTool.Parameters, session: ProjectSess
         let summary = try await applyImport(spec, common: common, store: store)
         try await session.recordMutation(autosave: autosave)
         return try CallTool.Result(
-            content: [.text(text: "Imported \(summary.newEndpointCount) new endpoint(s) from HAR", annotations: nil, _meta: nil)],
+            content: [
+                .text(
+                    text: "Imported \(summary.newEndpointCount) new endpoint(s) from HAR", annotations: nil, _meta: nil)
+            ],
             structuredContent: summary)
     } catch {
         return try toolError(error)
@@ -491,7 +521,8 @@ private struct ImportAuthInput: Decodable {
     }
 }
 
-private func handleImportOpenAPI(_ params: CallTool.Parameters, session: ProjectSession) async throws -> CallTool.Result {
+private func handleImportOpenAPI(_ params: CallTool.Parameters, session: ProjectSession) async throws -> CallTool.Result
+{
     do {
         let store = try await session.currentStore()
         let input = try decodeArguments(ImportOpenAPIInput.self, from: params.arguments)
@@ -503,7 +534,9 @@ private func handleImportOpenAPI(_ params: CallTool.Parameters, session: Project
             guard ProcessInfo.processInfo.environment["MOQ_MCP_ALLOW_NETWORK"] == "1" else {
                 return try toolError(
                     code: "E_NETWORK_IMPORT_DISABLED",
-                    message: "URL import is disabled. Set MOQ_MCP_ALLOW_NETWORK=1 on the server process to enable it, or provide a local file path instead.")
+                    message:
+                        "URL import is disabled. Set MOQ_MCP_ALLOW_NETWORK=1 on the server process to enable it, or provide a local file path instead."
+                )
             }
             do {
                 let fetched = try await SpecFetcher.fetchSpec(from: input.source, auth: input.auth?.resolved)
@@ -528,7 +561,11 @@ private func handleImportOpenAPI(_ params: CallTool.Parameters, session: Project
         let summary = try await applyImport(spec, common: common, store: store)
         try await session.recordMutation(autosave: autosave)
         return try CallTool.Result(
-            content: [.text(text: "Imported \(summary.newEndpointCount) new endpoint(s) from OpenAPI", annotations: nil, _meta: nil)],
+            content: [
+                .text(
+                    text: "Imported \(summary.newEndpointCount) new endpoint(s) from OpenAPI", annotations: nil,
+                    _meta: nil)
+            ],
             structuredContent: summary)
     } catch {
         return try toolError(error)

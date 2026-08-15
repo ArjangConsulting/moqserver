@@ -23,7 +23,8 @@ struct ImportConverterTests {
 
     @Test("convert derives a deterministic endpoint id from method and path")
     func convertDerivesEndpointID() {
-        let spec = ParsedSpec(title: "API", version: "1.0", endpoints: [parsedEndpoint(method: "GET", path: "/users/{id}")])
+        let spec = ParsedSpec(
+            title: "API", version: "1.0", endpoints: [parsedEndpoint(method: "GET", path: "/users/{id}")])
         let project = ImportConverter.convert(spec, selection: .all, name: "Test", path: "/tmp/test.moqproj")
         #expect(project.endpoints.first?.id == "get-users-param")
     }
@@ -56,8 +57,10 @@ struct ImportConverterTests {
         let spec = ParsedSpec(
             title: "API", version: "1.0",
             endpoints: [
-                parsedEndpoint(method: "GET", path: "/a", responses: [ParsedResponse(name: "default", statusCode: 200)]),
-                parsedEndpoint(method: "GET", path: "/b", responses: [ParsedResponse(name: "default", statusCode: 200)]),
+                parsedEndpoint(
+                    method: "GET", path: "/a", responses: [ParsedResponse(name: "default", statusCode: 200)]),
+                parsedEndpoint(
+                    method: "GET", path: "/b", responses: [ParsedResponse(name: "default", statusCode: 200)]),
             ])
         // Force identical aliases by giving both the same referenceName hint indirectly via alias.
         let forced = spec.endpoints.map { endpoint in
@@ -117,7 +120,9 @@ struct ImportConverterTests {
     func mergeAddsNewVariant() {
         let existing = MoqProject(
             manifest: sampleManifest(),
-            endpoints: [sampleEndpoint(id: "get-users", path: "/users", variants: [ProjectVariant(name: "ok", status: 200)])],
+            endpoints: [
+                sampleEndpoint(id: "get-users", path: "/users", variants: [ProjectVariant(name: "ok", status: 200)])
+            ],
             projectPath: "/tmp/x")
         let spec = ParsedSpec(
             title: "API", version: "1.0",
@@ -227,7 +232,8 @@ struct ImportConverterTests {
 
     @Test("diff reports no changes for an identical endpoint")
     func diffReportsNoChanges() {
-        let existing = sampleEndpoint(id: "get-users", path: "/users", variants: [ProjectVariant(name: "ok", status: 200)])
+        let existing = sampleEndpoint(
+            id: "get-users", path: "/users", variants: [ProjectVariant(name: "ok", status: 200)])
         let parsed = parsedEndpoint(responses: [ParsedResponse(name: "ok", statusCode: 200)])
 
         let diff = ImportConverter.diff(parsed, existing: existing)
@@ -254,7 +260,8 @@ struct ImportConverterTests {
     private func sampleManifest() -> ProjectManifest {
         ProjectManifest(
             version: "1", name: "Test",
-            defaults: ProjectDefaults(delayMs: 0, auth: ProjectAuthConfig(type: .none, verify: false), network: NetworkBehavior())
+            defaults: ProjectDefaults(
+                delayMs: 0, auth: ProjectAuthConfig(type: .none, verify: false), network: NetworkBehavior())
         )
     }
 

@@ -19,7 +19,8 @@ private let moqResources: [Resource] = [
         description: "The canonical JSON Schema for .moqproj YAML documents.", mimeType: "application/json"),
     Resource(
         name: "Authoring rules", uri: "moq://docs/authoring-rules",
-        description: "Format constraints not fully expressible in the JSON Schema: id patterns, reserved paths, enum values.",
+        description:
+            "Format constraints not fully expressible in the JSON Schema: id patterns, reserved paths, enum values.",
         mimeType: "text/markdown"),
     Resource(
         name: "Current project", uri: "moq://project/current",
@@ -33,7 +34,9 @@ private func readResource(uri: String, session: ProjectSession) async throws -> 
     case "moq://docs/authoring-rules":
         return .init(contents: [.text(authoringRulesMarkdown(), uri: uri, mimeType: "text/markdown")])
     case "moq://project/current":
-        return try await .init(contents: [.text(currentProjectJSON(session: session), uri: uri, mimeType: "application/json")])
+        return try await .init(contents: [
+            .text(currentProjectJSON(session: session), uri: uri, mimeType: "application/json")
+        ])
     default:
         throw MCPError.invalidParams("Unknown resource: \(uri)")
     }

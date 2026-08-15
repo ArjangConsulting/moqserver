@@ -39,16 +39,44 @@ The server is split into focused Swift package targets (see `Package.swift`):
 | Target | Responsibility |
 |--------|---------------|
 | `MoqCore` | Framework-agnostic domain types, protocols, validation |
-| `MoqFormat` | `.moqproj` file loading, writing, validation, runtime conversion |
+| `MoqFormat` | `.moqproj` file loading, writing, validation, runtime conversion, `ProjectStore` (mutating actor) |
+| `MoqImport` | OpenAPI 3.x / HAR spec parsing and conversion into `MoqProject` |
 | `MoqRuntime` | Vapor app, routing, mock storage, admin API, auth |
 | `MoqCLI` | ArgumentParser subcommands wiring everything together |
-| `Run` | `@main` entry point only |
+| `Run` | `@main` entry point for the `moqserver` binary |
+| `MoqMCP` | MCP server: tools/resources for agent-driven `.moqproj` authoring |
+| `MoqMCPRun` | `@main` entry point for the standalone `moq-mcp` binary |
 
-Dependency direction: `Run → MoqCLI → MoqRuntime → MoqFormat → MoqCore`
+Dependency direction: `Run → MoqCLI → MoqRuntime → MoqFormat → MoqCore`, and separately
+`MoqMCPRun → MoqMCP → MoqImport → MoqFormat → MoqCore`. `MoqCLI` does **not** depend on `MoqMCP` —
+`moq-mcp` ships only as its own binary, so the MCP SDK and OpenAPIKit never enter the `moqserver`
+binary's dependency graph.
 
 > **Note:** AI provider calls live in Studio (`studio-ai`), not in a server-side
 > companion process. The server is intentionally AI-free at runtime so that mocks
-> serve deterministically.
+> serve deterministically. `moq-mcp` makes no LLM calls either — its tools are deterministic;
+> the calling agent (Claude Code, etc.) generates bodies/headers/cookies itself.
+
+## MCP Server
+
+`moq-mcp` is a standalone binary (built from `MoqMCPRun`/`MoqMCP`) that lets an AI agent author
+`.moqproj` bundles directly over the [Model Context Protocol](https://modelcontextprotocol.io),
+using stdio transport. Build and run it locally with:
+
+```bash
+swift build --product moq-mcp
+.build/debug/moq-mcp   # speaks JSON-RPC over stdin/stdout; register it with an MCP client
+```
+
+Tools cover project lifecycle (`moq_create_project`, `moq_open_project`, `moq_describe_project`,
+`moq_save_project`), endpoint/variant authoring (`moq_upsert_endpoint`, `moq_remove_endpoint`,
+`moq_upsert_variant`, `moq_remove_variant`, `moq_suggest_endpoint_id`), reading
+(`moq_list_endpoints`, `moq_get_endpoint`), validation (`moq_validate_project`), and import
+(`moq_import_har`, `moq_import_openapi`). Resources expose the format contract:
+`moq://schema/moqproj.json`, `moq://docs/authoring-rules`, `moq://project/current`.
+
+URL-based OpenAPI import is disabled unless the server process has `MOQ_MCP_ALLOW_NETWORK=1` set
+— `moq_import_openapi` with a local file path always works.
 
 ## Architecture
 
@@ -79,10 +107,12 @@ Incoming request
 | Target | Coverage |
 |--------|---------|
 | `MoqCoreTests` | AuthValidator, RequestValidator, EndpointConverter |
-| `MoqFormatTests` | ProjectLoader, ProjectValidator, ProjectWriter |
+| `MoqFormatTests` | ProjectLoader, ProjectValidator, ProjectWriter, ProjectStore |
+| `MoqImportTests` | HARImporter, OpenAPIImporter, ImportConverter, SpecFetcher |
 | `MoqRuntimeTests` | Admin API, auth integration, content negotiation |
 | `MoqIntegrationTests` | End-to-end: project → serve → request → verify |
 | `MoqCLITests` | CLI command wiring |
+| `MoqMCPTests` | ProjectSession, and full tool/resource calls via an in-memory MCP client/server pair |
 
 ## Code Style
 

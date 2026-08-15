@@ -45,7 +45,8 @@ struct ImportToolsIntegrationTests {
         try har.write(toFile: harPath, atomically: true, encoding: .utf8)
 
         let client = try await connectedClient()
-        _ = try await client.callTool(name: "moq_create_project", arguments: ["path": .string(projectPath), "name": .string("T")])
+        _ = try await client.callTool(
+            name: "moq_create_project", arguments: ["path": .string(projectPath), "name": .string("T")])
 
         let result = try await client.callTool(name: "moq_import_har", arguments: ["path": .string(harPath)])
         #expect(result.isError != true)
@@ -91,7 +92,8 @@ struct ImportToolsIntegrationTests {
         try spec.write(toFile: specPath, atomically: true, encoding: .utf8)
 
         let client = try await connectedClient()
-        _ = try await client.callTool(name: "moq_create_project", arguments: ["path": .string(projectPath), "name": .string("T")])
+        _ = try await client.callTool(
+            name: "moq_create_project", arguments: ["path": .string(projectPath), "name": .string("T")])
         _ = try await client.callTool(
             name: "moq_upsert_endpoint",
             arguments: ["id": .string("get-users"), "method": .string("GET"), "path": .string("/users")])
@@ -121,7 +123,8 @@ struct ImportToolsIntegrationTests {
         let projectPath = tempPath("url-disabled")
         defer { try? FileManager.default.removeItem(atPath: projectPath) }
         let client = try await connectedClient()
-        _ = try await client.callTool(name: "moq_create_project", arguments: ["path": .string(projectPath), "name": .string("T")])
+        _ = try await client.callTool(
+            name: "moq_create_project", arguments: ["path": .string(projectPath), "name": .string("T")])
 
         let result = try await client.callTool(
             name: "moq_import_openapi", arguments: ["source": .string("https://example.com/openapi.json")])

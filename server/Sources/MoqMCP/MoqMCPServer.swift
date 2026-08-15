@@ -58,7 +58,9 @@ let moqTools: [Tool] = [
             "type": "object",
             "properties": [
                 "path": ["type": "string"],
-                "force": ["type": "boolean", "description": "Discard unsaved changes in the currently open project, if any."],
+                "force": [
+                    "type": "boolean", "description": "Discard unsaved changes in the currently open project, if any.",
+                ],
             ],
             "required": ["path"],
         ])
@@ -133,7 +135,9 @@ let moqTools: [Tool] = [
                     "description":
                         "{ headers?, query_params?, cookies?: [{name, match?, required?, match_type?}], verify_cookies? }",
                 ],
-                "operation": ["type": "object", "description": "{ type: query|mutation|subscription, name?, document? }"],
+                "operation": [
+                    "type": "object", "description": "{ type: query|mutation|subscription, name?, document? }",
+                ],
                 "network": ["type": "object", "description": "{ latency_ms?, jitter_ms?, packet_loss_percent? }"],
                 "autosave": ["type": "boolean", "default": true],
             ],
@@ -173,7 +177,8 @@ let moqTools: [Tool] = [
                 "headers": ["type": "object", "additionalProperties": ["type": "string"]],
                 "request_match": [
                     "type": "object",
-                    "description": "{ query?, headers?: {name: value}, body_contains? } — at least one required if present",
+                    "description":
+                        "{ query?, headers?: {name: value}, body_contains? } — at least one required if present",
                 ],
                 "body": ["description": "Inline JSON value or string; do not set body_file"],
                 "delay_ms": ["type": "integer"],
@@ -197,12 +202,14 @@ let moqTools: [Tool] = [
     ),
     Tool(
         name: "moq_validate_project",
-        description: "Runs full semantic validation on the open project and returns every diagnostic (errors and warnings).",
+        description:
+            "Runs full semantic validation on the open project and returns every diagnostic (errors and warnings).",
         inputSchema: .object(["type": "object", "properties": [:]])
     ),
     Tool(
         name: "moq_save_project",
-        description: "Persists the in-memory project to disk (crash-recoverable staged replacement). Fails if the bundle changed on disk since it was last loaded or saved.",
+        description:
+            "Persists the in-memory project to disk (crash-recoverable staged replacement). Fails if the bundle changed on disk since it was last loaded or saved.",
         inputSchema: .object(["type": "object", "properties": [:]])
     ),
     Tool(
@@ -229,7 +236,8 @@ let moqTools: [Tool] = [
                 ],
                 "replace_existing_bodies": [
                     "type": "boolean", "default": false,
-                    "description": "Overwrite an existing variant's body when the spec has a response at the same status code",
+                    "description":
+                        "Overwrite an existing variant's body when the spec has a response at the same status code",
                 ],
                 "autosave": ["type": "boolean", "default": true],
             ],
@@ -247,10 +255,13 @@ let moqTools: [Tool] = [
         inputSchema: .object([
             "type": "object",
             "properties": [
-                "source": ["type": "string", "description": "A file path, or an http(s) URL if network import is enabled"],
+                "source": [
+                    "type": "string", "description": "A file path, or an http(s) URL if network import is enabled",
+                ],
                 "auth": [
                     "type": "object",
-                    "description": "Only used for a URL source: { bearer: string } or { basic: { username, password } } or { header: { name, value } }",
+                    "description":
+                        "Only used for a URL source: { bearer: string } or { basic: { username, password } } or { header: { name, value } }",
                 ],
                 "accept_paths": ["type": "array", "items": ["type": "string"]],
                 "accept_tags": ["type": "array", "items": ["type": "string"]],

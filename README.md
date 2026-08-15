@@ -53,6 +53,7 @@ Start with the canonical project in [`format/examples/sample-app.moqproj`](forma
 |---------|-----------------|---------|
 | Server binary | Linux x86_64, macOS arm64 | Download the matching release archive, verify its `.sha256`, extract, and place `moqserver` on `PATH` |
 | Server container | Any Docker/OCI host supported by the image | `docker pull ghcr.io/arjangconsulting/moqserver/server:<version>` |
+| MCP server (`moq-mcp`) | Linux x86_64, macOS arm64 | Download the matching release archive, verify its `.sha256`, extract, and register it with an MCP client (Claude Code, Claude Desktop, etc.) as a stdio server; see [`server/AGENTS.md`](server/AGENTS.md) |
 | Studio | macOS, Linux; Windows prereleases only until MSI signing is configured | Download the platform package from GitHub Releases |
 | Source | macOS and Linux server; desktop hosts supported by Compose | Build with `make build` or `make studio-build` |
 
