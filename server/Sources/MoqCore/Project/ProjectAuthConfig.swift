@@ -13,7 +13,7 @@ public struct ProjectAuthConfig: Codable, Sendable, Equatable {
         self.headerName = headerName
     }
 
-    public enum AuthType: String, Codable, Sendable, Equatable {
+    public enum AuthType: String, Codable, Sendable, Equatable, CaseIterable {
         case none
         case bearer
         case basic
