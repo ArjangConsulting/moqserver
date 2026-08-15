@@ -4,10 +4,15 @@ import PackageDescription
 let package = Package(
     name: "moqserver",
     platforms: [
-        .macOS(.v12)
+        // Raised from .v12 for the MCP Swift SDK, which declares a macOS 13 minimum.
+        // (Considered keeping MoqMCP in a separate package so the server binary could stay on
+        // macOS 12; given this repo's CI only tests Linux + latest macOS, the version floor
+        // costs nothing in practice, so the simpler single-package layout won out.)
+        .macOS(.v13)
     ],
     products: [
-        .executable(name: "moqserver", targets: ["Run"])
+        .executable(name: "moqserver", targets: ["Run"]),
+        .executable(name: "moq-mcp", targets: ["MoqMCPRun"]),
     ],
     dependencies: [
         .package(url: "https://github.com/vapor/vapor.git", from: "4.122.0"),
@@ -17,6 +22,7 @@ let package = Package(
         .package(url: "https://github.com/apple/swift-nio.git", from: "2.101.3"),
         .package(url: "https://github.com/apple/swift-crypto.git", from: "4.0.0"),
         .package(url: "https://github.com/mattpolzin/OpenAPIKit.git", from: "6.0.0"),
+        .package(url: "https://github.com/modelcontextprotocol/swift-sdk.git", from: "0.12.1"),
     ],
     targets: [
         // MARK: - MoqCore
@@ -55,6 +61,33 @@ let package = Package(
                 .product(name: "Yams", package: "Yams"),
             ],
             path: "Sources/MoqImport"
+        ),
+
+        // MARK: - MoqMCP
+        // MCP server: session model, tools, and resources for agent-driven .moqproj authoring.
+        // Reusable library — MoqMCPRun below wraps it as the standalone `moq-mcp` executable.
+        .target(
+            name: "MoqMCP",
+            dependencies: [
+                .target(name: "MoqCore"),
+                .target(name: "MoqFormat"),
+                .target(name: "MoqImport"),
+                .product(name: "MCP", package: "swift-sdk"),
+            ],
+            path: "Sources/MoqMCP",
+            resources: [
+                .copy("Resources/schema.json")
+            ]
+        ),
+
+        // MARK: - MoqMCPRun
+        // Thin @main entry point producing the standalone moq-mcp executable (mirrors MoqCLI/Run).
+        .executableTarget(
+            name: "MoqMCPRun",
+            dependencies: [
+                .target(name: "MoqMCP")
+            ],
+            path: "Sources/MoqMCPRun"
         ),
 
         // MARK: - MoqRuntime
@@ -146,6 +179,16 @@ let package = Package(
                 .target(name: "MoqImport"),
             ],
             path: "Tests/MoqImportTests"
+        ),
+        .testTarget(
+            name: "MoqMCPTests",
+            dependencies: [
+                .target(name: "MoqCore"),
+                .target(name: "MoqFormat"),
+                .target(name: "MoqImport"),
+                .target(name: "MoqMCP"),
+            ],
+            path: "Tests/MoqMCPTests"
         ),
         .testTarget(
             name: "MoqCLITests",
