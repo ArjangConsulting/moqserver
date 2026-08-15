@@ -75,6 +75,15 @@ compose.desktop {
             vendor = "moqserver"
             copyright = "Copyright 2026 moqserver contributors"
             licenseFile.set(project.rootProject.file("../LICENSE"))
+            // Where CI places the platform-matching moq-format binary before packaging (see
+            // release.yml's studio-macos/studio-linux jobs and app-resources/README.md — files
+            // must sit under a per-platform subdirectory like macos-arm64/, not this directory's
+            // root, which Compose silently ignores). Compose stages this into the distribution
+            // and points `compose.application.resources.dir` at the runtime location for both
+            // `:run` and a packaged, installed app — see FormatBinaryLocator, which reads that
+            // property. Empty locally unless a developer populates it by hand; Studio still runs
+            // fine without it as long as MOQSERVER_FORMAT_BINARY or PATH resolves moq-format.
+            appResourcesRootDir.set(project.layout.projectDirectory.dir("app-resources"))
             // Windows is out of scope indefinitely (no Swift toolchain support planned), so it
             // carries no target format, no windows{} packaging block, and no CI job.
             targetFormats(
