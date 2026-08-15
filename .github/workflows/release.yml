@@ -92,9 +92,24 @@ jobs:
       - name: Verify server
         working-directory: server
         run: swift-format lint --strict --recursive --configuration .swift-format Sources Tests Package.swift && swift test -c release
+      # Studio's integration tests (FormatClientIntegrationTest, ProjectRepositoryTest,
+      # RemoteHARImportTest, RemoteOpenAPIImportTest, CanonicalFormatCompatibilityTest below) spawn
+      # the real moq-format binary; without one at MOQSERVER_FORMAT_BINARY they skip rather than
+      # fail, silently exempting this release-verification job from ever exercising them.
+      - name: Build moq-format
+        working-directory: server
+        run: |
+          swift build -c release --product moq-format
+          echo "MOQSERVER_FORMAT_BINARY=$(swift build -c release --show-bin-path)/moq-format" >> "$GITHUB_ENV"
+      - name: Install Xvfb
+        run: sudo apt-get update && sudo apt-get install -y xvfb
+      # `test` alone skips the KMP modules' jvmTest (needs `allTests`) and composeApp's Compose
+      # Desktop tests (needs `desktopTest`) — see studio.yml for the same fix.
       - name: Verify Studio and release version
         working-directory: studio
-        run: ./gradlew -PreleaseVersion="${{ needs.preflight.outputs.version }}" detektAll test :composeApp:compileKotlinDesktop
+        run: |
+          xvfb-run --auto-servernum \
+            ./gradlew -PreleaseVersion="${{ needs.preflight.outputs.version }}" detektAll test allTests desktopTest
       - name: Verify canonical projects in both products
         run: |
           server/.build/release/moqserver validate --project format/examples/sample-app.moqproj
