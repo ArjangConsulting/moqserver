@@ -41,6 +41,17 @@ let package = Package(
             path: "Sources/MoqFormat"
         ),
 
+        // MARK: - MoqImport
+        // OpenAPI/HAR spec parsing and conversion into MoqProject bundles.
+        .target(
+            name: "MoqImport",
+            dependencies: [
+                .target(name: "MoqCore"),
+                .target(name: "MoqFormat"),
+            ],
+            path: "Sources/MoqImport"
+        ),
+
         // MARK: - MoqRuntime
         // Vapor routing, handlers, and app bootstrap.
         .target(
@@ -121,6 +132,15 @@ let package = Package(
             resources: [
                 .copy("Fixtures")
             ]
+        ),
+        .testTarget(
+            name: "MoqImportTests",
+            dependencies: [
+                .target(name: "MoqCore"),
+                .target(name: "MoqFormat"),
+                .target(name: "MoqImport"),
+            ],
+            path: "Tests/MoqImportTests"
         ),
         .testTarget(
             name: "MoqCLITests",

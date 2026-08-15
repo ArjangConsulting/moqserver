@@ -12,6 +12,49 @@ public func defaultReferenceNameForVariantName(_ name: String) -> String {
     toReferenceName(name, fallbackPrefix: "variant")
 }
 
+/// Derives a unique endpoint `reference_name`, preferring `preferredSource` (e.g. an alias) over
+/// `fallbackID`, and appending a numeric suffix if the derived name collides with `existingNames`.
+public func suggestedEndpointReferenceName(
+    preferredSource: String?,
+    fallbackID: String,
+    existingNames: [String] = []
+) -> String {
+    let baseName: String
+    if let source = preferredSource?.trimmingCharacters(in: .whitespacesAndNewlines), !source.isEmpty {
+        baseName = toReferenceName(source, fallbackPrefix: "endpoint")
+    } else {
+        baseName = defaultReferenceNameForEndpointId(fallbackID)
+    }
+    return uniqueReferenceName(baseName, existingNames)
+}
+
+/// Derives a unique variant `reference_name`, preferring `preferredSource` (e.g. the variant's
+/// display name) over a status-code-derived fallback, appending a numeric suffix on collision.
+public func suggestedVariantReferenceName(
+    preferredSource: String?,
+    status: Int,
+    existingNames: [String] = []
+) -> String {
+    let source: String
+    if let preferred = preferredSource?.trimmingCharacters(in: .whitespacesAndNewlines), !preferred.isEmpty {
+        source = preferred
+    } else {
+        source = defaultVariantBaseName(status: status)
+    }
+    let baseName = toReferenceName(source, fallbackPrefix: "variant")
+    return uniqueReferenceName(baseName, existingNames)
+}
+
+private func uniqueReferenceName(_ baseName: String, _ existingNames: [String]) -> String {
+    guard existingNames.contains(baseName) else { return baseName }
+    var suffix = 2
+    while true {
+        let candidate = "\(baseName)\(suffix)"
+        if !existingNames.contains(candidate) { return candidate }
+        suffix += 1
+    }
+}
+
 private func toReferenceName(_ source: String, fallbackPrefix: String) -> String {
     let normalizedSource =
         source
