@@ -155,6 +155,16 @@ public actor ProjectStore {
         }
     }
 
+    /// Replaces the entire in-memory manifest and endpoint set in one step, keeping
+    /// `projectPath` (and therefore where `save()` looks for pre-existing fixtures to copy
+    /// forward) unchanged. For a caller that edits a whole `MoqProject` value in memory and wants
+    /// to hand the complete result over for writing — a client-side edit session (Studio) via
+    /// `moq-format`, rather than the incremental `addEndpoint`/`updateEndpoint` calls an
+    /// agent-driven MCP session makes one at a time.
+    public func replace(manifest: ProjectManifest, endpoints: [EndpointDocument]) {
+        project = MoqProject(manifest: manifest, endpoints: endpoints, projectPath: project.projectPath)
+    }
+
     // MARK: - Endpoint operations
 
     public func addEndpoint(_ doc: EndpointDocument) throws {

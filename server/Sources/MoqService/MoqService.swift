@@ -202,6 +202,48 @@ public struct MoqService: Sendable {
         try await session.save()
     }
 
+    /// Writes a whole edited `MoqProject` value to disk in one call: opens the bundle at
+    /// `project.projectPath` if one exists there (preserving crash-safe staged replacement and
+    /// the on-disk-changed guard `ProjectStore.save` already provides), or creates one if it
+    /// doesn't, replaces the in-memory manifest/endpoints, and saves.
+    ///
+    /// This is the whole-project counterpart to the incremental `upsertEndpoint`/`upsertVariant`
+    /// calls: a client that edits a `MoqProject` value in memory (Studio) and wants the complete
+    /// result persisted, rather than one endpoint or variant mutation at a time (an MCP session).
+    /// Both end up going through the same `ProjectStore.save()` — this is not a second writer,
+    /// just a different entry point into the one writer that exists.
+    public func writeProject(handle: String, project: MoqProject, force: Bool) async throws -> ProjectDescription {
+        let session = try await session(handle)
+        let targetPath = (project.projectPath as NSString).standardizingPath
+
+        // Re-opening on every write would re-read whatever is currently on disk and adopt *its*
+        // fingerprint as the new baseline — silently defeating ProjectStore.save's own
+        // on-disk-changed guard, since the "concurrent change" would already be folded in before
+        // the check ever runs. Reuse the session's existing store (and the fingerprint it
+        // captured back when it was first opened/created) whenever it's already the right
+        // project; only open-or-create fresh when there's no live store yet, or the caller has
+        // retargeted to a different path (Save As).
+        var alreadyOpenAtTarget = false
+        if await session.isOpen, let existingStore = try? await session.currentStore() {
+            let currentPath = await existingStore.currentProject.projectPath
+            alreadyOpenAtTarget = currentPath == targetPath
+        }
+
+        if !alreadyOpenAtTarget {
+            let manifestPath = (targetPath as NSString).appendingPathComponent("project.yml")
+            if FileManager.default.fileExists(atPath: manifestPath) {
+                try await session.open(path: targetPath, force: force)
+            } else {
+                try await session.create(manifest: project.manifest, at: targetPath, force: force)
+            }
+        }
+
+        let store = try await session.currentStore()
+        await store.replace(manifest: project.manifest, endpoints: project.endpoints)
+        try await session.save()
+        return try await describeProject(handle: handle)
+    }
+
     // MARK: - Import
 
     /// Merges `spec` into the session's open project and reconciles the result back into `store`

@@ -89,6 +89,13 @@ struct Dispatcher {
             let input = try decode(HandleOnlyInput.self, params)
             try await service.saveProject(handle: input.handle)
             return EmptyResult()
+        case "project.read":
+            let input = try decode(HandleOnlyInput.self, params)
+            return try await service.projectSnapshot(handle: input.handle)
+        case "project.write":
+            let input = try decode(WriteProjectParams.self, params)
+            return try await service.writeProject(
+                handle: input.handle, project: input.project, force: input.force ?? false)
         case "project.validate":
             let input = try decode(HandleOnlyInput.self, params)
             return try await service.validateProject(handle: input.handle)
@@ -169,6 +176,12 @@ private struct OpenProjectParams: Decodable {
 
 private struct ValidateProjectParams: Decodable {
     let project: MoqProject
+}
+
+private struct WriteProjectParams: Decodable {
+    let handle: String
+    let project: MoqProject
+    let force: Bool?
 }
 
 private struct ListEndpointsParams: Decodable {
