@@ -15,22 +15,27 @@ public struct ProjectValidator: ProjectValidating {
         var seenRoutes: [String: String] = [:]
 
         // Rule 1: project.yml must exist (already enforced by loader, but validate version)
-        if project.manifest.version != "1" {
+        if project.manifest.version != MoqFormatRules.formatVersion {
             diagnostics.append(
                 .init(
                     severity: .error,
-                    message: "Unsupported format version: \"\(project.manifest.version)\". Expected \"1\".",
+                    message:
+                        "Unsupported format version: \"\(project.manifest.version)\". Expected \"\(MoqFormatRules.formatVersion)\".",
                     file: "project.yml",
-                    field: "version"
+                    field: "version",
+                    code: .unsupportedVersion
                 ))
         }
 
-        // Rule 2: endpoints/ must contain at least one file (enforced by loader, redundant check)
+        // Rule 2: endpoints/ should contain at least one endpoint. This is a semantic
+        // requirement, not a structural one — ProjectLoader permits an empty endpoints/
+        // directory so a work-in-progress project can be saved and reopened.
         if project.endpoints.isEmpty {
             diagnostics.append(
                 .init(
                     severity: .error,
-                    message: "No endpoint files found in endpoints/."
+                    message: "No endpoint files found in endpoints/.",
+                    code: .noEndpoints
                 ))
         }
 
@@ -44,20 +49,24 @@ public struct ProjectValidator: ProjectValidating {
                         severity: .error,
                         message: "Duplicate endpoint id \"\(endpoint.id)\" (also in \(existing)).",
                         file: fileName,
-                        field: "id"
+                        field: "id",
+                        code: .duplicateEndpointID,
+                        endpointID: endpoint.id
                     ))
             } else {
                 seenIds[endpoint.id] = fileName
             }
 
             // Validate ID format
-            if endpoint.id.range(of: "^[a-z0-9][a-z0-9-]*$", options: .regularExpression) == nil {
+            if !MoqFormatRules.isValidEndpointID(endpoint.id) {
                 diagnostics.append(
                     .init(
                         severity: .error,
                         message: "Endpoint id \"\(endpoint.id)\" must be lowercase alphanumeric with hyphens.",
                         file: fileName,
-                        field: "id"
+                        field: "id",
+                        code: .invalidEndpointID,
+                        endpointID: endpoint.id
                     ))
             }
 
@@ -67,7 +76,9 @@ public struct ProjectValidator: ProjectValidating {
                         severity: .error,
                         message: "Endpoint reference_name is required.",
                         file: fileName,
-                        field: "reference_name"
+                        field: "reference_name",
+                        code: .missingReferenceName,
+                        endpointID: endpoint.id
                     ))
             } else if !isValidReferenceName(endpoint.referenceName) {
                 diagnostics.append(
@@ -76,7 +87,9 @@ public struct ProjectValidator: ProjectValidating {
                         message:
                             "Endpoint reference_name \"\(endpoint.referenceName)\" must start with a letter or underscore and contain only letters, numbers, or underscores.",
                         file: fileName,
-                        field: "reference_name"
+                        field: "reference_name",
+                        code: .invalidReferenceName,
+                        endpointID: endpoint.id
                     ))
             } else if let existingReferenceNameFile = seenEndpointReferenceNames[endpoint.referenceName] {
                 diagnostics.append(
@@ -85,7 +98,9 @@ public struct ProjectValidator: ProjectValidating {
                         message:
                             "Duplicate endpoint reference_name \"\(endpoint.referenceName)\" (also in \(existingReferenceNameFile)).",
                         file: fileName,
-                        field: "reference_name"
+                        field: "reference_name",
+                        code: .duplicateReferenceName,
+                        endpointID: endpoint.id
                     ))
             } else {
                 seenEndpointReferenceNames[endpoint.referenceName] = fileName
@@ -94,13 +109,15 @@ public struct ProjectValidator: ProjectValidating {
             let normalizedPath = normalizePath(endpoint.path)
 
             // Rule 5: Reserved paths
-            if isReservedPath(normalizedPath) {
+            if MoqFormatRules.isReservedPath(normalizedPath) {
                 diagnostics.append(
                     .init(
                         severity: .error,
                         message: "Path \"\(endpoint.path)\" is reserved and cannot be used by mock endpoints.",
                         file: fileName,
-                        field: "path"
+                        field: "path",
+                        code: .reservedPath,
+                        endpointID: endpoint.id
                     ))
             }
 
@@ -113,7 +130,9 @@ public struct ProjectValidator: ProjectValidating {
                             message:
                                 "Duplicate REST route \"\(endpoint.method.uppercased()) \(endpoint.path)\" (equivalent to route in \(existing)).",
                             file: fileName,
-                            field: "path"
+                            field: "path",
+                            code: .duplicateRoute,
+                            endpointID: endpoint.id
                         ))
                 } else {
                     seenRoutes[routeKey] = fileName
@@ -127,7 +146,9 @@ public struct ProjectValidator: ProjectValidating {
                         severity: .error,
                         message: "Endpoint must have at least one variant.",
                         file: fileName,
-                        field: "variants"
+                        field: "variants",
+                        code: .noVariants,
+                        endpointID: endpoint.id
                     ))
             }
 
@@ -139,7 +160,9 @@ public struct ProjectValidator: ProjectValidating {
                         severity: .error,
                         message: "Only one variant may be marked as default (\(defaultCount) found).",
                         file: fileName,
-                        field: "variants"
+                        field: "variants",
+                        code: .multipleDefaultVariants,
+                        endpointID: endpoint.id
                     ))
             }
 
@@ -155,7 +178,10 @@ public struct ProjectValidator: ProjectValidating {
                             severity: .error,
                             message: "Variant status must be between 100 and 599.",
                             file: fileName,
-                            field: "\(variantField).status"
+                            field: "\(variantField).status",
+                            code: .invalidVariantStatus,
+                            endpointID: endpoint.id,
+                            variantName: variant.name
                         ))
                 }
 
@@ -165,7 +191,10 @@ public struct ProjectValidator: ProjectValidating {
                             severity: .error,
                             message: "Variant delay_ms must be non-negative.",
                             file: fileName,
-                            field: "\(variantField).delay_ms"
+                            field: "\(variantField).delay_ms",
+                            code: .invalidDelay,
+                            endpointID: endpoint.id,
+                            variantName: variant.name
                         ))
                 } else if let delayMs = variant.delayMs,
                     project.manifest.defaults.delayMs.addingReportingOverflow(delayMs).overflow
@@ -175,7 +204,10 @@ public struct ProjectValidator: ProjectValidating {
                             severity: .error,
                             message: "Combined default and variant delay_ms exceeds the supported integer range.",
                             file: fileName,
-                            field: "\(variantField).delay_ms"
+                            field: "\(variantField).delay_ms",
+                            code: .delayOverflow,
+                            endpointID: endpoint.id,
+                            variantName: variant.name
                         ))
                 }
 
@@ -186,7 +218,10 @@ public struct ProjectValidator: ProjectValidating {
                             severity: .error,
                             message: "Duplicate variant name \"\(variant.name)\".",
                             file: fileName,
-                            field: "\(variantField).name"
+                            field: "\(variantField).name",
+                            code: .duplicateVariantName,
+                            endpointID: endpoint.id,
+                            variantName: variant.name
                         ))
                 }
                 seenVariantNames.insert(variant.name)
@@ -197,7 +232,10 @@ public struct ProjectValidator: ProjectValidating {
                             severity: .error,
                             message: "Variant reference_name is required.",
                             file: fileName,
-                            field: "\(variantField).reference_name"
+                            field: "\(variantField).reference_name",
+                            code: .missingVariantReferenceName,
+                            endpointID: endpoint.id,
+                            variantName: variant.name
                         ))
                 } else if !isValidReferenceName(variant.referenceName) {
                     diagnostics.append(
@@ -206,7 +244,10 @@ public struct ProjectValidator: ProjectValidating {
                             message:
                                 "Variant reference_name \"\(variant.referenceName)\" must start with a letter or underscore and contain only letters, numbers, or underscores.",
                             file: fileName,
-                            field: "\(variantField).reference_name"
+                            field: "\(variantField).reference_name",
+                            code: .invalidVariantReferenceName,
+                            endpointID: endpoint.id,
+                            variantName: variant.name
                         ))
                 } else if !seenVariantReferenceNames.insert(variant.referenceName).inserted {
                     diagnostics.append(
@@ -214,7 +255,10 @@ public struct ProjectValidator: ProjectValidating {
                             severity: .error,
                             message: "Duplicate variant reference_name \"\(variant.referenceName)\".",
                             file: fileName,
-                            field: "\(variantField).reference_name"
+                            field: "\(variantField).reference_name",
+                            code: .duplicateVariantReferenceName,
+                            endpointID: endpoint.id,
+                            variantName: variant.name
                         ))
                 }
 
@@ -225,7 +269,10 @@ public struct ProjectValidator: ProjectValidating {
                                 severity: .error,
                                 message: "Variant request_match query names must not be blank.",
                                 file: fileName,
-                                field: "\(variantField).request_match.query"
+                                field: "\(variantField).request_match.query",
+                                code: .blankRequestMatchQueryName,
+                                endpointID: endpoint.id,
+                                variantName: variant.name
                             ))
                     }
 
@@ -235,7 +282,10 @@ public struct ProjectValidator: ProjectValidating {
                                 severity: .error,
                                 message: "Variant request_match header names must not be blank.",
                                 file: fileName,
-                                field: "\(variantField).request_match.headers"
+                                field: "\(variantField).request_match.headers",
+                                code: .blankRequestMatchHeaderName,
+                                endpointID: endpoint.id,
+                                variantName: variant.name
                             ))
                     }
 
@@ -247,7 +297,10 @@ public struct ProjectValidator: ProjectValidating {
                                 severity: .error,
                                 message: "Variant request_match must define query, headers, or body_contains.",
                                 file: fileName,
-                                field: "\(variantField).request_match"
+                                field: "\(variantField).request_match",
+                                code: .emptyRequestMatch,
+                                endpointID: endpoint.id,
+                                variantName: variant.name
                             ))
                     }
                 }
@@ -260,7 +313,10 @@ public struct ProjectValidator: ProjectValidating {
                             message:
                                 "Variant \"\(variant.name)\" defines both body and body_file. Only one is allowed.",
                             file: fileName,
-                            field: variantField
+                            field: variantField,
+                            code: .bodyAndBodyFile,
+                            endpointID: endpoint.id,
+                            variantName: variant.name
                         ))
                 }
 
@@ -272,7 +328,10 @@ public struct ProjectValidator: ProjectValidating {
                                 severity: .error,
                                 message: "body_file \"\(bodyFile)\" must start with \"fixtures/\".",
                                 file: fileName,
-                                field: "\(variantField).body_file"
+                                field: "\(variantField).body_file",
+                                code: .bodyFileMissingPrefix,
+                                endpointID: endpoint.id,
+                                variantName: variant.name
                             ))
                     } else if let fixtureURL = FixturePathResolver.resolve(
                         bodyFile: bodyFile,
@@ -287,7 +346,10 @@ public struct ProjectValidator: ProjectValidating {
                                     severity: .error,
                                     message: "Fixture file not found: \(bodyFile)",
                                     file: fileName,
-                                    field: "\(variantField).body_file"
+                                    field: "\(variantField).body_file",
+                                    code: .bodyFileNotFound,
+                                    endpointID: endpoint.id,
+                                    variantName: variant.name
                                 ))
                         }
                     } else {
@@ -296,7 +358,10 @@ public struct ProjectValidator: ProjectValidating {
                                 severity: .error,
                                 message: "body_file must resolve to a file inside the project's fixtures directory.",
                                 file: fileName,
-                                field: "\(variantField).body_file"
+                                field: "\(variantField).body_file",
+                                code: .bodyFileOutsideFixtures,
+                                endpointID: endpoint.id,
+                                variantName: variant.name
                             ))
                     }
 
@@ -307,7 +372,10 @@ public struct ProjectValidator: ProjectValidating {
                                 severity: .error,
                                 message: "body_file must not contain path traversal (..).",
                                 file: fileName,
-                                field: "\(variantField).body_file"
+                                field: "\(variantField).body_file",
+                                code: .bodyFilePathTraversal,
+                                endpointID: endpoint.id,
+                                variantName: variant.name
                             ))
                     }
                 }
@@ -315,10 +383,13 @@ public struct ProjectValidator: ProjectValidating {
 
             // Rule 10: auth.type validation
             if let auth = endpoint.auth {
-                diagnostics.append(contentsOf: validateAuth(auth, file: fileName, field: "auth"))
+                diagnostics.append(
+                    contentsOf: validateAuth(auth, file: fileName, field: "auth", endpointID: endpoint.id))
             }
 
-            diagnostics.append(contentsOf: validateNetwork(endpoint.network, file: fileName, field: "network"))
+            diagnostics.append(
+                contentsOf: validateNetwork(
+                    endpoint.network, file: fileName, field: "network", endpointID: endpoint.id))
 
             // Rule 12: verify_cookies must be boolean (enforced by Codable, but check presence)
             // (Handled automatically by Codable decoding)
@@ -329,14 +400,15 @@ public struct ProjectValidator: ProjectValidating {
             }
 
             // Validate HTTP method
-            let validMethods: Set<String> = ["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"]
-            if !validMethods.contains(endpoint.method.uppercased()) {
+            if !MoqFormatRules.isSupportedMethod(endpoint.method) {
                 diagnostics.append(
                     .init(
                         severity: .error,
                         message: "Invalid HTTP method: \"\(endpoint.method)\".",
                         file: fileName,
-                        field: "method"
+                        field: "method",
+                        code: .invalidMethod,
+                        endpointID: endpoint.id
                     ))
             }
 
@@ -347,7 +419,9 @@ public struct ProjectValidator: ProjectValidating {
                         severity: .error,
                         message: "Path must start with \"/\".",
                         file: fileName,
-                        field: "path"
+                        field: "path",
+                        code: .invalidPathPrefix,
+                        endpointID: endpoint.id
                     ))
             }
         }
@@ -371,7 +445,8 @@ public struct ProjectValidator: ProjectValidating {
                     severity: .error,
                     message: "Default delay_ms must be non-negative.",
                     file: "project.yml",
-                    field: "defaults.delay_ms"
+                    field: "defaults.delay_ms",
+                    code: .invalidDefaultDelay
                 ))
         }
 
@@ -384,7 +459,9 @@ public struct ProjectValidator: ProjectValidating {
 
     // MARK: - Auth Validation
 
-    private func validateAuth(_ auth: ProjectAuthConfig, file: String, field: String) -> [ValidationDiagnostic] {
+    private func validateAuth(
+        _ auth: ProjectAuthConfig, file: String, field: String, endpointID: String? = nil
+    ) -> [ValidationDiagnostic] {
         var diagnostics: [ValidationDiagnostic] = []
 
         // Rule 11: header_name required for api-key and header types
@@ -396,7 +473,9 @@ public struct ProjectValidator: ProjectValidating {
                         severity: .error,
                         message: "header_name is required when auth type is \"\(auth.type.rawValue)\".",
                         file: file,
-                        field: "\(field).header_name"
+                        field: "\(field).header_name",
+                        code: .missingHeaderName,
+                        endpointID: endpointID
                     ))
             }
         case .none, .bearer, .basic:
@@ -406,7 +485,9 @@ public struct ProjectValidator: ProjectValidating {
         return diagnostics
     }
 
-    private func validateNetwork(_ network: NetworkBehavior?, file: String, field: String) -> [ValidationDiagnostic] {
+    private func validateNetwork(
+        _ network: NetworkBehavior?, file: String, field: String, endpointID: String? = nil
+    ) -> [ValidationDiagnostic] {
         guard let network else { return [] }
         var diagnostics: [ValidationDiagnostic] = []
 
@@ -416,7 +497,9 @@ public struct ProjectValidator: ProjectValidating {
                     severity: .error,
                     message: "latency_ms must be non-negative.",
                     file: file,
-                    field: "\(field).latency_ms"
+                    field: "\(field).latency_ms",
+                    code: .invalidLatency,
+                    endpointID: endpointID
                 ))
         }
         if let jitterMs = network.jitterMs, jitterMs < 0 {
@@ -425,7 +508,9 @@ public struct ProjectValidator: ProjectValidating {
                     severity: .error,
                     message: "jitter_ms must be non-negative.",
                     file: file,
-                    field: "\(field).jitter_ms"
+                    field: "\(field).jitter_ms",
+                    code: .invalidJitter,
+                    endpointID: endpointID
                 ))
         }
         if let packetLossPercent = network.packetLossPercent,
@@ -436,7 +521,9 @@ public struct ProjectValidator: ProjectValidating {
                     severity: .error,
                     message: "packet_loss_percent must be finite and between 0 and 100.",
                     file: file,
-                    field: "\(field).packet_loss_percent"
+                    field: "\(field).packet_loss_percent",
+                    code: .invalidPacketLoss,
+                    endpointID: endpointID
                 ))
         }
 
@@ -456,11 +543,6 @@ public struct ProjectValidator: ProjectValidating {
             .joined(separator: "/")
     }
 
-    private func isReservedPath(_ path: String) -> Bool {
-        path == "/health" || path == "/_admin" || path.hasPrefix("/_admin/") || path == "/_auth"
-            || path.hasPrefix("/_auth/")
-    }
-
     // MARK: - GraphQL Validation
 
     private func validateGraphQL(_ endpoint: EndpointDocument, fileName: String) -> [ValidationDiagnostic] {
@@ -473,7 +555,9 @@ public struct ProjectValidator: ProjectValidating {
                     severity: .error,
                     message: "GraphQL endpoints (path=/graphql) must define an operation.",
                     file: fileName,
-                    field: "operation"
+                    field: "operation",
+                    code: .graphQLMissingOperation,
+                    endpointID: endpoint.id
                 ))
         }
 
@@ -484,7 +568,9 @@ public struct ProjectValidator: ProjectValidating {
                         severity: .warning,
                         message: "Endpoint has an operation but path is not /graphql.",
                         file: fileName,
-                        field: "path"
+                        field: "path",
+                        code: .operationWithoutGraphQLPath,
+                        endpointID: endpoint.id
                     ))
             }
 
@@ -495,7 +581,9 @@ public struct ProjectValidator: ProjectValidating {
                         severity: .error,
                         message: "GraphQL operation must define at least one of \"name\" or \"document\".",
                         file: fileName,
-                        field: "operation"
+                        field: "operation",
+                        code: .graphQLOperationMissingNameOrDocument,
+                        endpointID: endpoint.id
                     ))
             }
 
@@ -508,7 +596,9 @@ public struct ProjectValidator: ProjectValidating {
                             severity: .error,
                             message: "GraphQL operation document must be non-empty after normalization.",
                             file: fileName,
-                            field: "operation.document"
+                            field: "operation.document",
+                            code: .graphQLEmptyDocument,
+                            endpointID: endpoint.id
                         ))
                 }
             }

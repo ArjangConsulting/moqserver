@@ -4,9 +4,10 @@ import Testing
 @testable import MoqCore
 @testable import MoqFormat
 
-/// Pins the format constants that Swift and Kotlin must agree on until `MoqFormatRules`
-/// unifies them into a single generated source (see the "Swift format core + MCP server" plan,
-/// phase 1). The Kotlin half of this contract lives at
+/// Pins the format constants that Swift and Kotlin must agree on. Swift now derives these from
+/// `MoqFormatRules` (`server/Sources/MoqCore/Project/MoqFormatRules.swift`); Kotlin still
+/// duplicates them by hand in `ProjectValidator.kt` until Studio delegates to the Swift core (see
+/// the "Swift format core + MCP server" plan). The Kotlin half of this contract lives at
 /// `studio/studio-project-format/src/jvmTest/kotlin/com/moqserver/studio/projectformat/SharedRulesContractTest.kt`.
 ///
 /// Changing a value here without updating the Kotlin counterpart reintroduces the exact class of
@@ -129,5 +130,53 @@ struct SharedRulesContractTests {
     func authTypeWireValues() {
         let expected = ["none", "bearer", "basic", "api-key", "header"]
         #expect(ProjectAuthConfig.AuthType.allCases.map(\.rawValue).sorted() == expected.sorted())
+    }
+
+    // MARK: - MoqFormatRules is the actual source ProjectValidator consults
+
+    @Test("MoqFormatRules.formatVersion matches the validator's accepted version")
+    func moqFormatRulesFormatVersion() {
+        #expect(MoqFormatRules.formatVersion == "1")
+    }
+
+    @Test("MoqFormatRules.supportedMethods matches the validator's accepted methods")
+    func moqFormatRulesSupportedMethods() {
+        #expect(
+            MoqFormatRules.supportedMethods == ["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"])
+    }
+
+    @Test("MoqFormatRules.isReservedPath matches the validator's reserved-path rule")
+    func moqFormatRulesReservedPaths() {
+        for path in ["/health", "/_admin", "/_admin/endpoints", "/_auth", "/_auth/token"] {
+            #expect(MoqFormatRules.isReservedPath(path), "expected \(path) to be reserved")
+        }
+        for path in ["/__admin/endpoints", "/users", "/graphql"] {
+            #expect(!MoqFormatRules.isReservedPath(path), "expected \(path) to not be reserved")
+        }
+    }
+
+    // MARK: - Diagnostic codes are actually attached, not just messages
+
+    @Test("Reserved-path diagnostics carry the E_RESERVED_PATH code and endpoint id")
+    func reservedPathDiagnosticCode() {
+        let errors = validator.validate(makeProject(endpoints: [sampleEndpoint(id: "bad", path: "/_admin")]))
+            .filter { $0.severity == .error }
+        let diagnostic = errors.first { $0.code == .reservedPath }
+        #expect(diagnostic != nil)
+        #expect(diagnostic?.endpointID == "bad")
+    }
+
+    @Test("Invalid-method diagnostics carry the E_INVALID_METHOD code")
+    func invalidMethodDiagnosticCode() {
+        let errors = validator.validate(makeProject(endpoints: [sampleEndpoint(method: "TRACE")]))
+            .filter { $0.severity == .error }
+        #expect(errors.contains { $0.code == .invalidMethod })
+    }
+
+    @Test("Unsupported version diagnostics carry the E_UNSUPPORTED_VERSION code")
+    func unsupportedVersionDiagnosticCode() {
+        let errors = validator.validate(makeProject(version: "2", endpoints: [sampleEndpoint()]))
+            .filter { $0.severity == .error }
+        #expect(errors.contains { $0.code == .unsupportedVersion })
     }
 }
