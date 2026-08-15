@@ -211,7 +211,7 @@ jobs:
           if-no-files-found: error
 
   studio-macos:
-    needs: [preflight, verify]
+    needs: [preflight, verify, format-binary]
     runs-on: macos-latest
     permissions:
       contents: read
@@ -233,6 +233,19 @@ jobs:
       - uses: gradle/actions/setup-gradle@v6.2.0
         with:
           cache-provider: basic
+      - uses: actions/download-artifact@v7.0.0
+        with:
+          name: format-macos-arm64
+          path: ${{ runner.temp }}/format-macos-arm64
+      - name: Bundle moq-format into app-resources
+        run: |
+          # See studio/composeApp/app-resources/README.md — Compose only picks up files nested
+          # one level under a per-platform subdirectory; a flat app-resources/moq-format is
+          # silently ignored (confirmed by inspecting a locally built .app).
+          DEST="studio/composeApp/app-resources/macos-arm64"
+          mkdir -p "${DEST}"
+          tar -xzf "${{ runner.temp }}/format-macos-arm64"/moq-format-*.tar.gz -C "${DEST}"
+          chmod +x "${DEST}/moq-format"
       - name: Import Apple signing certificate
         if: ${{ env.APPLE_CERTIFICATE_P12_BASE64 != '' }}
         run: |
@@ -266,7 +279,7 @@ jobs:
           if-no-files-found: error
 
   studio-linux:
-    needs: [preflight, verify]
+    needs: [preflight, verify, format-binary]
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -284,6 +297,18 @@ jobs:
       - uses: gradle/actions/setup-gradle@v6.2.0
         with:
           cache-provider: basic
+      - uses: actions/download-artifact@v7.0.0
+        with:
+          name: format-linux-x86_64
+          path: ${{ runner.temp }}/format-linux-x86_64
+      - name: Bundle moq-format into app-resources
+        run: |
+          # See studio/composeApp/app-resources/README.md for why this must be linux-x64/, not
+          # this directory's own root.
+          DEST="studio/composeApp/app-resources/linux-x64"
+          mkdir -p "${DEST}"
+          tar -xzf "${{ runner.temp }}/format-linux-x86_64"/moq-format-*.tar.gz -C "${DEST}"
+          chmod +x "${DEST}/moq-format"
       - name: Package, sign, and checksum Studio DEB
         working-directory: studio
         run: |
