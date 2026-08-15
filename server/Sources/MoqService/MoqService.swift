@@ -224,9 +224,10 @@ public struct MoqService: Sendable {
         // project; only open-or-create fresh when there's no live store yet, or the caller has
         // retargeted to a different path (Save As).
         var alreadyOpenAtTarget = false
+        var priorPath: String?
         if await session.isOpen, let existingStore = try? await session.currentStore() {
-            let currentPath = await existingStore.currentProject.projectPath
-            alreadyOpenAtTarget = currentPath == targetPath
+            priorPath = await existingStore.currentProject.projectPath
+            alreadyOpenAtTarget = priorPath == targetPath
         }
 
         if !alreadyOpenAtTarget {
@@ -240,7 +241,12 @@ public struct MoqService: Sendable {
 
         let store = try await session.currentStore()
         await store.replace(manifest: project.manifest, endpoints: project.endpoints)
-        try await session.save()
+        // Save As (retargeting to a path this session wasn't already open at): any bodyFile the
+        // caller's endpoints reference still points at whatever this session's store was
+        // previously open at — priorPath — not the freshly opened/created targetPath, which may
+        // not have those fixtures yet. See ProjectStore.save's sourceRoot doc for what goes wrong
+        // without this (fixtureNotFound on every pre-existing bodyFile reference).
+        try await session.save(sourceRoot: alreadyOpenAtTarget ? nil : priorPath)
         return try await describeProject(handle: handle)
     }
 

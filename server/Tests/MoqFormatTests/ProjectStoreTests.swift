@@ -447,6 +447,30 @@ struct ProjectStoreTests {
 
     // MARK: - Rename / delete
 
+    /// Regression test: rename() reassigns projectPath to the new destination before calling
+    /// save(), so save()'s own default sourceRoot (its own projectPath) pointed at the new,
+    /// not-yet-populated directory instead of where the fixture actually still lived. Every
+    /// existing test up to this one used an endpoint with no bodyFile, so this never fired.
+    @Test("rename preserves a fixture referenced by an existing bodyFile")
+    func renamePreservesExistingFixture() async throws {
+        let oldPath = tempPath("rename-fixture-old")
+        let newPath = tempPath("rename-fixture-new")
+        defer {
+            try? FileManager.default.removeItem(atPath: oldPath)
+            try? FileManager.default.removeItem(atPath: newPath)
+        }
+        let store = try ProjectStore.create(manifest: manifest(), at: oldPath)
+        try await store.addEndpoint(
+            endpoint(variants: [ProjectVariant(name: "default", status: 200, body: .string("hello"))]))
+        try await store.save()
+
+        let bodyFile = try #require(await store.currentProject.endpoints.first?.variants.first?.bodyFile)
+
+        try await store.rename(to: newPath)
+
+        #expect(FileManager.default.fileExists(atPath: newPath + "/" + bodyFile))
+    }
+
     @Test("rename persists at the new path and removes the old bundle")
     func renameMovesBundle() async throws {
         let oldPath = tempPath("rename-old")

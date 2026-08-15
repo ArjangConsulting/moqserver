@@ -112,6 +112,44 @@ struct WriteProjectTests {
         #expect(FileManager.default.fileExists(atPath: path + "/" + bodyFile))
     }
 
+    /// Regression test: writeProject's Save As path (retargeting to a directory the session
+    /// wasn't already open at) used to look for pre-existing bodyFile fixtures under the *new*
+    /// target directory instead of where the session's store actually had them — every existing
+    /// writeProject test up to this one reused the same path for both writes, so the bug (and
+    /// its fix, threading sourceRoot through to ProjectStore.save) was never exercised. This is
+    /// also exactly the scenario that broke Kotlin's `ProjectRepositoryTest` (load, then Save As
+    /// to a fresh directory) — this is the Swift-side pin for the same fix.
+    @Test("Save As to a directory this session wasn't open at preserves existing fixtures")
+    func saveAsToNewDirectoryPreservesFixtures() async throws {
+        let originalPath = tempPath("save-as-original")
+        let newPath = tempPath("save-as-new")
+        defer {
+            try? FileManager.default.removeItem(atPath: originalPath)
+            try? FileManager.default.removeItem(atPath: newPath)
+        }
+        let handle = await service.openSession()
+
+        let withInlineBody = MoqProject(
+            manifest: manifest(),
+            endpoints: [
+                EndpointDocument(
+                    id: "get-a", method: "GET", path: "/a",
+                    variants: [ProjectVariant(name: "default", status: 200, body: .string("hello"))])
+            ],
+            projectPath: originalPath)
+        _ = try await service.writeProject(handle: handle, project: withInlineBody, force: false)
+        let afterFirstWrite = try await service.projectSnapshot(handle: handle)
+        let bodyFile = try #require(afterFirstWrite.endpoints.first?.variants.first?.bodyFile)
+
+        // Same handle (session still open at originalPath), same bodyFile reference, new path —
+        // exactly what ProjectRepository.save(project, newPath) sends on a Kotlin-side Save As.
+        let retargeted = MoqProject(
+            manifest: afterFirstWrite.manifest, endpoints: afterFirstWrite.endpoints, projectPath: newPath)
+        _ = try await service.writeProject(handle: handle, project: retargeted, force: false)
+
+        #expect(FileManager.default.fileExists(atPath: newPath + "/" + bodyFile))
+    }
+
     @Test("force: false rejects overwriting a project that changed on disk since it was last read")
     func rejectsConcurrentDiskChange() async throws {
         let path = tempPath("concurrent")
