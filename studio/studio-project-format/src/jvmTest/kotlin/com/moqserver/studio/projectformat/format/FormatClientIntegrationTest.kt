@@ -1,10 +1,13 @@
 package com.moqserver.studio.projectformat.format
 
+import com.moqserver.studio.projectformat.AuthType
+import com.moqserver.studio.projectformat.EndpointDocument
 import com.moqserver.studio.projectformat.MoqProject
 import com.moqserver.studio.projectformat.NetworkBehavior
 import com.moqserver.studio.projectformat.ProjectAuthConfig
 import com.moqserver.studio.projectformat.ProjectDefaults
 import com.moqserver.studio.projectformat.ProjectManifest
+import com.moqserver.studio.projectformat.ProjectVariant
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
@@ -142,4 +145,49 @@ class FormatClientIntegrationTest {
         val identity = client.suggestEndpointId("POST", "/users/{id}")
         assertEquals("post-users-param", identity.id)
     }
+
+    /**
+     * Regression test for a real bug found while manually verifying the app: a variant with only
+     * `bodyFile` set (no inline `body`) falsely failed validation with E_BODY_AND_BODY_FILE when
+     * the whole project was hand-constructed with `body = null` and sent through the stateless
+     * `validate` call. The cause was `Json { encodeDefaults = true }` forcing `body: null` onto
+     * the wire explicitly, and Swift's `ProjectVariant` decoder treating a present-but-null
+     * `body` as `AnyCodableValue.null` (a real, distinct case for reading `body: null` from an
+     * actual .moqproj file) rather than as absent — manufacturing a body where the client had
+     * none. Fixed by encoding only what's actually present rather than blanket-encoding
+     * defaults; this test constructs the project fresh (not round-tripped from a prior load, so
+     * it can't accidentally pass only because the server-side value already matches) to catch
+     * a regression on the encode side specifically.
+     */
+    @Test
+    fun `a fresh project with a body_file-only variant validates clean, not E_BODY_AND_BODY_FILE`() =
+        withClient { client ->
+            val project = MoqProject(
+                manifest = ProjectManifest(
+                    name = "Regression",
+                    defaults = ProjectDefaults(
+                        auth = ProjectAuthConfig(type = AuthType.NONE, verify = false),
+                        network = NetworkBehavior(),
+                    ),
+                ),
+                endpoints = listOf(
+                    EndpointDocument(
+                        id = "get-a", method = "GET", path = "/a",
+                        variants = listOf(
+                            ProjectVariant(
+                                name = "default", status = 200, body = null,
+                                bodyFile = "fixtures/responses/a.json",
+                            )
+                        ),
+                    )
+                ),
+                projectPath = "/tmp/regression-body-and-body-file",
+            )
+
+            val result = client.validateProject(project)
+            assertTrue(
+                result.diagnostics.none { it.code == "E_BODY_AND_BODY_FILE" },
+                "diagnostics: ${result.diagnostics}",
+            )
+        }
 }

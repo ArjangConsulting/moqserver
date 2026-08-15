@@ -15,7 +15,7 @@ class RemoteProjectValidator(private val client: FormatClient) {
 
     suspend fun validate(project: MoqProject): List<ValidationDiagnostic> {
         val result = client.validateProject(project)
-        logger.info(
+        logger.debug(
             "moq-format validated '{}': {} error(s), {} warning(s)",
             project.manifest.name, result.errorCount, result.warningCount,
         )

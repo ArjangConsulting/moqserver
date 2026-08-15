@@ -21,12 +21,13 @@ import kotlinx.serialization.json.put
  * adapter, just decoding/encoding Kotlin types instead of MCP's `Value`.
  */
 class FormatClient(private val process: FormatProcess) {
-    // encodeDefaults = true: the wire contract requires fields the schema marks required (e.g.
-    // ProjectManifest.version) even where Kotlin gives them a convenience default for local
-    // construction. Swift's Codable synthesis doesn't fall back to a property default on a
-    // missing key, so omitting a defaulted field here is a decode failure on the other end, not
-    // a harmless omission.
-    private val json = Json { ignoreUnknownKeys = true; encodeDefaults = true }
+    // Defaults stay omitted (kotlinx.serialization's own default): an absent optional field and
+    // Kotlin's local convenience default should mean the same "no opinion" thing on the wire.
+    // The one field the schema requires present with no fallback (ProjectManifest.version) is
+    // annotated @EncodeDefault(ALWAYS) at its declaration instead of forcing this globally — see
+    // that annotation's origin in the model generator for why a blanket encodeDefaults = true
+    // is the wrong fix (it silently manufactures a body on variants that don't have one).
+    private val json = Json { ignoreUnknownKeys = true }
 
     // MARK: - Sessions
 
@@ -73,6 +74,30 @@ class FormatClient(private val process: FormatProcess) {
 
     suspend fun saveProject(handle: String) {
         call("project.save", buildJsonObject { put("handle", handle) })
+    }
+
+    /** The full project currently open in `handle` — the whole document, not the summary
+     * [describeProject] returns. */
+    suspend fun readProject(handle: String): MoqProject {
+        val result = call("project.read", buildJsonObject { put("handle", handle) })
+        return json.decodeFromJsonElement(MoqProject.serializer(), result)
+    }
+
+    /**
+     * Writes a whole edited [project] to disk in one call: opens the bundle at
+     * `project.projectPath` if one exists there, or creates it, replaces the in-memory
+     * manifest/endpoints, and saves. This is the whole-project counterpart to
+     * [upsertEndpoint]/[upsertVariant] — a client (this one) that edits a [MoqProject] value in
+     * memory and wants the complete result persisted, rather than one mutation at a time.
+     */
+    suspend fun writeProject(handle: String, project: MoqProject, force: Boolean = false): ProjectDescription {
+        val params = buildJsonObject {
+            put("handle", handle)
+            put("project", json.encodeToJsonElement(MoqProject.serializer(), project))
+            put("force", force)
+        }
+        val result = call("project.write", params)
+        return json.decodeFromJsonElement(ProjectDescription.serializer(), result)
     }
 
     // MARK: - Validation

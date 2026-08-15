@@ -7,8 +7,13 @@ import com.moqserver.studio.domain.ParsedResponse
 import com.moqserver.studio.domain.ParsedSpec
 import com.moqserver.studio.projectformat.ProjectRepository
 import com.moqserver.studio.projectformat.YamlValue
+import com.moqserver.studio.projectformat.format.FormatBinaryLocator
+import com.moqserver.studio.projectformat.format.FormatClient
+import com.moqserver.studio.projectformat.format.FormatProcess
 import java.io.File
 import java.util.Base64
+import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeout
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
@@ -172,43 +177,64 @@ class ImportWorkflowTest {
 
 	@Test
 	fun `har import round trips through project save and load with special headers and binary bodies`() {
-		val parsed = HARImportParser().parse(sampleBinaryHar())
-
-		val endpoint = parsed.endpoints.single()
-		val project = ImportConverter.convert(
-			spec = ParsedSpec(title = parsed.title, version = parsed.version, endpoints = parsed.endpoints),
-			acceptedEntries = listOf(ImportEndpointEntry(endpoint = endpoint)),
-			projectName = "HAR Import Regression",
-			projectPath = "/tmp/har-import-regression",
-		)
-
-		val tempDir = kotlin.io.path.createTempDirectory("moqproj-har-roundtrip").toFile()
+		val binaryPath = try {
+			FormatBinaryLocator.locate()
+		} catch (e: FormatBinaryLocator.NotFoundException) {
+			println("Skipping: ${e.message}")
+			return
+		}
+		val process = FormatProcess(locateBinary = { binaryPath }).apply { start() }
 		try {
-			val repository = ProjectRepository()
-			repository.save(project, tempDir.absolutePath)
+			val parsed = HARImportParser().parse(sampleBinaryHar())
 
-			val reloaded = repository.load(tempDir.absolutePath)
-			val variant = reloaded.endpoints.single().variants.single()
-			val headers = requireNotNull(variant.headers)
-			val bodyFile = requireNotNull(variant.bodyFile)
-			val fixture = File(tempDir, bodyFile)
+			val endpoint = parsed.endpoints.single()
+			val project = ImportConverter.convert(
+				spec = ParsedSpec(title = parsed.title, version = parsed.version, endpoints = parsed.endpoints),
+				acceptedEntries = listOf(ImportEndpointEntry(endpoint = endpoint)),
+				projectName = "HAR Import Regression",
+				projectPath = "/tmp/har-import-regression",
+			)
 
-			assertEquals("/vi/iONDebHX9qk/mqdefault.jpg", reloaded.endpoints.single().path)
-			assertEquals("fixtures/responses/get-vi-iondebhx9qk-mqdefaultjpg/mqdefault-jpg-success.jpg", bodyFile)
-			assertNotNull(variant.bodyFile)
-			assertEquals(null, variant.body)
-			assertTrue(fixture.isFile)
-			assertTrue(fixture.readBytes().contentEquals(Base64.getDecoder().decode("/9j/4AAQSkZJRg==")))
-			assertEquals(
-				"""{"group":"youtube","max_age":2592000,"endpoints":[{"url":"https://csp.withgoogle.com/csp/report-to/youtube"}]}""",
-				headers["report-to"],
-			)
-			assertEquals(
-				"""h3=":443"; ma=2592000,h3-29=":443"; ma=2592000""",
-				headers["Alt-Svc"],
-			)
+			val tempDir = kotlin.io.path.createTempDirectory("moqproj-har-roundtrip").toFile()
+			try {
+				runBlocking {
+					withTimeout(15_000) {
+						val repository = ProjectRepository(FormatClient(process))
+						repository.save(project, tempDir.absolutePath)
+
+						val reloaded = repository.load(tempDir.absolutePath)
+						val variant = reloaded.endpoints.single().variants.single()
+						val headers = requireNotNull(variant.headers)
+						val bodyFile = requireNotNull(variant.bodyFile)
+						val fixture = File(tempDir, bodyFile)
+
+						assertEquals("/vi/iONDebHX9qk/mqdefault.jpg", reloaded.endpoints.single().path)
+						// Swift's fixture-path scheme sanitizes the whole endpoint path, not just its
+						// last segment the way Kotlin's own (now-deleted) writer did — a one-time,
+						// expected naming difference now that Swift's writer is canonical.
+						assertEquals(
+							"fixtures/responses/get-vi-iondebhx9qk-mqdefaultjpg/vi-iondebhx9qk-mqdefault-jpg-success.jpg",
+							bodyFile,
+						)
+						assertNotNull(variant.bodyFile)
+						assertEquals(null, variant.body)
+						assertTrue(fixture.isFile)
+						assertTrue(fixture.readBytes().contentEquals(Base64.getDecoder().decode("/9j/4AAQSkZJRg==")))
+						assertEquals(
+							"""{"group":"youtube","max_age":2592000,"endpoints":[{"url":"https://csp.withgoogle.com/csp/report-to/youtube"}]}""",
+							headers["report-to"],
+						)
+						assertEquals(
+							"""h3=":443"; ma=2592000,h3-29=":443"; ma=2592000""",
+							headers["Alt-Svc"],
+						)
+					}
+				}
+			} finally {
+				tempDir.deleteRecursively()
+			}
 		} finally {
-			tempDir.deleteRecursively()
+			process.stop()
 		}
 	}
 

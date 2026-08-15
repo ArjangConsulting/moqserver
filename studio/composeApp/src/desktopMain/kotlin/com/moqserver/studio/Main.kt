@@ -6,6 +6,7 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -195,16 +196,18 @@ fun main(args: Array<String>) {
     logger.info("moqserver studio starting (args={})", args.toList())
     installCrashHandlers()
     application {
-        val repo = remember { ProjectRepository() }
-        // Full project validation runs in moq-format, a supervised subprocess (see FormatProcess
-        // doc comment for why: a Swift trap is process-fatal, so validation runs out-of-process
-        // rather than risk taking Studio down with unsaved work). One process for the app's
-        // lifetime; RemoteProjectValidator adapts its wire diagnostics into the ValidationDiagnostic
-        // shape ValidationPanel already renders.
+        // .moqproj reading, writing, and validation all go through moq-format, a supervised
+        // subprocess (see FormatProcess doc comment for why: a Swift trap is process-fatal, so
+        // it runs out-of-process rather than risk taking Studio down with unsaved work). One
+        // process, one FormatClient, for the app's lifetime; repo and remoteValidator are both
+        // thin adapters over the same client — repo owns the load/save session, the validator
+        // adapts wire diagnostics into the ValidationDiagnostic shape ValidationPanel renders.
         val formatProcess = remember {
             FormatProcess(locateBinary = { FormatBinaryLocator.locate() }).apply { start() }
         }
-        val remoteValidator = remember(formatProcess) { RemoteProjectValidator(FormatClient(formatProcess)) }
+        val formatClient = remember(formatProcess) { FormatClient(formatProcess) }
+        val repo = remember(formatClient) { ProjectRepository(formatClient) }
+        val remoteValidator = remember(formatClient) { RemoteProjectValidator(formatClient) }
         DisposableEffect(formatProcess) {
             onDispose { formatProcess.stop() }
         }
@@ -226,6 +229,15 @@ fun main(args: Array<String>) {
         val themeMode = remember { mutableStateOf(aiSettings.value.themeMode.toStudioThemeMode()) }
         val lastFileDirectory = remember { mutableStateOf<String?>(null) }
         val pendingProjectOpenPath = remember { mutableStateOf(resolveInitialProjectPath(args)) }
+        // A separate request counter, not `pendingProjectOpenPath.value` itself, is the
+        // LaunchedEffect key below. Keying on the path directly and having the effect null it
+        // out on completion made the effect cancel *itself*: a state write read as your own
+        // LaunchedEffect key relaunches that effect on the next recomposition, and moq-format's
+        // IPC round trip (a few ms, vs. a near-instant in-process call before this cutover) was
+        // consistently wide enough for that relaunch to land before openProject finished,
+        // silently abandoning the open (openProject's own CancellationException handling treats
+        // that as an unremarkable cancelled transition, so nothing surfaced as an error either).
+        var pendingProjectOpenToken by remember { mutableStateOf(0) }
         val isMac = isMacOs()
         val exceptionHandler = remember {
             CoroutineExceptionHandler { _, throwable ->
@@ -309,6 +321,7 @@ fun main(args: Array<String>) {
                 installProjectOpenHandler { incomingPath ->
                     logger.info("OS file-open event: {}", incomingPath)
                     pendingProjectOpenPath.value = incomingPath
+                    pendingProjectOpenToken++
                 }
             }
 
@@ -324,9 +337,8 @@ fun main(args: Array<String>) {
                     state = appViewModel.state.value,
                 )
 
-            LaunchedEffect(pendingProjectOpenPath.value) {
+            LaunchedEffect(pendingProjectOpenToken) {
                 val path = pendingProjectOpenPath.value ?: return@LaunchedEffect
-                pendingProjectOpenPath.value = null
                 if (!guardProjectTransition()) {
                     logger.debug("OS file-open event cancelled while resolving current project state")
                     return@LaunchedEffect

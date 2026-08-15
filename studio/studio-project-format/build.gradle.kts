@@ -105,12 +105,12 @@ class ProjectModelsGenerator(schemaFile: File) {
      * property name that differs from the wire name, and the untyped body.
      */
     private val overrides = mapOf(
-        "projectManifest.version" to Override(type = "String", default = "\"1\""),
+        "projectManifest.version" to Override(type = "String", default = "\"1\"", alwaysEncode = true),
         // Inline objects in the manifest that Kotlin models as named types; without these they
         // would fall through to the generic "object" mapping.
         "projectManifest.defaults" to Override(type = "ProjectDefaults"),
         "projectManifest.global_rules" to Override(type = "GlobalRules?"),
-        "projectManifest.defaults.delay_ms" to Override(type = "Int", default = "0"),
+        "projectManifest.defaults.delay_ms" to Override(type = "Int", default = "0", alwaysEncode = true),
         "endpoint.reference_name" to
             Override(type = "String", default = "defaultReferenceNameForEndpointId(id)"),
         "variant.reference_name" to
@@ -125,6 +125,18 @@ class ProjectModelsGenerator(schemaFile: File) {
         val type: String,
         val default: String? = null,
         val propertyName: String? = null,
+        /**
+         * Forces this field onto the wire even when it equals its default, via
+         * `@EncodeDefault(ALWAYS)` — for the one field (`version`) Swift's decoder requires
+         * present with no fallback. Deliberately not a blanket `encodeDefaults = true` on the
+         * `Json` instance: that also forces every absent-optional field (e.g. a variant's `body`)
+         * onto the wire as an explicit `null`, and Swift's `ProjectVariant` decoder treats a
+         * present-but-null `body` as "the YAML value null" (`AnyCodableValue.null`, a real,
+         * distinct case for reading `body: null` in a real .moqproj file) rather than "absent" —
+         * silently manufacturing a body where the client had none and tripping
+         * E_BODY_AND_BODY_FILE. Per-field is what avoids that collateral damage.
+         */
+        val alwaysEncode: Boolean = false,
     )
 
     private val out = StringBuilder()
@@ -138,8 +150,11 @@ class ProjectModelsGenerator(schemaFile: File) {
             |// Types that cannot be derived from the schema (the MoqProject aggregate, filesystem
             |// layout constants, YamlValue) stay hand-written in ProjectModels.kt.
             |
+            |@file:OptIn(kotlinx.serialization.ExperimentalSerializationApi::class)
+            |
             |package com.moqserver.studio.projectformat
             |
+            |import kotlinx.serialization.EncodeDefault
             |import kotlinx.serialization.SerialName
             |import kotlinx.serialization.Serializable
             |
@@ -206,6 +221,9 @@ class ProjectModelsGenerator(schemaFile: File) {
 
             if (propertyName != schemaName) {
                 out.append("    @SerialName(\"$schemaName\")\n")
+            }
+            if (override?.alwaysEncode == true) {
+                out.append("    @EncodeDefault(EncodeDefault.Mode.ALWAYS)\n")
             }
             out.append("    val $propertyName: $type")
             default?.let { out.append(" = $it") }
