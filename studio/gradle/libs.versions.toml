@@ -1,4 +1,5 @@
 [versions]
+jdk = "25"
 kotlin = "2.4.10"
 compose = "1.11.1"
 compose-material3 = "1.12.0-alpha03"

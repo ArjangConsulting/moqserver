@@ -16,7 +16,6 @@ val nativePackageVersion = project.version.toString().substringBefore('-').subst
 
 kotlin {
     jvm("desktop")
-    jvmToolchain(21)
 
     sourceSets {
         val commonMain by getting {

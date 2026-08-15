@@ -5,7 +5,6 @@ plugins {
 
 kotlin {
     jvm()
-    jvmToolchain(21)
 
     sourceSets {
         val commonMain by getting {

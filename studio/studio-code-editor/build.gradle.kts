@@ -18,5 +18,5 @@ tasks.withType<Test>().configureEach {
 }
 
 kotlin {
-    jvmToolchain(21)
+
 }
