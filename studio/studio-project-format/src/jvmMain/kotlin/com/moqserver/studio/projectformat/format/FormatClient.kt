@@ -1,0 +1,183 @@
+package com.moqserver.studio.projectformat.format
+
+import com.moqserver.studio.projectformat.EndpointDocument
+import com.moqserver.studio.projectformat.MoqProject
+import com.moqserver.studio.projectformat.ProjectVariant
+import kotlinx.serialization.builtins.ListSerializer
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.decodeFromJsonElement
+import kotlinx.serialization.json.encodeToJsonElement
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.put
+
+/**
+ * Typed Kotlin surface over `moq-format`'s JSON-RPC methods (see `Dispatcher.swift` for the
+ * method list this mirrors). Every call here corresponds 1:1 to a method `moq-mcp`'s tool
+ * handlers also reach through `MoqService` — this is the JSON-RPC transport's equivalent of that
+ * adapter, just decoding/encoding Kotlin types instead of MCP's `Value`.
+ */
+class FormatClient(private val process: FormatProcess) {
+    // encodeDefaults = true: the wire contract requires fields the schema marks required (e.g.
+    // ProjectManifest.version) even where Kotlin gives them a convenience default for local
+    // construction. Swift's Codable synthesis doesn't fall back to a property default on a
+    // missing key, so omitting a defaulted field here is a decode failure on the other end, not
+    // a harmless omission.
+    private val json = Json { ignoreUnknownKeys = true; encodeDefaults = true }
+
+    // MARK: - Sessions
+
+    suspend fun openSession(): String {
+        val result = call("session.open", buildJsonObject {})
+        return result.jsonObject.getValue("handle").jsonPrimitiveContent()
+    }
+
+    suspend fun closeSession(handle: String) {
+        call("session.close", buildJsonObject { put("handle", handle) })
+    }
+
+    // MARK: - Project lifecycle
+
+    suspend fun createProject(handle: String, name: String, description: String?, path: String, force: Boolean = false):
+        ProjectDescription {
+        val result = call(
+            "project.create",
+            buildJsonObject {
+                put("handle", handle)
+                put("name", name)
+                description?.let { put("description", it) }
+                put("path", path)
+                put("force", force)
+            })
+        return json.decodeFromJsonElement(ProjectDescription.serializer(), result)
+    }
+
+    suspend fun openProject(handle: String, path: String, force: Boolean = false): ProjectDescription {
+        val result = call(
+            "project.open",
+            buildJsonObject {
+                put("handle", handle)
+                put("path", path)
+                put("force", force)
+            })
+        return json.decodeFromJsonElement(ProjectDescription.serializer(), result)
+    }
+
+    suspend fun describeProject(handle: String): ProjectDescription {
+        val result = call("project.describe", buildJsonObject { put("handle", handle) })
+        return json.decodeFromJsonElement(ProjectDescription.serializer(), result)
+    }
+
+    suspend fun saveProject(handle: String) {
+        call("project.save", buildJsonObject { put("handle", handle) })
+    }
+
+    // MARK: - Validation
+
+    /** Validates the project currently open in `handle` (server-side session state). */
+    suspend fun validateProject(handle: String): ValidationResult {
+        val result = call("project.validate", buildJsonObject { put("handle", handle) })
+        return json.decodeFromJsonElement(ValidationResult.serializer(), result)
+    }
+
+    /**
+     * Validates a project value directly — no session, nothing needing a prior save. This is the
+     * call Studio's live editor uses: it has an edited, unsaved [MoqProject] in memory and wants
+     * an answer for exactly that value.
+     */
+    suspend fun validateProject(project: MoqProject): ValidationResult {
+        val params = buildJsonObject { put("project", json.encodeToJsonElement(MoqProject.serializer(), project)) }
+        val result = call("validate", params)
+        return json.decodeFromJsonElement(ValidationResult.serializer(), result)
+    }
+
+    // MARK: - Endpoints
+
+    suspend fun listEndpoints(
+        handle: String, filterPath: String? = null, filterMethod: String? = null, filterTag: String? = null,
+    ): List<EndpointSummary> {
+        val result = call(
+            "endpoint.list",
+            buildJsonObject {
+                put("handle", handle)
+                filterPath?.let { put("filter_path", it) }
+                filterMethod?.let { put("filter_method", it) }
+                filterTag?.let { put("filter_tag", it) }
+            })
+        return json.decodeFromJsonElement(ListSerializer(EndpointSummary.serializer()), result)
+    }
+
+    suspend fun getEndpoint(handle: String, id: String): EndpointDocument {
+        val result = call("endpoint.get", buildJsonObject { put("handle", handle); put("id", id) })
+        return json.decodeFromJsonElement(EndpointDocument.serializer(), result)
+    }
+
+    suspend fun suggestEndpointId(method: String, path: String, alias: String? = null): SuggestedEndpointIdentity {
+        val result = call(
+            "endpoint.suggestId",
+            buildJsonObject {
+                put("method", method)
+                put("path", path)
+                alias?.let { put("alias", it) }
+            })
+        return json.decodeFromJsonElement(SuggestedEndpointIdentity.serializer(), result)
+    }
+
+    suspend fun upsertEndpoint(handle: String, endpoint: EndpointUpsertInput, autosave: Boolean = true): EndpointDocument {
+        val params = json.encodeToJsonElement(EndpointUpsertInput.serializer(), endpoint).jsonObject.toMutableMap()
+        params["handle"] = JsonPrimitive(handle)
+        params["autosave"] = JsonPrimitive(autosave)
+        val result = call("endpoint.upsert", JsonObject(params))
+        return json.decodeFromJsonElement(EndpointDocument.serializer(), result)
+    }
+
+    suspend fun removeEndpoint(handle: String, id: String, autosave: Boolean = true) {
+        call("endpoint.remove", buildJsonObject { put("handle", handle); put("id", id); put("autosave", autosave) })
+    }
+
+    // MARK: - Variants
+
+    suspend fun upsertVariant(handle: String, endpointId: String, variant: ProjectVariant, autosave: Boolean = true) {
+        val params = json.encodeToJsonElement(ProjectVariant.serializer(), variant).jsonObject.toMutableMap()
+        params["handle"] = JsonPrimitive(handle)
+        params["endpoint_id"] = JsonPrimitive(endpointId)
+        params["autosave"] = JsonPrimitive(autosave)
+        call("variant.upsert", JsonObject(params))
+    }
+
+    suspend fun removeVariant(handle: String, endpointId: String, name: String, autosave: Boolean = true) {
+        call(
+            "variant.remove",
+            buildJsonObject {
+                put("handle", handle)
+                put("endpoint_id", endpointId)
+                put("name", name)
+                put("autosave", autosave)
+            })
+    }
+
+    // MARK: - Import
+
+    suspend fun importHar(handle: String, path: String, autosave: Boolean = true): ImportSummary {
+        val result = call(
+            "import.har",
+            buildJsonObject { put("handle", handle); put("path", path); put("autosave", autosave) })
+        return json.decodeFromJsonElement(ImportSummary.serializer(), result)
+    }
+
+    suspend fun importOpenapi(handle: String, source: String, autosave: Boolean = true): ImportSummary {
+        val result = call(
+            "import.openapi",
+            buildJsonObject { put("handle", handle); put("source", source); put("autosave", autosave) })
+        return json.decodeFromJsonElement(ImportSummary.serializer(), result)
+    }
+
+    // MARK: - Plumbing
+
+    private suspend fun call(method: String, params: JsonElement): JsonElement = process.call(method, params)
+
+    private fun JsonElement.jsonPrimitiveContent(): String = (this as JsonPrimitive).content
+}

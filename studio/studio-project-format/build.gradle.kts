@@ -52,6 +52,7 @@ kotlin {
             dependencies {
                 implementation(project(":studio-logging"))
                 implementation(libs.snakeyaml.engine)
+                implementation(libs.coroutines.core)
             }
         }
 
