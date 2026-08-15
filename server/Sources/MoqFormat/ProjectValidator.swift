@@ -320,6 +320,67 @@ public struct ProjectValidator: ProjectValidating {
                         ))
                 }
 
+                // Rule 8b: body_encoding describes an inline string body, and nothing else.
+                // Content-Type says what the bytes mean; body_encoding says how they are written
+                // in the document, so it is meaningless without an inline body to describe.
+                if let encoding = variant.bodyEncoding {
+                    let encodingField = "\(variantField).body_encoding"
+                    if variant.bodyFile != nil {
+                        diagnostics.append(
+                            .init(
+                                severity: .error,
+                                message:
+                                    "Variant \"\(variant.name)\" sets body_encoding with body_file. "
+                                    + "Fixture bytes are already in final form on disk.",
+                                file: fileName,
+                                field: encodingField,
+                                code: .bodyEncodingOnBodyFile,
+                                endpointID: endpoint.id,
+                                variantName: variant.name
+                            ))
+                    } else if let body = variant.body {
+                        do {
+                            _ = try InlineBody.resolve(body, encoding: encoding)
+                        } catch InlineBodyError.encodingRequiresStringBody {
+                            diagnostics.append(
+                                .init(
+                                    severity: .error,
+                                    message:
+                                        "Variant \"\(variant.name)\" sets body_encoding \"\(encoding.rawValue)\", "
+                                        + "which requires body to be a string.",
+                                    file: fileName,
+                                    field: encodingField,
+                                    code: .bodyEncodingRequiresString,
+                                    endpointID: endpoint.id,
+                                    variantName: variant.name
+                                ))
+                        } catch {
+                            diagnostics.append(
+                                .init(
+                                    severity: .error,
+                                    message: "Variant \"\(variant.name)\" body is not valid base64.",
+                                    file: fileName,
+                                    field: "\(variantField).body",
+                                    code: .invalidBase64Body,
+                                    endpointID: endpoint.id,
+                                    variantName: variant.name
+                                ))
+                        }
+                    } else {
+                        diagnostics.append(
+                            .init(
+                                severity: .error,
+                                message:
+                                    "Variant \"\(variant.name)\" sets body_encoding without a body.",
+                                file: fileName,
+                                field: encodingField,
+                                code: .bodyEncodingWithoutBody,
+                                endpointID: endpoint.id,
+                                variantName: variant.name
+                            ))
+                    }
+                }
+
                 // Rule 9: body_file must point to fixtures/
                 if let bodyFile = variant.bodyFile {
                     if !bodyFile.hasPrefix("fixtures/") {

@@ -16,6 +16,9 @@ public struct ProjectVariant: Codable, Sendable, Equatable {
     public let requestMatch: RequestMatch?
     /// Inline response body (arbitrary YAML/JSON value).
     public let body: AnyCodableValue?
+    /// How `body` is encoded in the document. `nil` means `.utf8`. Never applies to `bodyFile`,
+    /// whose bytes are already on disk in their final form.
+    public let bodyEncoding: BodyEncoding?
     /// Path to external fixture file (relative to project root, must start with "fixtures/").
     public let bodyFile: String?
     /// Additional delay in milliseconds.
@@ -30,6 +33,7 @@ public struct ProjectVariant: Codable, Sendable, Equatable {
         headers: [String: String]? = nil,
         requestMatch: RequestMatch? = nil,
         body: AnyCodableValue? = nil,
+        bodyEncoding: BodyEncoding? = nil,
         bodyFile: String? = nil,
         delayMs: Int? = nil
     ) {
@@ -44,6 +48,7 @@ public struct ProjectVariant: Codable, Sendable, Equatable {
         self.headers = headers
         self.requestMatch = requestMatch
         self.body = body
+        self.bodyEncoding = bodyEncoding
         self.bodyFile = bodyFile
         self.delayMs = delayMs
     }
@@ -54,6 +59,7 @@ public struct ProjectVariant: Codable, Sendable, Equatable {
         case description
         case isDefault = "default"
         case status, headers, body, requestMatch = "request_match"
+        case bodyEncoding = "body_encoding"
         case bodyFile = "body_file"
         case delayMs = "delay_ms"
     }
@@ -78,6 +84,7 @@ public struct ProjectVariant: Codable, Sendable, Equatable {
             headers: try container.decodeIfPresent([String: String].self, forKey: .headers),
             requestMatch: try container.decodeIfPresent(RequestMatch.self, forKey: .requestMatch),
             body: body,
+            bodyEncoding: try container.decodeIfPresent(BodyEncoding.self, forKey: .bodyEncoding),
             bodyFile: try container.decodeIfPresent(String.self, forKey: .bodyFile),
             delayMs: try container.decodeIfPresent(Int.self, forKey: .delayMs)
         )
