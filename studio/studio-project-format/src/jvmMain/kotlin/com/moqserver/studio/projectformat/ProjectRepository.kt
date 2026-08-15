@@ -141,13 +141,20 @@ class ProjectRepository(
         )
     }
 
+    /**
+     * A minimal disk-safety guard, not full semantic validation — that now lives in
+     * `moq-format`, reached asynchronously through `format.RemoteProjectValidator`, and gates the
+     * Save action in the UI itself (`Main.kt`: `enabled = ... && !state.hasErrors`) before this
+     * method is ever called. This only protects `writeProject`'s own preconditions: a manifest
+     * name it can encode, and at least one endpoint so the bundle it writes isn't nonsensical.
+     */
     private fun requireValid(project: MoqProject, context: String) {
-        val validator = ProjectValidator { projectPath, bodyFile ->
-            resolveContainedFixture(File(projectPath), bodyFile)?.isFile == true
+        val problems = buildList {
+            if (project.manifest.name.isBlank()) add("Project name must not be blank.")
+            if (project.endpoints.isEmpty()) add("No endpoint files found in ${MoqProjectFormat.ENDPOINTS_DIR}/.")
         }
-        val errors = validator.validate(project).filter { it.severity == ValidationDiagnostic.Severity.ERROR }
-        require(errors.isEmpty()) {
-            "$context:\n${errors.joinToString("\n") { "- ${it.message}" }}"
+        require(problems.isEmpty()) {
+            "$context:\n${problems.joinToString("\n") { "- $it" }}"
         }
     }
 

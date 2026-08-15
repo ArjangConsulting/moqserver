@@ -2,6 +2,7 @@ package com.moqserver.studio
 
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.Surface
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -46,6 +47,10 @@ import com.moqserver.studio.imports.URLFetchException
 import com.moqserver.studio.imports.URLImportAuth
 import com.moqserver.studio.logging.loggerFor
 import com.moqserver.studio.projectformat.ProjectRepository
+import com.moqserver.studio.projectformat.format.FormatBinaryLocator
+import com.moqserver.studio.projectformat.format.FormatClient
+import com.moqserver.studio.projectformat.format.FormatProcess
+import com.moqserver.studio.projectformat.format.RemoteProjectValidator
 import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -191,6 +196,18 @@ fun main(args: Array<String>) {
     installCrashHandlers()
     application {
         val repo = remember { ProjectRepository() }
+        // Full project validation runs in moq-format, a supervised subprocess (see FormatProcess
+        // doc comment for why: a Swift trap is process-fatal, so validation runs out-of-process
+        // rather than risk taking Studio down with unsaved work). One process for the app's
+        // lifetime; RemoteProjectValidator adapts its wire diagnostics into the ValidationDiagnostic
+        // shape ValidationPanel already renders.
+        val formatProcess = remember {
+            FormatProcess(locateBinary = { FormatBinaryLocator.locate() }).apply { start() }
+        }
+        val remoteValidator = remember(formatProcess) { RemoteProjectValidator(FormatClient(formatProcess)) }
+        DisposableEffect(formatProcess) {
+            onDispose { formatProcess.stop() }
+        }
         val openApiParser = remember { OpenAPIImportParser() }
         val harParser = remember { HARImportParser() }
         val settingsRepo = remember { AISettingsRepository() }
@@ -204,7 +221,7 @@ fun main(args: Array<String>) {
 		val showImportURLDialog = remember { mutableStateOf(false) }
 		val importURLState = remember { mutableStateOf(ImportFromURLState()) }
 		val urlFetcher = remember { OpenAPIURLFetcher() }
-        val appViewModel = remember { StudioRootViewModel() }
+        val appViewModel = remember { StudioRootViewModel(validate = remoteValidator::validate) }
         val scope = rememberCoroutineScope()
         val themeMode = remember { mutableStateOf(aiSettings.value.themeMode.toStudioThemeMode()) }
         val lastFileDirectory = remember { mutableStateOf<String?>(null) }
