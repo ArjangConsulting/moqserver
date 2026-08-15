@@ -326,24 +326,25 @@ class ProjectRepository(
         }
     }
 
+    /**
+     * Mirrors `InlineBody.resolve` in the Swift core (MoqCore/Project/BodyEncoding.swift).
+     *
+     * Binary intent is declared by `body_encoding`, never inferred. The previous implementation
+     * guessed by pairing a binary-looking Content-Type with a base64-shaped string, which
+     * misfired both ways — plain text that happened to be 4-aligned alphanumerics was decoded as
+     * base64 — and disagreed with the Swift writer about what bytes a variant means.
+     */
     private fun serializeVariantBody(variant: ProjectVariant, body: YamlValue): ByteArray {
-        val contentType = variant.headers
-            ?.entries
-            ?.firstOrNull { it.key.equals(MoqProjectFormat.CONTENT_TYPE_HEADER, ignoreCase = true) }
-            ?.value
-            ?.substringBefore(';')
-            ?.trim()
-            ?.lowercase()
+        if (variant.bodyEncoding == BodyEncoding.BASE64) {
+            val text = (body as? YamlValue.Str)?.value
+                ?: throw IllegalStateException("body_encoding base64 requires body to be a string")
+            // MIME decoder, not the strict one: YAML block scalars wrap long base64 payloads.
+            return runCatching { Base64.getMimeDecoder().decode(text) }
+                .getOrElse { throw IllegalStateException("body is not valid base64", it) }
+        }
 
         return when (body) {
-            is YamlValue.Str -> {
-                if (contentType?.isLikelyBinaryContentType() == true && body.value.isLikelyBase64()) {
-                    runCatching { Base64.getDecoder().decode(body.value) }
-                        .getOrElse { body.value.toByteArray(Charsets.UTF_8) }
-                } else {
-                    body.value.toByteArray(Charsets.UTF_8)
-                }
-            }
+            is YamlValue.Str -> body.value.toByteArray(Charsets.UTF_8)
             is YamlValue.Obj, is YamlValue.Array -> {
                 fixtureJson.encodeToString(JsonElement.serializer(), body.toJsonElement())
                     .toByteArray(Charsets.UTF_8)
@@ -363,24 +364,6 @@ class ProjectRepository(
             .trim('-')
             .ifBlank { "fixture" }
     }
-}
-
-private fun String.isLikelyBase64(): Boolean {
-    val normalized = filterNot(Char::isWhitespace)
-    if (normalized.isEmpty() || normalized.length % 4 != 0) return false
-    return normalized.all { ch ->
-        ch in 'A'..'Z' || ch in 'a'..'z' || ch in '0'..'9' || ch == '+' || ch == '/' || ch == '='
-    }
-}
-
-private fun String.isLikelyBinaryContentType(): Boolean {
-    return startsWith("image/") ||
-        startsWith("audio/") ||
-        startsWith("video/") ||
-        this == "application/pdf" ||
-        this == "application/octet-stream" ||
-        this == "application/zip" ||
-        this == "application/gzip"
 }
 
 private fun YamlValue.toJsonElement(): JsonElement = when (this) {

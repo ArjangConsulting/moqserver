@@ -826,6 +826,9 @@ class ProjectRepositoryTest {
                     status = 200,
                     headers = mapOf("Content-Type" to "image/jpeg"),
                     body = YamlValue.Str("/9j/4AAQSkZJRg=="),
+                    // Binary intent is declared, not inferred from the Content-Type. The previous
+                    // sniffing heuristic guessed this and disagreed with the Swift writer.
+                    bodyEncoding = BodyEncoding.BASE64,
                 )
             ),
         )
