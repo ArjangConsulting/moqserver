@@ -1,9 +1,6 @@
 package com.moqserver.studio.projectformat.format
 
 import com.moqserver.studio.logging.loggerFor
-import java.io.BufferedInputStream
-import java.util.concurrent.ConcurrentHashMap
-import java.util.concurrent.atomic.AtomicLong
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -27,6 +24,9 @@ import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.long
 import kotlinx.serialization.json.put
+import java.io.BufferedInputStream
+import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.atomic.AtomicLong
 
 /** State of the supervised `moq-format` child process, for Studio's UI to reflect honestly. */
 sealed interface FormatServiceState {
@@ -40,7 +40,8 @@ sealed interface FormatServiceState {
  * (`server/Sources/MoqService/MoqServiceError.swift`) — branch on it, not on `message`, which is
  * meant for a human.
  */
-class FormatServiceException(val code: String, message: String) : Exception(message)
+class FormatServiceException(val code: String, message: String, cause: Throwable? = null) :
+    Exception(message, cause)
 
 /**
  * Supervises one `moq-format` subprocess: spawns it, frames requests/responses over its stdio
@@ -53,6 +54,15 @@ class FormatServiceException(val code: String, message: String) : Exception(mess
  */
 class FormatProcess(
     private val locateBinary: () -> String,
+    /**
+     * Sets `MOQ_FORMAT_ALLOW_NETWORK=1` on the spawned process, enabling `import.parseOpenapi`/
+     * `import.openapi` to fetch an `http(s)://` source. Off by default, matching `moq-mcp`'s
+     * default-closed posture for the same setting — but Studio's own "Import from URL" is a
+     * first-party desktop feature that worked unconditionally before this cutover (its own
+     * `OpenAPIURLFetcher` had no such gate), so Studio's composition root passes `true` here
+     * rather than requiring end users to set an environment variable to use it.
+     */
+    private val allowNetworkImport: Boolean = false,
     private val scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.IO),
     private val callTimeoutMs: Long = 30_000,
     private val maxRestartAttempts: Int = 5,
@@ -67,6 +77,7 @@ class FormatProcess(
     val state: StateFlow<FormatServiceState> = _state.asStateFlow()
 
     @Volatile private var process: Process? = null
+
     @Volatile private var stopped = false
     private var restartAttempts = 0
 
@@ -88,13 +99,7 @@ class FormatProcess(
      * process has actually spawned.
      */
     suspend fun call(method: String, params: JsonElement): JsonElement {
-        val settled = withTimeout(callTimeoutMs) {
-            state.first { it is FormatServiceState.Ready || it is FormatServiceState.Unavailable }
-        }
-        if (settled is FormatServiceState.Unavailable) {
-            throw FormatServiceException("E_FORMAT_UNAVAILABLE", settled.reason)
-        }
-        val current = process ?: throw FormatServiceException("E_FORMAT_UNAVAILABLE", "moq-format is not running")
+        val current = awaitReadyProcess()
         val id = nextId.getAndIncrement()
         val deferred = CompletableDeferred<JsonElement>()
         pending[id] = deferred
@@ -105,15 +110,7 @@ class FormatProcess(
             put("method", method)
             put("params", params)
         }
-        try {
-            writeLock.withLock {
-                val stdin = current.outputStream
-                ContentLengthFraming.writeMessage(json.encodeToString(JsonObject.serializer(), request).toByteArray(), stdin)
-            }
-        } catch (e: Exception) {
-            pending.remove(id)
-            throw FormatServiceException("E_FORMAT_UNAVAILABLE", "Failed to write to moq-format: ${e.message}")
-        }
+        writeRequest(current, id, request)
 
         return try {
             withTimeout(callTimeoutMs) { deferred.await() }
@@ -122,26 +119,78 @@ class FormatProcess(
         }
     }
 
+    /** Waits for the process to reach a settled state, then returns it — or throws if that
+     * settled state is "not running". */
+    // detekt false positive: withTimeout/state.first below are genuine suspension points;
+    // dropping `suspend` doesn't compile.
+    @Suppress("RedundantSuspendModifier")
+    private suspend fun awaitReadyProcess(): Process {
+        val settled = withTimeout(callTimeoutMs) {
+            state.first { it is FormatServiceState.Ready || it is FormatServiceState.Unavailable }
+        }
+        if (settled is FormatServiceState.Unavailable) {
+            throw FormatServiceException("E_FORMAT_UNAVAILABLE", settled.reason)
+        }
+        return process ?: throw FormatServiceException("E_FORMAT_UNAVAILABLE", "moq-format is not running")
+    }
+
+    // detekt false positive: writeLock.withLock below is a genuine suspension point; dropping
+    // `suspend` doesn't compile.
+    @Suppress("RedundantSuspendModifier")
+    private suspend fun writeRequest(current: Process, id: Long, request: JsonObject) {
+        try {
+            writeLock.withLock {
+                val stdin = current.outputStream
+                ContentLengthFraming.writeMessage(
+                    json.encodeToString(JsonObject.serializer(), request).toByteArray(),
+                    stdin,
+                )
+            }
+        } catch (e: Exception) {
+            pending.remove(id)
+            throw FormatServiceException(
+                "E_FORMAT_UNAVAILABLE",
+                "Failed to write to moq-format: ${e.message}",
+                cause = e,
+            )
+        }
+    }
+
     // MARK: - Supervision
+
+    /** Outcome of one attempt to spawn the child process, for [supervise] to act on. */
+    private sealed interface SpawnOutcome {
+        data class Started(val process: Process) : SpawnOutcome
+        data object Retry : SpawnOutcome
+        data object GiveUp : SpawnOutcome
+    }
+
+    private suspend fun spawnProcess(): SpawnOutcome {
+        val binaryPath = try {
+            locateBinary()
+        } catch (e: Exception) {
+            _state.value = FormatServiceState.Unavailable("Could not locate moq-format: ${e.message}")
+            return SpawnOutcome.GiveUp
+        }
+        return try {
+            val proc = ProcessBuilder(binaryPath)
+                .redirectErrorStream(false)
+                .apply { if (allowNetworkImport) environment()["MOQ_FORMAT_ALLOW_NETWORK"] = "1" }
+                .start()
+            SpawnOutcome.Started(proc)
+        } catch (e: Exception) {
+            onProcessGone("Failed to start moq-format: ${e.message}")
+            if (scheduleRestart()) SpawnOutcome.Retry else SpawnOutcome.GiveUp
+        }
+    }
 
     private suspend fun supervise() {
         while (!stopped) {
             _state.value = FormatServiceState.Starting
-            val binaryPath = try {
-                locateBinary()
-            } catch (e: Exception) {
-                _state.value = FormatServiceState.Unavailable("Could not locate moq-format: ${e.message}")
-                return
-            }
-
-            val proc = try {
-                ProcessBuilder(binaryPath)
-                    .redirectErrorStream(false)
-                    .start()
-            } catch (e: Exception) {
-                onProcessGone("Failed to start moq-format: ${e.message}")
-                if (!scheduleRestart()) return
-                continue
+            val proc = when (val outcome = spawnProcess()) {
+                is SpawnOutcome.Started -> outcome.process
+                SpawnOutcome.Retry -> continue
+                SpawnOutcome.GiveUp -> return
             }
 
             process = proc
@@ -159,33 +208,38 @@ class FormatProcess(
         }
     }
 
-    private suspend fun readLoop(input: BufferedInputStream) {
+    private fun readNextMessage(input: BufferedInputStream): ByteArray? = try {
+        ContentLengthFraming.readMessage(input)
+    } catch (e: Exception) {
+        logger.warn("moq-format framing error: {}", e.message)
+        null
+    }
+
+    private fun parseResponse(messageBytes: ByteArray): JsonObject? = try {
+        json.parseToJsonElement(String(messageBytes)).jsonObject
+    } catch (e: Exception) {
+        logger.warn("moq-format sent malformed JSON-RPC: {}", e.message)
+        null
+    }
+
+    private fun completePending(response: JsonObject) {
+        val id = (response["id"] as? JsonPrimitive)?.long ?: return
+        val deferred = pending[id] ?: return
+
+        val error = response["error"]?.jsonObject
+        if (error != null) {
+            val code = error["data"]?.jsonObject?.get("code")?.jsonPrimitive?.content ?: "E_INTERNAL"
+            val message = error["message"]?.jsonPrimitive?.content ?: "moq-format error"
+            deferred.completeExceptionally(FormatServiceException(code, message))
+        } else {
+            deferred.complete(response["result"] ?: JsonNull)
+        }
+    }
+
+    private fun readLoop(input: BufferedInputStream) {
         while (true) {
-            val messageBytes = try {
-                ContentLengthFraming.readMessage(input)
-            } catch (e: Exception) {
-                logger.warn("moq-format framing error: {}", e.message)
-                null
-            } ?: break
-
-            val response = try {
-                json.parseToJsonElement(String(messageBytes)).jsonObject
-            } catch (e: Exception) {
-                logger.warn("moq-format sent malformed JSON-RPC: {}", e.message)
-                continue
-            }
-
-            val id = (response["id"] as? JsonPrimitive)?.long ?: continue
-            val deferred = pending[id] ?: continue
-
-            val error = response["error"]?.jsonObject
-            if (error != null) {
-                val code = error["data"]?.jsonObject?.get("code")?.jsonPrimitive?.content ?: "E_INTERNAL"
-                val message = error["message"]?.jsonPrimitive?.content ?: "moq-format error"
-                deferred.completeExceptionally(FormatServiceException(code, message))
-            } else {
-                deferred.complete(response["result"] ?: JsonNull)
-            }
+            val messageBytes = readNextMessage(input) ?: break
+            parseResponse(messageBytes)?.let { completePending(it) }
         }
     }
 
@@ -202,11 +256,15 @@ class FormatProcess(
     }
 
     /** Exponential backoff, capped, up to `maxRestartAttempts`. Returns false when exhausted. */
+    // detekt false positive: delay() below is a genuine suspension point; dropping `suspend`
+    // doesn't compile.
+    @Suppress("RedundantSuspendModifier")
     private suspend fun scheduleRestart(): Boolean {
         restartAttempts += 1
         if (restartAttempts > maxRestartAttempts) {
             _state.value = FormatServiceState.Unavailable(
-                "moq-format crashed $maxRestartAttempts times; giving up. Restart Studio to retry.")
+                "moq-format crashed $maxRestartAttempts times; giving up. Restart Studio to retry.",
+            )
             return false
         }
         val backoffMs = minOf(500L * (1L shl (restartAttempts - 1)), 10_000L)

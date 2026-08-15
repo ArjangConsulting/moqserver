@@ -39,7 +39,6 @@ kotlin {
             dependencies {
                 implementation(projects.studioAi)
                 implementation(projects.studioData)
-                implementation(projects.studioImport)
                 implementation(projects.studioExport)
                 implementation(projects.studioProjectFormat)
                 implementation(projects.studioCodeEditor)
