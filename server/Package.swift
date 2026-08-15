@@ -16,6 +16,7 @@ let package = Package(
         .package(url: "https://github.com/apple/swift-log.git", from: "1.15.0"),
         .package(url: "https://github.com/apple/swift-nio.git", from: "2.101.3"),
         .package(url: "https://github.com/apple/swift-crypto.git", from: "4.0.0"),
+        .package(url: "https://github.com/mattpolzin/OpenAPIKit.git", from: "6.0.0"),
     ],
     targets: [
         // MARK: - MoqCore
@@ -48,6 +49,10 @@ let package = Package(
             dependencies: [
                 .target(name: "MoqCore"),
                 .target(name: "MoqFormat"),
+                .product(name: "OpenAPIKit", package: "OpenAPIKit"),
+                .product(name: "OpenAPIKit30", package: "OpenAPIKit"),
+                .product(name: "OpenAPIKitCompat", package: "OpenAPIKit"),
+                .product(name: "Yams", package: "Yams"),
             ],
             path: "Sources/MoqImport"
         ),
