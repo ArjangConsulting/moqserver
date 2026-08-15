@@ -65,8 +65,14 @@ dependencies {
 kover {
 	reports {
 		verify {
+			// CI's test job previously ran only the bare `test` task, which silently skips KMP
+			// modules' jvmTest (studio-domain, studio-project-format) and composeApp's
+			// desktopTest — so this bound was calibrated against a fraction of the actual test
+			// suite. Now that CI runs `test allTests desktopTest`, the honest aggregate is ~32%
+			// (composeApp's UI code has no test harness pulling its coverage down); set a couple
+			// points below that measured baseline rather than the old, inflated 35.
 			rule("Aggregate line coverage") {
-				minBound(35)
+				minBound(30)
 			}
 		}
 	}
