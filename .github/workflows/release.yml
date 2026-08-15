@@ -307,38 +307,71 @@ jobs:
           path: studio/composeApp/build/compose/binaries/main/deb/*
           if-no-files-found: error
 
-  studio-windows-prerelease:
-    if: ${{ needs.preflight.outputs.prerelease == 'true' }}
+  # Windows is out of scope indefinitely: no Swift toolchain support planned for moq-format, and
+  # a Kotlin-only fallback would keep the exact duplication this migration exists to remove.
+  # Removed rather than left as a skip so the gate below doesn't carry a permanent no-op dependency.
+
+  format-binary:
     needs: [preflight, verify]
-    runs-on: windows-latest
     permissions:
       contents: read
       id-token: write
       attestations: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            suffix: linux-x86_64
+          - os: macos-latest
+            suffix: macos-arm64
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v7.0.1
-      - uses: actions/setup-java@v5.6.0
+      - uses: swift-actions/setup-swift@v3
         with:
-          distribution: temurin
-          java-version: "21"
-      - uses: gradle/actions/setup-gradle@v6.2.0
-        with:
-          cache-provider: basic
-      - name: Package unsigned prerelease MSI
-        working-directory: studio
+          swift-version: "6.2"
+          skip-verify-signature: true
+      - name: Build, smoke test, and archive moq-format
+        working-directory: server
         run: |
-          ./gradlew -PreleaseVersion="${{ needs.preflight.outputs.version }}" :composeApp:packageMsi
-          for file in composeApp/build/compose/binaries/main/msi/*.msi; do
-            DIGEST="$(openssl dgst -sha256 -r "${file}" | cut -d' ' -f1)"
-            printf '%s *%s\n' "${DIGEST}" "$(basename "${file}")" > "${file}.sha256"
-          done
+          swift build -c release --product moq-format
+          BIN_DIR="$(swift build -c release --show-bin-path)"
+          # Protocol smoke test: a stateless `validate` request over Content-Length framing must
+          # get a well-formed JSON-RPC reply. moq-format keeps running after replying (it's a
+          # long-lived stdio server), so bound its lifetime with a FIFO + background process
+          # rather than `timeout`, which isn't reliably present on macOS runners.
+          FIFO="${RUNNER_TEMP}/moq-format-in.$$"
+          mkfifo "${FIFO}"
+          OUT_FILE="${RUNNER_TEMP}/moq-format-out.$$"
+          "${BIN_DIR}/moq-format" < "${FIFO}" > "${OUT_FILE}" 2>"${RUNNER_TEMP}/moq-format-err.$$" &
+          FORMAT_PID=$!
+          exec 3>"${FIFO}"
+          BODY='{"jsonrpc":"2.0","id":1,"method":"validate","params":{"project":{"manifest":{"version":"1","name":"x","defaults":{"delay_ms":0,"auth":{"type":"none","verify":false},"network":{}}},"endpoints":[],"project_path":"/tmp/x"}}}'
+          printf 'Content-Length: %d\r\n\r\n%s' "${#BODY}" "${BODY}" >&3
+          sleep 2
+          exec 3>&-
+          kill "${FORMAT_PID}" 2>/dev/null || true
+          wait "${FORMAT_PID}" 2>/dev/null || true
+          rm -f "${FIFO}"
+          grep -q 'E_NO_ENDPOINTS' "${OUT_FILE}" || { echo "moq-format did not respond to validate"; cat "${OUT_FILE}"; exit 1; }
+          STAGE="${RUNNER_TEMP}/moq-format"
+          mkdir -p "${STAGE}"
+          cp "${BIN_DIR}/moq-format" "${STAGE}/moq-format"
+          ARCHIVE="moq-format-${{ needs.preflight.outputs.version }}-${{ matrix.suffix }}.tar.gz"
+          tar -czf "${RUNNER_TEMP}/${ARCHIVE}" -C "${STAGE}" moq-format
+          DIGEST="$(openssl dgst -sha256 -r "${RUNNER_TEMP}/${ARCHIVE}" | cut -d' ' -f1)"
+          printf '%s *%s\n' "${DIGEST}" "${ARCHIVE}" > "${RUNNER_TEMP}/${ARCHIVE}.sha256"
+          echo "archive=${RUNNER_TEMP}/${ARCHIVE}" >> "${GITHUB_ENV}"
       - uses: actions/attest@v4.2.0
         with:
-          subject-path: studio/composeApp/build/compose/binaries/main/msi/*.msi
+          subject-path: ${{ env.archive }}
       - uses: actions/upload-artifact@v7.0.1
         with:
-          name: studio-windows
-          path: studio/composeApp/build/compose/binaries/main/msi/*
+          name: format-${{ matrix.suffix }}
+          path: |
+            ${{ env.archive }}
+            ${{ env.archive }}.sha256
           if-no-files-found: error
 
   sbom:
@@ -402,8 +435,8 @@ jobs:
           push-to-registry: true
 
   publish:
-    if: ${{ always() && needs.preflight.result == 'success' && needs.verify.result == 'success' && needs.server-binary.result == 'success' && needs.mcp-binary.result == 'success' && needs.studio-macos.result == 'success' && needs.studio-linux.result == 'success' && (needs.studio-windows-prerelease.result == 'success' || needs.studio-windows-prerelease.result == 'skipped') && needs.sbom.result == 'success' && needs.docker.result == 'success' }}
-    needs: [preflight, verify, server-binary, mcp-binary, studio-macos, studio-linux, studio-windows-prerelease, sbom, docker]
+    if: ${{ always() && needs.preflight.result == 'success' && needs.verify.result == 'success' && needs.server-binary.result == 'success' && needs.mcp-binary.result == 'success' && needs.format-binary.result == 'success' && needs.studio-macos.result == 'success' && needs.studio-linux.result == 'success' && needs.sbom.result == 'success' && needs.docker.result == 'success' }}
+    needs: [preflight, verify, server-binary, mcp-binary, format-binary, studio-macos, studio-linux, sbom, docker]
     runs-on: ubuntu-latest
     permissions:
       contents: write

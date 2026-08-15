@@ -11,7 +11,6 @@ val moqProjectTypeDescription = "moqserver Project"
 val macBundleIconName = "moqserver-studio.icns"
 val macAppIconFile = "src/desktopMain/resources/icons/icon.icns"
 val linuxAppIconFile = "src/desktopMain/resources/icons/icon.png"
-val windowsAppIconFile = "src/desktopMain/resources/icons/icon.ico"
 val nativePackageVersion = project.version.toString().substringBefore('-').substringBefore('+')
 
 kotlin {
@@ -76,9 +75,10 @@ compose.desktop {
             vendor = "moqserver"
             copyright = "Copyright 2026 moqserver contributors"
             licenseFile.set(project.rootProject.file("../LICENSE"))
+            // Windows is out of scope indefinitely (no Swift toolchain support planned), so it
+            // carries no target format, no windows{} packaging block, and no CI job.
             targetFormats(
                 org.jetbrains.compose.desktop.application.dsl.TargetFormat.Dmg,
-                org.jetbrains.compose.desktop.application.dsl.TargetFormat.Msi,
                 org.jetbrains.compose.desktop.application.dsl.TargetFormat.Deb
             )
 
@@ -173,19 +173,6 @@ compose.desktop {
                 menuGroup = "Development"
                 appRelease = "1"
                 appCategory = "devel"
-            }
-
-            windows {
-                iconFile.set(project.file(windowsAppIconFile))
-                fileAssociation(
-                    mimeType = moqProjectMimeType,
-                    extension = moqProjectExtension,
-                    description = moqProjectTypeDescription,
-                    iconFile = project.file(windowsAppIconFile),
-                )
-                menuGroup = "moqserver"
-                upgradeUuid = "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
-                perUserInstall = true
             }
         }
     }
