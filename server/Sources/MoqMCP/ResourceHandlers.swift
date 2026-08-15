@@ -1,14 +1,15 @@
 import Foundation
 import MCP
 import MoqCore
+import MoqService
 
-func registerResourceHandlers(on server: Server, session: ProjectSession) {
+func registerResourceHandlers(on server: Server, service: MoqService, handle: String) {
     Task {
         await server.withMethodHandler(ListResources.self) { _ in
             .init(resources: moqResources)
         }
         await server.withMethodHandler(ReadResource.self) { params in
-            try await readResource(uri: params.uri, session: session)
+            try await readResource(uri: params.uri, service: service, handle: handle)
         }
     }
 }
@@ -27,7 +28,7 @@ private let moqResources: [Resource] = [
         description: "A live snapshot of the project currently open in this session.", mimeType: "application/json"),
 ]
 
-private func readResource(uri: String, session: ProjectSession) async throws -> ReadResource.Result {
+private func readResource(uri: String, service: MoqService, handle: String) async throws -> ReadResource.Result {
     switch uri {
     case "moq://schema/moqproj.json":
         return .init(contents: [.text(schemaJSON(), uri: uri, mimeType: "application/json")])
@@ -35,7 +36,7 @@ private func readResource(uri: String, session: ProjectSession) async throws -> 
         return .init(contents: [.text(authoringRulesMarkdown(), uri: uri, mimeType: "text/markdown")])
     case "moq://project/current":
         return try await .init(contents: [
-            .text(currentProjectJSON(session: session), uri: uri, mimeType: "application/json")
+            .text(currentProjectJSON(service: service, handle: handle), uri: uri, mimeType: "application/json")
         ])
     default:
         throw MCPError.invalidParams("Unknown resource: \(uri)")
@@ -51,9 +52,8 @@ private func schemaJSON() -> String {
     return content
 }
 
-private func currentProjectJSON(session: ProjectSession) async throws -> String {
-    let store = try await session.currentStore()
-    let project = await store.currentProject
+private func currentProjectJSON(service: MoqService, handle: String) async throws -> String {
+    let project = try await service.projectSnapshot(handle: handle)
     let data = try JSONEncoder().encode(project.endpoints)
     let endpointsJSON = String(data: data, encoding: .utf8) ?? "[]"
     return """

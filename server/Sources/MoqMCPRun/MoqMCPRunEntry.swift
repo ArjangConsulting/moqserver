@@ -13,7 +13,7 @@ struct MoqMCPRunEntry {
             StreamLogHandler.standardError(label: label)
         }
 
-        let server = makeMoqMCPServer()
+        let server = await makeMoqMCPServer()
         try await server.start(transport: StdioTransport())
         await server.waitUntilCompleted()
     }

@@ -2,12 +2,19 @@ import Foundation
 import MCP
 import MoqCore
 import MoqFormat
+import MoqService
 
 /// Builds and returns an MCP `Server` wired with every `moq_*` tool and `moq://` resource.
 /// Callers (`MoqMCPRun`, and future `moqserver mcp` if that's added) just need to start it on a
 /// transport: `try await server.start(transport: StdioTransport())`.
-public func makeMoqMCPServer() -> Server {
-    let session = ProjectSession()
+///
+/// All project mutation, validation, and import logic lives in `MoqService`, shared with the
+/// `moq-format` JSON-RPC adapter — this function only wires MCP's tool/resource protocol onto it.
+/// `moq-mcp` runs one implicit session per stdio process, matching its one-agent-one-process
+/// model, so a single handle is opened here and threaded through every handler.
+public func makeMoqMCPServer() async -> Server {
+    let service = MoqService(allowNetworkImport: ProcessInfo.processInfo.environment["MOQ_MCP_ALLOW_NETWORK"] == "1")
+    let handle = await service.openSession()
 
     let server = Server(
         name: "moqserver-mcp",
@@ -25,8 +32,8 @@ public func makeMoqMCPServer() -> Server {
         )
     )
 
-    registerResourceHandlers(on: server, session: session)
-    registerToolHandlers(on: server, session: session)
+    registerResourceHandlers(on: server, service: service, handle: handle)
+    registerToolHandlers(on: server, service: service, handle: handle)
 
     return server
 }
