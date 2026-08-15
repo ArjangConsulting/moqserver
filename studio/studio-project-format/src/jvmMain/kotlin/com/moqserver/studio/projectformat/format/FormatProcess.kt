@@ -194,17 +194,48 @@ class FormatProcess(
             }
 
             process = proc
-            restartAttempts = 0
             _state.value = FormatServiceState.Ready
             logger.info("moq-format started (pid={})", proc.pid())
+            val stderrJob = scope.launch { drainStderr(proc) }
+            val startedAtMs = System.currentTimeMillis()
 
             readLoop(BufferedInputStream(proc.inputStream))
+            stderrJob.cancel()
 
             // readLoop returned: the process's stdout closed (crash, or a clean `stop()`).
             process = null
             if (stopped) return
+            // Only treat this as a fresh run of backoff attempts if the process actually stayed
+            // up — resetting unconditionally on every successful spawn let a binary that starts
+            // fine and then exits immediately respawn forever, since scheduleRestart() would
+            // always see attempt 1 and never reach maxRestartAttempts.
+            if (System.currentTimeMillis() - startedAtMs >= MIN_HEALTHY_UPTIME_MS) {
+                restartAttempts = 0
+            }
             onProcessGone("moq-format exited unexpectedly")
             if (!scheduleRestart()) return
+        }
+    }
+
+    /**
+     * Reads and discards `proc`'s stderr for as long as it's open. Swift logs to stderr, and
+     * `redirectErrorStream(false)` deliberately keeps it off stdout (which carries the framed
+     * JSON-RPC protocol) — but that means the pipe must be drained by someone, or the OS pipe
+     * buffer fills and blocks the child process's writes to it, wedging `moq-format` even though
+     * stdout/stdin are fine. Logged at debug so routine Swift logging doesn't spam Studio's log
+     * at normal levels.
+     */
+    private fun drainStderr(proc: Process) {
+        proc.errorStream.bufferedReader().use { reader ->
+            while (true) {
+                val line = try {
+                    reader.readLine()
+                } catch (e: Exception) {
+                    logger.debug("moq-format stderr reader stopped: {}", e.message)
+                    null
+                } ?: break
+                logger.debug("moq-format: {}", line)
+            }
         }
     }
 
@@ -271,5 +302,11 @@ class FormatProcess(
         logger.warn("Restarting moq-format in {}ms (attempt {}/{})", backoffMs, restartAttempts, maxRestartAttempts)
         delay(backoffMs)
         return true
+    }
+
+    private companion object {
+        /** A process that stayed up at least this long counts as a healthy run for restart-
+         * backoff purposes, resetting [restartAttempts] — see [supervise]. */
+        const val MIN_HEALTHY_UPTIME_MS = 3_000L
     }
 }
