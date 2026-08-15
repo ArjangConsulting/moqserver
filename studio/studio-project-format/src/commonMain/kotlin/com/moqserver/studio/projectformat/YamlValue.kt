@@ -47,7 +47,13 @@ sealed class YamlValue {
             null -> Null
             is Boolean -> Bool(value)
             is kotlin.Int -> Int(value)
-            is Long -> if (value in kotlin.Int.MIN_VALUE..kotlin.Int.MAX_VALUE) Int(value.toInt()) else Double(value.toDouble())
+            is Long -> if (value in kotlin.Int.MIN_VALUE..kotlin.Int.MAX_VALUE) {
+                Int(
+                    value.toInt(),
+                )
+            } else {
+                Double(value.toDouble())
+            }
             is kotlin.Double -> Double(value)
             is Float -> Double(value.toDouble())
             is Number -> {

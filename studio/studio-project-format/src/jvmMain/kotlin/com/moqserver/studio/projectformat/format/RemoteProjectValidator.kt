@@ -17,7 +17,9 @@ class RemoteProjectValidator(private val client: FormatClient) {
         val result = client.validateProject(project)
         logger.debug(
             "moq-format validated '{}': {} error(s), {} warning(s)",
-            project.manifest.name, result.errorCount, result.warningCount,
+            project.manifest.name,
+            result.errorCount,
+            result.warningCount,
         )
         val endpointsById = project.endpoints.associateBy { it.id }
         return result.diagnostics.map { diagnostic ->

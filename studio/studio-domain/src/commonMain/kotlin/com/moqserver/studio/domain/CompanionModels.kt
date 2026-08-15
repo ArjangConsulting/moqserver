@@ -24,15 +24,23 @@ data class CompanionProvider(
 
 @Serializable
 enum class ProviderKind {
-    @SerialName("local") LOCAL,
-    @SerialName("hosted") HOSTED,
+    @SerialName("local")
+    LOCAL,
+
+    @SerialName("hosted")
+    HOSTED,
 }
 
 @Serializable
 enum class AICapability {
-    @SerialName("analyze-spec") ANALYZE_SPEC,
-    @SerialName("generate-variants") GENERATE_VARIANTS,
-    @SerialName("refine-project") REFINE_PROJECT,
+    @SerialName("analyze-spec")
+    ANALYZE_SPEC,
+
+    @SerialName("generate-variants")
+    GENERATE_VARIANTS,
+
+    @SerialName("refine-project")
+    REFINE_PROJECT,
 }
 
 @Serializable
@@ -151,9 +159,14 @@ data class SpecFinding(
 
 @Serializable
 enum class FindingSeverity {
-    @SerialName("info") INFO,
-    @SerialName("warning") WARNING,
-    @SerialName("error") ERROR,
+    @SerialName("info")
+    INFO,
+
+    @SerialName("warning")
+    WARNING,
+
+    @SerialName("error")
+    ERROR,
 }
 
 // ── Generate Variants ───────────────────────────────────────────────────────

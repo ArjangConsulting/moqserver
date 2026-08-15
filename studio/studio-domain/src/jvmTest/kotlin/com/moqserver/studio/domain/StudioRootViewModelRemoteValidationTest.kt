@@ -65,7 +65,7 @@ class StudioRootViewModelRemoteValidationTest {
                 ),
             ),
             endpoints = listOf(
-                EndpointDocument(id = "get-a", method = "GET", path = "/a", variants = emptyList())
+                EndpointDocument(id = "get-a", method = "GET", path = "/a", variants = emptyList()),
             ),
             projectPath = "/tmp/remote-validation-smoke",
         )
@@ -97,9 +97,11 @@ class StudioRootViewModelRemoteValidationTest {
             ),
             endpoints = listOf(
                 EndpointDocument(
-                    id = "get-a", method = "GET", path = "/a",
+                    id = "get-a",
+                    method = "GET",
+                    path = "/a",
                     variants = listOf(ProjectVariant(name = "default", status = 200)),
-                )
+                ),
             ),
             projectPath = "/tmp/remote-validation-clean",
         )
@@ -108,7 +110,9 @@ class StudioRootViewModelRemoteValidationTest {
             withTimeout(15_000) {
                 // A direct call proves the service round-trips cleanly...
                 val direct = validator.validate(project)
-                assertTrue(direct.none { it.severity == com.moqserver.studio.projectformat.ValidationDiagnostic.Severity.ERROR })
+                assertTrue(
+                    direct.none { it.severity == com.moqserver.studio.projectformat.ValidationDiagnostic.Severity.ERROR },
+                )
 
                 // ...and this proves the ViewModel's async scheduling actually delivers that
                 // result into state, not just that the underlying call works. The initial state
@@ -116,9 +120,11 @@ class StudioRootViewModelRemoteValidationTest {
                 // yet), so a bounded wait rather than a first{} predicate is needed here -
                 // otherwise the assertion would trivially pass before validation ever executes.
                 delay(2_000)
-                assertTrue(viewModel.state.value.diagnostics.none {
+                assertTrue(
+                    viewModel.state.value.diagnostics.none {
                     it.severity == com.moqserver.studio.projectformat.ValidationDiagnostic.Severity.ERROR
-                })
+                },
+                )
             }
         }
     }

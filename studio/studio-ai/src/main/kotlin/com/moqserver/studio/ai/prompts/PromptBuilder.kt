@@ -7,7 +7,9 @@ object PromptBuilder {
     private const val DEFAULT_MAX_VARIANTS = 3
 
     fun buildAnalyzePrompt(request: CompanionRequest): String = buildString {
-        appendLine("You are an API specification analyzer. Analyze the following API specification and return structured findings.")
+        appendLine(
+            "You are an API specification analyzer. Analyze the following API specification and return structured findings.",
+        )
         appendLine()
         appendLine("Return your analysis as a JSON array of findings. Each finding has:")
         appendLine("""- "severity": "info" | "warning" | "error"""")
@@ -17,7 +19,10 @@ object PromptBuilder {
         appendLine("""- "suggestion": optional, what to do about it""")
 
         request.projectContext?.let { ctx ->
-            ctx.title?.let { appendLine(); appendLine("API Title: $it") }
+            ctx.title?.let {
+                appendLine()
+                appendLine("API Title: $it")
+            }
             ctx.version?.let { appendLine("API Version: $it") }
             ctx.endpoints?.let { endpoints ->
                 appendLine()
@@ -46,7 +51,9 @@ object PromptBuilder {
     }
 
 	fun buildGenerateVariantsPrompt(request: CompanionRequest): String = buildString {
-        appendLine("You are a mock API response generator. Generate realistic mock response variants for the specified endpoints.")
+        appendLine(
+            "You are a mock API response generator. Generate realistic mock response variants for the specified endpoints.",
+        )
         appendLine()
         appendLine("Return your output as a JSON array of variant objects. Each variant has:")
         appendLine("""- "endpointKey": e.g. "GET /users/{id}"""")
@@ -64,7 +71,10 @@ object PromptBuilder {
 
 	private fun StringBuilder.appendProjectContext(request: CompanionRequest) {
 		request.projectContext?.let { ctx ->
-			ctx.title?.let { appendLine(); appendLine("API: $it") }
+			ctx.title?.let {
+				appendLine()
+				appendLine("API: $it")
+			}
 			ctx.endpoints?.let { endpoints ->
 				appendLine()
 				appendLine("Endpoints:")
@@ -91,7 +101,10 @@ object PromptBuilder {
 
 	private fun StringBuilder.appendIntentContext(request: CompanionRequest) {
 		request.intent?.let { intent ->
-			intent.description?.let { appendLine(); appendLine("Intent: $it") }
+			intent.description?.let {
+				appendLine()
+				appendLine("Intent: $it")
+			}
 			intent.type?.let { appendLine("Focus on: $it") }
 		}
 	}
@@ -131,7 +144,10 @@ object PromptBuilder {
         appendLine("""- "affectedEndpoints": optional array of endpoint keys affected""")
 
         request.projectContext?.let { ctx ->
-            ctx.title?.let { appendLine(); appendLine("API: $it") }
+            ctx.title?.let {
+                appendLine()
+                appendLine("API: $it")
+            }
             ctx.endpoints?.let { endpoints ->
                 appendLine()
                 appendLine("Current endpoints (${endpoints.size} total):")

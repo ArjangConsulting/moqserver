@@ -31,7 +31,7 @@ fun JsonCodeEditor(
 			panel.setTextIfDifferent(text)
 			panel.setReadOnly(readOnly)
 			panel.setColors(backgroundColor, foregroundColor)
-		}
+		},
 	)
 }
 

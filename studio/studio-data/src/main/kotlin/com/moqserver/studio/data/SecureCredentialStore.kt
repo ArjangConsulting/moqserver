@@ -159,7 +159,13 @@ private class MacOSKeychainCredentialStore(
         val stderr = process.errorStream.bufferedReader().use { it.readText() }
         val exitCode = process.waitFor()
         if (exitCode != 0) {
-            logger.warn("Keychain command failed for '{}': {}", args.firstOrNull().orEmpty(), stderr.ifBlank { exitCode.toString() })
+            logger.warn(
+                "Keychain command failed for '{}': {}",
+                args.firstOrNull().orEmpty(),
+                stderr.ifBlank {
+                exitCode.toString()
+            },
+            )
         }
         return CommandResult(
             exitCode = exitCode,

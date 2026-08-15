@@ -90,7 +90,7 @@ fun CompanionStatusBar(
                             ai.isReady -> StudioColors.success
                             ai.providers.isEmpty() && ai.error == null -> MaterialTheme.colorScheme.outline
                             else -> MaterialTheme.colorScheme.error
-                        }
+                        },
                     ),
             )
             Text(
@@ -197,7 +197,10 @@ fun ProviderSettingsPanel(
 
         if (ai.providers.isEmpty() && !ai.loading && ai.error == null) {
             Card(modifier = Modifier.fillMaxWidth()) {
-                Column(modifier = Modifier.padding(StudioDimens.xl), verticalArrangement = Arrangement.spacedBy(StudioDimens.m)) {
+                Column(
+                    modifier = Modifier.padding(StudioDimens.xl),
+                    verticalArrangement = Arrangement.spacedBy(StudioDimens.m),
+                ) {
                     Text(AIStatusBarStrings.NO_PROVIDERS_CONFIGURED, style = MaterialTheme.typography.titleSmall)
                     Text(
                         AIStatusBarStrings.NO_PROVIDERS_HELP,
@@ -212,7 +215,10 @@ fun ProviderSettingsPanel(
 
         if (ai.error != null && ai.providers.isEmpty()) {
             Card(modifier = Modifier.fillMaxWidth()) {
-                Column(modifier = Modifier.padding(StudioDimens.xl), verticalArrangement = Arrangement.spacedBy(StudioDimens.m)) {
+                Column(
+                    modifier = Modifier.padding(StudioDimens.xl),
+                    verticalArrangement = Arrangement.spacedBy(StudioDimens.m),
+                ) {
                     Text(AIStatusBarStrings.ERROR_CHECKING, style = MaterialTheme.typography.titleSmall)
                     Text(
                         ai.error.orEmpty(),
@@ -262,7 +268,10 @@ private fun ProviderCard(
             .fillMaxWidth()
             .clickable(enabled = provider.available) { onSelect() },
     ) {
-        Column(modifier = Modifier.padding(StudioDimens.xl), verticalArrangement = Arrangement.spacedBy(StudioDimens.m)) {
+        Column(
+            modifier = Modifier.padding(StudioDimens.xl),
+            verticalArrangement = Arrangement.spacedBy(StudioDimens.m),
+        ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,

@@ -67,13 +67,13 @@ private fun previewProject(): MoqProject {
                                             mapOf(
                                                 "id" to YamlValue.Int(1),
                                                 "name" to YamlValue.Str("Moq"),
-                                            )
-                                        )
-                                    )
-                                )
-                            )
+                                            ),
+                                        ),
+                                    ),
+                                ),
+                            ),
                         ),
-                    )
+                    ),
                 ),
             ),
             EndpointDocument(
@@ -90,7 +90,7 @@ private fun previewProject(): MoqProject {
                         status = 200,
                         headers = mapOf("Content-Type" to "application/json"),
                         body = YamlValue.Obj(mapOf("token" to YamlValue.Str("preview-token"))),
-                    )
+                    ),
                 ),
             ),
         ),
@@ -123,7 +123,7 @@ private fun previewState(): StudioState {
                 severity = ValidationDiagnostic.Severity.WARNING,
                 message = "Example warning for preview",
                 endpointId = "get-users",
-            )
+            ),
         ),
     )
 }
@@ -139,7 +139,7 @@ private fun previewImportState(): ImportState {
                 statusCode = 200,
                 headers = mapOf("Content-Type" to "application/json"),
                 body = """{"pets":[]}""",
-            )
+            ),
         ),
     )
     return ImportState(
@@ -234,8 +234,8 @@ private fun AIResultsPreview() {
                         category = "schema",
                         message = "Example preview finding",
                         endpointKey = "GET /users",
-                    )
-                )
+                    ),
+                ),
             ),
         ),
     )
