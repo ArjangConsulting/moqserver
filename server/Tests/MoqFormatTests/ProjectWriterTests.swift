@@ -519,4 +519,30 @@ struct ProjectWriterTests {
             try ProjectWriter().write(project, to: outputPath)
         }
     }
+
+    @Test("Variant description round-trips through write and reload")
+    func variantDescriptionRoundTrips() throws {
+        // Regression test: format/schema.json and Kotlin's ProjectVariant have always allowed a
+        // variant-level `description` (the canonical format/examples/sample-app.moqproj fixture
+        // uses it), but Swift's ProjectVariant had no such field — every load silently dropped it
+        // and no write ever emitted it. Codable's default keyed-container behavior tolerates
+        // unrecognized YAML keys, so this was never caught by "validate" returning 0 errors.
+        let endpoint = EndpointDocument(
+            id: "described",
+            method: "GET",
+            path: "/described",
+            variants: [
+                ProjectVariant(name: "ok", description: "A populated response", status: 200)
+            ]
+        )
+        let project = makeProject(endpoints: [endpoint])
+        let outputPath = (NSTemporaryDirectory() as NSString).appendingPathComponent(
+            "writer-variant-description-\(UUID().uuidString).moqproj")
+        defer { try? FileManager.default.removeItem(atPath: outputPath) }
+
+        try ProjectWriter().write(project, to: outputPath)
+        let reloaded = try ProjectLoader().load(from: outputPath)
+
+        #expect(reloaded.endpoints.first?.variants.first?.description == "A populated response")
+    }
 }

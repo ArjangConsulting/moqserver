@@ -167,6 +167,9 @@ public struct ProjectWriter: ProjectWriting {
 
         lines.append("\(pad)- name: \(yamlQuote(variant.name))")
         lines.append("\(pad)  reference_name: \(yamlQuote(variant.referenceName))")
+        if let description = variant.description {
+            lines.append("\(pad)  description: \(yamlQuote(description))")
+        }
         if let isDefault = variant.isDefault, isDefault {
             lines.append("\(pad)  default: true")
         }
