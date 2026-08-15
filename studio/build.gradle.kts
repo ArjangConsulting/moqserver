@@ -21,6 +21,18 @@ subprojects {
 		}
 	}
 
+	val jdkVersion = rootProject.libs.versions.jdk.get().toInt()
+	plugins.withId("org.jetbrains.kotlin.multiplatform") {
+		extensions.configure<org.jetbrains.kotlin.gradle.dsl.KotlinMultiplatformExtension> {
+			jvmToolchain(jdkVersion)
+		}
+	}
+	plugins.withId("org.jetbrains.kotlin.jvm") {
+		extensions.configure<org.jetbrains.kotlin.gradle.dsl.KotlinJvmProjectExtension> {
+			jvmToolchain(jdkVersion)
+		}
+	}
+
 	apply(plugin = "io.gitlab.arturbosch.detekt")
 
 	detekt {
