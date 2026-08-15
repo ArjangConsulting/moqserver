@@ -205,4 +205,60 @@ let moqTools: [Tool] = [
         description: "Persists the in-memory project to disk (crash-recoverable staged replacement). Fails if the bundle changed on disk since it was last loaded or saved.",
         inputSchema: .object(["type": "object", "properties": [:]])
     ),
+    Tool(
+        name: "moq_import_har",
+        description: """
+            Parses a HAR 1.2 file (from disk) and merges its endpoints into the currently open \
+            project (create or open one first). Sensitive values (auth headers, cookies, \
+            tokens, JWT signatures) are redacted before anything reaches the project. New \
+            endpoints are appended; endpoints that already exist (same method+path) are updated \
+            per the policy flags below but never lose existing variants, request rules, or \
+            aliases the spec doesn't mention.
+            """,
+        inputSchema: .object([
+            "type": "object",
+            "properties": [
+                "path": ["type": "string", "description": "Path to a .har file on disk"],
+                "accept_paths": [
+                    "type": "array", "items": ["type": "string"],
+                    "description": "Only import endpoints at these exact paths; omit to accept all",
+                ],
+                "update_details": [
+                    "type": "boolean", "default": true,
+                    "description": "Update auth/request_rules/tags on already-existing endpoints",
+                ],
+                "replace_existing_bodies": [
+                    "type": "boolean", "default": false,
+                    "description": "Overwrite an existing variant's body when the spec has a response at the same status code",
+                ],
+                "autosave": ["type": "boolean", "default": true],
+            ],
+            "required": ["path"],
+        ])
+    ),
+    Tool(
+        name: "moq_import_openapi",
+        description: """
+            Parses an OpenAPI 3.x spec (YAML/JSON, from a file path or URL) and merges its \
+            endpoints into the currently open project, same merge semantics as moq_import_har. \
+            Swagger 2.0 is not supported. Fetching from a URL is disabled by default; the \
+            operator must set MOQ_MCP_ALLOW_NETWORK=1 on the server process.
+            """,
+        inputSchema: .object([
+            "type": "object",
+            "properties": [
+                "source": ["type": "string", "description": "A file path, or an http(s) URL if network import is enabled"],
+                "auth": [
+                    "type": "object",
+                    "description": "Only used for a URL source: { bearer: string } or { basic: { username, password } } or { header: { name, value } }",
+                ],
+                "accept_paths": ["type": "array", "items": ["type": "string"]],
+                "accept_tags": ["type": "array", "items": ["type": "string"]],
+                "update_details": ["type": "boolean", "default": true],
+                "replace_existing_bodies": ["type": "boolean", "default": false],
+                "autosave": ["type": "boolean", "default": true],
+            ],
+            "required": ["source"],
+        ])
+    ),
 ]
