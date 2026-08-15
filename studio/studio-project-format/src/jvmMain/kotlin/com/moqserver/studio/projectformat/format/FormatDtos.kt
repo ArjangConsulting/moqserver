@@ -77,6 +77,24 @@ data class ImportSummary(
 )
 
 /**
+ * Auth for a URL-sourced OpenAPI import. Mirrors `ImportAuthInput` in the Swift core: exactly one
+ * of the three should be set — the server picks the first non-null field, matching Swift's own
+ * `resolved` precedence (bearer, then basic, then header).
+ */
+@Serializable
+data class ImportAuthInput(
+    val bearer: String? = null,
+    val basic: BasicAuthInput? = null,
+    val header: HeaderAuthInput? = null,
+) {
+    @Serializable
+    data class BasicAuthInput(val username: String, val password: String)
+
+    @Serializable
+    data class HeaderAuthInput(val name: String, val value: String)
+}
+
+/**
  * Input for `endpoint.upsert`. Mirrors `EndpointUpsertInput` in the Swift core: metadata only,
  * never variants — those go through `upsertVariant`/`removeVariant`, and are preserved
  * server-side across a metadata update.

@@ -20,6 +20,9 @@ import kotlinx.serialization.json.put
  * handlers also reach through `MoqService` — this is the JSON-RPC transport's equivalent of that
  * adapter, just decoding/encoding Kotlin types instead of MCP's `Value`.
  */
+// One thin method per RPC method by design; splitting the class would only scatter this 1:1
+// mapping to Dispatcher.swift across files.
+@Suppress("TooManyFunctions")
 class FormatClient(private val process: FormatProcess) {
     // Defaults stay omitted (kotlinx.serialization's own default): an absent optional field and
     // Kotlin's local convenience default should mean the same "no opinion" thing on the wire.
@@ -52,7 +55,8 @@ class FormatClient(private val process: FormatProcess) {
                 description?.let { put("description", it) }
                 put("path", path)
                 put("force", force)
-            })
+            },
+        )
         return json.decodeFromJsonElement(ProjectDescription.serializer(), result)
     }
 
@@ -63,7 +67,8 @@ class FormatClient(private val process: FormatProcess) {
                 put("handle", handle)
                 put("path", path)
                 put("force", force)
-            })
+            },
+        )
         return json.decodeFromJsonElement(ProjectDescription.serializer(), result)
     }
 
@@ -122,7 +127,10 @@ class FormatClient(private val process: FormatProcess) {
     // MARK: - Endpoints
 
     suspend fun listEndpoints(
-        handle: String, filterPath: String? = null, filterMethod: String? = null, filterTag: String? = null,
+        handle: String,
+        filterPath: String? = null,
+        filterMethod: String? = null,
+        filterTag: String? = null,
     ): List<EndpointSummary> {
         val result = call(
             "endpoint.list",
@@ -131,12 +139,19 @@ class FormatClient(private val process: FormatProcess) {
                 filterPath?.let { put("filter_path", it) }
                 filterMethod?.let { put("filter_method", it) }
                 filterTag?.let { put("filter_tag", it) }
-            })
+            },
+        )
         return json.decodeFromJsonElement(ListSerializer(EndpointSummary.serializer()), result)
     }
 
     suspend fun getEndpoint(handle: String, id: String): EndpointDocument {
-        val result = call("endpoint.get", buildJsonObject { put("handle", handle); put("id", id) })
+        val result = call(
+            "endpoint.get",
+            buildJsonObject {
+                put("handle", handle)
+                put("id", id)
+            },
+        )
         return json.decodeFromJsonElement(EndpointDocument.serializer(), result)
     }
 
@@ -147,7 +162,8 @@ class FormatClient(private val process: FormatProcess) {
                 put("method", method)
                 put("path", path)
                 alias?.let { put("alias", it) }
-            })
+            },
+        )
         return json.decodeFromJsonElement(SuggestedEndpointIdentity.serializer(), result)
     }
 
@@ -160,7 +176,14 @@ class FormatClient(private val process: FormatProcess) {
     }
 
     suspend fun removeEndpoint(handle: String, id: String, autosave: Boolean = true) {
-        call("endpoint.remove", buildJsonObject { put("handle", handle); put("id", id); put("autosave", autosave) })
+        call(
+            "endpoint.remove",
+            buildJsonObject {
+                put("handle", handle)
+                put("id", id)
+                put("autosave", autosave)
+            },
+        )
     }
 
     // MARK: - Variants
@@ -181,7 +204,8 @@ class FormatClient(private val process: FormatProcess) {
                 put("endpoint_id", endpointId)
                 put("name", name)
                 put("autosave", autosave)
-            })
+            },
+        )
     }
 
     // MARK: - Import
@@ -189,15 +213,51 @@ class FormatClient(private val process: FormatProcess) {
     suspend fun importHar(handle: String, path: String, autosave: Boolean = true): ImportSummary {
         val result = call(
             "import.har",
-            buildJsonObject { put("handle", handle); put("path", path); put("autosave", autosave) })
+            buildJsonObject {
+                put("handle", handle)
+                put("path", path)
+                put("autosave", autosave)
+            },
+        )
         return json.decodeFromJsonElement(ImportSummary.serializer(), result)
     }
 
     suspend fun importOpenapi(handle: String, source: String, autosave: Boolean = true): ImportSummary {
         val result = call(
             "import.openapi",
-            buildJsonObject { put("handle", handle); put("source", source); put("autosave", autosave) })
+            buildJsonObject {
+                put("handle", handle)
+                put("source", source)
+                put("autosave", autosave)
+            },
+        )
         return json.decodeFromJsonElement(ImportSummary.serializer(), result)
+    }
+
+    // MARK: - Parse only
+
+    /**
+     * Parses a HAR file into a [RemoteParsedSpec] without merging it into any project — the
+     * counterpart to [importHar] for a caller (Studio) that wants to hold the parsed result for
+     * interactive review before anything is committed. See `RemoteImportParsing.kt` in
+     * `studio-domain` for the map onto the domain's own `ParsedSpec`.
+     */
+    suspend fun parseHar(path: String): RemoteParsedSpec {
+        val result = call("import.parseHar", buildJsonObject { put("path", path) })
+        return json.decodeFromJsonElement(RemoteParsedSpec.serializer(), result)
+    }
+
+    /** Same as [parseHar] for an OpenAPI source (file path or, if the server allows it, a URL). */
+    suspend fun parseOpenapi(
+        source: String,
+        auth: ImportAuthInput? = null,
+    ): RemoteParsedOpenAPIResult {
+        val params = buildJsonObject {
+            put("source", source)
+            auth?.let { put("auth", json.encodeToJsonElement(ImportAuthInput.serializer(), it)) }
+        }
+        val result = call("import.parseOpenapi", params)
+        return json.decodeFromJsonElement(RemoteParsedOpenAPIResult.serializer(), result)
     }
 
     // MARK: - Plumbing

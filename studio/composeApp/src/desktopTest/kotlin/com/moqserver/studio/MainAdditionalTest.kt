@@ -53,28 +53,27 @@ class MainAdditionalTest {
 	}
 
 	@Test
-	fun `buildURLImportAuth returns Bearer for BEARER type`() {
+	fun `buildURLImportAuth returns bearer for BEARER type`() {
 		val state = ImportFromURLState(
 			authType = URLAuthType.BEARER,
 			bearerToken = "my-token",
 		)
 		val auth = buildURLImportAuth(state)
-		assertTrue(auth is com.moqserver.studio.imports.URLImportAuth.Bearer)
-		assertEquals("my-token", auth.token)
+		assertEquals("my-token", auth?.bearer)
+		assertEquals(null, auth?.basic)
 	}
 
 	@Test
-	fun `buildURLImportAuth returns Basic for BASIC type`() {
+	fun `buildURLImportAuth returns basic for BASIC type`() {
 		val state = ImportFromURLState(
 			authType = URLAuthType.BASIC,
 			basicUsername = "user",
 			basicPassword = "pass",
 		)
 		val auth = buildURLImportAuth(state)
-		assertTrue(auth is com.moqserver.studio.imports.URLImportAuth.Basic)
-		val basic = auth
-		assertEquals("user", basic.username)
-		assertEquals("pass", basic.password)
+		assertEquals("user", auth?.basic?.username)
+		assertEquals("pass", auth?.basic?.password)
+		assertEquals(null, auth?.bearer)
 	}
 
 	// ── URLImportExecutionPlan data class ───────────────────────────
@@ -84,5 +83,30 @@ class MainAdditionalTest {
 		val a = URLImportExecutionPlan("Importing", "openapi", false)
 		val b = URLImportExecutionPlan("Importing", "openapi", false)
 		assertEquals(a, b)
+	}
+
+	// ── sourceNameFromUrl ────────────────────────────────────────────
+	// Ported from the deleted OpenAPIURLFetcherTest - moq-format now does the fetching, but this
+	// display-name derivation is presentation-only and stayed in Kotlin.
+
+	@Test
+	fun `sourceNameFromUrl extracts host and path`() {
+		assertEquals("example.com/api/openapi.json", sourceNameFromUrl("https://example.com/api/openapi.json"))
+	}
+
+	@Test
+	fun `sourceNameFromUrl strips trailing slash`() {
+		assertEquals("example.com/api", sourceNameFromUrl("https://example.com/api/"))
+	}
+
+	@Test
+	fun `sourceNameFromUrl returns host only for root url`() {
+		assertEquals("example.com", sourceNameFromUrl("https://example.com"))
+	}
+
+	@Test
+	fun `sourceNameFromUrl returns original on invalid url`() {
+		val badUrl = "not a url"
+		assertEquals(badUrl, sourceNameFromUrl(badUrl))
 	}
 }

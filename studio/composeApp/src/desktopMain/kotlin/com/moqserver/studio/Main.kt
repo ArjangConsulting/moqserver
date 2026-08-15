@@ -6,10 +6,10 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.setValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.key.Key
@@ -38,19 +38,16 @@ import com.moqserver.studio.domain.ImportConverter
 import com.moqserver.studio.domain.ImportMode
 import com.moqserver.studio.domain.ImportSourceType
 import com.moqserver.studio.domain.StudioRootViewModel
+import com.moqserver.studio.domain.toParsedSpec
 import com.moqserver.studio.export.ExportCatalogBuilder
 import com.moqserver.studio.export.ExportOptions
 import com.moqserver.studio.export.ExportRegistry
-import com.moqserver.studio.imports.HARImportParser
-import com.moqserver.studio.imports.OpenAPIImportParser
-import com.moqserver.studio.imports.OpenAPIURLFetcher
-import com.moqserver.studio.imports.URLFetchException
-import com.moqserver.studio.imports.URLImportAuth
 import com.moqserver.studio.logging.loggerFor
 import com.moqserver.studio.projectformat.ProjectRepository
 import com.moqserver.studio.projectformat.format.FormatBinaryLocator
 import com.moqserver.studio.projectformat.format.FormatClient
 import com.moqserver.studio.projectformat.format.FormatProcess
+import com.moqserver.studio.projectformat.format.ImportAuthInput
 import com.moqserver.studio.projectformat.format.RemoteProjectValidator
 import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.Dispatchers
@@ -111,21 +108,40 @@ internal fun planURLImportExecution(state: ImportFromURLState): URLImportExecuti
 
 internal fun shouldPersistImportedProjectImmediately(isUpdateMode: Boolean): Boolean = !isUpdateMode
 
-internal fun buildURLImportAuth(state: ImportFromURLState): URLImportAuth? = when (state.authType) {
-	URLAuthType.BEARER -> URLImportAuth.Bearer(state.bearerToken)
-	URLAuthType.BASIC -> URLImportAuth.Basic(state.basicUsername, state.basicPassword)
+internal fun buildURLImportAuth(state: ImportFromURLState): ImportAuthInput? = when (state.authType) {
+	URLAuthType.BEARER -> ImportAuthInput(bearer = state.bearerToken)
+	URLAuthType.BASIC ->
+		ImportAuthInput(basic = ImportAuthInput.BasicAuthInput(state.basicUsername, state.basicPassword))
 	URLAuthType.NONE -> null
 }
+
+/** Mirrors the resolved-host+path display name the old OpenAPIURLFetcher derived locally. */
+internal fun sourceNameFromUrl(url: String): String = try {
+	val uri = java.net.URI(url)
+	val host = uri.host ?: url
+	val path = uri.path?.trimEnd('/') ?: ""
+	if (path.isNotEmpty()) "$host$path" else host
+} catch (_: Exception) {
+	url
+}
+
+/** The fetched-and-parsed half of a URL import, grouped to keep [applyURLImportResult]'s
+ * parameter list under detekt's threshold. */
+private data class URLImportFetchResult(
+	val sourceName: String,
+	val resolvedUrl: String,
+	val spec: com.moqserver.studio.domain.ParsedSpec,
+)
 
 private fun applyURLImportResult(
 	state: ImportFromURLState,
 	executionPlan: URLImportExecutionPlan,
 	currentProject: com.moqserver.studio.projectformat.MoqProject?,
-	fetched: com.moqserver.studio.imports.FetchedSpec,
-	spec: com.moqserver.studio.domain.ParsedSpec,
+	fetched: URLImportFetchResult,
 	appViewModel: StudioRootViewModel,
 	previouslyDeselectedIds: Set<String>,
 ): Boolean {
+	val (sourceName, resolvedUrl, spec) = fetched
 	if (executionPlan.requiresProject) {
 		if (currentProject == null) {
 			return false
@@ -133,17 +149,17 @@ private fun applyURLImportResult(
 		appViewModel.startUpdateFromSpec(
 			spec = spec,
 			source = ImportSourceType.OPENAPI,
-			fileName = fetched.sourceName,
+			fileName = sourceName,
 			previouslyDeselectedIds = previouslyDeselectedIds,
 		)
 	} else {
-		appViewModel.startImport(spec, ImportSourceType.OPENAPI, fetched.sourceName)
+		appViewModel.startImport(spec, ImportSourceType.OPENAPI, sourceName)
 	}
 	logger.info(
 		"URL {} started: {} endpoints from {}",
 		if (state.action == URLImportAction.UPDATE) "update" else "import",
 		spec.endpoints.size,
-		fetched.resolvedUrl,
+		resolvedUrl,
 	)
 	return true
 }
@@ -151,8 +167,7 @@ private fun applyURLImportResult(
 private suspend fun performURLImport(
 	state: ImportFromURLState,
 	currentProject: com.moqserver.studio.projectformat.MoqProject?,
-	urlFetcher: OpenAPIURLFetcher,
-	openApiParser: OpenAPIImportParser,
+	formatClient: FormatClient,
 	importHistoryRepo: ImportHistoryRepository,
 	appViewModel: StudioRootViewModel,
 ): Boolean {
@@ -164,15 +179,9 @@ private suspend fun performURLImport(
 		state.url,
 	)
 	val auth = buildURLImportAuth(state)
-	val fetched = withContext(Dispatchers.IO) {
-		urlFetcher.fetchSpec(state.url, auth)
-	}
-	logger.info(
-		"Fetched spec from {} ({} chars), parsing...",
-		fetched.resolvedUrl,
-		fetched.content.length,
-	)
-	val spec = withContext(Dispatchers.IO) { openApiParser.parse(fetched.content) }
+	val result = formatClient.parseOpenapi(state.url, auth)
+	logger.info("Fetched and parsed spec from {}", result.resolvedSource)
+	val spec = result.spec.toParsedSpec()
 	val previouslyDeselectedIds = if (executionPlan.requiresProject && currentProject != null) {
 		withContext(Dispatchers.IO) {
 			importHistoryRepo.loadDeselected(currentProject.projectPath)
@@ -184,8 +193,11 @@ private suspend fun performURLImport(
 		state = state,
 		executionPlan = executionPlan,
 		currentProject = currentProject,
-		fetched = fetched,
-		spec = spec,
+		fetched = URLImportFetchResult(
+			sourceName = sourceNameFromUrl(result.resolvedSource),
+			resolvedUrl = result.resolvedSource,
+			spec = spec,
+		),
 		appViewModel = appViewModel,
 		previouslyDeselectedIds = previouslyDeselectedIds,
 	)
@@ -196,14 +208,18 @@ fun main(args: Array<String>) {
     logger.info("moqserver studio starting (args={})", args.toList())
     installCrashHandlers()
     application {
-        // .moqproj reading, writing, and validation all go through moq-format, a supervised
-        // subprocess (see FormatProcess doc comment for why: a Swift trap is process-fatal, so
-        // it runs out-of-process rather than risk taking Studio down with unsaved work). One
-        // process, one FormatClient, for the app's lifetime; repo and remoteValidator are both
-        // thin adapters over the same client — repo owns the load/save session, the validator
-        // adapts wire diagnostics into the ValidationDiagnostic shape ValidationPanel renders.
+        // .moqproj reading, writing, validation, and HAR/OpenAPI import parsing all go through
+        // moq-format, a supervised subprocess (see FormatProcess doc comment for why: a Swift
+        // trap is process-fatal, so it runs out-of-process rather than risk taking Studio down
+        // with unsaved work). One process, one FormatClient, for the app's lifetime; repo and
+        // remoteValidator are both thin adapters over the same client — repo owns the load/save
+        // session, the validator adapts wire diagnostics into the ValidationDiagnostic shape
+        // ValidationPanel renders. allowNetworkImport: true because "Import from URL" is a
+        // first-party desktop feature that worked unconditionally before this cutover — see
+        // FormatProcess's allowNetworkImport doc for why this differs from moq-mcp's default.
         val formatProcess = remember {
-            FormatProcess(locateBinary = { FormatBinaryLocator.locate() }).apply { start() }
+            FormatProcess(locateBinary = { FormatBinaryLocator.locate() }, allowNetworkImport = true)
+                .apply { start() }
         }
         val formatClient = remember(formatProcess) { FormatClient(formatProcess) }
         val repo = remember(formatClient) { ProjectRepository(formatClient) }
@@ -211,8 +227,6 @@ fun main(args: Array<String>) {
         DisposableEffect(formatProcess) {
             onDispose { formatProcess.stop() }
         }
-        val openApiParser = remember { OpenAPIImportParser() }
-        val harParser = remember { HARImportParser() }
         val settingsRepo = remember { AISettingsRepository() }
         val recentProjectsRepo = remember { RecentProjectsRepository() }
         val importHistoryRepo = remember { ImportHistoryRepository() }
@@ -223,7 +237,6 @@ fun main(args: Array<String>) {
 		val exportState = remember { mutableStateOf(ExportReferencesState()) }
 		val showImportURLDialog = remember { mutableStateOf(false) }
 		val importURLState = remember { mutableStateOf(ImportFromURLState()) }
-		val urlFetcher = remember { OpenAPIURLFetcher() }
         val appViewModel = remember { StudioRootViewModel(validate = remoteValidator::validate) }
         val scope = rememberCoroutineScope()
         val themeMode = remember { mutableStateOf(aiSettings.value.themeMode.toStudioThemeMode()) }
@@ -361,7 +374,10 @@ fun main(args: Array<String>) {
                         return@launch
                     }
                     val path = chooseOpenProjectPath(window, "Open .moqproj", lastFileDirectory.value)
-                        ?: run { logger.debug("Open project dialog cancelled"); return@launch }
+                        ?: run {
+                            logger.debug("Open project dialog cancelled")
+                            return@launch
+                        }
                     openProject(
                         path,
                         repo,
@@ -427,11 +443,13 @@ fun main(args: Array<String>) {
 						if (mode == SpecFileImportMode.SWAGGER) "Import Swagger Spec" else "Import OpenAPI Spec",
 						setOf("yaml", "yml", "json"),
 						lastFileDirectory.value,
-					) ?: run { logger.debug("Import OpenAPI dialog cancelled"); return@launch }
+					) ?: run {
+						logger.debug("Import OpenAPI dialog cancelled")
+						return@launch
+					}
 					logger.info("Importing {} spec from: {}", mode.name.lowercase(), file.absolutePath)
 					try {
-						val content = withContext(Dispatchers.IO) { file.readText() }
-						val spec = withContext(Dispatchers.IO) { openApiParser.parse(content) }
+						val spec = formatClient.parseOpenapi(file.absolutePath).spec.toParsedSpec()
 						appViewModel.startImport(spec, ImportSourceType.OPENAPI, file.name)
 						lastFileDirectory.value = file.parentFile?.canonicalPath ?: lastFileDirectory.value
 					} catch (e: Exception) {
@@ -464,11 +482,13 @@ fun main(args: Array<String>) {
                         "Import HAR File",
                         setOf("har", "json"),
                         lastFileDirectory.value,
-                    ) ?: run { logger.debug("Import HAR dialog cancelled"); return@launch }
+                    ) ?: run {
+                        logger.debug("Import HAR dialog cancelled")
+                        return@launch
+                    }
                     logger.info("Importing HAR file from: {}", file.absolutePath)
                     try {
-                        val content = withContext(Dispatchers.IO) { file.readText() }
-                        val spec = withContext(Dispatchers.IO) { harParser.parse(content) }
+                        val spec = formatClient.parseHar(file.absolutePath).toParsedSpec()
                         appViewModel.startImport(spec, ImportSourceType.HAR, file.name)
                         lastFileDirectory.value = file.parentFile?.canonicalPath ?: lastFileDirectory.value
                     } catch (e: Exception) {
@@ -500,7 +520,10 @@ fun main(args: Array<String>) {
 						if (mode == SpecFileImportMode.SWAGGER) "Update from Swagger Spec" else "Update from OpenAPI Spec",
 						setOf("yaml", "yml", "json"),
 						lastFileDirectory.value,
-					) ?: run { logger.debug("Update from spec dialog cancelled"); return@launch }
+					) ?: run {
+						logger.debug("Update from spec dialog cancelled")
+						return@launch
+					}
 					logger.info(
 						"Updating project '{}' from {} spec: {}",
 						currentProject.manifest.name,
@@ -508,8 +531,7 @@ fun main(args: Array<String>) {
 						file.absolutePath,
 					)
 					try {
-						val content = withContext(Dispatchers.IO) { file.readText() }
-						val spec = withContext(Dispatchers.IO) { openApiParser.parse(content) }
+						val spec = formatClient.parseOpenapi(file.absolutePath).spec.toParsedSpec()
 						val previouslyDeselected = withContext(Dispatchers.IO) {
 							importHistoryRepo.loadDeselected(currentProject.projectPath)
 						}
@@ -543,11 +565,13 @@ fun main(args: Array<String>) {
 						"Update from HAR File",
 						setOf("har", "json"),
 						lastFileDirectory.value,
-					) ?: run { logger.debug("Update from HAR dialog cancelled"); return@launch }
+					) ?: run {
+						logger.debug("Update from HAR dialog cancelled")
+						return@launch
+					}
 					logger.info("Updating project '{}' from HAR: {}", currentProject.manifest.name, file.absolutePath)
 					try {
-						val content = withContext(Dispatchers.IO) { file.readText() }
-						val spec = withContext(Dispatchers.IO) { harParser.parse(content) }
+						val spec = formatClient.parseHar(file.absolutePath).toParsedSpec()
 						val previouslyDeselected = withContext(Dispatchers.IO) {
 							importHistoryRepo.loadDeselected(currentProject.projectPath)
 						}
@@ -586,8 +610,7 @@ fun main(args: Array<String>) {
 						val applied = performURLImport(
 							state = currentState,
 							currentProject = currentProject,
-							urlFetcher = urlFetcher,
-							openApiParser = openApiParser,
+							formatClient = formatClient,
 							importHistoryRepo = importHistoryRepo,
 							appViewModel = appViewModel,
 						)
@@ -600,12 +623,20 @@ fun main(args: Array<String>) {
 						}
                         showImportURLDialog.value = false
                         importURLState.value = ImportFromURLState()
-                    } catch (e: URLFetchException) {
-                        logger.error("URL fetch failed: {}", e.message)
-                        importURLState.value = importURLState.value.copy(
-                            loading = false,
-                            error = e.message,
-                        )
+                    } catch (e: com.moqserver.studio.projectformat.format.FormatServiceException) {
+                        e.rethrowIfCancellation()
+                        // moq-format's import.parseOpenapi collapses fetch vs. parse failure into
+                        // one call; branch on the error code (E_IMPORT_FETCH_FAILED vs.
+                        // E_IMPORT_PARSE_FAILED) to keep the two distinct user-facing messages
+                        // this dialog always gave.
+                        logger.error("URL import failed ({}): {}", e.code, e.message)
+                        val message = if (e.code == "E_IMPORT_PARSE_FAILED") {
+                            "Successfully fetched content from the URL, but it couldn't be parsed " +
+                                "as a valid API specification: ${e.message ?: "Unknown error"}"
+                        } else {
+                            e.message
+                        }
+                        importURLState.value = importURLState.value.copy(loading = false, error = message)
                     } catch (e: Exception) {
                         e.rethrowIfCancellation()
                         logger.error("Failed to import from URL: {}", e.message)
@@ -992,7 +1023,10 @@ fun main(args: Array<String>) {
 												initialDirectory = lastFileDirectory.value,
 												projectName = currentImportState.projectName,
 											)
-												?: run { logger.debug("Import save dialog cancelled"); return@launch }
+												?: run {
+													logger.debug("Import save dialog cancelled")
+													return@launch
+												}
 											logger.info("Saving imported project '{}' to: {}", currentImportState.projectName, path)
 											try {
 												val project = appViewModel.confirmImport(path) ?: return@launch
