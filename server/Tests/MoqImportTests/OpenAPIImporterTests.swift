@@ -296,4 +296,53 @@ struct OpenAPIImporterTests {
         #expect(response.statusCode == 200)
         #expect(response.name == "default")
     }
+
+    @Test("Extracts requiresBody and acceptedContentTypes from a required JSON request body")
+    func extractsRequestBodyMetadata() throws {
+        let spec = """
+            openapi: 3.0.3
+            info:
+              title: API
+              version: "1.0"
+            paths:
+              /users:
+                post:
+                  requestBody:
+                    required: true
+                    content:
+                      application/json:
+                        schema:
+                          type: object
+                      application/xml:
+                        schema:
+                          type: object
+                  responses:
+                    "201":
+                      description: Created
+            """
+        let parsed = try OpenAPIImporter.parse(spec)
+        let endpoint = try #require(parsed.endpoints.first)
+        #expect(endpoint.requiresBody)
+        #expect(endpoint.acceptedContentTypes == ["application/json", "application/xml"])
+    }
+
+    @Test("requiresBody and acceptedContentTypes default to empty when there is no request body")
+    func requestBodyMetadataDefaultsEmpty() throws {
+        let spec = """
+            openapi: 3.0.3
+            info:
+              title: API
+              version: "1.0"
+            paths:
+              /ping:
+                get:
+                  responses:
+                    "200":
+                      description: OK
+            """
+        let parsed = try OpenAPIImporter.parse(spec)
+        let endpoint = try #require(parsed.endpoints.first)
+        #expect(!endpoint.requiresBody)
+        #expect(endpoint.acceptedContentTypes.isEmpty)
+    }
 }
