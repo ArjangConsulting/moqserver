@@ -520,6 +520,24 @@ struct ProjectWriterTests {
         }
     }
 
+    @Test("An endpoint with zero variants round-trips through write and reload")
+    func endpointWithZeroVariantsRoundTrips() throws {
+        // Regression test: ProjectWriter used to emit a bare "variants:" key for an empty
+        // array, which Yams decodes as null rather than an empty sequence, breaking reload with
+        // "Expected value of type Sequence". This must work because ProjectLoader intentionally
+        // permits zero-variant endpoints as structurally valid work-in-progress state.
+        let endpoint = EndpointDocument(id: "in-progress", method: "GET", path: "/in-progress", variants: [])
+        let project = makeProject(endpoints: [endpoint])
+        let outputPath = (NSTemporaryDirectory() as NSString).appendingPathComponent(
+            "writer-empty-variants-\(UUID().uuidString).moqproj")
+        defer { try? FileManager.default.removeItem(atPath: outputPath) }
+
+        try ProjectWriter().write(project, to: outputPath)
+        let reloaded = try ProjectLoader().load(from: outputPath)
+
+        #expect(reloaded.endpoints.first?.variants.isEmpty == true)
+    }
+
     @Test("Variant description round-trips through write and reload")
     func variantDescriptionRoundTrips() throws {
         // Regression test: format/schema.json and Kotlin's ProjectVariant have always allowed a

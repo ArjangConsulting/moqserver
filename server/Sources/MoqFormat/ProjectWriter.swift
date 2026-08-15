@@ -147,9 +147,18 @@ public struct ProjectWriter: ProjectWriting {
         }
 
         lines.append("")
-        lines.append("variants:")
-        for variant in endpoint.variants {
-            lines.append(contentsOf: try encodeVariant(variant, indent: 2))
+        if endpoint.variants.isEmpty {
+            // An empty scalar after "variants:" decodes as a YAML null, not a sequence — Yams
+            // then fails with "Expected value of type Sequence" on reload. Write an explicit
+            // empty flow sequence so a work-in-progress endpoint with no variants yet still
+            // round-trips (see ProjectLoader's structural/semantic split: zero variants is a
+            // semantic error ProjectValidator reports, not a structural load failure).
+            lines.append("variants: []")
+        } else {
+            lines.append("variants:")
+            for variant in endpoint.variants {
+                lines.append(contentsOf: try encodeVariant(variant, indent: 2))
+            }
         }
 
         if let network = endpoint.network {
