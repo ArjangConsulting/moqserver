@@ -113,6 +113,12 @@ data class ParsedResponse(
 	val statusCode: Int,
 	val headers: Map<String, String> = emptyMap(),
 	val body: String? = null,
+	/**
+	 * True when [body] holds base64 rather than the literal payload — HAR records this explicitly
+	 * on response content. Carried through so the variant can declare `body_encoding`, rather than
+	 * a downstream writer guessing from the Content-Type.
+	 */
+	val bodyIsBase64: Boolean = false,
 	val description: String? = null,
 )
 

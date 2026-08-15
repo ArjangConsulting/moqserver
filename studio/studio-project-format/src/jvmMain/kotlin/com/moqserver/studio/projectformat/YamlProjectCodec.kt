@@ -191,9 +191,16 @@ class YamlProjectCodec {
             headers = (map["headers"] as? Map<*, *>)?.entries?.associate { (k, v) -> k.toString() to v.toString() },
             requestMatch = (map["request_match"] as? Map<*, *>)?.let { parseVariantRequestMatch(it) },
             body = map["body"]?.let { YamlValue.from(it) },
+            bodyEncoding = map.str("body_encoding")?.let { parseBodyEncoding(it) },
             bodyFile = map.str("body_file"),
             delayMs = map.int("delay_ms"),
         )
+    }
+
+    private fun parseBodyEncoding(value: String): BodyEncoding = when (value) {
+        "utf8" -> BodyEncoding.UTF8
+        "base64" -> BodyEncoding.BASE64
+        else -> throw unknownEnum("variant.body_encoding", value)
     }
 
     private fun parseVariantRequestMatch(map: Map<*, *>): VariantRequestMatch {
@@ -363,8 +370,8 @@ class YamlProjectCodec {
             return listOf("${pad}  body_file: ${yamlQuote(bodyFile)}")
         }
 
-        return when (val body = variant.body) {
-            null -> emptyList()
+        val bodyLines = when (val body = variant.body) {
+            null -> return emptyList()
             is YamlValue.Null,
             is YamlValue.Bool,
             is YamlValue.Int,
@@ -374,6 +381,12 @@ class YamlProjectCodec {
             is YamlValue.Array -> encodeVariantCollectionBody(body, emptyValue = "[]", indent = indent)
             is YamlValue.Obj -> encodeVariantCollectionBody(body, emptyValue = "{}", indent = indent)
         }
+
+        // Emitted after `body` so it reads as an annotation on it. UTF8 is the schema default and
+        // is left implicit, matching the Swift writer.
+        val encoding = variant.bodyEncoding?.takeIf { it != BodyEncoding.UTF8 } ?: return bodyLines
+        val keyword = if (encoding == BodyEncoding.BASE64) "base64" else "utf8"
+        return bodyLines + "${pad}  body_encoding: $keyword"
     }
 
     private fun encodeVariantStringBody(body: YamlValue.Str, indent: Int): List<String> {

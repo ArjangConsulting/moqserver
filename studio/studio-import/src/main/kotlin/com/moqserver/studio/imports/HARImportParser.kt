@@ -195,7 +195,9 @@ class HARImportParser {
 
 		if (response.content.encoding?.lowercase() == "base64") {
 			if (!response.content.mimeType.isLikelyTextualMimeType()) {
-				return SanitizedBody(text, false)
+				// Binary payload: keep the base64 as-is and mark it, so the variant declares
+				// body_encoding instead of leaving a writer to infer it from the Content-Type.
+				return SanitizedBody(text, false, isBase64 = true)
 			}
 			val decoded = try {
 				String(Base64.getDecoder().decode(text), Charsets.UTF_8)
@@ -232,6 +234,7 @@ class HARImportParser {
 				statusCode = normalizedStatusCode(response.status),
 				headers = responseHeaders(response),
 				body = sanitizedBody.value,
+				bodyIsBase64 = sanitizedBody.isBase64,
 				cookies = extractRequestCookies(request),
 				queryParameters = requestQueryParameters(request, uri),
 			),
@@ -300,6 +303,7 @@ class HARImportParser {
 				statusCode = exchange.statusCode,
 				headers = exchange.headers,
 				body = exchange.body,
+				bodyIsBase64 = exchange.bodyIsBase64,
 			)
 		}
 	}
@@ -463,12 +467,13 @@ class HARImportParser {
 		val responseBodyRedacted: Boolean,
 	)
 
-	private data class SanitizedBody(val value: String?, val redacted: Boolean)
+	private data class SanitizedBody(val value: String?, val redacted: Boolean, val isBase64: Boolean = false)
 
 	private data class CapturedExchange(
 		val statusCode: Int,
 		val headers: Map<String, String>,
 		val body: String?,
+		val bodyIsBase64: Boolean,
 		val cookies: Map<String, String>,
 		val queryParameters: Map<String, String>,
 	)

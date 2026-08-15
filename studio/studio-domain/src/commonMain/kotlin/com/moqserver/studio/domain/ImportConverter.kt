@@ -1,6 +1,7 @@
 package com.moqserver.studio.domain
 
 import com.moqserver.studio.projectformat.AuthType
+import com.moqserver.studio.projectformat.BodyEncoding
 import com.moqserver.studio.projectformat.EndpointDocument
 import com.moqserver.studio.projectformat.MoqProject
 import com.moqserver.studio.projectformat.NetworkBehavior
@@ -409,7 +410,9 @@ object ImportConverter {
         referenceName: String,
         isDefault: Boolean,
     ): ProjectVariant {
-        val body = resp.body?.let { parseBodyToYamlValue(it) }
+        val body = resp.body?.let {
+            if (resp.bodyIsBase64) YamlValue.Str(it) else parseBodyToYamlValue(it)
+        }
         return ProjectVariant(
             name = name,
             referenceName = referenceName,
@@ -418,6 +421,7 @@ object ImportConverter {
             status = resp.statusCode,
             headers = resp.headers.ifEmpty { null },
             body = body,
+            bodyEncoding = if (resp.bodyIsBase64) BodyEncoding.BASE64 else null,
         )
     }
 
