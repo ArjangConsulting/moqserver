@@ -748,10 +748,42 @@ class ProjectRepositoryTest {
     fun `failed save leaves existing destination unchanged`() {
         val destination = kotlin.io.path.createTempDirectory("moqproj-transaction").toFile()
         val marker = File(destination, "marker.txt").apply { writeText("original") }
-        val project = projectWithBodyFile("fixtures/missing.json", destination.absolutePath)
+        // bodyFile only, deliberately no inline body: persistEndpoint's copy-from-source branch
+        // is what fails here (the referenced fixture doesn't exist in destination's own
+        // fixtures/, which is also `sourceRoot` for a project not yet loaded from disk), not the
+        // body+body_file mutual-exclusivity rule - that's semantic validation, and now lives in
+        // moq-format, reached asynchronously and gating Save in the UI before this method is ever
+        // called (see requireValid's doc comment).
+        val project = MoqProject(
+            manifest = ProjectManifest(
+                name = "Transaction Test",
+                defaults = ProjectDefaults(
+                    auth = ProjectAuthConfig(type = AuthType.NONE, verify = false),
+                    network = NetworkBehavior(),
+                ),
+            ),
+            endpoints = listOf(
+                EndpointDocument(
+                    id = "get-items",
+                    method = "GET",
+                    path = "/api/items",
+                    variants = listOf(
+                        ProjectVariant(
+                            name = "success", isDefault = true, status = 200,
+                            body = YamlValue.Str("ok"), bodyFile = null,
+                        ),
+                        ProjectVariant(
+                            name = "missing", status = 200,
+                            body = null, bodyFile = "fixtures/missing.json",
+                        ),
+                    ),
+                ),
+            ),
+            projectPath = destination.absolutePath,
+        )
 
         try {
-            assertFailsWith<IllegalArgumentException> { repo.save(project, destination.absolutePath) }
+            assertFailsWith<IllegalStateException> { repo.save(project, destination.absolutePath) }
             assertEquals("original", marker.readText())
             assertFalse(File(destination, MoqProjectFormat.MANIFEST_FILE).exists())
         } finally {
@@ -917,7 +949,9 @@ class ProjectRepositoryTest {
 		val escaped = File(tempDir.parentFile, "moqproj-escaped-${'$'}{tempDir.name}.txt")
 		try {
 			val project = projectWithBodyFile("../${'$'}{escaped.name}", tempDir.absolutePath)
-			assertFailsWith<IllegalArgumentException> {
+			// persistEndpoint's own path-containment guard (error(...)) catches this now; see the
+			// comment on `failed save leaves existing destination unchanged`.
+			assertFailsWith<IllegalStateException> {
 				repo.save(project, tempDir.absolutePath)
 			}
 			assertFalse(escaped.exists())
@@ -933,7 +967,7 @@ class ProjectRepositoryTest {
 		val escaped = File(tempDir.parentFile, "moqproj-dotdot-${'$'}{tempDir.name}.txt")
 		try {
 			val project = projectWithBodyFile("fixtures/../../${'$'}{escaped.name}", tempDir.absolutePath)
-			assertFailsWith<IllegalArgumentException> {
+			assertFailsWith<IllegalStateException> {
 				repo.save(project, tempDir.absolutePath)
 			}
 			assertFalse(escaped.exists())

@@ -4,16 +4,22 @@ import androidx.lifecycle.ViewModel
 import com.moqserver.studio.projectformat.EndpointDocument
 import com.moqserver.studio.projectformat.MoqProject
 import com.moqserver.studio.projectformat.ProjectManifest
-import com.moqserver.studio.projectformat.ProjectValidator
 import com.moqserver.studio.projectformat.ProjectVariant
 import com.moqserver.studio.projectformat.ValidationDiagnostic
 import com.moqserver.studio.projectformat.YamlValue
 import com.moqserver.studio.projectformat.suggestedVariantName
 import com.moqserver.studio.projectformat.suggestedVariantReferenceName
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.launch
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.TimeSource
 
@@ -23,8 +29,15 @@ private data class HistoryEntry(
     val selectedEndpointId: String?,
 )
 
+/**
+ * @param validate Runs full project validation. Defaults to producing no diagnostics — the
+ *   production composition root (`Main.kt`, JVM-only) supplies the real implementation backed by
+ *   `format.RemoteProjectValidator`, since that type lives in `studio-project-format`'s jvmMain
+ *   and can't be referenced from this commonMain class directly. Tests get the harmless default
+ *   for free rather than needing a live `moq-format` process.
+ */
 class StudioRootViewModel(
-    private val validator: ProjectValidator = ProjectValidator(),
+    private val validate: suspend (MoqProject) -> List<ValidationDiagnostic> = { emptyList() },
 ) : ViewModel() {
     private val _state = MutableStateFlow(StudioState())
     val state: StateFlow<StudioState> = _state.asStateFlow()
@@ -32,6 +45,18 @@ class StudioRootViewModel(
     private val undoStack = ArrayDeque<HistoryEntry>()
     private val redoStack = ArrayDeque<HistoryEntry>()
     private var lastContinuousEditMark: TimeSource.Monotonic.ValueTimeMark? = null
+    private var validationJob: Job? = null
+
+    // Deliberately not androidx.lifecycle's `viewModelScope`: it launches on `Dispatchers.Main`,
+    // which requires a Main-dispatcher implementation (coroutines-swing in the packaged desktop
+    // app) to even be present on the classpath. This module's unit tests don't pull that in and
+    // shouldn't have to just to construct a ViewModel — `_state` is a `StateFlow`, safe to update
+    // from any dispatcher, and Compose's `collectAsState()` handles the cross-thread hop itself.
+    private val validationScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+
+    override fun onCleared() {
+        validationScope.cancel()
+    }
 
     private fun resetContinuousHistoryWindow() {
         lastContinuousEditMark = null
@@ -79,12 +104,12 @@ class StudioRootViewModel(
                 project = restored,
                 selectedEndpointId = entry.selectedEndpointId,
                 isDirty = restored != it.originalProject,
-                diagnostics = revalidate(restored),
                 transientDiagnostic = null,
                 canUndo = undoStack.isNotEmpty(),
                 canRedo = true,
             )
         }
+        scheduleRevalidate(restored)
     }
 
     fun redo() {
@@ -99,12 +124,12 @@ class StudioRootViewModel(
                 project = restored,
                 selectedEndpointId = entry.selectedEndpointId,
                 isDirty = restored != it.originalProject,
-                diagnostics = revalidate(restored),
                 transientDiagnostic = null,
                 canUndo = true,
                 canRedo = redoStack.isNotEmpty(),
             )
         }
+        scheduleRevalidate(restored)
     }
 
     private fun duplicateDefaultVariantDiagnostic(
@@ -141,8 +166,34 @@ class StudioRootViewModel(
         )
     }
 
-    private fun revalidate(project: MoqProject?): List<ValidationDiagnostic> {
-        return if (project != null) validator.validate(project) else emptyList()
+    /**
+     * Revalidation is asynchronous — `moq-format` is a subprocess round trip, not a local
+     * function call — so callers apply their own state change synchronously (project, dirty,
+     * etc.) and then call this to schedule diagnostics arriving later. A superseded validation
+     * (the user typed again before the previous one returned) is cancelled outright rather than
+     * left to race: `_state.update` also checks `it.project == project` so a slow response that
+     * wins the cancellation race still can't overwrite newer diagnostics.
+     */
+    private fun scheduleRevalidate(project: MoqProject?) {
+        validationJob?.cancel()
+        if (project == null) {
+            _state.update { it.copy(diagnostics = emptyList()) }
+            return
+        }
+        validationJob = validationScope.launch {
+            val diagnostics = try {
+                validate(project)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                listOf(
+                    ValidationDiagnostic(
+                        severity = ValidationDiagnostic.Severity.ERROR,
+                        message = "Validation is unavailable: ${e.message ?: e::class.simpleName}",
+                    ))
+            }
+            _state.update { if (it.project == project) it.copy(diagnostics = diagnostics) else it }
+        }
     }
 
     fun projectLoaded(project: MoqProject) {
@@ -158,11 +209,11 @@ class StudioRootViewModel(
                 statusLine = "Project loaded",
                 transientDiagnostic = null,
                 selectedEndpointId = project.endpoints.firstOrNull()?.id,
-                diagnostics = revalidate(project),
                 canUndo = false,
                 canRedo = false,
             )
         }
+        scheduleRevalidate(project)
     }
 
     fun updateManifest(manifest: ProjectManifest) {
@@ -174,10 +225,10 @@ class StudioRootViewModel(
             it.copy(
                 project = updated,
                 isDirty = true,
-                diagnostics = revalidate(updated),
                 transientDiagnostic = null,
             )
         }
+        scheduleRevalidate(updated)
     }
 
     fun updateEndpoint(endpoint: EndpointDocument) {
@@ -202,10 +253,10 @@ class StudioRootViewModel(
             it.copy(
                 project = updated,
                 isDirty = true,
-                diagnostics = revalidate(updated),
                 transientDiagnostic = null,
             )
         }
+        scheduleRevalidate(updated)
     }
 
     fun addEndpoint(endpoint: EndpointDocument) {
@@ -218,9 +269,9 @@ class StudioRootViewModel(
                 isDirty = true,
                 transientDiagnostic = null,
                 selectedEndpointId = endpoint.id,
-                diagnostics = revalidate(updated),
             )
         }
+        scheduleRevalidate(updated)
     }
 
     fun removeEndpoint(endpointId: String) {
@@ -237,9 +288,9 @@ class StudioRootViewModel(
                     it.selectedEndpointId
                 },
                 transientDiagnostic = null,
-                diagnostics = revalidate(updated),
             )
         }
+        scheduleRevalidate(updated)
     }
 
     fun selectEndpoint(endpointId: String?, variantName: String? = null) {
@@ -263,6 +314,7 @@ class StudioRootViewModel(
         resetContinuousHistoryWindow()
         undoStack.clear()
         redoStack.clear()
+        validationJob?.cancel()
         _state.update {
             StudioState(
                 statusLine = "Project closed. Open a .moqproj directory to get started.",
@@ -647,9 +699,9 @@ class StudioRootViewModel(
                 statusLine = "Imported ${acceptedEntries.size} endpoints from ${importState.sourceFileName}",
                 transientDiagnostic = null,
                 selectedEndpointId = project.endpoints.firstOrNull()?.id,
-                diagnostics = revalidate(project),
             )
         }
+        scheduleRevalidate(project)
 
         return project
     }
