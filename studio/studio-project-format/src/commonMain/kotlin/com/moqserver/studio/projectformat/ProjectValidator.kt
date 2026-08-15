@@ -24,9 +24,14 @@ data class ValidationDiagnostic(
 class ProjectValidator(
     private val fixtureExists: (projectPath: String, bodyFile: String) -> Boolean = { _, _ -> true },
 ) {
-    private val reservedPaths = setOf("/health", "/__admin/endpoints")
     private val validMethods = setOf("GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS")
     private val idPattern = Regex("^[a-z0-9][a-z0-9-]*$")
+
+    // Kept in sync by hand with the Swift implementation
+    // (server/Sources/MoqFormat/ProjectValidator.swift:isReservedPath) until MoqFormatRules lands.
+    private fun isReservedPath(path: String): Boolean =
+        path == "/health" || path == "/_admin" || path.startsWith("/_admin/") ||
+            path == "/_auth" || path.startsWith("/_auth/")
 
     fun validate(project: MoqProject): List<ValidationDiagnostic> {
         val diagnostics = mutableListOf<ValidationDiagnostic>()
@@ -113,7 +118,7 @@ class ProjectValidator(
                 }
             }
 
-            if (endpoint.path in reservedPaths) {
+            if (isReservedPath(endpoint.path)) {
                 diagnostics += ValidationDiagnostic(
                     severity = ValidationDiagnostic.Severity.ERROR,
                     message = "Path \"${endpoint.path}\" is reserved and cannot be used by mock endpoints.",

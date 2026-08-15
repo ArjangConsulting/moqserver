@@ -117,10 +117,50 @@ class ProjectValidatorDeepTest {
 	fun `rejects admin reserved path`() {
 		val diagnostics = validator.validate(
 			projectWithEndpoints(
-				endpoint(path = "/__admin/endpoints"),
+				endpoint(path = "/_admin"),
 			),
 		)
 		assertTrue(diagnostics.any { "reserved" in it.message })
+	}
+
+	@Test
+	fun `rejects admin reserved path prefix`() {
+		val diagnostics = validator.validate(
+			projectWithEndpoints(
+				endpoint(path = "/_admin/endpoints"),
+			),
+		)
+		assertTrue(diagnostics.any { "reserved" in it.message })
+	}
+
+	@Test
+	fun `rejects auth reserved path`() {
+		val diagnostics = validator.validate(
+			projectWithEndpoints(
+				endpoint(path = "/_auth"),
+			),
+		)
+		assertTrue(diagnostics.any { "reserved" in it.message })
+	}
+
+	@Test
+	fun `rejects auth reserved path prefix`() {
+		val diagnostics = validator.validate(
+			projectWithEndpoints(
+				endpoint(path = "/_auth/token"),
+			),
+		)
+		assertTrue(diagnostics.any { "reserved" in it.message })
+	}
+
+	@Test
+	fun `does not reject the previously-reserved double-underscore admin path`() {
+		val diagnostics = validator.validate(
+			projectWithEndpoints(
+				endpoint(path = "/__admin/endpoints"),
+			),
+		)
+		assertTrue(diagnostics.none { "reserved" in it.message })
 	}
 
 	// ── Path validation ─────────────────────────────────────────────

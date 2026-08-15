@@ -1,5 +1,5 @@
 /// Match behavior for request validation rules.
-public enum MatchType: String, Codable, Sendable, Equatable {
+public enum MatchType: String, Codable, Sendable, Equatable, CaseIterable {
     case require = "require"
     case equalTo = "equal_to"
     case notEqualTo = "not_equal_to"
