@@ -4,6 +4,8 @@ public struct ProjectVariant: Codable, Sendable, Equatable {
     public let name: String
     /// Stable code-friendly identifier used by Studio and automation.
     public let referenceName: String
+    /// Optional human-readable description.
+    public let description: String?
     /// Whether this is the default variant.
     public let isDefault: Bool?
     /// HTTP status code.
@@ -22,6 +24,7 @@ public struct ProjectVariant: Codable, Sendable, Equatable {
     public init(
         name: String,
         referenceName: String? = nil,
+        description: String? = nil,
         isDefault: Bool? = nil,
         status: Int,
         headers: [String: String]? = nil,
@@ -35,6 +38,7 @@ public struct ProjectVariant: Codable, Sendable, Equatable {
         self.referenceName =
             normalizedReferenceName.flatMap { $0.isEmpty ? nil : $0 }
             ?? defaultReferenceNameForVariantName(name)
+        self.description = description
         self.isDefault = isDefault
         self.status = status
         self.headers = headers
@@ -47,6 +51,7 @@ public struct ProjectVariant: Codable, Sendable, Equatable {
     enum CodingKeys: String, CodingKey {
         case name
         case referenceName = "reference_name"
+        case description
         case isDefault = "default"
         case status, headers, body, requestMatch = "request_match"
         case bodyFile = "body_file"
@@ -67,6 +72,7 @@ public struct ProjectVariant: Codable, Sendable, Equatable {
         self.init(
             name: name,
             referenceName: try container.decodeIfPresent(String.self, forKey: .referenceName),
+            description: try container.decodeIfPresent(String.self, forKey: .description),
             isDefault: try container.decodeIfPresent(Bool.self, forKey: .isDefault),
             status: try container.decode(Int.self, forKey: .status),
             headers: try container.decodeIfPresent([String: String].self, forKey: .headers),
