@@ -108,7 +108,9 @@ public enum ProjectToRuntimeConverter {
             }
             body = try Data(contentsOf: fixtureURL)
         } else if let bodyValue = variant.body {
-            body = bodyValue.toJSONData(prettyPrinted: false)
+            // Shared with fixture materialization in ProjectStore — see InlineBody. Responses on
+            // the wire are compact; fixtures on disk are pretty-printed.
+            body = try InlineBody.resolve(bodyValue, encoding: variant.bodyEncoding, prettyPrintStructured: false).data
         } else {
             body = nil
         }

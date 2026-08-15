@@ -221,6 +221,11 @@
           "$ref": "#/$defs/requestMatch"
         },
         "body": {},
+        "body_encoding": {
+          "$comment": "How the inline body string is written in the document. Orthogonal to Content-Type, which says what the bytes mean and stays an open IANA registry. Only valid alongside a string 'body'; never with 'body_file', whose bytes are already final on disk.",
+          "enum": ["utf8", "base64"],
+          "default": "utf8"
+        },
         "body_file": {
           "type": "string",
           "pattern": "^fixtures/.+"

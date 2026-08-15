@@ -358,15 +358,19 @@ public actor ProjectStore {
         var pendingWrites: [(relativePath: String, data: Data)] = []
         var referencedExistingFixtures: Set<String> = []
 
-        let newEndpoints = project.endpoints.map { endpoint -> EndpointDocument in
-            let newVariants = endpoint.variants.map { variant -> ProjectVariant in
+        let newEndpoints = try project.endpoints.map { endpoint -> EndpointDocument in
+            let newVariants = try endpoint.variants.map { variant -> ProjectVariant in
                 if let bodyFile = variant.bodyFile {
                     referencedExistingFixtures.insert(bodyFile)
                     return variant
                 }
                 guard let body = variant.body else { return variant }
 
-                let (data, ext) = Self.fixtureBytes(for: body)
+                let contentType = variant.headers?.first {
+                    $0.key.caseInsensitiveCompare("Content-Type") == .orderedSame
+                }?.value
+                let (data, ext) = try Self.fixtureBytes(
+                    for: body, encoding: variant.bodyEncoding, contentType: contentType)
                 let base =
                     "fixtures/responses/\(endpoint.id)/\(Self.sanitizeFixtureSegment(endpoint.path))-\(Self.sanitizeFixtureSegment(variant.name))"
                 var candidate = "\(base).\(ext)"
@@ -386,6 +390,7 @@ public actor ProjectStore {
                     headers: variant.headers,
                     requestMatch: variant.requestMatch,
                     body: nil,
+                    bodyEncoding: nil,
                     bodyFile: candidate,
                     delayMs: variant.delayMs
                 )
@@ -423,11 +428,16 @@ public actor ProjectStore {
         return persistedProject
     }
 
-    private static func fixtureBytes(for body: AnyCodableValue) -> (data: Data, ext: String) {
-        if case .string(let text) = body {
-            return (Data(text.utf8), "txt")
-        }
-        return (body.toJSONData(prettyPrinted: true) ?? Data("null".utf8), "json")
+    /// Shared with runtime conversion in `ProjectToRuntimeConverter` — see `InlineBody`.
+    /// Fixtures are pretty-printed so they diff well; responses on the wire are compact.
+    private static func fixtureBytes(
+        for body: AnyCodableValue,
+        encoding: BodyEncoding?,
+        contentType: String?
+    ) throws -> (data: Data, ext: String) {
+        let resolved = try InlineBody.resolve(
+            body, encoding: encoding, contentType: contentType, prettyPrintStructured: true)
+        return (resolved.data, resolved.fileExtension)
     }
 
     private static func sanitizeFixtureSegment(_ value: String) -> String {

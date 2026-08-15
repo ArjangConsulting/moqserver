@@ -232,6 +232,11 @@ public struct ProjectWriter: ProjectWriting {
                     lines.append("\(pad)    \(bodyLine)")
                 }
             }
+            // Emitted after `body` so the encoding reads as an annotation on it. Omitted when
+            // `.utf8`, which is the schema default — writing it out would be noise.
+            if let encoding = variant.bodyEncoding, encoding != .utf8 {
+                lines.append("\(pad)  body_encoding: \(encoding.rawValue)")
+            }
         }
 
         if let delayMs = variant.delayMs {
