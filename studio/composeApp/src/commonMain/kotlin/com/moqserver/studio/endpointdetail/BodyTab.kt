@@ -23,7 +23,6 @@ import com.moqserver.studio.designsystem.StudioDimens
 import com.moqserver.studio.designsystem.toAwtColor
 import com.moqserver.studio.editor.JsonCodeEditor
 import com.moqserver.studio.projectformat.ProjectVariant
-import com.moqserver.studio.projectformat.YamlValue
 import com.moqserver.studio.ui.*
 
 private object BodyTabStrings {
@@ -421,10 +420,16 @@ private fun BodyTabActions(
 		verticalAlignment = Alignment.CenterVertically,
 	) {
 		if (isEditing && isJsonBody) {
-			OutlinedButton(onClick = onValidateJson, contentPadding = PaddingValues(horizontal = StudioDimens.l, vertical = StudioDimens.m)) {
+			OutlinedButton(
+                onClick = onValidateJson,
+                contentPadding = PaddingValues(horizontal = StudioDimens.l, vertical = StudioDimens.m),
+            ) {
 				Text(BodyTabStrings.VALIDATE_JSON)
 			}
-			FilledTonalButton(onClick = onFormatJson, contentPadding = PaddingValues(horizontal = StudioDimens.l, vertical = StudioDimens.m)) {
+			FilledTonalButton(
+                onClick = onFormatJson,
+                contentPadding = PaddingValues(horizontal = StudioDimens.l, vertical = StudioDimens.m),
+            ) {
 				Text(BodyTabStrings.FORMAT_JSON)
 			}
 		}

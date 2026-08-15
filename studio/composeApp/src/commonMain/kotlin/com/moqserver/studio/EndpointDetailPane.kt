@@ -71,7 +71,9 @@ fun EndpointDetailPane(
             onDismissRequest = { showDeleteConfirm = false },
             title = { Text(EndpointDetailStrings.DELETE_ENDPOINT_TITLE) },
             text = {
-                Text("Delete \"${endpoint.displayAlias}\" (${endpoint.method} ${endpoint.path})? This cannot be undone.")
+                Text(
+                    "Delete \"${endpoint.displayAlias}\" (${endpoint.method} ${endpoint.path})? This cannot be undone.",
+                )
             },
             confirmButton = {
                 TextButton(

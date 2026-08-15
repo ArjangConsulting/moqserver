@@ -57,14 +57,20 @@ internal fun yamlValueToJsonString(value: YamlValue, indent: Int = 0): String {
 		is YamlValue.Double -> "${value.value}"
 		is YamlValue.Str -> "\"${value.value.replace("\\", "\\\\").replace("\"", "\\\"")}\""
 		is YamlValue.Array -> {
-			if (value.value.isEmpty()) "[]"
-			else "[\n${value.value.joinToString(",\n") { "$childPad${yamlValueToJsonString(it, indent + 2)}" }}\n$pad]"
+			if (value.value.isEmpty()) {
+			    "[]"
+			} else {
+			    "[\n${value.value.joinToString(",\n") { "$childPad${yamlValueToJsonString(it, indent + 2)}" }}\n$pad]"
+			}
 		}
 		is YamlValue.Obj -> {
-			if (value.value.isEmpty()) "{}"
-			else "{\n${value.value.entries.joinToString(",\n") { (k, v) ->
+			if (value.value.isEmpty()) {
+			    "{}"
+			} else {
+			    "{\n${value.value.entries.joinToString(",\n") { (k, v) ->
 				"$childPad\"${k.replace("\"", "\\\"")}\": ${yamlValueToJsonString(v, indent + 2)}"
 			}}\n$pad}"
+			}
 		}
 	}
 }

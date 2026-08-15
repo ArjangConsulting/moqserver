@@ -209,9 +209,11 @@ private fun HeaderRow(
 				}
 				val updatedHeaders = entries.associate { it.key to it.value }
 				val updatedRules = if (isRequired) {
-					requestRules.copy(headers = headerCriteria.map {
+					requestRules.copy(
+					    headers = headerCriteria.map {
 						if (it.name.equals(key, ignoreCase = true)) it.copy(name = newKey) else it
-					})
+					},
+					)
 				} else {
 					requestRules
 				}

@@ -47,6 +47,7 @@ object FormatBinaryLocator {
 
         throw NotFoundException(
             "Could not locate the moq-format binary. Set MOQSERVER_FORMAT_BINARY, or ensure it is bundled with " +
-                "this build or present on PATH.")
+                "this build or present on PATH.",
+        )
     }
 }

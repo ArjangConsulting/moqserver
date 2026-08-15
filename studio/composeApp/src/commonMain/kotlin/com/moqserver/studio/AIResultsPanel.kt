@@ -19,7 +19,6 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -226,7 +225,10 @@ private fun GeneratedVariantCard(
     onAccept: (GeneratedVariant) -> Unit,
 ) {
     Card(modifier = Modifier.fillMaxWidth()) {
-        Column(modifier = Modifier.padding(StudioDimens.l), verticalArrangement = Arrangement.spacedBy(StudioDimens.m)) {
+        Column(
+            modifier = Modifier.padding(StudioDimens.l),
+            verticalArrangement = Arrangement.spacedBy(StudioDimens.m),
+        ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -276,7 +278,10 @@ private fun RefineResultView(
     Text("${suggestions.size} suggestion(s)", style = MaterialTheme.typography.bodySmall)
     suggestions.forEach { suggestion ->
         Card(modifier = Modifier.fillMaxWidth()) {
-            Column(modifier = Modifier.padding(StudioDimens.l), verticalArrangement = Arrangement.spacedBy(StudioDimens.s)) {
+            Column(
+                modifier = Modifier.padding(StudioDimens.l),
+                verticalArrangement = Arrangement.spacedBy(StudioDimens.s),
+            ) {
                 Row(horizontalArrangement = Arrangement.spacedBy(StudioDimens.m)) {
                     Text(
                         text = suggestion.category,

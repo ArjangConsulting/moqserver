@@ -190,7 +190,8 @@ class StudioRootViewModel(
                     ValidationDiagnostic(
                         severity = ValidationDiagnostic.Severity.ERROR,
                         message = "Validation is unavailable: ${e.message ?: e::class.simpleName}",
-                    ))
+                    ),
+                )
             }
             _state.update { if (it.project == project) it.copy(diagnostics = diagnostics) else it }
         }
@@ -247,7 +248,7 @@ class StudioRootViewModel(
         }
         recordHistory(isContinuousEdit = true)
         val updated = current.copy(
-            endpoints = current.endpoints.map { if (it.id == endpoint.id) endpoint else it }
+            endpoints = current.endpoints.map { if (it.id == endpoint.id) endpoint else it },
         )
         _state.update {
             it.copy(

@@ -13,6 +13,13 @@ import java.nio.charset.StandardCharsets
 object ContentLengthFraming {
     /** Reads one framed message, or returns null at clean EOF between messages. */
     fun readMessage(input: BufferedInputStream): ByteArray? {
+        val headerText = readHeader(input) ?: return null
+        val contentLength = parseContentLength(headerText)
+        return readBody(input, contentLength)
+    }
+
+    /** Reads up to and including the blank line ending the header block, or null at clean EOF. */
+    private fun readHeader(input: BufferedInputStream): String? {
         val headerBytes = java.io.ByteArrayOutputStream()
         while (true) {
             val byte = input.read()
@@ -21,27 +28,29 @@ object ContentLengthFraming {
                 throw EOFException("Stream closed mid-header")
             }
             headerBytes.write(byte)
-            val bytes = headerBytes.toByteArray()
-            val n = bytes.size
-            if (n >= 4 && bytes[n - 4] == 0x0D.toByte() && bytes[n - 3] == 0x0A.toByte() &&
-                bytes[n - 2] == 0x0D.toByte() && bytes[n - 1] == 0x0A.toByte()
-            ) {
-                break
+            if (headerBytes.toByteArray().endsWithBlankLine()) break
+        }
+        return String(headerBytes.toByteArray(), StandardCharsets.UTF_8)
+    }
+
+    private val blankLineTerminator = byteArrayOf(0x0D, 0x0A, 0x0D, 0x0A)
+
+    private fun ByteArray.endsWithBlankLine(): Boolean =
+        size >= blankLineTerminator.size &&
+            copyOfRange(size - blankLineTerminator.size, size).contentEquals(blankLineTerminator)
+
+    private fun parseContentLength(headerText: String): Int = headerText.split("\r\n")
+        .mapNotNull { line ->
+            val parts = line.split(":", limit = 2)
+            if (parts.size == 2 && parts[0].trim().equals("Content-Length", ignoreCase = true)) {
+                parts[1].trim().toIntOrNull()
+            } else {
+                null
             }
         }
+        .firstOrNull() ?: error("Missing Content-Length header")
 
-        val headerText = String(headerBytes.toByteArray(), StandardCharsets.UTF_8)
-        val contentLength = headerText.split("\r\n")
-            .mapNotNull { line ->
-                val parts = line.split(":", limit = 2)
-                if (parts.size == 2 && parts[0].trim().equals("Content-Length", ignoreCase = true)) {
-                    parts[1].trim().toIntOrNull()
-                } else {
-                    null
-                }
-            }
-            .firstOrNull() ?: throw IllegalStateException("Missing Content-Length header")
-
+    private fun readBody(input: BufferedInputStream, contentLength: Int): ByteArray {
         val body = ByteArray(contentLength)
         var read = 0
         while (read < contentLength) {

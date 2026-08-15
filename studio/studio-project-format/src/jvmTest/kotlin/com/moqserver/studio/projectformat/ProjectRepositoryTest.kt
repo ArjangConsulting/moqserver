@@ -4,11 +4,11 @@ import com.moqserver.studio.projectformat.format.FormatBinaryLocator
 import com.moqserver.studio.projectformat.format.FormatClient
 import com.moqserver.studio.projectformat.format.FormatProcess
 import com.moqserver.studio.projectformat.format.FormatServiceException
+import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeout
 import java.io.File
 import java.util.Base64
 import java.util.UUID
-import kotlinx.coroutines.runBlocking
-import kotlinx.coroutines.withTimeout
 import kotlin.test.AfterTest
 import kotlin.test.BeforeTest
 import kotlin.test.Test
@@ -167,7 +167,9 @@ class ProjectRepositoryTest {
                 manifest = manifest("SaveAs"),
                 endpoints = listOf(
                     EndpointDocument(
-                        id = "get-a", method = "GET", path = "/a",
+                        id = "get-a",
+                        method = "GET",
+                        path = "/a",
                         variants = listOf(
                             ProjectVariant(name = "default", status = 200, body = YamlValue.Str("hello")),
                         ),
@@ -198,16 +200,21 @@ class ProjectRepositoryTest {
                 manifest = manifest("BodyEncoding"),
                 endpoints = listOf(
                     EndpointDocument(
-                        id = "get-text", method = "GET", path = "/text",
+                        id = "get-text",
+                        method = "GET",
+                        path = "/text",
                         variants = listOf(
                             ProjectVariant(name = "default", status = 200, body = YamlValue.Str("plain text")),
                         ),
                     ),
                     EndpointDocument(
-                        id = "get-binary", method = "GET", path = "/binary",
+                        id = "get-binary",
+                        method = "GET",
+                        path = "/binary",
                         variants = listOf(
                             ProjectVariant(
-                                name = "default", status = 200,
+                                name = "default",
+                                status = 200,
                                 headers = mapOf("Content-Type" to "image/png"),
                                 body = YamlValue.Str(Base64.getEncoder().encodeToString(raw)),
                                 bodyEncoding = BodyEncoding.BASE64,
@@ -269,11 +276,16 @@ class ProjectRepositoryTest {
 
     private fun manifest(name: String) = ProjectManifest(
         name = name,
-        defaults = ProjectDefaults(auth = ProjectAuthConfig(type = AuthType.NONE, verify = false), network = NetworkBehavior()),
+        defaults = ProjectDefaults(
+            auth = ProjectAuthConfig(type = AuthType.NONE, verify = false),
+            network = NetworkBehavior(),
+        ),
     )
 
     private fun endpoint(id: String, path: String) = EndpointDocument(
-        id = id, method = "GET", path = path,
+        id = id,
+        method = "GET",
+        path = path,
         variants = listOf(ProjectVariant(name = "default", status = 200)),
     )
 }

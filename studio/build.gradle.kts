@@ -42,7 +42,15 @@ subprojects {
 	}
 
 	tasks.withType<io.gitlab.arturbosch.detekt.Detekt>().configureEach {
-		exclude("**/generated/**")
+		// "**/generated/**" doesn't match here: the KMP-registered source root for generated code
+		// (e.g. studio-project-format's ProjectModels.generated.kt) already starts below the
+		// "generated" directory, so detekt only ever sees paths relative to that root and never
+		// sees the "generated" segment itself. Match the file's own naming convention instead.
+		exclude("**/generated/**", "**/*.generated.kt")
+		// detekt 1.23.8's --jvm-target parser predates JDK 25 (the toolchain pinned above via
+		// jdkVersion) and rejects it outright; detekt's own JVM target is independent of the
+		// Kotlin compilation toolchain, so pin it to the highest value the parser accepts.
+		jvmTarget = "22"
 	}
 
 	dependencies {

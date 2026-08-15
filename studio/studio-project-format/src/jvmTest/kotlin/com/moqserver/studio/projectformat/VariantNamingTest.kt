@@ -60,8 +60,14 @@ class VariantNamingTest {
 
     @Test
     fun `builds code friendly reference names`() {
-        assertEquals("getUserProfile", suggestedEndpointReferenceName("Get User Profile", fallbackId = "get-user-profile"))
+        assertEquals(
+            "getUserProfile",
+            suggestedEndpointReferenceName("Get User Profile", fallbackId = "get-user-profile"),
+        )
         assertEquals("serverError", suggestedVariantReferenceName("Server Error", status = 500))
-        assertEquals("serverError2", suggestedVariantReferenceName("Server Error", status = 500, existingNames = listOf("serverError")))
+        assertEquals(
+            "serverError2",
+            suggestedVariantReferenceName("Server Error", status = 500, existingNames = listOf("serverError")),
+        )
     }
 }

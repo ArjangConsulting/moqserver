@@ -3,9 +3,9 @@ package com.moqserver.studio.projectformat
 import com.moqserver.studio.projectformat.format.FormatBinaryLocator
 import com.moqserver.studio.projectformat.format.FormatClient
 import com.moqserver.studio.projectformat.format.FormatProcess
-import java.io.File
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
+import java.io.File
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue

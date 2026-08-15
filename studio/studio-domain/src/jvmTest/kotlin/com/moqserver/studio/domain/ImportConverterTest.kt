@@ -178,7 +178,7 @@ class ImportConverterTest {
                             match = "abc123",
                             required = true,
                             matchType = MatchType.EQUAL_TO,
-                        )
+                        ),
                     ),
                     responses = listOf(
                         ParsedResponse(name = "default", statusCode = 200, body = "{}"),

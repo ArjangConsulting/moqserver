@@ -61,7 +61,10 @@ class FormatClientIntegrationTest {
 
     private fun manifest(name: String = "Integration") = ProjectManifest(
         name = name,
-        defaults = ProjectDefaults(auth = ProjectAuthConfig(type = com.moqserver.studio.projectformat.AuthType.NONE, verify = false), network = NetworkBehavior()),
+        defaults = ProjectDefaults(
+            auth = ProjectAuthConfig(type = com.moqserver.studio.projectformat.AuthType.NONE, verify = false),
+            network = NetworkBehavior(),
+        ),
     )
 
     private fun tempPath(label: String) =
@@ -100,7 +103,8 @@ class FormatClientIntegrationTest {
             assertTrue(beforeVariant.diagnostics.any { it.code == "E_NO_VARIANTS" })
 
             client.upsertVariant(
-                handle, "get-a",
+                handle,
+                "get-a",
                 com.moqserver.studio.projectformat.ProjectVariant(name = "default", status = 200),
                 autosave = false,
             )
@@ -124,7 +128,11 @@ class FormatClientIntegrationTest {
         try {
             val handle = client.openSession()
             client.createProject(handle, name = "Guard", description = null, path = originalPath)
-            client.upsertEndpoint(handle, EndpointUpsertInput(id = "get-a", method = "GET", path = "/a"), autosave = false)
+            client.upsertEndpoint(
+                handle,
+                EndpointUpsertInput(id = "get-a", method = "GET", path = "/a"),
+                autosave = false,
+            )
 
             val otherHandle = client.openSession()
             client.createProject(otherHandle, name = "Other", description = null, path = otherPath)
@@ -172,14 +180,18 @@ class FormatClientIntegrationTest {
                 ),
                 endpoints = listOf(
                     EndpointDocument(
-                        id = "get-a", method = "GET", path = "/a",
+                        id = "get-a",
+                        method = "GET",
+                        path = "/a",
                         variants = listOf(
                             ProjectVariant(
-                                name = "default", status = 200, body = null,
+                                name = "default",
+                                status = 200,
+                                body = null,
                                 bodyFile = "fixtures/responses/a.json",
-                            )
+                            ),
                         ),
-                    )
+                    ),
                 ),
                 projectPath = "/tmp/regression-body-and-body-file",
             )

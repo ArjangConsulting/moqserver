@@ -4,7 +4,6 @@ import com.moqserver.studio.projectformat.MatchType
 import com.moqserver.studio.projectformat.ProjectVariant
 import com.moqserver.studio.projectformat.RequestRules
 import com.moqserver.studio.projectformat.VariantRequestMatch
-import com.moqserver.studio.projectformat.YamlValue
 import kotlinx.serialization.json.*
 
 /** Column widths shared across headers and cookies tables. */
