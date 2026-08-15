@@ -302,27 +302,10 @@ public struct MoqService: Sendable {
         let session = try await session(handle)
         let store = try await session.currentStore()
 
-        let content: String
-        if input.source.hasPrefix("http://") || input.source.hasPrefix("https://") {
-            guard allowNetworkImport else {
-                throw MoqServiceError.networkImportDisabled
-            }
-            do {
-                let fetched = try await SpecFetcher.fetchSpec(from: input.source, auth: input.auth?.resolved)
-                content = fetched.content
-            } catch {
-                throw MoqServiceError.importFetchFailed("\(error)")
-            }
-        } else {
-            guard let fileContent = try? String(contentsOfFile: input.source, encoding: .utf8) else {
-                throw MoqServiceError.importReadFailed(input.source)
-            }
-            content = fileContent
-        }
-
+        let resolved = try await resolveOpenAPISource(input.source, auth: input.auth?.resolved)
         let spec: ParsedSpec
         do {
-            spec = try OpenAPIImporter.parse(content)
+            spec = try OpenAPIImporter.parse(resolved.content)
         } catch {
             throw MoqServiceError.importParseFailed("\(error)")
         }
@@ -330,6 +313,74 @@ public struct MoqService: Sendable {
         let summary = try await applyImport(spec, common: common, store: store)
         try await session.recordMutation(autosave: autosave)
         return summary
+    }
+
+    // MARK: - Parse only
+
+    /// Parses a HAR file into a [ParsedSpec] without merging it into any project or touching
+    /// disk beyond reading `path`. The counterpart to [importHAR] for a caller (Studio) that
+    /// wants to hold the parsed result for interactive review — accept/reject entries, generate
+    /// AI content, rename responses — before anything is committed, rather than merge-and-save
+    /// in one call the way an agent-driven MCP session does.
+    public func parseHAR(path: String) throws -> ParsedSpec {
+        guard let content = try? String(contentsOfFile: path, encoding: .utf8) else {
+            throw MoqServiceError.importReadFailed(path)
+        }
+        do {
+            return try HARImporter.parse(content)
+        } catch {
+            throw MoqServiceError.importParseFailed("\(error)")
+        }
+    }
+
+    /// Parses an OpenAPI spec (from a file path or, if `allowNetworkImport` is set, an
+    /// `http(s)://` URL) into a [ParsedSpec], same caveat as [parseHAR] — no merge, no save.
+    /// Returns the resolved source alongside the spec (the URL actually fetched, following
+    /// redirects, or the given path unchanged) so the caller can show the user what was actually
+    /// imported.
+    public func parseOpenAPI(source: String, auth: ImportAuthInput?) async throws -> ParsedOpenAPIResult {
+        let resolved = try await resolveOpenAPISource(source, auth: auth?.resolved)
+        do {
+            let spec = try OpenAPIImporter.parse(resolved.content)
+            return ParsedOpenAPIResult(spec: spec, resolvedSource: resolved.resolvedSource)
+        } catch {
+            throw MoqServiceError.importParseFailed("\(error)")
+        }
+    }
+
+    /// Shared by [importOpenAPI] and [parseOpenAPI]: resolves `source` to spec content, fetching
+    /// it if it's an `http(s)://` URL (subject to `allowNetworkImport` and `SpecFetcher`'s
+    /// SSRF hardening) or reading it as a local file path otherwise.
+    private func resolveOpenAPISource(
+        _ source: String, auth: URLImportAuth?
+    ) async throws -> (content: String, resolvedSource: String) {
+        if source.hasPrefix("http://") || source.hasPrefix("https://") {
+            guard allowNetworkImport else {
+                throw MoqServiceError.networkImportDisabled
+            }
+            do {
+                let fetched = try await SpecFetcher.fetchSpec(from: source, auth: auth)
+                return (fetched.content, fetched.resolvedURL)
+            } catch {
+                throw MoqServiceError.importFetchFailed("\(error)")
+            }
+        }
+        guard let fileContent = try? String(contentsOfFile: source, encoding: .utf8) else {
+            throw MoqServiceError.importReadFailed(source)
+        }
+        return (fileContent, source)
+    }
+}
+
+/// Result of a stateless OpenAPI parse: the parsed spec plus the source it actually came from
+/// (a fetched URL may differ from the input after redirects; a file path is unchanged).
+public struct ParsedOpenAPIResult: Codable, Sendable {
+    public let spec: ParsedSpec
+    public let resolvedSource: String
+
+    enum CodingKeys: String, CodingKey {
+        case spec
+        case resolvedSource = "resolved_source"
     }
 }
 

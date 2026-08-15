@@ -255,6 +255,40 @@ struct ImportConverterTests {
         #expect(ImportConverter.endpointID(method: method, path: path) == expected)
     }
 
+    // MARK: - base64 bodies
+
+    @Test("convert declares body_encoding: base64 for a base64 response, never JSON-parses it")
+    func convertDeclaresBase64Encoding() throws {
+        let raw = Data([0x89, 0x50, 0x4E, 0x47]).base64EncodedString()
+        let spec = ParsedSpec(
+            title: "API", version: "1.0",
+            endpoints: [
+                parsedEndpoint(
+                    responses: [
+                        ParsedResponse(name: "default", statusCode: 200, headers: [:], body: raw, isBase64: true)
+                    ])
+            ])
+        let project = ImportConverter.convert(spec, selection: .all, name: "Test", path: "/tmp/test.moqproj")
+        let variant = try #require(project.endpoints.first?.variants.first)
+        #expect(variant.bodyEncoding == .base64)
+        #expect(variant.body == .string(raw), "the base64 text must survive untouched, never JSON-parsed")
+    }
+
+    @Test("convert leaves body_encoding unset for a non-base64 response")
+    func convertLeavesEncodingUnsetForPlainBody() throws {
+        let spec = ParsedSpec(
+            title: "API", version: "1.0",
+            endpoints: [
+                parsedEndpoint(
+                    responses: [
+                        ParsedResponse(name: "default", statusCode: 200, headers: [:], body: "{\"ok\":true}")
+                    ])
+            ])
+        let project = ImportConverter.convert(spec, selection: .all, name: "Test", path: "/tmp/test.moqproj")
+        let variant = try #require(project.endpoints.first?.variants.first)
+        #expect(variant.bodyEncoding == nil)
+    }
+
     // MARK: - helpers
 
     private func sampleManifest() -> ProjectManifest {

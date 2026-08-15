@@ -176,6 +176,7 @@ public enum HARImporter {
                 statusCode: normalizedStatusCode(response.status),
                 headers: responseHeaders(response),
                 body: sanitizedBody.value,
+                bodyIsBase64: sanitizedBody.isBase64,
                 cookies: extractRequestCookies(request),
                 queryParameters: requestQueryParameters(request, components)
             ),
@@ -212,7 +213,10 @@ public enum HARImporter {
 
         if response.content.encoding?.lowercased() == "base64" {
             guard isLikelyTextualMimeType(response.content.mimeType) else {
-                return SanitizedBody(value: text, redacted: false)
+                // Genuinely binary: keep the base64 as-is and mark it, so the resulting variant
+                // declares body_encoding instead of a downstream writer treating this text as the
+                // literal response body.
+                return SanitizedBody(value: text, redacted: false, isBase64: true)
             }
             guard let decodedData = Data(base64Encoded: text), let decoded = String(data: decodedData, encoding: .utf8)
             else {
@@ -265,7 +269,8 @@ public enum HARImporter {
             if name == defaultVariantName { didAssignDefault = true }
 
             return ParsedResponse(
-                name: name, statusCode: exchange.statusCode, headers: exchange.headers, body: exchange.body)
+                name: name, statusCode: exchange.statusCode, headers: exchange.headers, body: exchange.body,
+                isBase64: exchange.bodyIsBase64)
         }
     }
 
@@ -471,12 +476,20 @@ public enum HARImporter {
     private struct SanitizedBody {
         let value: String?
         let redacted: Bool
+        let isBase64: Bool
+
+        init(value: String?, redacted: Bool, isBase64: Bool = false) {
+            self.value = value
+            self.redacted = redacted
+            self.isBase64 = isBase64
+        }
     }
 
     private struct CapturedExchange {
         let statusCode: Int
         let headers: [String: String]
         let body: String?
+        let bodyIsBase64: Bool
         let cookies: [String: String]
         let queryParameters: [String: String]
     }

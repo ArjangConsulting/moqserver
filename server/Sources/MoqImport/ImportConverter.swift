@@ -206,7 +206,9 @@ public enum ImportConverter {
                 guard let replacementIndex else { return variant }
                 let replacement = candidates.remove(at: replacementIndex)
                 responsesByStatus[variant.status] = candidates
-                let replacementBody = replacement.body.map(parseBody)
+                let replacementBody = replacement.body.map {
+                    replacement.isBase64 ? AnyCodableValue.string($0) : parseBody($0)
+                }
                 return ProjectVariant(
                     name: variant.name,
                     referenceName: variant.referenceName,
@@ -216,6 +218,7 @@ public enum ImportConverter {
                     headers: replacement.headers.isEmpty ? variant.headers : replacement.headers,
                     requestMatch: variant.requestMatch,
                     body: replacementBody,
+                    bodyEncoding: replacementBody != nil && replacement.isBase64 ? .base64 : nil,
                     bodyFile: replacementBody != nil ? nil : variant.bodyFile,
                     delayMs: variant.delayMs
                 )
@@ -290,14 +293,20 @@ public enum ImportConverter {
     private static func convertVariant(
         _ response: ParsedResponse, name: String, referenceName: String, isDefault: Bool
     ) -> ProjectVariant {
-        ProjectVariant(
+        // A base64 body is never JSON-parsed — parseBody would happily "parse" it as a bare
+        // string anyway, but running arbitrary binary through a JSON-parse attempt at all is the
+        // wrong move, and it must keep body_encoding: base64 so InlineBody decodes it back to
+        // bytes rather than treating the base64 text as the literal response body.
+        let body = response.body.map { response.isBase64 ? AnyCodableValue.string($0) : parseBody($0) }
+        return ProjectVariant(
             name: name,
             referenceName: referenceName,
             description: response.description,
             isDefault: isDefault ? true : nil,
             status: response.statusCode,
             headers: response.headers.isEmpty ? nil : response.headers,
-            body: response.body.map(parseBody)
+            body: body,
+            bodyEncoding: response.isBase64 ? .base64 : nil
         )
     }
 

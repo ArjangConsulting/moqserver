@@ -146,6 +146,12 @@ struct Dispatcher {
             return try await service.importOpenAPI(
                 handle: input.handle, input: input.input, common: input.common ?? ImportInputCommon(),
                 autosave: input.autosave ?? true)
+        case "import.parseHar":
+            let input = try decode(ParseHARParams.self, params)
+            return try service.parseHAR(path: input.path)
+        case "import.parseOpenapi":
+            let input = try decode(ImportOpenAPIInput.self, params)
+            return try await service.parseOpenAPI(source: input.source, auth: input.auth)
 
         default:
             throw DispatchError(
@@ -176,6 +182,10 @@ private struct OpenProjectParams: Decodable {
 
 private struct ValidateProjectParams: Decodable {
     let project: MoqProject
+}
+
+private struct ParseHARParams: Decodable {
+    let path: String
 }
 
 private struct WriteProjectParams: Decodable {

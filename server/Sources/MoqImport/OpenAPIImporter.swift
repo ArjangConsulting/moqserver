@@ -111,7 +111,9 @@ public enum OpenAPIImporter {
             queryParameters: requestRules.query,
             requiredQueryParameters: requestRules.requiredQueryParameters,
             requiredHeaders: requestRules.requiredHeaders,
-            cookies: requestRules.cookies
+            cookies: requestRules.cookies,
+            requiresBody: operation.requestBody?.required == true,
+            acceptedContentTypes: operation.requestBody.map { Array($0.content.keys).map(\.rawValue).sorted() } ?? []
         )
     }
 

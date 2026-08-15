@@ -291,4 +291,55 @@ struct HARImporterTests {
             try HARImporter.parse(har)
         }
     }
+
+    /// Regression test: a binary response (base64-encoded, non-textual MIME type) used to be
+    /// returned as plain text with no way to tell the caller it was base64 — ImportConverter then
+    /// ran it through parseBody, which happily treated the base64 as a literal string and built a
+    /// variant with no body_encoding. InlineBody.resolve later served that literal base64 text
+    /// as the response body instead of the decoded image bytes it was supposed to be.
+    @Test("A binary response body is marked isBase64, not silently returned as literal text")
+    func binaryResponseBodyIsMarkedBase64() throws {
+        let pngBase64 = Data([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]).base64EncodedString()
+        let har = """
+            {
+              "log": { "version": "1.2", "entries": [
+                {
+                  "request": { "method": "GET", "url": "https://api.test/logo.png", "headers": [] },
+                  "response": {
+                    "status": 200,
+                    "headers": [],
+                    "content": { "mimeType": "image/png", "text": "\(pngBase64)", "encoding": "base64" }
+                  }
+                }
+              ] }
+            }
+            """
+        let spec = try HARImporter.parse(har)
+        let response = try #require(spec.endpoints.first?.responses.first)
+        #expect(response.isBase64)
+        #expect(response.body == pngBase64)
+    }
+
+    @Test("A textual base64-encoded response is decoded, not marked isBase64")
+    func textualBase64ResponseIsDecoded() throws {
+        let encoded = Data("{\"ok\":true}".utf8).base64EncodedString()
+        let har = """
+            {
+              "log": { "version": "1.2", "entries": [
+                {
+                  "request": { "method": "GET", "url": "https://api.test/data", "headers": [] },
+                  "response": {
+                    "status": 200,
+                    "headers": [],
+                    "content": { "mimeType": "application/json", "text": "\(encoded)", "encoding": "base64" }
+                  }
+                }
+              ] }
+            }
+            """
+        let spec = try HARImporter.parse(har)
+        let response = try #require(spec.endpoints.first?.responses.first)
+        #expect(!response.isBase64)
+        #expect(response.body?.contains("ok") == true)
+    }
 }
