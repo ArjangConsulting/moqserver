@@ -42,9 +42,12 @@ public actor ProjectSession {
         dirty = false
     }
 
-    public func save() async throws {
+    /// - Parameter sourceRoot: see `ProjectStore.save(sourceRoot:)` — pass the project's *old*
+    ///   location when the store now targets a new path but pre-existing `bodyFile` fixtures
+    ///   still live at the old one (Save As).
+    public func save(sourceRoot: String? = nil) async throws {
         guard let store else { throw MoqServiceError.noProjectOpen }
-        try await store.save()
+        try await store.save(sourceRoot: sourceRoot)
         dirty = false
     }
 

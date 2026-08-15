@@ -65,7 +65,11 @@ public actor ProjectStore {
         project = MoqProject(manifest: project.manifest, endpoints: project.endpoints, projectPath: newDestination)
         fingerprint = nil
         do {
-            try save()
+            // Existing bodyFile fixtures still live under oldPath — the in-memory project's
+            // projectPath was just reassigned to newDestination above, so save()'s own default
+            // (copy fixtures forward from its own projectPath) would look for them in a
+            // directory that doesn't have them yet.
+            try save(sourceRoot: oldPath)
         } catch {
             // Roll back the in-memory path change so the store still reflects reality.
             project = MoqProject(manifest: project.manifest, endpoints: project.endpoints, projectPath: oldPath)
@@ -90,10 +94,18 @@ public actor ProjectStore {
     /// then atomically replaces the on-disk bundle. See the type documentation for the recovery
     /// contract this establishes.
     ///
+    /// - Parameter sourceRoot: where a `bodyFile` variant's *existing* fixture is actually
+    ///   copied forward from. Defaults to this store's own `projectPath` — correct for the
+    ///   ordinary "load, edit, save in place" case, where a fixture referenced by `bodyFile`
+    ///   already lives under this same directory. Pass the store's *old* path explicitly when
+    ///   saving somewhere else for the first time (`rename(to:)` does this) — otherwise a fresh
+    ///   destination with no fixtures yet is searched for a fixture that was never copied there,
+    ///   and `save()` throws `fixtureNotFound` for every pre-existing `bodyFile` reference.
+    ///
     /// Throws `ProjectStoreError.projectChangedOnDisk` if the bundle was modified by another
     /// process since this store last loaded or saved it — callers must reopen (`init(path:)`)
     /// or explicitly retarget (`rename(to:)`) rather than silently overwrite.
-    public func save() throws {
+    public func save(sourceRoot: String? = nil) throws {
         let destination = project.projectPath
         let parent = (destination as NSString).deletingLastPathComponent
         let base = (destination as NSString).lastPathComponent
@@ -103,7 +115,8 @@ public actor ProjectStore {
 
         var stagingCreated = false
         do {
-            let staged = try materializeAndStage(project, into: stagingDir)
+            let staged = try materializeAndStage(
+                project, into: stagingDir, sourceRoot: sourceRoot ?? project.projectPath)
             stagingCreated = true
 
             // The staged bundle must be structurally reloadable before we touch the destination.
@@ -357,7 +370,11 @@ public actor ProjectStore {
     /// fixture bytes, writes the resulting bundle via `ProjectWriter`, and copies forward every
     /// fixture that was already referenced by an explicit (caller-set) `body_file` so it survives
     /// the save. Returns the persisted project (with `projectPath` set to `stagingDir`).
-    private func materializeAndStage(_ project: MoqProject, into stagingDir: String) throws -> MoqProject {
+    private func materializeAndStage(
+        _ project: MoqProject, into stagingDir: String, sourceRoot: String
+    ) throws
+        -> MoqProject
+    {
         var usedFixturePaths: Set<String> = []
         for endpoint in project.endpoints {
             for variant in endpoint.variants {
@@ -423,7 +440,7 @@ public actor ProjectStore {
             let destinationURL = URL(fileURLWithPath: stagingDir).appendingPathComponent(relativePath)
             guard
                 let sourceURL = FixturePathResolver.resolve(
-                    bodyFile: relativePath, projectPath: project.projectPath)
+                    bodyFile: relativePath, projectPath: sourceRoot)
             else {
                 throw ProjectStoreError.invalidFixturePath(relativePath)
             }
