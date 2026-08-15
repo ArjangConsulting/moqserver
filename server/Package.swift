@@ -15,6 +15,7 @@ let package = Package(
         .package(url: "https://github.com/apple/swift-argument-parser.git", from: "1.8.2"),
         .package(url: "https://github.com/apple/swift-log.git", from: "1.15.0"),
         .package(url: "https://github.com/apple/swift-nio.git", from: "2.101.3"),
+        .package(url: "https://github.com/apple/swift-crypto.git", from: "4.0.0"),
     ],
     targets: [
         // MARK: - MoqCore
@@ -35,6 +36,7 @@ let package = Package(
             dependencies: [
                 .target(name: "MoqCore"),
                 .product(name: "Yams", package: "Yams"),
+                .product(name: "Crypto", package: "swift-crypto"),
             ],
             path: "Sources/MoqFormat"
         ),
