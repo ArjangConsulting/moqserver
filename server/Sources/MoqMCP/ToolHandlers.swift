@@ -1,6 +1,8 @@
+import Foundation
 import MCP
 import MoqCore
 import MoqFormat
+import MoqImport
 
 func registerToolHandlers(on server: Server, session: ProjectSession) {
     Task {
@@ -45,6 +47,10 @@ private func dispatch(_ params: CallTool.Parameters, session: ProjectSession) as
         return try await handleValidateProject(session: session)
     case "moq_save_project":
         return try await handleSaveProject(session: session)
+    case "moq_import_har":
+        return try await handleImportHAR(params, session: session)
+    case "moq_import_openapi":
+        return try await handleImportOpenAPI(params, session: session)
     default:
         throw MCPError.methodNotFound("Unknown tool: \(params.name)")
     }
@@ -367,6 +373,163 @@ private func handleSaveProject(session: ProjectSession) async throws -> CallTool
     do {
         try await session.save()
         return try CallTool.Result(content: [.text(text: "Saved", annotations: nil, _meta: nil)])
+    } catch {
+        return try toolError(error)
+    }
+}
+
+// MARK: - Import
+
+private struct ImportInputCommon: Decodable {
+    let acceptPaths: [String]?
+    let updateDetails: Bool?
+    let replaceExistingBodies: Bool?
+
+    enum CodingKeys: String, CodingKey {
+        case acceptPaths = "accept_paths"
+        case updateDetails = "update_details"
+        case replaceExistingBodies = "replace_existing_bodies"
+    }
+
+    var selection: ImportSelection {
+        ImportSelection(acceptedPaths: acceptPaths.map(Set.init))
+    }
+    var policy: ImportMergePolicy {
+        ImportMergePolicy(updateDetails: updateDetails ?? true, replaceExistingBodies: replaceExistingBodies ?? false)
+    }
+}
+
+private struct ImportSummary: Codable {
+    let projectEndpointCount: Int
+    let newEndpointCount: Int
+    let warnings: [String]
+
+    enum CodingKeys: String, CodingKey {
+        case projectEndpointCount = "project_endpoint_count"
+        case newEndpointCount = "new_endpoint_count"
+        case warnings
+    }
+}
+
+/// Merges `spec` into the session's open project and reconciles the result back into `store`
+/// endpoint-by-endpoint (`merge` never removes endpoints, so this is always add-or-update, never
+/// remove).
+private func applyImport(_ spec: ParsedSpec, common: ImportInputCommon, store: ProjectStore) async throws -> ImportSummary {
+    let existing = await store.currentProject
+    let existingIDs = Set(existing.endpoints.map(\.id))
+    let merged = ImportConverter.merge(spec, selection: common.selection, policy: common.policy, into: existing)
+
+    for endpoint in merged.endpoints {
+        if existingIDs.contains(endpoint.id) {
+            try await store.updateEndpoint(id: endpoint.id, endpoint)
+        } else {
+            try await store.addEndpoint(endpoint)
+        }
+    }
+
+    return ImportSummary(
+        projectEndpointCount: merged.endpoints.count,
+        newEndpointCount: merged.endpoints.count - existing.endpoints.count,
+        warnings: spec.warnings)
+}
+
+private struct ImportHARInput: Decodable {
+    let path: String
+}
+
+private func handleImportHAR(_ params: CallTool.Parameters, session: ProjectSession) async throws -> CallTool.Result {
+    do {
+        let store = try await session.currentStore()
+        let input = try decodeArguments(ImportHARInput.self, from: params.arguments)
+        let common = try decodeArguments(ImportInputCommon.self, from: params.arguments ?? [:])
+        let autosave = try autosaveFlag(from: params.arguments)
+
+        guard let content = try? String(contentsOfFile: input.path, encoding: .utf8) else {
+            return try toolError(code: "E_IMPORT_READ_FAILED", message: "Could not read file: \(input.path)")
+        }
+        let spec: ParsedSpec
+        do {
+            spec = try HARImporter.parse(content)
+        } catch {
+            return try toolError(code: "E_IMPORT_PARSE_FAILED", message: "\(error)")
+        }
+
+        let summary = try await applyImport(spec, common: common, store: store)
+        try await session.recordMutation(autosave: autosave)
+        return try CallTool.Result(
+            content: [.text(text: "Imported \(summary.newEndpointCount) new endpoint(s) from HAR", annotations: nil, _meta: nil)],
+            structuredContent: summary)
+    } catch {
+        return try toolError(error)
+    }
+}
+
+private struct ImportOpenAPIInput: Decodable {
+    let source: String
+    let auth: ImportAuthInput?
+}
+
+private struct ImportAuthInput: Decodable {
+    let bearer: String?
+    let basic: BasicAuthInput?
+    let header: HeaderAuthInput?
+
+    struct BasicAuthInput: Decodable {
+        let username: String
+        let password: String
+    }
+    struct HeaderAuthInput: Decodable {
+        let name: String
+        let value: String
+    }
+
+    var resolved: URLImportAuth? {
+        if let bearer { return .bearer(bearer) }
+        if let basic { return .basic(username: basic.username, password: basic.password) }
+        if let header { return .header(name: header.name, value: header.value) }
+        return nil
+    }
+}
+
+private func handleImportOpenAPI(_ params: CallTool.Parameters, session: ProjectSession) async throws -> CallTool.Result {
+    do {
+        let store = try await session.currentStore()
+        let input = try decodeArguments(ImportOpenAPIInput.self, from: params.arguments)
+        let common = try decodeArguments(ImportInputCommon.self, from: params.arguments ?? [:])
+        let autosave = try autosaveFlag(from: params.arguments)
+
+        let content: String
+        if input.source.hasPrefix("http://") || input.source.hasPrefix("https://") {
+            guard ProcessInfo.processInfo.environment["MOQ_MCP_ALLOW_NETWORK"] == "1" else {
+                return try toolError(
+                    code: "E_NETWORK_IMPORT_DISABLED",
+                    message: "URL import is disabled. Set MOQ_MCP_ALLOW_NETWORK=1 on the server process to enable it, or provide a local file path instead.")
+            }
+            do {
+                let fetched = try await SpecFetcher.fetchSpec(from: input.source, auth: input.auth?.resolved)
+                content = fetched.content
+            } catch {
+                return try toolError(code: "E_IMPORT_FETCH_FAILED", message: "\(error)")
+            }
+        } else {
+            guard let fileContent = try? String(contentsOfFile: input.source, encoding: .utf8) else {
+                return try toolError(code: "E_IMPORT_READ_FAILED", message: "Could not read file: \(input.source)")
+            }
+            content = fileContent
+        }
+
+        let spec: ParsedSpec
+        do {
+            spec = try OpenAPIImporter.parse(content)
+        } catch {
+            return try toolError(code: "E_IMPORT_PARSE_FAILED", message: "\(error)")
+        }
+
+        let summary = try await applyImport(spec, common: common, store: store)
+        try await session.recordMutation(autosave: autosave)
+        return try CallTool.Result(
+            content: [.text(text: "Imported \(summary.newEndpointCount) new endpoint(s) from OpenAPI", annotations: nil, _meta: nil)],
+            structuredContent: summary)
     } catch {
         return try toolError(error)
     }
