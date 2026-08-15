@@ -58,7 +58,8 @@ struct MoqMCPServerIntegrationTests {
             .deletingLastPathComponent()  // Tests/
             .deletingLastPathComponent()  // server/
             .deletingLastPathComponent()  // <repoRoot>/
-        let sourceSchema = try String(contentsOf: repoRoot.appendingPathComponent("format/schema.json"), encoding: .utf8)
+        let sourceSchema = try String(
+            contentsOf: repoRoot.appendingPathComponent("format/schema.json"), encoding: .utf8)
         #expect(text == sourceSchema)
     }
 
@@ -105,7 +106,8 @@ struct MoqMCPServerIntegrationTests {
         let path = tempPath("reserved")
         defer { try? FileManager.default.removeItem(atPath: path) }
         let client = try await connectedClient()
-        _ = try await client.callTool(name: "moq_create_project", arguments: ["path": .string(path), "name": .string("T")])
+        _ = try await client.callTool(
+            name: "moq_create_project", arguments: ["path": .string(path), "name": .string("T")])
 
         let result = try await client.callTool(
             name: "moq_upsert_endpoint",
@@ -124,7 +126,8 @@ struct MoqMCPServerIntegrationTests {
         let path = tempPath("not-found")
         defer { try? FileManager.default.removeItem(atPath: path) }
         let client = try await connectedClient()
-        _ = try await client.callTool(name: "moq_create_project", arguments: ["path": .string(path), "name": .string("T")])
+        _ = try await client.callTool(
+            name: "moq_create_project", arguments: ["path": .string(path), "name": .string("T")])
 
         let result = try await client.callTool(name: "moq_get_endpoint", arguments: ["id": .string("nope")])
         #expect(result.isError == true)

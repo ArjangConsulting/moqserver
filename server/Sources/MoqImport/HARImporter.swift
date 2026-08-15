@@ -183,7 +183,8 @@ public enum HARImporter {
         )
     }
 
-    private static func warnAndSkip(_ warnings: inout [String], _ entryNumber: Int, _ reason: String) -> ParsedHarEntry? {
+    private static func warnAndSkip(_ warnings: inout [String], _ entryNumber: Int, _ reason: String) -> ParsedHarEntry?
+    {
         warnings.append("Skipped HAR entry \(entryNumber): \(reason).")
         return nil
     }
@@ -198,7 +199,9 @@ public enum HARImporter {
             headers[name] = sanitizeHeaderValue(name: name, value: header.value ?? "")
         }
         let mimeType = response.content.mimeType ?? ""
-        if !mimeType.isEmpty && !headers.keys.contains(where: { $0.caseInsensitiveCompare(contentTypeHeader) == .orderedSame }) {
+        if !mimeType.isEmpty
+            && !headers.keys.contains(where: { $0.caseInsensitiveCompare(contentTypeHeader) == .orderedSame })
+        {
             headers[contentTypeHeader] = mimeType
         }
         return headers
@@ -211,7 +214,8 @@ public enum HARImporter {
             guard isLikelyTextualMimeType(response.content.mimeType) else {
                 return SanitizedBody(value: text, redacted: false)
             }
-            guard let decodedData = Data(base64Encoded: text), let decoded = String(data: decodedData, encoding: .utf8) else {
+            guard let decodedData = Data(base64Encoded: text), let decoded = String(data: decodedData, encoding: .utf8)
+            else {
                 return sanitizeStructuredBody(text, mimeType: response.content.mimeType)
             }
             return sanitizeStructuredBody(decoded, mimeType: response.content.mimeType)

@@ -50,7 +50,8 @@ public struct ImportMergePolicy: Sendable {
 /// internally in `merge` by diffing against the target project, rather than being precomputed
 /// for a review UI to display.
 public enum ImportConverter {
-    public static func convert(_ spec: ParsedSpec, selection: ImportSelection, name: String, path: String) -> MoqProject {
+    public static func convert(_ spec: ParsedSpec, selection: ImportSelection, name: String, path: String) -> MoqProject
+    {
         var assignedReferenceNames: [String] = []
         let accepted = spec.endpoints.filter(selection.accepts)
         let endpoints = accepted.map { convertEndpoint($0, assignedReferenceNames: &assignedReferenceNames) }
@@ -157,7 +158,8 @@ public enum ImportConverter {
     ) -> EndpointDocument {
         let diff = diff(parsed, existing: existing)
 
-        let auth: ProjectAuthConfig? = (policy.updateDetails && diff.authChanged) ? parsed.toProjectAuthConfig() : existing.auth
+        let auth: ProjectAuthConfig? =
+            (policy.updateDetails && diff.authChanged) ? parsed.toProjectAuthConfig() : existing.auth
         let requestRules: RequestRules? =
             (policy.updateDetails && diff.requestRulesChanged) ? buildRequestRules(parsed) : existing.requestRules
         let tags: [String]? =
@@ -199,7 +201,8 @@ public enum ImportConverter {
         if policy.replaceExistingBodies {
             updatedExisting = existing.variants.map { variant -> ProjectVariant in
                 guard var candidates = responsesByStatus[variant.status], !candidates.isEmpty else { return variant }
-                let replacementIndex = candidates.firstIndex { $0.name == variant.name } ?? (candidates.count == 1 ? 0 : nil)
+                let replacementIndex =
+                    candidates.firstIndex { $0.name == variant.name } ?? (candidates.count == 1 ? 0 : nil)
                 guard let replacementIndex else { return variant }
                 let replacement = candidates.remove(at: replacementIndex)
                 responsesByStatus[variant.status] = candidates
@@ -221,9 +224,12 @@ public enum ImportConverter {
 
         var assignedNames = existing.variants.map(\.name)
         var assignedReferenceNames = existing.variants.map(\.referenceName)
-        let newResponses = statusOrder.filter { !existingStatusCodes.contains($0) }.flatMap { responsesByStatus[$0] ?? [] }
+        let newResponses = statusOrder.filter { !existingStatusCodes.contains($0) }.flatMap {
+            responsesByStatus[$0] ?? []
+        }
         let newVariants = newResponses.map { response -> ProjectVariant in
-            let name = suggestedVariantName(status: response.statusCode, existingNames: assignedNames, preferredName: response.name)
+            let name = suggestedVariantName(
+                status: response.statusCode, existingNames: assignedNames, preferredName: response.name)
             assignedNames.append(name)
             let referenceName = suggestedVariantReferenceName(
                 preferredSource: name, status: response.statusCode, existingNames: assignedReferenceNames)
@@ -236,9 +242,12 @@ public enum ImportConverter {
 
     // MARK: - Fresh conversion
 
-    private static func convertEndpoint(_ parsed: ParsedEndpoint, assignedReferenceNames: inout [String]) -> EndpointDocument {
+    private static func convertEndpoint(
+        _ parsed: ParsedEndpoint, assignedReferenceNames: inout [String]
+    ) -> EndpointDocument {
         let id = endpointID(method: parsed.method, path: parsed.path)
-        let alias = parsed.alias?.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty
+        let alias =
+            parsed.alias?.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty
             ?? EndpointAlias.defaultAlias(method: parsed.method, path: parsed.path)
         let referenceName = suggestedEndpointReferenceName(
             preferredSource: parsed.referenceName ?? alias, fallbackID: id, existingNames: assignedReferenceNames)
@@ -248,7 +257,8 @@ public enum ImportConverter {
         var variantReferenceNames: [String] = []
         let defaultIndex = defaultVariantIndex(parsed.responses)
         let variants = parsed.responses.enumerated().map { index, response -> ProjectVariant in
-            let name = suggestedVariantName(status: response.statusCode, existingNames: variantNames, preferredName: response.name)
+            let name = suggestedVariantName(
+                status: response.statusCode, existingNames: variantNames, preferredName: response.name)
             variantNames.append(name)
             let refName = suggestedVariantReferenceName(
                 preferredSource: name, status: response.statusCode, existingNames: variantReferenceNames)

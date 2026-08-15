@@ -158,7 +158,9 @@ public enum OpenAPIImporter {
                 headers[contentTypeHeader] = contentType
 
                 responses.append(
-                    ParsedResponse(name: name, statusCode: code, headers: headers, body: extractBody(mediaType, contentType: contentType)))
+                    ParsedResponse(
+                        name: name, statusCode: code, headers: headers,
+                        body: extractBody(mediaType, contentType: contentType)))
             }
         }
 
@@ -203,7 +205,9 @@ public enum OpenAPIImporter {
     private static func formatExample(_ example: Any, contentType: String) -> String {
         guard isJSONMediaType(contentType) else { return String(describing: example) }
         if let string = example as? String { return "\"\(string)\"" }
-        guard let data = try? JSONSerialization.data(withJSONObject: sanitizeForJSON(example), options: [.fragmentsAllowed]),
+        guard
+            let data = try? JSONSerialization.data(
+                withJSONObject: sanitizeForJSON(example), options: [.fragmentsAllowed]),
             let text = String(data: data, encoding: .utf8)
         else {
             return String(describing: example)
@@ -232,12 +236,15 @@ public enum OpenAPIImporter {
             return "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<root/>"
         }
         if isHTMLMediaType(mediaType) {
-            return "<!DOCTYPE html>\n<html><head><title>Mock Response</title></head><body><p>mock-response</p></body></html>"
+            return
+                "<!DOCTYPE html>\n<html><head><title>Mock Response</title></head><body><p>mock-response</p></body></html>"
         }
         return defaultBody(mediaType)
     }
 
-    private static func generateJSONStub(_ schema: DereferencedJSONSchema, depth: Int, visited: Set<ObjectIdentifier>) -> String {
+    private static func generateJSONStub(
+        _ schema: DereferencedJSONSchema, depth: Int, visited: Set<ObjectIdentifier>
+    ) -> String {
         if depth >= maxStubDepth { return defaultJSONBody }
         if let example = schema.examples.first {
             return formatExample(example.value, contentType: applicationJSON)
@@ -253,7 +260,8 @@ public enum OpenAPIImporter {
         case .boolean:
             return "false"
         case .array(_, let context):
-            let itemStub = context.items.map { generateJSONStub($0, depth: depth + 1, visited: visited) } ?? defaultJSONBody
+            let itemStub =
+                context.items.map { generateJSONStub($0, depth: depth + 1, visited: visited) } ?? defaultJSONBody
             return "[\(itemStub)]"
         case .object(_, let context):
             let properties = context.properties
@@ -274,7 +282,8 @@ public enum OpenAPIImporter {
         if isJSONMediaType(lower) { return defaultJSONBody }
         if isXMLMediaType(lower) { return "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<root/>" }
         if isHTMLMediaType(lower) {
-            return "<!DOCTYPE html>\n<html><head><title>Mock Response</title></head><body><p>mock-response</p></body></html>"
+            return
+                "<!DOCTYPE html>\n<html><head><title>Mock Response</title></head><body><p>mock-response</p></body></html>"
         }
         if lower == "text/csv" { return "column1,column2\nvalue1,value2" }
         if lower.hasPrefix("text/") { return "mock-response" }
@@ -398,7 +407,8 @@ public enum OpenAPIImporter {
 
     private static func parseCookieRule(_ parameter: DereferencedParameter) -> RuleMatcher {
         let matchValue = parameterExampleValue(parameter).map(matchValueString)
-        return RuleMatcher(name: parameter.name, match: matchValue, required: true, matchType: matchValue != nil ? .equalTo : nil)
+        return RuleMatcher(
+            name: parameter.name, match: matchValue, required: true, matchType: matchValue != nil ? .equalTo : nil)
     }
 
     private static func matchValueString(_ value: Any) -> String {

@@ -406,8 +406,9 @@ public actor ProjectStore {
 
         for relativePath in referencedExistingFixtures {
             let destinationURL = URL(fileURLWithPath: stagingDir).appendingPathComponent(relativePath)
-            guard let sourceURL = FixturePathResolver.resolve(
-                bodyFile: relativePath, projectPath: project.projectPath)
+            guard
+                let sourceURL = FixturePathResolver.resolve(
+                    bodyFile: relativePath, projectPath: project.projectPath)
             else {
                 throw ProjectStoreError.invalidFixturePath(relativePath)
             }
@@ -512,7 +513,8 @@ public actor ProjectStore {
 
         for endpoint in project.endpoints.sorted(by: { $0.id < $1.id }) {
             let relativePath = "endpoints/\(endpoint.id).yml"
-            try hashFile((path as NSString).appendingPathComponent(relativePath), relativePath: relativePath, into: &hasher)
+            try hashFile(
+                (path as NSString).appendingPathComponent(relativePath), relativePath: relativePath, into: &hasher)
         }
 
         var referencedFixtures: Set<String> = []
@@ -590,7 +592,8 @@ public enum ProjectStoreError: Error, CustomStringConvertible, Equatable, Sendab
         case .projectChangedOnDisk:
             return "The project on disk changed since it was last loaded or saved. Reopen before saving again."
         case .projectRecoveryRequired(let backups):
-            return "Multiple interrupted transactions found; manual recovery required: \(backups.joined(separator: ", "))"
+            return
+                "Multiple interrupted transactions found; manual recovery required: \(backups.joined(separator: ", "))"
         }
     }
 }
