@@ -86,7 +86,7 @@ class StudioRootViewModelTest {
                 kind = ProviderKind.LOCAL,
                 available = true,
                 capabilities = setOf("GENERATE_VARIANTS"),
-                defaultModel = "llama3.2:latest",
+                defaultModel = "qwen3.8:27b-mlx",
                 baseUrl = "http://localhost:11434",
             ),
         )
@@ -98,7 +98,7 @@ class StudioRootViewModelTest {
         assertNull(state.error)
         assertEquals("ollama", state.selectedProviderId)
         assertTrue(state.isReady)
-        assertEquals("llama3.2:latest", state.selectedProvider?.defaultModel)
+        assertEquals("qwen3.8:27b-mlx", state.selectedProvider?.defaultModel)
         assertEquals("http://localhost:11434", state.selectedProvider?.baseUrl)
     }
 

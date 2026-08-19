@@ -193,7 +193,7 @@ class OllamaAIProvider(
         const val PROVIDER_ID = "ollama"
 		const val DISPLAY_NAME = "Ollama"
 		const val DEFAULT_BASE_URL = "http://localhost:11434"
-		const val DEFAULT_MODEL = "qwen3.6:latest"
+		const val DEFAULT_MODEL = "qwen3.8:27b-mlx"
 		const val DEFAULT_TEMPERATURE = 0.7
 		const val QWEN35_TEMPERATURE = 0.7
 		const val QWEN35_TOP_P = 0.8
