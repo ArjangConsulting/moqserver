@@ -51,6 +51,7 @@ kotlin {
         val jvmMain by getting {
             dependencies {
                 implementation(project(":studio-logging"))
+                implementation("com.github.maniramezan:process-rpc-kotlin:0.1.0")
                 implementation(libs.snakeyaml.engine)
                 implementation(libs.coroutines.core)
             }
