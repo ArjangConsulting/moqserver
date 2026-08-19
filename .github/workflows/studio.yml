@@ -29,7 +29,7 @@ jobs:
         uses: actions/checkout@v7.0.1
 
       - name: Set up Temurin 21
-        uses: actions/setup-java@v5.6.0
+        uses: actions/setup-java@v5.7.0
         with:
           distribution: temurin
           java-version: "21"
@@ -73,7 +73,7 @@ jobs:
           echo "MOQSERVER_FORMAT_BINARY=$(swift build -c release --show-bin-path)/moq-format" >> "$GITHUB_ENV"
 
       - name: Set up Temurin 21
-        uses: actions/setup-java@v5.6.0
+        uses: actions/setup-java@v5.7.0
         with:
           distribution: temurin
           java-version: "21"
@@ -113,7 +113,7 @@ jobs:
         uses: actions/checkout@v7.0.1
 
       - name: Set up Temurin 21
-        uses: actions/setup-java@v5.6.0
+        uses: actions/setup-java@v5.7.0
         with:
           distribution: temurin
           java-version: "21"
