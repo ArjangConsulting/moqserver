@@ -9,6 +9,8 @@ import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
+import io.github.maniramezan.kmpcomponents.ThemeMode
+import io.github.maniramezan.kmpcomponents.isDark
 
 /** Tri-state theme selection: follow the OS, or force light / dark. */
 enum class StudioThemeMode {
@@ -20,10 +22,12 @@ enum class StudioThemeMode {
 internal fun resolveDarkTheme(
 	themeMode: StudioThemeMode,
 	systemInDarkTheme: Boolean,
-): Boolean = when (themeMode) {
-	StudioThemeMode.SYSTEM -> systemInDarkTheme
-	StudioThemeMode.LIGHT -> false
-	StudioThemeMode.DARK -> true
+): Boolean = themeMode.toSharedThemeMode().isDark(systemInDarkTheme)
+
+private fun StudioThemeMode.toSharedThemeMode(): ThemeMode = when (this) {
+	StudioThemeMode.SYSTEM -> ThemeMode.SYSTEM
+	StudioThemeMode.LIGHT -> ThemeMode.LIGHT
+	StudioThemeMode.DARK -> ThemeMode.DARK
 }
 
 fun resolveNextThemeMode(
