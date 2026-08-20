@@ -6,10 +6,10 @@ import com.moqserver.studio.ai.AIProviderCapability
 import com.moqserver.studio.ai.AIProviderException
 import com.moqserver.studio.ai.AIProviderKind
 import com.moqserver.studio.logging.loggerFor
+import io.github.maniramezan.kenwork.core.KenworkHttpClient
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
 import io.ktor.client.engine.cio.CIO
-import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.client.request.get
 import io.ktor.client.request.header
 import io.ktor.client.request.post
@@ -17,10 +17,8 @@ import io.ktor.client.request.setBody
 import io.ktor.http.ContentType
 import io.ktor.http.contentType
 import io.ktor.http.isSuccess
-import io.ktor.serialization.kotlinx.json.json
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
-import kotlinx.serialization.json.Json
 
 class AnthropicAIProvider(
 	val apiKey: String,
@@ -195,9 +193,4 @@ class AnthropicAIProvider(
     }
 }
 
-private fun defaultClient() = HttpClient(CIO) {
-    followRedirects = false
-    install(ContentNegotiation) {
-        json(Json { ignoreUnknownKeys = true })
-    }
-}
+private fun defaultClient() = KenworkHttpClient.create(CIO)

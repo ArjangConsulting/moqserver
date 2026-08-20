@@ -26,6 +26,9 @@ dependencyResolutionManagement {
 if (file("../../KMPComponents/settings.gradle.kts").isFile) {
 	includeBuild("../../KMPComponents")
 }
+if (file("../../kenwork/settings.gradle.kts").isFile) {
+	includeBuild("../../kenwork")
+}
 
 include(":composeApp")
 include(":studio-ai")
