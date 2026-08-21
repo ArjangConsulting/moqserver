@@ -24,7 +24,7 @@ kotlin {
                 implementation(projects.studioProjectFormat)
                 implementation(libs.compose.runtime)
                 implementation(libs.compose.foundation)
-                implementation(libs.compose.material3)
+                implementation(compose.material3)
                 implementation(libs.compose.material.icons.extended)
                 implementation(libs.compose.ui)
                 implementation(libs.compose.components.resources)
@@ -66,6 +66,14 @@ compose.desktop {
             "-Dapple.awt.application.name=moqserver Studio",
             "-Dmoqserver.studio.version=${project.version}",
         )
+        // Set via the IntelliJ "0. Studio Debug" run config (-PstudioDebugRun=true), so `./gradlew
+        // :composeApp:run` stays quiet by default and only the IDE debug launch gets these.
+        if (project.hasProperty("studioDebugRun")) {
+            jvmArgs += listOf(
+                "-Dorg.slf4j.simpleLogger.log.com.moqserver.studio=debug",
+                "-Dstudio.debug.failFast=true",
+            )
+        }
 
         nativeDistributions {
             packageName = "moqserver-studio"
