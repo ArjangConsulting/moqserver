@@ -24,6 +24,7 @@ DerivedData/
 build/
 */build/
 out/
+local.properties
 
 # IntelliJ / Android Studio's own Kotlin/JVM compiler output (distinct from Gradle's build/).
 # Unanchored (no leading/middle slash) so it matches at any depth, e.g. studio/<module>/bin/.
