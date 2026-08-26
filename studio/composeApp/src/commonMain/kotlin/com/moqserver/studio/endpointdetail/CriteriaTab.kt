@@ -43,6 +43,10 @@ private object CriteriaTabStrings {
     const val DELETE_VARIANT_HEADER = "Delete variant header criteria"
     const val BODY_CONTAINS = "Body Contains"
     const val BODY_CONTAINS_TOOLTIP = "Optional request body substring that must be present before this variant is selected."
+    const val STRICT_CALL_COUNT = "Strict Call Count"
+    const val STRICT_CALL_COUNT_TOOLTIP =
+        "When enabled, a call whose number doesn't match any variant's call_count is rejected (409) " +
+            "instead of falling back to normal variant selection."
 }
 
 @Composable
@@ -51,10 +55,12 @@ internal fun CriteriaTab(
 	requestRules: RequestRules,
 	auth: ProjectAuthConfig?,
 	network: NetworkBehavior?,
+	strictCallCount: Boolean?,
 	onUpdateVariant: (ProjectVariant) -> Unit,
 	onUpdate: (RequestRules) -> Unit,
 	onUpdateAuth: (ProjectAuthConfig?) -> Unit,
 	onUpdateNetwork: (NetworkBehavior?) -> Unit,
+	onUpdateStrictCallCount: (Boolean?) -> Unit,
 ) {
 	val variantRequestMatch = variant.requestMatch ?: VariantRequestMatch()
 	val variantQueryRules = variantRequestMatch.query.orEmpty().entries
@@ -81,6 +87,7 @@ internal fun CriteriaTab(
 	Column(verticalArrangement = Arrangement.spacedBy(StudioDimens.xl)) {
 		AuthConfigSection(auth = auth, onUpdate = onUpdateAuth)
 		NetworkSection(network = network, onUpdate = onUpdateNetwork)
+		StrictCallCountSection(strictCallCount = strictCallCount, onUpdate = onUpdateStrictCallCount)
 		HorizontalDivider()
 		QueryParamsEditor(
 			items = requestRules.queryParams ?: emptyList(),
@@ -129,6 +136,24 @@ internal fun CriteriaTab(
 				}
 			},
 			modifier = Modifier.fillMaxWidth(),
+		)
+	}
+}
+
+@Composable
+private fun StrictCallCountSection(
+	strictCallCount: Boolean?,
+	onUpdate: (Boolean?) -> Unit,
+) {
+	Row(
+		verticalAlignment = Alignment.CenterVertically,
+		horizontalArrangement = Arrangement.spacedBy(StudioDimens.m),
+	) {
+		Text(CriteriaTabStrings.STRICT_CALL_COUNT, style = MaterialTheme.typography.titleSmall)
+		InfoTooltip(CriteriaTabStrings.STRICT_CALL_COUNT_TOOLTIP)
+		Switch(
+			checked = strictCallCount == true,
+			onCheckedChange = { onUpdate(if (it) true else null) },
 		)
 	}
 }

@@ -24,6 +24,10 @@ public struct EndpointDocument: Codable, Sendable, Equatable {
     public let network: NetworkBehavior?
     /// Response variants (at least one required).
     public let variants: [ProjectVariant]
+    /// When true and at least one variant has `callCount` set, a request whose call number has
+    /// no exact-matching variant is rejected (409) instead of falling back to normal selection.
+    /// `nil`/`false` preserves today's relaxed behavior.
+    public let strictCallCount: Bool?
 
     public init(
         id: String,
@@ -37,7 +41,8 @@ public struct EndpointDocument: Codable, Sendable, Equatable {
         requestRules: RequestRules? = nil,
         operation: EndpointOperation? = nil,
         network: NetworkBehavior? = nil,
-        variants: [ProjectVariant]
+        variants: [ProjectVariant],
+        strictCallCount: Bool? = nil
     ) {
         let normalizedReferenceName = referenceName?.trimmingCharacters(in: .whitespacesAndNewlines)
         self.id = id
@@ -56,6 +61,7 @@ public struct EndpointDocument: Codable, Sendable, Equatable {
         self.operation = operation
         self.network = network
         self.variants = variants
+        self.strictCallCount = strictCallCount
     }
 
     enum CodingKeys: String, CodingKey {
@@ -63,6 +69,7 @@ public struct EndpointDocument: Codable, Sendable, Equatable {
         case referenceName = "reference_name"
         case requestRules = "request_rules"
         case operation, network, variants
+        case strictCallCount = "strict_call_count"
     }
 
     public init(from decoder: Decoder) throws {
@@ -84,7 +91,8 @@ public struct EndpointDocument: Codable, Sendable, Equatable {
             requestRules: try container.decodeIfPresent(RequestRules.self, forKey: .requestRules),
             operation: operation,
             network: try container.decodeIfPresent(NetworkBehavior.self, forKey: .network),
-            variants: try container.decode([ProjectVariant].self, forKey: .variants)
+            variants: try container.decode([ProjectVariant].self, forKey: .variants),
+            strictCallCount: try container.decodeIfPresent(Bool.self, forKey: .strictCallCount)
         )
     }
 }

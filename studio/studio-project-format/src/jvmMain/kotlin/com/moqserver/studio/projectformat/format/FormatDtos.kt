@@ -114,4 +114,6 @@ data class EndpointUpsertInput(
     val requestRules: RequestRules? = null,
     val operation: EndpointOperation? = null,
     val network: NetworkBehavior? = null,
+    @SerialName("strict_call_count")
+    val strictCallCount: Boolean? = null,
 )

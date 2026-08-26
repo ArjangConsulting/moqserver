@@ -54,7 +54,8 @@ public enum ProjectToRuntimeConverter {
             cookieRules: cookieRules,
             verifyCookies: verifyCookies,
             operation: doc.operation,
-            network: network
+            network: network,
+            strictCallCount: doc.strictCallCount ?? false
         )
     }
 
@@ -133,7 +134,8 @@ public enum ProjectToRuntimeConverter {
             headers: headers,
             body: body,
             delay: delay,
-            requestMatch: variant.requestMatch
+            requestMatch: variant.requestMatch,
+            callCount: variant.callCount
         )
     }
 

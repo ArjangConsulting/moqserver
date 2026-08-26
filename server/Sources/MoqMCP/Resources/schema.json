@@ -233,6 +233,11 @@
         "delay_ms": {
           "type": "integer",
           "minimum": 0
+        },
+        "call_count": {
+          "$comment": "1-indexed. When set, this variant is only eligible on the Nth call to its endpoint.",
+          "type": "integer",
+          "minimum": 1
         }
       },
       "required": ["name", "status"],
@@ -295,6 +300,10 @@
           "items": {
             "$ref": "#/$defs/variant"
           }
+        },
+        "strict_call_count": {
+          "$comment": "When true, a request whose call number has no exact-matching variant call_count is rejected (409) instead of falling back to normal variant selection. Default false.",
+          "type": "boolean"
         }
       },
       "required": ["id", "method", "path", "variants"]

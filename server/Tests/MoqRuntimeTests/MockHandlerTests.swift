@@ -452,4 +452,165 @@ struct MockHandlerTests {
             #expect(body.contains("simulated_packet_loss"))
         }
     }
+
+    // MARK: - Call Count
+
+    @Test("call_count sequences variants across calls, falling back once exhausted")
+    func callCountSequencing() async throws {
+        let store = InMemoryMockStore()
+        await store.register(
+            makeTestEndpoint(
+                method: .get, path: "/jobs/1",
+                variants: [
+                    ResponseVariant(
+                        name: "pending", isDefault: true, statusCode: .ok, body: Data(#"{"status":"pending"}"#.utf8),
+                        callCount: 1),
+                    ResponseVariant(
+                        name: "done", statusCode: .ok, body: Data(#"{"status":"done"}"#.utf8), callCount: 2),
+                ]))
+
+        let app = try await buildApp(store: store)
+        defer { Task { try? await app.asyncShutdown() } }
+
+        try await app.testing().test(.GET, "/jobs/1") { res async in
+            #expect(res.status == .ok)
+            #expect(String(buffer: res.body).contains("pending"))
+        }
+        try await app.testing().test(.GET, "/jobs/1") { res async in
+            #expect(res.status == .ok)
+            #expect(String(buffer: res.body).contains("done"))
+        }
+        // call_count exhausted, no strict mode: falls back to the default variant.
+        try await app.testing().test(.GET, "/jobs/1") { res async in
+            #expect(res.status == .ok)
+            #expect(String(buffer: res.body).contains("pending"))
+        }
+    }
+
+    @Test("strict_call_count rejects a call with no exact call_count match")
+    func strictCallCountRejectsDuplicate() async throws {
+        let store = InMemoryMockStore()
+        await store.register(
+            makeTestEndpoint(
+                method: .get, path: "/once",
+                variants: [
+                    ResponseVariant(name: "first", statusCode: .ok, body: Data("{}".utf8), callCount: 1)
+                ],
+                strictCallCount: true
+            ))
+
+        let app = try await buildApp(store: store)
+        defer { Task { try? await app.asyncShutdown() } }
+
+        try await app.testing().test(.GET, "/once") { res async in
+            #expect(res.status == .ok)
+        }
+        try await app.testing().test(.GET, "/once") { res async in
+            #expect(res.status == .conflict)
+            let body = String(buffer: res.body)
+            #expect(body.contains("call_count_exceeded"))
+        }
+    }
+
+    @Test("strict_call_count counter advances even on a rejected call")
+    func strictCallCountCounterAdvancesOnRejection() async throws {
+        let store = InMemoryMockStore()
+        await store.register(
+            makeTestEndpoint(
+                method: .get, path: "/twice",
+                variants: [
+                    ResponseVariant(name: "first", statusCode: .ok, body: Data("{}".utf8), callCount: 1),
+                    ResponseVariant(name: "third", statusCode: .ok, body: Data(#"{"n":3}"#.utf8), callCount: 3),
+                ],
+                strictCallCount: true
+            ))
+
+        let app = try await buildApp(store: store)
+        defer { Task { try? await app.asyncShutdown() } }
+
+        try await app.testing().test(.GET, "/twice") { res async in
+            #expect(res.status == .ok)  // call #1
+        }
+        try await app.testing().test(.GET, "/twice") { res async in
+            #expect(res.status == .conflict)  // call #2, rejected, but counter still advances
+        }
+        try await app.testing().test(.GET, "/twice") { res async in
+            #expect(res.status == .ok)  // call #3, matches "third", not retried as #2
+            #expect(String(buffer: res.body).contains("3"))
+        }
+    }
+
+    @Test("Endpoints with no call_count anywhere behave identically across repeated calls")
+    func callCountAbsentIsBackwardCompatible() async throws {
+        let store = InMemoryMockStore()
+        await store.register(
+            makeTestEndpoint(
+                method: .get, path: "/pets",
+                variants: [
+                    ResponseVariant(name: "default", statusCode: .ok, body: Data(#"{"status":"ok"}"#.utf8))
+                ]))
+
+        let app = try await buildApp(store: store)
+        defer { Task { try? await app.asyncShutdown() } }
+
+        for _ in 0..<3 {
+            try await app.testing().test(.GET, "/pets") { res async in
+                #expect(res.status == .ok)
+                #expect(String(buffer: res.body).contains("ok"))
+            }
+        }
+    }
+
+    @Test("Admin can reset the call counter for an endpoint")
+    func adminResetsCallCount() async throws {
+        let store = InMemoryMockStore()
+        await store.register(
+            makeTestEndpoint(
+                method: .get, path: "/once",
+                variants: [
+                    ResponseVariant(name: "first", statusCode: .ok, body: Data("{}".utf8), callCount: 1)
+                ],
+                strictCallCount: true
+            ))
+
+        let app = try await buildApp(store: store)
+        defer { Task { try? await app.asyncShutdown() } }
+
+        try await app.testing().test(.GET, "/once") { res async in
+            #expect(res.status == .ok)
+        }
+        try await app.testing().test(.GET, "/once") { res async in
+            #expect(res.status == .conflict)
+        }
+        try await app.testing().test(.DELETE, "/_admin/endpoints/GET/once/call-count") { res async in
+            #expect(res.status == .ok)
+        }
+        try await app.testing().test(.GET, "/once") { res async in
+            #expect(res.status == .ok)
+        }
+    }
+
+    @Test("Admin endpoint detail reflects current and configured call counts")
+    func adminEndpointDetailReportsCallCounts() async throws {
+        let store = InMemoryMockStore()
+        await store.register(
+            makeTestEndpoint(
+                method: .get, path: "/jobs/1",
+                variants: [
+                    ResponseVariant(name: "pending", statusCode: .ok, body: Data("{}".utf8), callCount: 1)
+                ]))
+
+        let app = try await buildApp(store: store)
+        defer { Task { try? await app.asyncShutdown() } }
+
+        try await app.testing().test(.GET, "/jobs/1") { res async in
+            #expect(res.status == .ok)
+        }
+        try await app.testing().test(.GET, "/_admin/endpoints/GET/jobs/1") { res async in
+            #expect(res.status == .ok)
+            let body = String(buffer: res.body)
+            #expect(body.contains(#""currentCallCount":1"#))
+            #expect(body.contains(#""callCount":1"#))
+        }
+    }
 }

@@ -122,6 +122,39 @@ class FormatClientIntegrationTest {
     }
 
     @Test
+    fun `call_count and strict_call_count round trip through the real process`() = withClient { client ->
+        val path = tempPath("call-count")
+        try {
+            val handle = client.openSession()
+            client.createProject(handle, name = "Call Count", description = null, path = path)
+
+            val endpoint = client.upsertEndpoint(
+                handle,
+                EndpointUpsertInput(id = "get-job", method = "GET", path = "/jobs/1", strictCallCount = true),
+                autosave = false,
+            )
+            assertEquals(true, endpoint.strictCallCount)
+
+            client.upsertVariant(
+                handle,
+                "get-job",
+                com.moqserver.studio.projectformat.ProjectVariant(name = "pending", status = 200, callCount = 1),
+                autosave = false,
+            )
+
+            client.saveProject(handle)
+            val endpoints = client.listEndpoints(handle)
+            val reloaded = client.getEndpoint(handle, endpoints.single().id)
+            assertEquals(true, reloaded.strictCallCount)
+            assertEquals(1, reloaded.variants.single().callCount)
+
+            client.closeSession(handle)
+        } finally {
+            File(path).deleteRecursively()
+        }
+    }
+
+    @Test
     fun `unsaved changes are reported through error data code`() = withClient { client ->
         val originalPath = tempPath("guard-original")
         val otherPath = tempPath("guard-other")

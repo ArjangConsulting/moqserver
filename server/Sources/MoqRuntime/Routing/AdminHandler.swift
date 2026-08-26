@@ -35,9 +35,10 @@ public struct AdminHandler: Sendable {
     /// GET /_admin/endpoints/:method/** — get endpoint details.
     public func getEndpoint(req: Request) async throws -> EndpointDetail {
         try requireAdminAuth(req: req)
-        let (endpoint, keyString) = try await resolveEndpoint(req: req)
+        let (endpoint, keyString, _) = try await resolveEndpoint(req: req)
         logger.info("Getting endpoint details for \(keyString)")
         let activeVariant = await store.activeVariantOverride(for: keyString)
+        let currentCallCount = await store.currentCallCount(for: keyString)
 
         return EndpointDetail(
             method: endpoint.key.method.rawValue,
@@ -48,17 +49,20 @@ public struct AdminHandler: Sendable {
                     name: v.name,
                     statusCode: Int(v.statusCode.code),
                     hasBody: v.body != nil,
-                    delay: v.delay
+                    delay: v.delay,
+                    callCount: v.callCount
                 )
             },
-            activeVariant: activeVariant
+            activeVariant: activeVariant,
+            currentCallCount: currentCallCount,
+            strictCallCount: endpoint.strictCallCount
         )
     }
 
     /// PUT /_admin/endpoints/:method/**/variant — set active variant.
     public func setVariant(req: Request) async throws -> MessageResponse {
         try requireAdminAuth(req: req)
-        let (endpoint, keyString) = try await resolveEndpoint(req: req)
+        let (endpoint, keyString, _) = try await resolveEndpoint(req: req)
         let body = try req.content.decode(SetVariantRequest.self)
 
         guard let variant = endpoint.variants.first(where: { $0.matchesIdentifier(body.variant) }) else {
@@ -71,17 +75,36 @@ public struct AdminHandler: Sendable {
     }
 
     /// DELETE /_admin/endpoints/:method/**/variant — reset to default.
+    /// DELETE /_admin/endpoints/:method/**/call-count — reset the call counter.
+    /// Both ride the same route registration (Vapor's `**` catchall can only bind one handler
+    /// per pattern), so the suffix is resolved and dispatched on here rather than via two routes.
     public func resetVariant(req: Request) async throws -> MessageResponse {
         try requireAdminAuth(req: req)
-        let (_, keyString) = try await resolveEndpoint(req: req)
-        await store.resetVariantOverride(for: keyString)
-        logger.info("Variant reset to default for \(keyString)")
-        return MessageResponse(message: "Variant reset to default for \(keyString)")
+        let (_, keyString, subresource) = try await resolveEndpoint(req: req)
+        switch subresource {
+        case .callCount:
+            await store.resetCallCount(for: keyString)
+            logger.info("Call count reset for \(keyString)")
+            return MessageResponse(message: "Call count reset for \(keyString)")
+        case .variant, .none:
+            await store.resetVariantOverride(for: keyString)
+            logger.info("Variant reset to default for \(keyString)")
+            return MessageResponse(message: "Variant reset to default for \(keyString)")
+        }
     }
 
     // MARK: - Helpers
 
-    private func resolveEndpoint(req: Request) async throws -> (Endpoint, String) {
+    /// Which trailing catchall segment (if any) a DELETE/PUT request targeted. Vapor cannot bind
+    /// two routes to the same `**` catchall pattern, so `/variant` and `/call-count` are
+    /// distinguished by string suffix here rather than as separate route registrations.
+    private enum ResolvedSubresource: Sendable {
+        case variant
+        case callCount
+        case none
+    }
+
+    private func resolveEndpoint(req: Request) async throws -> (Endpoint, String, ResolvedSubresource) {
         guard let method = req.parameters.get("method") else {
             throw Abort(
                 .badRequest, reason: "Missing method parameter. Expected URL format: /_admin/endpoints/:method/path")
@@ -89,10 +112,16 @@ public struct AdminHandler: Sendable {
 
         let catchall = req.parameters.getCatchall().joined(separator: "/")
         let pathSegments: String
+        let subresource: ResolvedSubresource
         if (req.method == .PUT || req.method == .DELETE) && catchall.hasSuffix("/variant") {
             pathSegments = String(catchall.dropLast("/variant".count))
+            subresource = .variant
+        } else if req.method == .DELETE && catchall.hasSuffix("/call-count") {
+            pathSegments = String(catchall.dropLast("/call-count".count))
+            subresource = .callCount
         } else {
             pathSegments = catchall
+            subresource = .none
         }
 
         let apiPath = "/" + pathSegments
@@ -115,7 +144,7 @@ public struct AdminHandler: Sendable {
             throw Abort(.notFound, reason: "Endpoint not found: \(keyString). \(hint)")
         }
 
-        return (endpoint, keyString)
+        return (endpoint, keyString, subresource)
     }
 
     private func authRequirementString(_ auth: AuthRequirement) -> String {

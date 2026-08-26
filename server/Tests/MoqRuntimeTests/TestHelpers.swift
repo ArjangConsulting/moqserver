@@ -14,7 +14,8 @@ func makeTestEndpoint(
     verifyCookies: Bool = false,
     requiresBody: Bool = false,
     acceptedContentTypes: [String] = [],
-    network: NetworkBehavior? = nil
+    network: NetworkBehavior? = nil,
+    strictCallCount: Bool = false
 ) -> Endpoint {
     let defaultVariants = [
         ResponseVariant(
@@ -34,6 +35,7 @@ func makeTestEndpoint(
         verifyCookies: verifyCookies,
         requiresBody: requiresBody,
         acceptedContentTypes: acceptedContentTypes,
-        network: network
+        network: network,
+        strictCallCount: strictCallCount
     )
 }

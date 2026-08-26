@@ -72,7 +72,7 @@ struct MoqServiceTests {
 
         let input = EndpointUpsertInput(
             id: "health-check", alias: nil, description: nil, referenceName: nil, method: "GET", path: "/health",
-            tags: nil, auth: nil, requestRules: nil, operation: nil, network: nil)
+            tags: nil, auth: nil, requestRules: nil, operation: nil, network: nil, strictCallCount: nil)
 
         await #expect(throws: ProjectValidationInputError.self) {
             _ = try await service.upsertEndpoint(handle: handle, input: input, autosave: false)
@@ -103,7 +103,7 @@ struct MoqServiceTests {
 
         let input = EndpointUpsertInput(
             id: "get-a", alias: nil, description: nil, referenceName: nil, method: "GET", path: "/a", tags: nil,
-            auth: nil, requestRules: nil, operation: nil, network: nil)
+            auth: nil, requestRules: nil, operation: nil, network: nil, strictCallCount: nil)
         _ = try await service.upsertEndpoint(handle: handle, input: input, autosave: false)
 
         let sessionResult = try await service.validateProject(handle: handle)

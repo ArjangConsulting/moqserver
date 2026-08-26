@@ -392,6 +392,41 @@ struct ProjectValidatorTests {
         #expect(errors.contains { $0.message.contains("Duplicate variant name") })
     }
 
+    @Test("Rejects call_count below 1")
+    func rejectsInvalidCallCount() {
+        let project = makeProject(endpoints: [
+            sampleEndpoint(variants: [
+                ProjectVariant(name: "default", status: 200, callCount: 0)
+            ])
+        ])
+        let errors = validator.validate(project).filter { $0.severity == .error }
+        #expect(errors.contains { $0.code == .invalidCallCount })
+    }
+
+    @Test("Rejects duplicate call_count on the same endpoint")
+    func rejectsDuplicateCallCount() {
+        let project = makeProject(endpoints: [
+            sampleEndpoint(variants: [
+                ProjectVariant(name: "first", status: 200, callCount: 1),
+                ProjectVariant(name: "also-first", status: 200, callCount: 1),
+            ])
+        ])
+        let errors = validator.validate(project).filter { $0.severity == .error }
+        #expect(errors.contains { $0.code == .duplicateCallCount })
+    }
+
+    @Test("Warns when strict_call_count is set with no call_count-tagged variant")
+    func warnsStrictCallCountWithoutCallCount() {
+        let endpoint = EndpointDocument(
+            id: "test-endpoint", method: "GET", path: "/test",
+            variants: [ProjectVariant(name: "default", status: 200)],
+            strictCallCount: true
+        )
+        let project = makeProject(endpoints: [endpoint])
+        let warnings = validator.validate(project).filter { $0.severity == .warning }
+        #expect(warnings.contains { $0.code == .strictCallCountWithoutCallCount })
+    }
+
     @Test("Sample project passes validation")
     func sampleProjectPasses() throws {
         let loader = ProjectLoader()

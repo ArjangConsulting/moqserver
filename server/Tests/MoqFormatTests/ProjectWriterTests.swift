@@ -274,6 +274,53 @@ struct ProjectWriterTests {
         #expect(variant.requestMatch?.bodyContains == "currentUser")
     }
 
+    @Test("Round-trips variant call_count and endpoint strict_call_count")
+    func roundTripsCallCountAndStrictCallCount() throws {
+        let writer = ProjectWriter()
+        let loader = ProjectLoader()
+        let project = MoqProject(
+            manifest: ProjectManifest(
+                version: "1",
+                name: "Call Count Test",
+                defaults: ProjectDefaults(
+                    delayMs: 0,
+                    auth: ProjectAuthConfig(type: .none, verify: false),
+                    network: NetworkBehavior()
+                )
+            ),
+            endpoints: [
+                EndpointDocument(
+                    id: "get-job",
+                    method: "GET",
+                    path: "/jobs/1",
+                    variants: [
+                        ProjectVariant(name: "pending", status: 200, callCount: 1),
+                        ProjectVariant(name: "done", status: 200, callCount: 2),
+                    ],
+                    strictCallCount: true
+                )
+            ],
+            projectPath: "/tmp/call-count-test.moqproj"
+        )
+
+        let tempDir = NSTemporaryDirectory()
+        let outputPath = (tempDir as NSString).appendingPathComponent("call-count-save-\(UUID().uuidString).moqproj")
+        defer { try? FileManager.default.removeItem(atPath: outputPath) }
+
+        try writer.write(project, to: outputPath)
+
+        let endpointPath = (outputPath as NSString).appendingPathComponent("endpoints/get-job.yml")
+        let yaml = try String(contentsOfFile: endpointPath, encoding: .utf8)
+        #expect(yaml.contains("call_count: 1"))
+        #expect(yaml.contains("call_count: 2"))
+        #expect(yaml.contains("strict_call_count: true"))
+
+        let reloaded = try loader.load(from: outputPath)
+        let endpoint = try #require(reloaded.endpoints.first)
+        #expect(endpoint.strictCallCount == true)
+        #expect(endpoint.variants.map(\.callCount) == [1, 2])
+    }
+
     @Test("Writes body shapes deterministically and reloads them")
     func writesBodyShapesAndReloadsThem() throws {
         let writer = ProjectWriter()

@@ -230,7 +230,8 @@ public actor ProjectStore {
             requestRules: old.requestRules,
             operation: old.operation,
             network: old.network,
-            variants: old.variants
+            variants: old.variants,
+            strictCallCount: old.strictCallCount
         )
         var endpoints = project.endpoints
         endpoints[index] = renamed
@@ -260,7 +261,11 @@ public actor ProjectStore {
 
         if variant.isDefault == true {
             variants = variants.map { existing in
-                guard existing.name != variant.name, existing.isDefault == true else { return existing }
+                guard existing.name.caseInsensitiveCompare(variant.name) != .orderedSame,
+                    existing.isDefault == true
+                else {
+                    return existing
+                }
                 return ProjectVariant(
                     name: existing.name,
                     referenceName: existing.referenceName,
@@ -270,12 +275,15 @@ public actor ProjectStore {
                     requestMatch: existing.requestMatch,
                     body: existing.body,
                     bodyFile: existing.bodyFile,
-                    delayMs: existing.delayMs
+                    delayMs: existing.delayMs,
+                    callCount: existing.callCount
                 )
             }
         }
 
-        if let variantIndex = variants.firstIndex(where: { $0.name == variant.name }) {
+        if let variantIndex = variants.firstIndex(where: {
+            $0.name.caseInsensitiveCompare(variant.name) == .orderedSame
+        }) {
             variants[variantIndex] = variant
         } else {
             variants.append(variant)
@@ -292,7 +300,11 @@ public actor ProjectStore {
             throw ProjectStoreError.endpointNotFound(endpointID)
         }
         let endpoint = project.endpoints[endpointIndex]
-        guard let variantIndex = endpoint.variants.firstIndex(where: { $0.name == name }) else {
+        guard
+            let variantIndex = endpoint.variants.firstIndex(where: {
+                $0.name.caseInsensitiveCompare(name) == .orderedSame
+            })
+        else {
             throw ProjectStoreError.variantNotFound(endpointID: endpointID, variantName: name)
         }
         var variants = endpoint.variants
@@ -419,7 +431,8 @@ public actor ProjectStore {
                     body: nil,
                     bodyEncoding: nil,
                     bodyFile: candidate,
-                    delayMs: variant.delayMs
+                    delayMs: variant.delayMs,
+                    callCount: variant.callCount
                 )
             }
             return endpoint.withVariants(newVariants)
@@ -589,7 +602,8 @@ extension EndpointDocument {
             requestRules: requestRules,
             operation: operation,
             network: network,
-            variants: variants
+            variants: variants,
+            strictCallCount: strictCallCount
         )
     }
 }

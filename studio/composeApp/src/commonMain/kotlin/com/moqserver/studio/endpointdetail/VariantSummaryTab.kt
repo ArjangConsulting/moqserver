@@ -46,6 +46,9 @@ private object VariantSummaryStrings {
 	const val DESCRIPTION = "Description"
 	const val DESCRIPTION_TOOLTIP = "Optional description for this variant, included in exported references when enabled."
 	const val REMOVE_VARIANT = "Remove Variant"
+	const val CALL_COUNT_LABEL = "Call #"
+	const val CALL_COUNT_TOOLTIP =
+		"1-indexed. When set, this variant is only eligible on the Nth call to its endpoint. Leave blank to match every call."
 }
 
 @Composable
@@ -408,5 +411,22 @@ private fun DefaultAndDelayRow(
 			singleLine = true,
 			modifier = Modifier.width(StudioDimens.tableNameColumnWidth),
 		)
+        OutlinedTextField(
+            value = (variant.callCount ?: 0).toString(),
+            onValueChange = {
+                when (val update = acceptedPositiveIntOrNullInput(it, variant.callCount)) {
+                    is NumericInputUpdate.Accepted -> onUpdate(variant.copy(callCount = update.value))
+                    NumericInputUpdate.Ignored -> Unit
+                }
+            },
+			label = {
+				Row(verticalAlignment = Alignment.CenterVertically) {
+					Text(VariantSummaryStrings.CALL_COUNT_LABEL)
+					InfoTooltip(VariantSummaryStrings.CALL_COUNT_TOOLTIP)
+					}
+				},
+				singleLine = true,
+				modifier = Modifier.width(StudioDimens.tableNameColumnWidth),
+			)
 	}
 }
