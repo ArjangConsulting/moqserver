@@ -95,6 +95,32 @@ public struct MockHandler: Sendable {
 
         // Variant selection
         let endpointKeyString = "\(endpoint.key.method.rawValue) \(endpoint.key.path)"
+        let callNumber = await store.incrementCallCount(for: endpointKeyString)
+
+        if endpoint.strictCallCount, endpoint.variants.contains(where: { $0.callCount != nil }) {
+            let hasExactMatch = endpoint.variants.contains { $0.callCount == callNumber }
+            if !hasExactMatch {
+                logger.warning("Call count exceeded for \(endpointKeyString): call #\(callNumber)")
+                let configuredCounts =
+                    endpoint.variants.compactMap(\.callCount).sorted().map(String.init).joined(separator: ", ")
+                let errorResponse = ErrorResponse(
+                    error: "Call count exceeded for \(endpointKeyString)",
+                    code: "call_count_exceeded",
+                    detail:
+                        "Call #\(callNumber). No variant configured for this call number. "
+                        + "Configured call_count values: [\(configuredCounts)]",
+                    hint:
+                        "Increase call_count coverage on a variant, or set strict_call_count: false "
+                        + "to fall back to normal selection."
+                )
+                return Response(
+                    status: .conflict,
+                    headers: ["Content-Type": "application/json"],
+                    body: .init(data: errorResponse.jsonData())
+                )
+            }
+        }
+
         let variantName = resolveVariantName(
             header: req.headers.first(name: "X-Mock-Variant"),
             adminOverride: await store.activeVariantOverride(for: endpointKeyString),
@@ -102,7 +128,8 @@ public struct MockHandler: Sendable {
         )
         logger.debug("Variant selection for \(endpointKeyString): requested=\(variantName ?? "default")")
 
-        guard let variant = selectVariant(endpoint: endpoint, named: variantName, req: req) else {
+        guard let variant = selectVariant(endpoint: endpoint, named: variantName, req: req, callNumber: callNumber)
+        else {
             let availableNames = endpoint.variants.map(\.name).joined(separator: ", ")
             let requestedInfo: String
             if let variantName {
@@ -191,17 +218,27 @@ public struct MockHandler: Sendable {
         header ?? adminOverride ?? configOverride
     }
 
-    private func selectVariant(endpoint: Endpoint, named name: String?, req: Request) -> ResponseVariant? {
+    private func selectVariant(
+        endpoint: Endpoint, named name: String?, req: Request, callNumber: Int
+    ) -> ResponseVariant? {
+        // Narrow to variants scoped to this call number first. If that narrowing would eliminate
+        // every candidate (call_count exhausted, e.g. call 3 when only call_count 1/2 are
+        // defined), drop the call_count constraint entirely and fall back to today's ordinary
+        // selection over all variants — call_count is a preference, not a hard requirement,
+        // unless strict_call_count already rejected the request before we got here.
+        let eligible = endpoint.variants.filter { $0.callCount == nil || $0.callCount == callNumber }
+        let effectiveVariants = eligible.isEmpty ? endpoint.variants : eligible
+
         let primaryCandidates: [ResponseVariant]
         if let name {
-            primaryCandidates = endpoint.variants.filter { $0.matchesIdentifier(name) }
+            primaryCandidates = effectiveVariants.filter { $0.matchesIdentifier(name) }
         } else {
-            primaryCandidates = endpoint.variants
+            primaryCandidates = effectiveVariants
         }
 
         // Try variants with explicit requestMatch constraints first
-        if let constrained = primaryCandidates.first(where: { $0.requestMatch != nil && variantMatches($0, req: req) })
-        {
+        if let constrained = primaryCandidates.first(where: { $0.requestMatch != nil && variantMatches($0, req: req) }
+        ) {
             return constrained
         }
 
@@ -221,11 +258,12 @@ public struct MockHandler: Sendable {
             return matched
         }
 
-        if let defaultVariant = endpoint.defaultVariant, variantMatches(defaultVariant, req: req) {
-            return defaultVariant
+        let effectiveDefault = effectiveVariants.first(where: \.isDefault) ?? effectiveVariants.first
+        if let effectiveDefault, variantMatches(effectiveDefault, req: req) {
+            return effectiveDefault
         }
 
-        return endpoint.variants.first(where: { variantMatches($0, req: req) })
+        return effectiveVariants.first(where: { variantMatches($0, req: req) })
     }
 
     // MARK: - Content Negotiation

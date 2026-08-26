@@ -116,12 +116,12 @@ let moqTools: [Tool] = [
         name: "moq_upsert_endpoint",
         description: """
             Creates or updates an endpoint's metadata (method, path, alias, description, \
-            reference_name, tags, auth, request_rules, operation, network). Existing variants \
-            are preserved untouched — manage them with moq_upsert_variant / moq_remove_variant. \
-            id must match ^[a-z0-9][a-z0-9-]*$. Reserved paths (/health, /_admin*, /_auth*) are \
-            rejected. GraphQL endpoints (path /graphql) require operation.type and either \
-            operation.name or operation.document; multiple endpoints may share path /graphql, \
-            disambiguated by operation.
+            reference_name, tags, auth, request_rules, operation, network, strict_call_count). \
+            Existing variants are preserved untouched — manage them with moq_upsert_variant / \
+            moq_remove_variant. id must match ^[a-z0-9][a-z0-9-]*$. Reserved paths (/health, \
+            /_admin*, /_auth*) are rejected. GraphQL endpoints (path /graphql) require \
+            operation.type and either operation.name or operation.document; multiple endpoints \
+            may share path /graphql, disambiguated by operation.
             """,
         inputSchema: .object([
             "type": "object",
@@ -146,6 +146,11 @@ let moqTools: [Tool] = [
                     "type": "object", "description": "{ type: query|mutation|subscription, name?, document? }",
                 ],
                 "network": ["type": "object", "description": "{ latency_ms?, jitter_ms?, packet_loss_percent? }"],
+                "strict_call_count": [
+                    "type": "boolean",
+                    "description":
+                        "When true and at least one variant sets call_count, a request whose call number has no exact-matching variant is rejected (409) instead of falling back to normal selection. Default false.",
+                ],
                 "autosave": ["type": "boolean", "default": true],
             ],
             "required": ["id", "method", "path"],
@@ -189,6 +194,11 @@ let moqTools: [Tool] = [
                 ],
                 "body": ["description": "Inline JSON value or string; do not set body_file"],
                 "delay_ms": ["type": "integer"],
+                "call_count": [
+                    "type": "integer",
+                    "minimum": 1,
+                    "description": "1-indexed. When set, this variant is only eligible on the Nth call to its endpoint.",
+                ],
                 "autosave": ["type": "boolean", "default": true],
             ],
             "required": ["endpoint_id", "name", "status"],

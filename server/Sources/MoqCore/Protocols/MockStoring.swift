@@ -19,6 +19,13 @@ public protocol MockStoring: Sendable {
     func resetVariantOverride(for key: String) async
     func allVariantOverrides() async -> [String: String]
 
+    // Call counts
+    /// Increments and returns the call count for `key` (1-indexed: first call returns 1).
+    func incrementCallCount(for key: String) async -> Int
+    /// Current call count for `key` without incrementing (0 if never called).
+    func currentCallCount(for key: String) async -> Int
+    func resetCallCount(for key: String) async
+
     // Lifecycle
     func clear() async
     func configureVariantOverridePersistence(path: String?) async

@@ -94,6 +94,9 @@ public struct ProjectWriter: ProjectWriting {
         if let tags = endpoint.tags, !tags.isEmpty {
             lines.append("tags: [\(tags.map(yamlQuote).joined(separator: ", "))]")
         }
+        if let strictCallCount = endpoint.strictCallCount {
+            lines.append("strict_call_count: \(strictCallCount)")
+        }
 
         if let operation = endpoint.operation {
             lines.append("")
@@ -241,6 +244,10 @@ public struct ProjectWriter: ProjectWriting {
 
         if let delayMs = variant.delayMs {
             lines.append("\(pad)  delay_ms: \(delayMs)")
+        }
+
+        if let callCount = variant.callCount {
+            lines.append("\(pad)  call_count: \(callCount)")
         }
 
         return lines

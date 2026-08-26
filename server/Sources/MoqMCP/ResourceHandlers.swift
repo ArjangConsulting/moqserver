@@ -88,5 +88,7 @@ private func authoringRulesMarkdown() -> String {
         - `auth.type` values: \(authTypes) — `header_name` is required for `api-key` and `header`
         - `request_rules`/`variant.request_match` matcher `match_type` values: \(matchTypes)
         - Variant `status` must be 100-599
+        - Variant `call_count` (integer, >= 1 when present) makes that variant eligible only on the Nth call to its endpoint; call_count values must be unique per endpoint
+        - Endpoint `strict_call_count: true` (requires at least one variant with `call_count` set) rejects a call with no exact `call_count` match (409 `call_count_exceeded`) instead of falling back to normal selection; default `false`
         """
 }

@@ -169,6 +169,7 @@ public struct ProjectValidator: ProjectValidating {
             // Per-variant validation
             var seenVariantNames: Set<String> = []
             var seenVariantReferenceNames: Set<String> = []
+            var seenCallCounts: Set<Int> = []
             for (index, variant) in endpoint.variants.enumerated() {
                 let variantField = "variants[\(index)]"
 
@@ -209,6 +210,32 @@ public struct ProjectValidator: ProjectValidating {
                             endpointID: endpoint.id,
                             variantName: variant.name
                         ))
+                }
+
+                if let callCount = variant.callCount {
+                    if callCount < 1 {
+                        diagnostics.append(
+                            .init(
+                                severity: .error,
+                                message: "Variant call_count must be at least 1.",
+                                file: fileName,
+                                field: "\(variantField).call_count",
+                                code: .invalidCallCount,
+                                endpointID: endpoint.id,
+                                variantName: variant.name
+                            ))
+                    } else if !seenCallCounts.insert(callCount).inserted {
+                        diagnostics.append(
+                            .init(
+                                severity: .error,
+                                message: "Duplicate variant call_count \(callCount) on this endpoint.",
+                                file: fileName,
+                                field: "\(variantField).call_count",
+                                code: .duplicateCallCount,
+                                endpointID: endpoint.id,
+                                variantName: variant.name
+                            ))
+                    }
                 }
 
                 // Variant name uniqueness
@@ -440,6 +467,21 @@ public struct ProjectValidator: ProjectValidating {
                             ))
                     }
                 }
+            }
+
+            // Rule 9b: strict_call_count without any call_count-tagged variant can never reject
+            // anything, which is almost certainly a mistake.
+            if endpoint.strictCallCount == true, !endpoint.variants.contains(where: { $0.callCount != nil }) {
+                diagnostics.append(
+                    .init(
+                        severity: .warning,
+                        message:
+                            "strict_call_count is true but no variant defines call_count, so it can never reject a call.",
+                        file: fileName,
+                        field: "strict_call_count",
+                        code: .strictCallCountWithoutCallCount,
+                        endpointID: endpoint.id
+                    ))
             }
 
             // Rule 10: auth.type validation

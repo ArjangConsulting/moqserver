@@ -112,7 +112,8 @@ public actor InMemoryMockStore: MockStoring {
                 requiresBody: existing.requiresBody,
                 acceptedContentTypes: existing.acceptedContentTypes,
                 operation: existing.operation,
-                network: existing.network
+                network: existing.network,
+                strictCallCount: existing.strictCallCount
             )
             endpoints[key] = existing
         } else {
@@ -144,11 +145,31 @@ public actor InMemoryMockStore: MockStoring {
         variantOverrides
     }
 
+    // MARK: - Call Counts
+
+    private var callCounts: [String: Int] = [:]
+
+    public func incrementCallCount(for key: String) -> Int {
+        let count = (callCounts[key] ?? 0) + 1
+        callCounts[key] = count
+        return count
+    }
+
+    public func currentCallCount(for key: String) -> Int {
+        callCounts[key] ?? 0
+    }
+
+    public func resetCallCount(for key: String) {
+        logger.info("Resetting call count for \(key)")
+        callCounts.removeValue(forKey: key)
+    }
+
     public func clear() {
         logger.info("Clearing all endpoints and overrides")
         endpoints.removeAll()
         graphqlEndpoints.removeAll()
         variantOverrides.removeAll()
+        callCounts.removeAll()
         persistVariantOverridesIfNeeded()
     }
 

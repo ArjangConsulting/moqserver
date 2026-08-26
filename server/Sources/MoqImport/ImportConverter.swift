@@ -177,7 +177,8 @@ public enum ImportConverter {
             requestRules: requestRules,
             operation: existing.operation,
             network: existing.network,
-            variants: mergeVariants(existing, parsed: parsed, policy: policy)
+            variants: mergeVariants(existing, parsed: parsed, policy: policy),
+            strictCallCount: existing.strictCallCount
         )
     }
 
@@ -220,7 +221,8 @@ public enum ImportConverter {
                     body: replacementBody,
                     bodyEncoding: replacementBody != nil && replacement.isBase64 ? .base64 : nil,
                     bodyFile: replacementBody != nil ? nil : variant.bodyFile,
-                    delayMs: variant.delayMs
+                    delayMs: variant.delayMs,
+                    callCount: variant.callCount
                 )
             }
         }

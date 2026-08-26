@@ -520,6 +520,7 @@ private fun VariantDetailCard(
                     requestRules = requestRules,
                     auth = endpoint.auth,
                     network = endpoint.network,
+                    strictCallCount = endpoint.strictCallCount,
                     onUpdateVariant = { updatedVariant ->
                         onUpdateEndpoint(endpoint.updateVariant(activeVariantIndex, updatedVariant))
                     },
@@ -528,6 +529,7 @@ private fun VariantDetailCard(
                     },
                     onUpdateAuth = { onUpdateEndpoint(endpoint.copy(auth = it)) },
                     onUpdateNetwork = { onUpdateEndpoint(endpoint.copy(network = it)) },
+                    onUpdateStrictCallCount = { onUpdateEndpoint(endpoint.copy(strictCallCount = it)) },
                 )
             }
         }

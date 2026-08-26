@@ -146,7 +146,7 @@ private func handleListEndpoints(
         let summaries = try await service.listEndpoints(handle: handle, filter: filter)
         return try CallTool.Result(
             content: [.text(text: "\(summaries.count) endpoint(s)", annotations: nil, _meta: nil)],
-            structuredContent: summaries)
+            structuredContent: EndpointListResult(endpoints: summaries))
     } catch {
         return try toolError(error)
     }
@@ -269,7 +269,7 @@ private func handleValidateProject(service: MoqService, handle: String) async th
                     text: "\(result.errorCount) error(s), \(result.warningCount) warning(s)", annotations: nil,
                     _meta: nil)
             ],
-            structuredContent: result, isError: result.errorCount > 0)
+            structuredContent: result)
     } catch {
         return try toolError(error)
     }

@@ -13,6 +13,9 @@ public struct Endpoint: Sendable {
     public let operation: EndpointOperation?
     /// Endpoint-level network simulation settings.
     public let network: NetworkBehavior?
+    /// When true and at least one variant has `callCount` set, a request whose call number has
+    /// no exact-matching variant is rejected (409) instead of falling back to normal selection.
+    public let strictCallCount: Bool
 
     public init(
         key: EndpointKey,
@@ -27,7 +30,8 @@ public struct Endpoint: Sendable {
         requiresBody: Bool = false,
         acceptedContentTypes: [String] = [],
         operation: EndpointOperation? = nil,
-        network: NetworkBehavior? = nil
+        network: NetworkBehavior? = nil,
+        strictCallCount: Bool = false
     ) {
         self.key = key
         self.authRequirement = authRequirement
@@ -40,6 +44,7 @@ public struct Endpoint: Sendable {
         self.acceptedContentTypes = acceptedContentTypes
         self.operation = operation
         self.network = network
+        self.strictCallCount = strictCallCount
     }
 
     public var requiredQueryParameters: [String] {

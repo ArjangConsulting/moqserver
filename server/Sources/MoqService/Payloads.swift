@@ -46,6 +46,14 @@ public struct EndpointFilter: Decodable, Sendable {
     }
 }
 
+public struct EndpointListResult: Codable, Sendable {
+    public let endpoints: [EndpointSummary]
+
+    public init(endpoints: [EndpointSummary]) {
+        self.endpoints = endpoints
+    }
+}
+
 public struct EndpointSummary: Codable, Sendable {
     public let id: String
     public let method: String
@@ -125,6 +133,7 @@ public struct EndpointUpsertInput: Decodable, Sendable {
     public let requestRules: RequestRules?
     public let operation: EndpointOperation?
     public let network: NetworkBehavior?
+    public let strictCallCount: Bool?
 
     enum CodingKeys: String, CodingKey {
         case id, alias, description
@@ -132,6 +141,7 @@ public struct EndpointUpsertInput: Decodable, Sendable {
         case method, path, tags, auth
         case requestRules = "request_rules"
         case operation, network
+        case strictCallCount = "strict_call_count"
     }
 
     /// Builds the full `EndpointDocument`, preserving `existingVariants` (`[]` for a new
@@ -149,7 +159,8 @@ public struct EndpointUpsertInput: Decodable, Sendable {
             requestRules: requestRules,
             operation: operation,
             network: network,
-            variants: existingVariants
+            variants: existingVariants,
+            strictCallCount: strictCallCount
         )
     }
 }

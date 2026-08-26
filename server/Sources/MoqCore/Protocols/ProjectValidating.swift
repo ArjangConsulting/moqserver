@@ -99,4 +99,7 @@ public enum DiagnosticCode: String, Sendable, Equatable {
     case invalidMethod = "E_INVALID_METHOD"
     case invalidPathPrefix = "E_INVALID_PATH_PREFIX"
     case invalidDefaultDelay = "E_INVALID_DEFAULT_DELAY"
+    case invalidCallCount = "E_INVALID_CALL_COUNT"
+    case duplicateCallCount = "E_DUPLICATE_CALL_COUNT"
+    case strictCallCountWithoutCallCount = "W_STRICT_CALL_COUNT_WITHOUT_CALL_COUNT"
 }

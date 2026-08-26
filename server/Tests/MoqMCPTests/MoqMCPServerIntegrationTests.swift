@@ -101,6 +101,53 @@ struct MoqMCPServerIntegrationTests {
         #expect(FileManager.default.fileExists(atPath: fixtureFile))
     }
 
+    @Test("moq_upsert_endpoint and moq_upsert_variant round-trip call_count and strict_call_count")
+    func callCountAndStrictCallCountRoundTrip() async throws {
+        let path = tempPath("call-count-lifecycle")
+        defer { try? FileManager.default.removeItem(atPath: path) }
+        let client = try await connectedClient()
+
+        let created = try await client.callTool(
+            name: "moq_create_project", arguments: ["path": .string(path), "name": .string("Call Count Project")])
+        #expect(created.isError != true)
+
+        let upserted = try await client.callTool(
+            name: "moq_upsert_endpoint",
+            arguments: [
+                "id": .string("get-job"), "method": .string("GET"), "path": .string("/jobs/1"),
+                "strict_call_count": .bool(true),
+            ])
+        #expect(upserted.isError != true)
+
+        let firstVariant = try await client.callTool(
+            name: "moq_upsert_variant",
+            arguments: [
+                "endpoint_id": .string("get-job"), "name": .string("pending"), "status": .int(200),
+                "call_count": .int(1), "body": .object(["status": .string("pending")]),
+            ])
+        #expect(firstVariant.isError != true)
+
+        let secondVariant = try await client.callTool(
+            name: "moq_upsert_variant",
+            arguments: [
+                "endpoint_id": .string("get-job"), "name": .string("done"), "status": .int(200),
+                "call_count": .int(2), "body": .object(["status": .string("done")]),
+            ])
+        #expect(secondVariant.isError != true)
+
+        let validated = try await client.callTool(name: "moq_validate_project")
+        #expect(validated.isError != true)
+
+        let saved = try await client.callTool(name: "moq_save_project")
+        #expect(saved.isError != true)
+
+        let endpointFile = (path as NSString).appendingPathComponent("endpoints/get-job.yml")
+        let yaml = try String(contentsOfFile: endpointFile, encoding: .utf8)
+        #expect(yaml.contains("strict_call_count: true"))
+        #expect(yaml.contains("call_count: 1"))
+        #expect(yaml.contains("call_count: 2"))
+    }
+
     @Test("moq_upsert_endpoint rejects a reserved path")
     func rejectsReservedPath() async throws {
         let path = tempPath("reserved")
