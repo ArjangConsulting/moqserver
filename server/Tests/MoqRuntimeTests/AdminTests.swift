@@ -217,6 +217,32 @@ struct AdminTests {
         #expect(override == "error-500")
     }
 
+    /// Regression: Vapor's catchall drops the trailing empty segment, so an endpoint whose
+    /// registered path ends in "/" (every Novalingo API path does) could never be addressed
+    /// through the admin API — runtime variant switching was unusable for those endpoints.
+    @Test("Admin API addresses an endpoint whose registered path ends in a slash")
+    func setVariantOnTrailingSlashPath() async throws {
+        let store = InMemoryMockStore()
+        await store.register(makeEndpoint(method: .get, path: "/v1/videos/1440/", variants: ["default", "error-500"]))
+
+        let app = try await buildApp(store: store)
+        defer { Task { try? await app.asyncShutdown() } }
+
+        try await app.testing().test(
+            .PUT, "/_admin/endpoints/GET/v1/videos/1440/variant",
+            beforeRequest: { req async throws in
+                try req.content.encode(SetVariantRequest(variant: "error-500"))
+            }
+        ) { res async in
+            #expect(res.status == .ok)
+        }
+
+        // The override must be keyed on the endpoint's own registered path, not the
+        // slash-stripped spelling the request happened to use.
+        let override = await store.activeVariantOverride(for: "GET /v1/videos/1440/")
+        #expect(override == "error-500")
+    }
+
     @Test("PUT /_admin/endpoints/:method/**/variant rejects unknown variant")
     func setVariantNotFound() async throws {
         let store = InMemoryMockStore()

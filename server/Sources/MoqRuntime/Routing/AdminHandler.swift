@@ -128,7 +128,18 @@ public struct AdminHandler: Sendable {
         let httpMethod = HTTPMethodValue(rawValue: method.uppercased())
         let keyString = "\(httpMethod.rawValue) \(apiPath)"
 
-        guard let endpoint = await store.lookup(method: httpMethod, path: apiPath) else {
+        // Vapor's catchall drops the trailing empty segment, so `/v1/foo/` arrives as `/v1/foo`
+        // and would never match a stored path that keeps its trailing slash. Try the literal
+        // path first, then the trailing-slash variant, so both spellings address one endpoint.
+        let candidatePaths = apiPath.hasSuffix("/") ? [apiPath, String(apiPath.dropLast())] : [apiPath, apiPath + "/"]
+        var resolved: Endpoint?
+        for candidate in candidatePaths {
+            if let found = await store.lookup(method: httpMethod, path: candidate) {
+                resolved = found
+                break
+            }
+        }
+        guard let endpoint = resolved else {
             let allEndpoints = await store.allEndpoints()
             let matchingPaths =
                 allEndpoints
@@ -144,7 +155,10 @@ public struct AdminHandler: Sendable {
             throw Abort(.notFound, reason: "Endpoint not found: \(keyString). \(hint)")
         }
 
-        return (endpoint, keyString, subresource)
+        // Derive the key from the endpoint we actually resolved, not the requested spelling —
+        // the call-count store is keyed on the endpoint's own path.
+        let resolvedKey = "\(endpoint.key.method.rawValue) \(endpoint.key.path)"
+        return (endpoint, resolvedKey, subresource)
     }
 
     private func authRequirementString(_ auth: AuthRequirement) -> String {

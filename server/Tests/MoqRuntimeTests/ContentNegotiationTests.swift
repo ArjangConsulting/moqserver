@@ -36,6 +36,45 @@ struct ContentNegotiationTests {
         )
     }
 
+    /// Regression: two variants sharing a Content-Type were separated only by declaration
+    /// order under a generic `Accept: */*`, so `isDefault` was ignored for essentially every
+    /// real HTTP client — an error variant declared first shadowed the default success one.
+    @Test("Default variant wins a content-negotiation tie regardless of declaration order")
+    func defaultWinsTieOverDeclarationOrder() async throws {
+        let endpoint = Endpoint(
+            key: EndpointKey(method: .get, path: "/videos"),
+            authRequirement: .none,
+            variants: [
+                ResponseVariant(
+                    name: "serverError",
+                    statusCode: .internalServerError,
+                    headers: [("Content-Type", "application/json")],
+                    body: Data(#"{"detail":"boom"}"#.utf8)
+                ),
+                ResponseVariant(
+                    name: "success",
+                    isDefault: true,
+                    statusCode: .ok,
+                    headers: [("Content-Type", "application/json")],
+                    body: Data(#"{"id":1}"#.utf8)
+                ),
+            ]
+        )
+        let store = InMemoryMockStore()
+        await store.register(endpoint)
+
+        let app = try await buildApp(store: store)
+        defer { Task { try? await app.asyncShutdown() } }
+
+        try await app.testing().test(
+            .GET, "/videos", beforeRequest: { req async in
+                req.headers.replaceOrAdd(name: .accept, value: "*/*")
+            }
+        ) { res async in
+            #expect(res.status == .ok)
+        }
+    }
+
     @Test("Returns JSON by default (no Accept header)")
     func defaultJson() async throws {
         let store = InMemoryMockStore()
