@@ -102,4 +102,5 @@ public enum DiagnosticCode: String, Sendable, Equatable {
     case invalidCallCount = "E_INVALID_CALL_COUNT"
     case duplicateCallCount = "E_DUPLICATE_CALL_COUNT"
     case strictCallCountWithoutCallCount = "W_STRICT_CALL_COUNT_WITHOUT_CALL_COUNT"
+    case noDefaultVariant = "W_NO_DEFAULT_VARIANT"
 }

@@ -392,6 +392,42 @@ struct ProjectValidatorTests {
         #expect(errors.contains { $0.message.contains("Duplicate variant name") })
     }
 
+    @Test("Rejects variant names that collide only by case")
+    func rejectsCaseInsensitiveDuplicateVariantNames() {
+        let project = makeProject(endpoints: [
+            sampleEndpoint(variants: [
+                ProjectVariant(name: "Success", isDefault: true, status: 200),
+                ProjectVariant(name: "success", status: 500),
+            ])
+        ])
+        let errors = validator.validate(project).filter { $0.severity == .error }
+        #expect(errors.contains { $0.code == .duplicateVariantName })
+    }
+
+    @Test("Warns when an endpoint has variants but none is default")
+    func warnsNoDefaultVariant() {
+        let project = makeProject(endpoints: [
+            sampleEndpoint(variants: [
+                ProjectVariant(name: "error", status: 500),
+                ProjectVariant(name: "success", status: 200),
+            ])
+        ])
+        let warnings = validator.validate(project).filter { $0.severity == .warning }
+        #expect(warnings.contains { $0.code == .noDefaultVariant })
+    }
+
+    @Test("Does not warn about a missing default when one variant is marked default")
+    func noDefaultWarningWhenDefaultPresent() {
+        let project = makeProject(endpoints: [
+            sampleEndpoint(variants: [
+                ProjectVariant(name: "success", isDefault: true, status: 200),
+                ProjectVariant(name: "error", status: 500),
+            ])
+        ])
+        let warnings = validator.validate(project).filter { $0.severity == .warning }
+        #expect(!warnings.contains { $0.code == .noDefaultVariant })
+    }
+
     @Test("Rejects call_count below 1")
     func rejectsInvalidCallCount() {
         let project = makeProject(endpoints: [

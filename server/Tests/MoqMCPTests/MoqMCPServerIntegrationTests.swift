@@ -148,6 +148,54 @@ struct MoqMCPServerIntegrationTests {
         #expect(yaml.contains("call_count: 2"))
     }
 
+    @Test("case-only re-upsert of a variant reports a replacement, not a second variant")
+    func caseInsensitiveVariantUpsertReportsReplacement() async throws {
+        let path = tempPath("variant-case")
+        defer { try? FileManager.default.removeItem(atPath: path) }
+        let client = try await connectedClient()
+
+        _ = try await client.callTool(
+            name: "moq_create_project", arguments: ["path": .string(path), "name": .string("T")])
+        _ = try await client.callTool(
+            name: "moq_upsert_endpoint",
+            arguments: ["id": .string("get-users"), "method": .string("GET"), "path": .string("/users")])
+
+        let created = try await client.callTool(
+            name: "moq_upsert_variant",
+            arguments: [
+                "endpoint_id": .string("get-users"), "name": .string("Success"), "status": .int(200),
+                "body": .object(["ok": .bool(true)]),
+            ])
+        if case .text(let text, _, _) = created.content.first {
+            #expect(text.contains("Created variant Success"))
+        } else {
+            Issue.record("expected text content")
+        }
+
+        let replaced = try await client.callTool(
+            name: "moq_upsert_variant",
+            arguments: [
+                "endpoint_id": .string("get-users"), "name": .string("success"), "status": .int(201),
+                "body": .object(["ok": .bool(false)]),
+            ])
+        if case .text(let text, _, _) = replaced.content.first {
+            #expect(text.contains("Replaced variant Success"))
+            #expect(text.contains("do not issue moq_remove_variant"))
+        } else {
+            Issue.record("expected text content")
+        }
+
+        let removed = try await client.callTool(
+            name: "moq_remove_variant",
+            arguments: ["endpoint_id": .string("get-users"), "name": .string("SUCCESS")])
+        if case .text(let text, _, _) = removed.content.first {
+            #expect(text.contains("Removed variant success"))
+            #expect(text.contains("case-insensitively"))
+        } else {
+            Issue.record("expected text content")
+        }
+    }
+
     @Test("moq_upsert_endpoint rejects a reserved path")
     func rejectsReservedPath() async throws {
         let path = tempPath("reserved")

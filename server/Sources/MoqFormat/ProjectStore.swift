@@ -252,7 +252,13 @@ public actor ProjectStore {
     /// Inserts or replaces (by name) a variant on an endpoint. If `variant.isDefault == true`,
     /// clears the default flag on every other variant first, so "at most one default variant"
     /// can never be violated by construction.
-    public func upsertVariant(endpointID: String, _ variant: ProjectVariant) throws {
+    ///
+    /// Returns whether an existing variant was replaced. Variant identity is case-insensitive, so
+    /// `upsert("Success")` followed by `upsert("success")` replaces rather than adds a second
+    /// variant — the returned `.replaced(previousName:)` lets a caller notice that and skip a
+    /// follow-up `removeVariant` that would otherwise destroy the just-written variant.
+    @discardableResult
+    public func upsertVariant(endpointID: String, _ variant: ProjectVariant) throws -> VariantUpsertOutcome {
         guard let endpointIndex = project.endpoints.firstIndex(where: { $0.id == endpointID }) else {
             throw ProjectStoreError.endpointNotFound(endpointID)
         }
@@ -281,11 +287,14 @@ public actor ProjectStore {
             }
         }
 
+        let outcome: VariantUpsertOutcome
         if let variantIndex = variants.firstIndex(where: {
             $0.name.caseInsensitiveCompare(variant.name) == .orderedSame
         }) {
+            outcome = .replaced(previousName: variants[variantIndex].name)
             variants[variantIndex] = variant
         } else {
+            outcome = .created
             variants.append(variant)
         }
 
@@ -293,9 +302,13 @@ public actor ProjectStore {
         var endpoints = project.endpoints
         endpoints[endpointIndex] = updatedEndpoint
         project = MoqProject(manifest: project.manifest, endpoints: endpoints, projectPath: project.projectPath)
+        return outcome
     }
 
-    public func removeVariant(endpointID: String, name: String) throws {
+    /// Removes a variant by name (case-insensitive) and returns the *stored* name of the variant
+    /// that was actually removed — which can differ in casing from `name`.
+    @discardableResult
+    public func removeVariant(endpointID: String, name: String) throws -> String {
         guard let endpointIndex = project.endpoints.firstIndex(where: { $0.id == endpointID }) else {
             throw ProjectStoreError.endpointNotFound(endpointID)
         }
@@ -307,11 +320,13 @@ public actor ProjectStore {
         else {
             throw ProjectStoreError.variantNotFound(endpointID: endpointID, variantName: name)
         }
+        let removedName = endpoint.variants[variantIndex].name
         var variants = endpoint.variants
         variants.remove(at: variantIndex)
         var endpoints = project.endpoints
         endpoints[endpointIndex] = endpoint.withVariants(variants)
         project = MoqProject(manifest: project.manifest, endpoints: endpoints, projectPath: project.projectPath)
+        return removedName
     }
 
     // MARK: - Fixture operations (advanced — bypass the normal inline-body flow)
@@ -585,6 +600,17 @@ public actor ProjectStore {
         hasher.update(data: Data(relativePath.utf8))
         hasher.update(data: try Data(contentsOf: URL(fileURLWithPath: filePath)))
     }
+}
+
+/// Result of `ProjectStore.upsertVariant` — distinguishes a fresh insertion from an in-place
+/// replacement so a caller can surface the replacement (variant names match case-insensitively)
+/// instead of silently issuing a destructive `removeVariant` afterward.
+public enum VariantUpsertOutcome: Equatable, Sendable {
+    /// No existing variant matched by name; the variant was appended.
+    case created
+    /// An existing variant was replaced in place. `previousName` is its stored name before the
+    /// replacement, which differs from the new name when the match was only case-insensitive.
+    case replaced(previousName: String)
 }
 
 extension EndpointDocument {
