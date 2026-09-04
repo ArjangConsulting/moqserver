@@ -60,4 +60,16 @@ struct ServeCommandDefaultsTests {
         let command = try ServeCommand.parse(["--project", "dummy.moqproj"])
         #expect(command.hostname == "127.0.0.1")
     }
+
+    @Test("Default log level is info")
+    func defaultLogLevel() throws {
+        let command = try ServeCommand.parse(["--project", "dummy.moqproj"])
+        #expect(command.logLevel == "info")
+    }
+
+    @Test("--log-level is settable")
+    func logLevelOverride() throws {
+        let command = try ServeCommand.parse(["--project", "dummy.moqproj", "--log-level", "debug"])
+        #expect(command.logLevel == "debug")
+    }
 }

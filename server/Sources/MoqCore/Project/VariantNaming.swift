@@ -3,11 +3,17 @@ import Foundation
 private let generatedVariantNamePattern = "^(default|success(?:[-_]\\d+)?|error(?:[-_]\\d+)?)$"
 
 /// A generic display-name fallback derived purely from a variant's status code.
+///
+/// Lowercase by convention: hand-authored bundles overwhelmingly use lowercase variant names
+/// (`success`, `error`, `not-found`), and variant identity is case-insensitive (see
+/// `ProjectStore.upsertVariant`/`removeVariant`) — a capitalized generated name here would
+/// collide with, but not match the spelling of, a hand-authored one, which is exactly the
+/// mismatch that made HAR imports a trap for anyone who later normalized casing.
 public func defaultVariantBaseName(status: Int) -> String {
     switch status {
-    case 200...299: return "Success"
-    case 400...599: return "Error"
-    default: return "Variant"
+    case 200...299: return "success"
+    case 400...599: return "error"
+    default: return "variant"
     }
 }
 

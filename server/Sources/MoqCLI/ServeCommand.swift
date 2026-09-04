@@ -27,9 +27,32 @@ public struct ServeCommand: AsyncParsableCommand {
     @ArgumentParser.Option(name: .long, help: "Path to a YAML or JSON config file")
     var config: String?
 
+    @ArgumentParser.Option(
+        name: .long,
+        help: ArgumentHelp(
+            "Log level: trace, debug, info, notice, warning, error, or critical. debug adds "
+                + "per-request handling/variant-selection detail on top of the always-on "
+                + "info-level access log.")
+    )
+    var logLevel: String = "info"
+
     public init() {}
 
     public mutating func run() async throws {
+        // Must happen before any `Logger` is constructed anywhere in the process — Logging's
+        // global factory is fixed on first use, not by this call, so every module-level `logger`
+        // (this file, MockHandler, AppBootstrap, ...) picks it up lazily on its own first access.
+        guard let level = Logger.Level(rawValue: logLevel.lowercased()) else {
+            let validLevels = "trace, debug, info, notice, warning, error, critical"
+            print("Invalid --log-level \"\(logLevel)\". Valid values: \(validLevels).")
+            throw ExitCode.validationFailure
+        }
+        LoggingSystem.bootstrap { label in
+            var handler = StreamLogHandler.standardOutput(label: label)
+            handler.logLevel = level
+            return handler
+        }
+
         let store = InMemoryMockStore()
         let configLoader = ConfigLoader()
 

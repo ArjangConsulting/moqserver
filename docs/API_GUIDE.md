@@ -37,8 +37,11 @@ Supported `serve` flags:
 | `--port` | No | `8080` | Port to listen on |
 | `--hostname` | No | `127.0.0.1` | Hostname to bind to |
 | `--config` | No | — | Path to a YAML or JSON server config file |
+| `--log-level` | No | `info` | `trace`, `debug`, `info`, `notice`, `warning`, `error`, or `critical` |
 
 The server validates the project before binding the port. If there are validation errors it prints them and exits without starting.
+
+At the default `info` level, every matched request logs one access-log line — `METHOD path → status (endpoint=... variant=...)` — so "did the app actually call this endpoint, and which variant did it get?" is answerable from the server's own output. An unmatched request logs at `warning`. Pass `--log-level debug` for finer per-request detail (request routing, variant-selection reasoning, applied delay); `--log-level warning` or higher silences the access log.
 
 ## 2. Project Format (`.moqproj`)
 

@@ -406,7 +406,9 @@ struct ProjectStoreTests {
         contents += "\n# external edit\n"
         try contents.write(toFile: manifestFile, atomically: true, encoding: .utf8)
 
-        try await store.addEndpoint(endpoint(id: "other", path: "/other"))
+        // A mutation now fails fast, before touching the in-memory model — see
+        // `mutationRejectsExternalChangeBeforeMutating` below. Bypass that guard here (by saving
+        // directly with no prior mutation) to exercise save()'s own independent check.
         await #expect(throws: ProjectStoreError.self) {
             try await store.save()
         }
@@ -414,6 +416,45 @@ struct ProjectStoreTests {
         // The failed save must not have clobbered the external edit.
         let stillThere = try String(contentsOfFile: manifestFile, encoding: .utf8)
         #expect(stillThere.contains("# external edit"))
+    }
+
+    @Test("a mutation fails fast — before touching the in-memory model — when the bundle changed on disk")
+    func mutationRejectsExternalChangeBeforeMutating() async throws {
+        let path = tempPath("external-change-mutation")
+        defer { try? FileManager.default.removeItem(atPath: path) }
+        let store = try ProjectStore.create(manifest: manifest(), at: path)
+        try await store.addEndpoint(endpoint())
+        try await store.save()
+
+        // Simulate a hand-edit made while this MCP-style session still holds the bundle open —
+        // the scenario that used to be caught only much later, at save time, if at all with
+        // autosave off.
+        let manifestFile = (path as NSString).appendingPathComponent("project.yml")
+        var contents = try String(contentsOfFile: manifestFile, encoding: .utf8)
+        contents += "\n# external edit\n"
+        try contents.write(toFile: manifestFile, atomically: true, encoding: .utf8)
+
+        await #expect(throws: ProjectStoreError.self) {
+            try await store.addEndpoint(endpoint(id: "other", path: "/other"))
+        }
+
+        // The rejected mutation must not have been applied in memory.
+        let endpoints = await store.currentProject.endpoints
+        #expect(endpoints.map(\.id) == ["get-users"])
+
+        // Every incremental mutation method shares the same guard.
+        await #expect(throws: ProjectStoreError.self) {
+            try await store.upsertVariant(endpointID: "get-users", ProjectVariant(name: "b", status: 500))
+        }
+        await #expect(throws: ProjectStoreError.self) {
+            try await store.removeVariant(endpointID: "get-users", name: "default")
+        }
+        await #expect(throws: ProjectStoreError.self) {
+            try await store.updateEndpoint(id: "get-users", endpoint())
+        }
+        await #expect(throws: ProjectStoreError.self) {
+            try await store.removeEndpoint(id: "get-users")
+        }
     }
 
     // MARK: - Transaction recovery
