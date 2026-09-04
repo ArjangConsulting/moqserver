@@ -219,6 +219,41 @@ struct ProjectStoreTests {
         #expect(project.endpoints[0].variants[0].status == 500)
     }
 
+    @Test("upsertVariant reports created vs replaced, including a case-insensitive match")
+    func upsertVariantReportsOutcome() async throws {
+        let path = tempPath("variant-outcome")
+        defer { try? FileManager.default.removeItem(atPath: path) }
+        let store = try ProjectStore.create(manifest: manifest(), at: path)
+        try await store.addEndpoint(endpoint(variants: []))
+
+        let first = try await store.upsertVariant(
+            endpointID: "get-users", ProjectVariant(name: "Success", status: 200))
+        #expect(first == .created)
+
+        let second = try await store.upsertVariant(
+            endpointID: "get-users", ProjectVariant(name: "success", status: 201))
+        #expect(second == .replaced(previousName: "Success"))
+
+        // The case-only rename replaced in place — there is still exactly one variant.
+        let variants = await store.currentProject.endpoints[0].variants
+        #expect(variants.count == 1)
+        #expect(variants[0].name == "success")
+        #expect(variants[0].status == 201)
+    }
+
+    @Test("removeVariant returns the stored name it removed, not the requested spelling")
+    func removeVariantReturnsStoredName() async throws {
+        let path = tempPath("variant-remove-name")
+        defer { try? FileManager.default.removeItem(atPath: path) }
+        let store = try ProjectStore.create(manifest: manifest(), at: path)
+        try await store.addEndpoint(
+            endpoint(variants: [ProjectVariant(name: "Success", status: 200)]))
+
+        let removed = try await store.removeVariant(endpointID: "get-users", name: "success")
+        #expect(removed == "Success")
+        #expect(await store.currentProject.endpoints[0].variants.isEmpty)
+    }
+
     @Test("removeVariant on an unknown endpoint throws")
     func removeVariantUnknownEndpointThrows() async throws {
         let path = tempPath("variant-unknown-endpoint")

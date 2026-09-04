@@ -81,7 +81,8 @@ private func authoringRulesMarkdown() -> String {
         - Endpoint id pattern: `\(MoqFormatRules.endpointIDPattern)` (lowercase alphanumeric, hyphens, must not start with a hyphen)
         - Supported HTTP methods: \(methods)
         - Reserved paths (rejected): `/health`, `/_admin`, `/_admin/*`, `/_auth`, `/_auth/*`
-        - At most one variant per endpoint may have `default: true`; moq_upsert_variant clears siblings automatically
+        - At most one variant per endpoint may have `default: true`; moq_upsert_variant clears siblings automatically. An endpoint with variants but no `default: true` gets a `W_NO_DEFAULT_VARIANT` warning — selection then falls back to declaration order
+        - Variant names are unique **case-insensitively** (`Success` and `success` collide). moq_upsert_variant with an existing name — in any casing — replaces that variant in place and its response says `Replaced`; do not follow up with moq_remove_variant for the old spelling
         - A variant's `body` and `body_file` are mutually exclusive — moq_upsert_variant only accepts inline `body` and manages fixture files itself
         - `request_match` (on a variant) must define at least one of `query`, `headers`, or `body_contains` when present
         - GraphQL endpoints use `path: /graphql` and require `operation.type` plus `operation.name` and/or `operation.document`; multiple endpoints may share `/graphql`, disambiguated by `operation`

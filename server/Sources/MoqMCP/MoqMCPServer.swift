@@ -175,7 +175,9 @@ let moqTools: [Tool] = [
             true clears the default flag on every sibling variant, so at most one default can \
             ever exist. Provide body as inline JSON/text — never body_file; the store \
             externalizes it to a fixture file at save time and manages that path itself. status \
-            must be 100-599.
+            must be 100-599. Variant names match case-insensitively: upserting "success" when a \
+            "Success" variant already exists REPLACES it in place — the response text says so. \
+            Do not then remove the old spelling; that would delete the variant you just wrote.
             """,
         inputSchema: .object([
             "type": "object",
@@ -206,7 +208,9 @@ let moqTools: [Tool] = [
     ),
     Tool(
         name: "moq_remove_variant",
-        description: "Removes one named variant from an endpoint.",
+        description:
+            "Removes one named variant from an endpoint. Name matching is case-insensitive; the "
+            + "response reports the variant's actual stored name when it differed from the request.",
         inputSchema: .object([
             "type": "object",
             "properties": [

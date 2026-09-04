@@ -1,6 +1,7 @@
 import Foundation
 import MCP
 import MoqCore
+import MoqFormat
 import MoqService
 
 /// Thin transport adapter: decode MCP tool arguments into `MoqService`'s own input types, call
@@ -227,12 +228,22 @@ private func handleUpsertVariant(
         let ref = try decodeArguments(VariantEndpointRef.self, from: params.arguments)
         let variant = try decodeArguments(ProjectVariant.self, from: params.arguments)
         let autosave = try autosaveFlag(from: params.arguments)
-        try await service.upsertVariant(
+        let outcome = try await service.upsertVariant(
             handle: handle, endpointID: ref.endpointId, variant: variant, autosave: autosave)
+        let message: String
+        switch outcome {
+        case .created:
+            message = "Created variant \(variant.name) on \(ref.endpointId)"
+        case .replaced(let previousName) where previousName == variant.name:
+            message = "Replaced existing variant \(variant.name) on \(ref.endpointId)"
+        case .replaced(let previousName):
+            message =
+                "Replaced variant \(previousName) on \(ref.endpointId): \(variant.name) matched it "
+                + "case-insensitively, so the existing variant was updated in place. No separate "
+                + "\(previousName) variant remains — do not issue moq_remove_variant for it."
+        }
         return try CallTool.Result(
-            content: [
-                .text(text: "Upserted variant \(variant.name) on \(ref.endpointId)", annotations: nil, _meta: nil)
-            ],
+            content: [.text(text: message, annotations: nil, _meta: nil)],
             structuredContent: variant)
     } catch {
         return try toolError(error)
@@ -247,12 +258,12 @@ private func handleRemoveVariant(
     do {
         let input = try decodeArguments(RemoveVariantInput.self, from: params.arguments)
         let autosave = try autosaveFlag(from: params.arguments)
-        try await service.removeVariant(handle: handle, input: input, autosave: autosave)
-        return try CallTool.Result(
-            content: [
-                .text(
-                    text: "Removed variant \(input.name) from \(input.endpointId)", annotations: nil, _meta: nil)
-            ])
+        let removedName = try await service.removeVariant(handle: handle, input: input, autosave: autosave)
+        let message =
+            removedName == input.name
+            ? "Removed variant \(removedName) from \(input.endpointId)"
+            : "Removed variant \(removedName) from \(input.endpointId) (matched \"\(input.name)\" case-insensitively)"
+        return try CallTool.Result(content: [.text(text: message, annotations: nil, _meta: nil)])
     } catch {
         return try toolError(error)
     }

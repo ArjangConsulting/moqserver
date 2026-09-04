@@ -166,6 +166,23 @@ public struct ProjectValidator: ProjectValidating {
                     ))
             }
 
+            // Rule 7b: variants present but none marked default. Selection then falls back to
+            // declaration order, so an error variant declared before the intended success
+            // response silently shadows it under `Accept` content negotiation.
+            if defaultCount == 0 && !endpoint.variants.isEmpty {
+                diagnostics.append(
+                    .init(
+                        severity: .warning,
+                        message:
+                            "Endpoint has \(endpoint.variants.count) variant(s) but none is marked `default: true`. "
+                            + "Selection falls back to declaration order, so a variant declared first can shadow the one you expect.",
+                        file: fileName,
+                        field: "variants",
+                        code: .noDefaultVariant,
+                        endpointID: endpoint.id
+                    ))
+            }
+
             // Per-variant validation
             var seenVariantNames: Set<String> = []
             var seenVariantReferenceNames: Set<String> = []
@@ -238,12 +255,14 @@ public struct ProjectValidator: ProjectValidating {
                     }
                 }
 
-                // Variant name uniqueness
-                if seenVariantNames.contains(variant.name) {
+                // Variant name uniqueness. Compared case-insensitively to match ProjectStore's
+                // upsert/remove matching — otherwise a hand-edited bundle with both "Success" and
+                // "success" passes validation but the two can't be addressed independently.
+                if !seenVariantNames.insert(variant.name.lowercased()).inserted {
                     diagnostics.append(
                         .init(
                             severity: .error,
-                            message: "Duplicate variant name \"\(variant.name)\".",
+                            message: "Duplicate variant name \"\(variant.name)\" (names are compared case-insensitively).",
                             file: fileName,
                             field: "\(variantField).name",
                             code: .duplicateVariantName,
@@ -251,7 +270,6 @@ public struct ProjectValidator: ProjectValidating {
                             variantName: variant.name
                         ))
                 }
-                seenVariantNames.insert(variant.name)
 
                 if variant.referenceName.isEmpty {
                     diagnostics.append(

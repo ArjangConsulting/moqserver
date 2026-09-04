@@ -163,20 +163,29 @@ public struct MoqService: Sendable {
 
     // MARK: - Variant mutation
 
+    /// Returns whether an existing variant was replaced (see `VariantUpsertOutcome`) so a caller
+    /// can distinguish "added a variant" from "redefined one that already existed" — the latter
+    /// matters because variant names match case-insensitively.
+    @discardableResult
     public func upsertVariant(
         handle: String, endpointID: String, variant: ProjectVariant, autosave: Bool
-    ) async throws {
+    ) async throws -> VariantUpsertOutcome {
         let session = try await session(handle)
         let store = try await session.currentStore()
-        try await store.upsertVariant(endpointID: endpointID, variant)
+        let outcome = try await store.upsertVariant(endpointID: endpointID, variant)
         try await session.recordMutation(autosave: autosave)
+        return outcome
     }
 
-    public func removeVariant(handle: String, input: RemoveVariantInput, autosave: Bool) async throws {
+    /// Returns the *stored* name of the variant actually removed, which can differ in casing from
+    /// `input.name`.
+    @discardableResult
+    public func removeVariant(handle: String, input: RemoveVariantInput, autosave: Bool) async throws -> String {
         let session = try await session(handle)
         let store = try await session.currentStore()
-        try await store.removeVariant(endpointID: input.endpointId, name: input.name)
+        let removedName = try await store.removeVariant(endpointID: input.endpointId, name: input.name)
         try await session.recordMutation(autosave: autosave)
+        return removedName
     }
 
     // MARK: - Validation / save
