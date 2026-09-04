@@ -83,6 +83,7 @@ private func authoringRulesMarkdown() -> String {
         - Reserved paths (rejected): `/health`, `/_admin`, `/_admin/*`, `/_auth`, `/_auth/*`
         - At most one variant per endpoint may have `default: true`; moq_upsert_variant clears siblings automatically. An endpoint with variants but no `default: true` gets a `W_NO_DEFAULT_VARIANT` warning — selection then falls back to declaration order
         - Variant names are unique **case-insensitively** (`Success` and `success` collide). moq_upsert_variant with an existing name — in any casing — replaces that variant in place and its response says `Replaced`; do not follow up with moq_remove_variant for the old spelling
+        - Every mutation tool (moq_upsert_endpoint, moq_remove_endpoint, moq_upsert_variant, moq_remove_variant) fails with `E_PROJECT_CHANGED` if the bundle was edited on disk (by hand, or by another session) since it was opened — reopen with moq_open_project rather than retrying the same edit
         - A variant's `body` and `body_file` are mutually exclusive — moq_upsert_variant only accepts inline `body` and manages fixture files itself
         - `request_match` (on a variant) must define at least one of `query`, `headers`, or `body_contains` when present
         - GraphQL endpoints use `path: /graphql` and require `operation.type` plus `operation.name` and/or `operation.document`; multiple endpoints may share `/graphql`, disambiguated by `operation`

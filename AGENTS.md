@@ -29,6 +29,7 @@ Do not duplicate those product guides in new files unless the repo structure cha
 - Primary Studio entrypoint skill: `moqserver-studio-master`.
 - Local skills live under `~/.agents/skills/` and are intended to capture repo-specific architecture, theming, AI, import, persistence, and testing guidance.
 - If a newly added local skill is not yet visible to the runtime skill registry in the current session, consult `LOCAL_SKILLS.md` and continue, or restart the session to refresh skill discovery.
+- The above is for agents working *on* Studio. A separate, repo-committed set at `server/skills/` (see `server/AGENTS.md`) is for agents *consuming* moqserver — authoring and driving a `.moqproj` bundle from another repo via `moq-mcp`. Don't conflate the two: `server/skills/` ships with the repo and travels with it; `~/.agents/skills/` is local to this machine.
 
 ## General Workflow
 - Start by reading the relevant product guide before making non-trivial changes.

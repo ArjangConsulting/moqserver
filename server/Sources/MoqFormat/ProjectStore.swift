@@ -9,9 +9,11 @@ private let logger = Logger(label: "moqserver.format.ProjectStore")
 /// endpoints and variants, fixture management, and crash-recoverable persistence.
 ///
 /// Actor-isolated to serialize mutations from a single process (matching
-/// `InMemoryMockStore`'s concurrency model). It does **not** by itself protect against a second
-/// process (Studio, another MCP session, a manual edit) touching the same bundle concurrently —
-/// see the bundle fingerprint check in `save()` for that.
+/// `InMemoryMockStore`'s concurrency model). Concurrent changes from a second process (Studio,
+/// another MCP session, a manual edit) are detected via a bundle fingerprint: both `save()` and
+/// every incremental mutation method (`checkNotChangedOnDisk()`) refuse with
+/// `ProjectStoreError.projectChangedOnDisk` if the on-disk bundle no longer matches what this
+/// store last loaded or saved — a caller must reopen rather than silently build on stale state.
 ///
 /// `init` and `ProjectStore.create` perform only *structural* loading: a project with zero
 /// endpoints, or an endpoint with zero variants, loads and saves successfully. Semantic
@@ -178,9 +180,28 @@ public actor ProjectStore {
         project = MoqProject(manifest: manifest, endpoints: endpoints, projectPath: project.projectPath)
     }
 
+    // MARK: - Staleness guard
+
+    /// Throws `ProjectStoreError.projectChangedOnDisk` if the bundle on disk was modified since
+    /// this store last loaded or saved it. `save()` already refuses to overwrite in that
+    /// situation; every incremental mutation method below calls this first, so a bundle hand-
+    /// edited while an MCP session holds it open is caught at the *next edit* instead of being
+    /// silently built on top of and only discovered — if ever, with autosave off — much later at
+    /// save time.
+    private func checkNotChangedOnDisk() throws {
+        guard let expected = fingerprint else { return }
+        let destination = project.projectPath
+        guard FileManager.default.fileExists(atPath: destination) else { return }
+        let onDisk = try Self.computeFingerprint(at: destination)
+        guard onDisk == expected else {
+            throw ProjectStoreError.projectChangedOnDisk
+        }
+    }
+
     // MARK: - Endpoint operations
 
     public func addEndpoint(_ doc: EndpointDocument) throws {
+        try checkNotChangedOnDisk()
         guard MoqFormatRules.isValidEndpointID(doc.id) else {
             throw ProjectStoreError.invalidEndpointID(doc.id)
         }
@@ -192,6 +213,7 @@ public actor ProjectStore {
     }
 
     public func updateEndpoint(id: String, _ doc: EndpointDocument) throws {
+        try checkNotChangedOnDisk()
         guard doc.id == id else {
             throw ProjectStoreError.endpointIDMismatch(expected: id, actual: doc.id)
         }
@@ -208,6 +230,7 @@ public actor ProjectStore {
     /// regenerated (every save rebuilds the endpoint file list from scratch), so this needs no
     /// explicit file-rename step.
     public func renameEndpoint(id: String, to newID: String) throws {
+        try checkNotChangedOnDisk()
         guard MoqFormatRules.isValidEndpointID(newID) else {
             throw ProjectStoreError.invalidEndpointID(newID)
         }
@@ -239,6 +262,7 @@ public actor ProjectStore {
     }
 
     public func removeEndpoint(id: String) throws {
+        try checkNotChangedOnDisk()
         guard let index = project.endpoints.firstIndex(where: { $0.id == id }) else {
             throw ProjectStoreError.endpointNotFound(id)
         }
@@ -259,6 +283,7 @@ public actor ProjectStore {
     /// follow-up `removeVariant` that would otherwise destroy the just-written variant.
     @discardableResult
     public func upsertVariant(endpointID: String, _ variant: ProjectVariant) throws -> VariantUpsertOutcome {
+        try checkNotChangedOnDisk()
         guard let endpointIndex = project.endpoints.firstIndex(where: { $0.id == endpointID }) else {
             throw ProjectStoreError.endpointNotFound(endpointID)
         }
@@ -309,6 +334,7 @@ public actor ProjectStore {
     /// that was actually removed — which can differ in casing from `name`.
     @discardableResult
     public func removeVariant(endpointID: String, name: String) throws -> String {
+        try checkNotChangedOnDisk()
         guard let endpointIndex = project.endpoints.firstIndex(where: { $0.id == endpointID }) else {
             throw ProjectStoreError.endpointNotFound(endpointID)
         }

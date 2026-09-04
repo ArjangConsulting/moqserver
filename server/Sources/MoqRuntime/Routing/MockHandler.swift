@@ -179,7 +179,11 @@ public struct MockHandler: Sendable {
             body = .empty
         }
 
-        logger.debug("Responding \(variant.statusCode.code) for \(endpointKeyString) variant=\(variant.name)")
+        // Access-log line at .info — the only way to answer "did the app actually call this
+        // endpoint, and which variant did it get?" from outside the process. An unmatched
+        // request already logs at .warning (handleNotFound above); a matched one was previously
+        // silent unless --log-level debug unlocked the finer-grained lines above.
+        logger.info("\(req.method) \(path) → \(variant.statusCode.code) (endpoint=\(endpointKeyString) variant=\(variant.name))")
         return Response(
             status: Vapor.HTTPResponseStatus(statusCode: Int(variant.statusCode.code)),
             headers: headers,

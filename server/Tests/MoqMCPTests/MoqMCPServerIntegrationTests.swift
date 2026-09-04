@@ -196,6 +196,44 @@ struct MoqMCPServerIntegrationTests {
         }
     }
 
+    @Test("a mutation tool refuses a hand-edited bundle instead of silently overwriting it")
+    func mutationToolRejectsHandEditedBundle() async throws {
+        let path = tempPath("hand-edit")
+        defer { try? FileManager.default.removeItem(atPath: path) }
+        let client = try await connectedClient()
+
+        _ = try await client.callTool(
+            name: "moq_create_project", arguments: ["path": .string(path), "name": .string("T")])
+        _ = try await client.callTool(
+            name: "moq_upsert_endpoint",
+            arguments: ["id": .string("get-users"), "method": .string("GET"), "path": .string("/users")])
+
+        // Simulate hand-editing the bundle's YAML on disk while this MCP session still has it
+        // open — a normal thing to do, per the report this regression test is for.
+        let manifestFile = (path as NSString).appendingPathComponent("project.yml")
+        var contents = try String(contentsOfFile: manifestFile, encoding: .utf8)
+        contents += "\n# external edit\n"
+        try contents.write(toFile: manifestFile, atomically: true, encoding: .utf8)
+
+        let result = try await client.callTool(
+            name: "moq_upsert_variant",
+            arguments: [
+                "endpoint_id": .string("get-users"), "name": .string("success"), "status": .int(200),
+                "body": .object(["ok": .bool(true)]),
+            ])
+
+        #expect(result.isError == true)
+        if case .text(let text, _, _) = result.content.first {
+            #expect(text.contains("E_PROJECT_CHANGED"))
+        } else {
+            Issue.record("expected text content")
+        }
+
+        // The rejected mutation must not have reached disk, and the hand-edit must survive.
+        let stillThere = try String(contentsOfFile: manifestFile, encoding: .utf8)
+        #expect(stillThere.contains("# external edit"))
+    }
+
     @Test("moq_upsert_endpoint rejects a reserved path")
     func rejectsReservedPath() async throws {
         let path = tempPath("reserved")

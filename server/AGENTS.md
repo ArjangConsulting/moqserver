@@ -78,6 +78,20 @@ Tools cover project lifecycle (`moq_create_project`, `moq_open_project`, `moq_de
 URL-based OpenAPI import is disabled unless the server process has `MOQ_MCP_ALLOW_NETWORK=1` set
 — `moq_import_openapi` with a local file path always works.
 
+## AI Skills for `.moqproj` authors
+
+`server/skills/` ships repo-local skills for any agent authoring or driving a bundle via
+`moq-mcp` — not for working on moqserver's own source (that's this file and the sections below).
+They encode traps that have cost real debugging time in downstream consumers:
+
+- `moqserver-authoring` — bundle layout, the tool sequence, HAR/OpenAPI import curation, the
+  case-insensitive-variant-name and hand-edit-while-open traps.
+- `moqserver-scenario-design` — `call_count` (bundle-wide, not test-scoped) vs runtime variant
+  selection via the admin API (test-scoped).
+- `moqserver-request-validation` — `request_rules`/`global_rules`, and why a bundle-wide auth rule
+  breaks endpoints that must stay unauthenticated.
+- `moqserver-serving-for-tests` — running a bundle locally/in CI and driving scenarios from a test.
+
 ## Architecture
 
 ### Request Flow
