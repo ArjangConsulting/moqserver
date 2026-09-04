@@ -309,7 +309,15 @@ public struct MockHandler: Sendable {
             else {
                 continue
             }
-            if bestMatch == nil || effective.quality > bestMatch?.quality ?? 0 {
+            // Ties go to the endpoint's declared default. Without this, two variants sharing a
+            // Content-Type (the common case — a success and an error both `application/json`)
+            // are separated only by declaration order under a generic `Accept: */*`, which
+            // silently ignores `default: true` for essentially every real HTTP client.
+            let better = effective.quality > (bestMatch?.quality ?? 0)
+            let tiedButDefault =
+                bestMatch.map { effective.quality == $0.quality && variant.isDefault && !$0.variant.isDefault }
+                ?? false
+            if bestMatch == nil || better || tiedButDefault {
                 bestMatch = (variant, effective.quality)
             }
         }
