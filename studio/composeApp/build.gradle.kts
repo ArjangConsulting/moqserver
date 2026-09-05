@@ -228,9 +228,18 @@ val bundleFormatBinary = tasks.register("bundleFormatBinary") {
         inputs.dir(serverDir.resolve("Sources/MoqCore"))
         inputs.dir(serverDir.resolve("Sources/MoqFormat"))
         inputs.dir(serverDir.resolve("Sources/MoqFormatServiceRun"))
+        inputs.dir(serverDir.resolve("Sources/MoqService"))
+        inputs.dir(serverDir.resolve("Sources/MoqImport"))
+        inputs.property("swiftToolchain", providers.environmentVariable("DEVELOPER_DIR").orElse("default"))
+        inputs.property("swiftVersion", providers.provider {
+            runCatching {
+                providers.exec { commandLine("swift", "--version") }.standardOutput.asText.get().trim()
+            }.getOrDefault("unavailable")
+        })
         inputs.file(serverDir.resolve("Package.swift"))
         inputs.file(serverDir.resolve("Package.resolved"))
     }
+    inputs.property("usePrebuiltFormatBinary", providers.gradleProperty("usePrebuiltFormatBinary").orElse("false"))
     val destination = project.projectDir.resolve("app-resources/$platform/moq-format")
     if (platform != null) {
         outputs.file(destination)
@@ -248,12 +257,15 @@ val bundleFormatBinary = tasks.register("bundleFormatBinary") {
     }
 
     doLast {
+        if (providers.gradleProperty("usePrebuiltFormatBinary").orNull == "true") {
+            check(destination.isFile && destination.canExecute()) { "Missing executable prebuilt moq-format: $destination" }
+            return@doLast
+        }
         val swiftAvailable = try {
             providers.exec {
                 commandLine("swift", "--version")
                 isIgnoreExitValue = true
-            }.result.get()
-            true
+            }.result.get().exitValue == 0
         } catch (error: Exception) {
             false
         }
@@ -285,7 +297,8 @@ val bundleFormatBinary = tasks.register("bundleFormatBinary") {
     }
 }
 
-tasks.matching { it.name in setOf("run", "createDistributable", "packageDmg", "packageDeb") }
+tasks.matching { it.name in setOf("prepareAppResources", "prepareReleaseAppResources", "run", "runDistributable", "createDistributable", "createReleaseDistributable",
+        "packageDmg", "packageDeb", "packageReleaseDmg", "packageReleaseDeb") }
     .configureEach { dependsOn(bundleFormatBinary) }
 
 tasks.register("registerMacApp") {

@@ -23,10 +23,10 @@ dependencyResolutionManagement {
     }
 }
 
-if (file("../../KMPComponents/settings.gradle.kts").isFile) {
+if (providers.gradleProperty("useLocalCompositeBuilds").orNull != "false" && file("../../KMPComponents/settings.gradle.kts").isFile) {
 	includeBuild("../../KMPComponents")
 }
-if (file("../../kenwork/settings.gradle.kts").isFile) {
+if (providers.gradleProperty("useLocalCompositeBuilds").orNull != "false" && file("../../kenwork/settings.gradle.kts").isFile) {
 	includeBuild("../../kenwork")
 }
 

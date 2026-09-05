@@ -8,6 +8,8 @@ on:
       - "format/**"
       - "samples/server/**"
       - "Makefile"
+      - "scripts/test_author_cli.py"
+      - "scripts/test_support_consumer.py"
   push:
     branches:
       - main
@@ -17,6 +19,8 @@ on:
       - "format/**"
       - "samples/server/**"
       - "Makefile"
+      - "scripts/test_author_cli.py"
+      - "scripts/test_support_consumer.py"
 
 jobs:
   lint:
@@ -68,6 +72,15 @@ jobs:
 
       - name: Run server tests
         run: swift test --enable-code-coverage
+
+      - name: Verify author CLI as a subprocess
+        run: python3 ../scripts/test_author_cli.py .build/debug/moq-author
+
+      - name: Test Apple test-support package and downstream consumer
+        if: ${{ matrix.os == 'macos-latest' }}
+        run: |
+          swift test --package-path MoqTestSupport
+          python3 ../scripts/test_support_consumer.py
 
       - name: Upload Server coverage
         if: ${{ matrix.os == 'ubuntu-latest' }}

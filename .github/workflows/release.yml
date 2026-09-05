@@ -225,6 +225,69 @@ jobs:
             ${{ env.archive }}.sha256
           if-no-files-found: error
 
+  author-binary:
+    needs: [preflight, verify]
+    permissions:
+      contents: read
+      id-token: write
+      attestations: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            suffix: linux-x86_64
+          - os: macos-latest
+            suffix: macos-arm64
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: swift-actions/setup-swift@v3
+        with:
+          swift-version: "6.2"
+          skip-verify-signature: true
+      - name: Build, smoke test, and archive moq-author
+        working-directory: server
+        run: |
+          swift build -c release --product moq-author
+          BIN_DIR="$(swift build -c release --show-bin-path)"
+          # Protocol smoke test: an initialize request must get a well-formed JSON-RPC reply,
+          # and nothing but that reply may reach stdout. moq-author keeps running after replying
+          # (it's a long-lived stdio server), so bound its lifetime with a FIFO + background
+          # process rather than `timeout`, which isn't reliably present on macOS runners.
+          FIFO="${RUNNER_TEMP}/moq-author-in.$$"
+          mkfifo "${FIFO}"
+          OUT_FILE="${RUNNER_TEMP}/moq-author-out.$$"
+          "${BIN_DIR}/moq-author" < "${FIFO}" > "${OUT_FILE}" 2>"${RUNNER_TEMP}/moq-author-err.$$" &
+          MCP_PID=$!
+          exec 3>"${FIFO}"
+          printf '%s\n' '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"ci","version":"1.0"}}}' >&3
+          sleep 3
+          exec 3>&-
+          kill "${MCP_PID}" 2>/dev/null || true
+          wait "${MCP_PID}" 2>/dev/null || true
+          rm -f "${FIFO}"
+          grep -q '"serverInfo"' "${OUT_FILE}" || { echo "moq-author did not respond to initialize"; cat "${OUT_FILE}"; exit 1; }
+          python3 ../scripts/test_author_cli.py "${BIN_DIR}/moq-author"
+          STAGE="${RUNNER_TEMP}/moq-author"
+          mkdir -p "${STAGE}"
+          cp "${BIN_DIR}/moq-author" "${STAGE}/moq-author"
+          ARCHIVE="moq-author-${{ needs.preflight.outputs.version }}-${{ matrix.suffix }}.tar.gz"
+          tar -czf "${RUNNER_TEMP}/${ARCHIVE}" -C "${STAGE}" moq-author
+          DIGEST="$(openssl dgst -sha256 -r "${RUNNER_TEMP}/${ARCHIVE}" | cut -d' ' -f1)"
+          printf '%s *%s\n' "${DIGEST}" "${ARCHIVE}" > "${RUNNER_TEMP}/${ARCHIVE}.sha256"
+          echo "archive=${RUNNER_TEMP}/${ARCHIVE}" >> "${GITHUB_ENV}"
+      - uses: actions/attest@v4.2.0
+        with:
+          subject-path: ${{ env.archive }}
+      - uses: actions/upload-artifact@v7.0.1
+        with:
+          name: author-${{ matrix.suffix }}
+          path: |
+            ${{ env.archive }}
+            ${{ env.archive }}.sha256
+          if-no-files-found: error
+
   studio-macos:
     needs: [preflight, verify, format-binary]
     runs-on: macos-latest
@@ -276,9 +339,9 @@ jobs:
         working-directory: studio
         run: |
           if [[ "${{ needs.preflight.outputs.prerelease }}" == false ]]; then
-            ./gradlew -PreleaseVersion="${{ needs.preflight.outputs.version }}" :composeApp:notarizeDmg
+            ./gradlew -PusePrebuiltFormatBinary=true -PreleaseVersion="${{ needs.preflight.outputs.version }}" :composeApp:notarizeDmg
           else
-            ./gradlew -PreleaseVersion="${{ needs.preflight.outputs.version }}" :composeApp:packageDmg
+            ./gradlew -PusePrebuiltFormatBinary=true -PreleaseVersion="${{ needs.preflight.outputs.version }}" :composeApp:packageDmg
           fi
           for file in composeApp/build/compose/binaries/main/dmg/*.dmg; do
             DIGEST="$(openssl dgst -sha256 -r "${file}" | cut -d' ' -f1)"
@@ -327,7 +390,7 @@ jobs:
       - name: Package, sign, and checksum Studio DEB
         working-directory: studio
         run: |
-          ./gradlew -PreleaseVersion="${{ needs.preflight.outputs.version }}" :composeApp:packageDeb
+          ./gradlew -PusePrebuiltFormatBinary=true -PreleaseVersion="${{ needs.preflight.outputs.version }}" :composeApp:packageDeb
           if [[ -n "${GPG_PRIVATE_KEY}" ]]; then
             printf '%s' "${GPG_PRIVATE_KEY}" | gpg --batch --import
           fi
@@ -475,8 +538,8 @@ jobs:
           push-to-registry: true
 
   publish:
-    if: ${{ always() && needs.preflight.result == 'success' && needs.verify.result == 'success' && needs.server-binary.result == 'success' && needs.mcp-binary.result == 'success' && needs.format-binary.result == 'success' && needs.studio-macos.result == 'success' && needs.studio-linux.result == 'success' && needs.sbom.result == 'success' && needs.docker.result == 'success' }}
-    needs: [preflight, verify, server-binary, mcp-binary, format-binary, studio-macos, studio-linux, sbom, docker]
+    if: ${{ always() && needs.preflight.result == 'success' && needs.verify.result == 'success' && needs.server-binary.result == 'success' && needs.mcp-binary.result == 'success' && needs.author-binary.result == 'success' && needs.format-binary.result == 'success' && needs.studio-macos.result == 'success' && needs.studio-linux.result == 'success' && needs.sbom.result == 'success' && needs.docker.result == 'success' }}
+    needs: [preflight, verify, server-binary, mcp-binary, author-binary, format-binary, studio-macos, studio-linux, sbom, docker]
     runs-on: ubuntu-latest
     permissions:
       contents: write
