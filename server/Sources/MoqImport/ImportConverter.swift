@@ -360,7 +360,7 @@ public enum ImportConverter {
         case is NSNull:
             return .null
         case let number as NSNumber:
-            if CFGetTypeID(number) == CFBooleanGetTypeID() {
+            if isBooleanNumber(number) {
                 return .bool(number.boolValue)
             }
             if number.stringValue.contains(".") || number.stringValue.lowercased().contains("e") {
@@ -376,6 +376,19 @@ public enum ImportConverter {
         default:
             return .null
         }
+    }
+
+    /// `JSONSerialization` represents JSON `true`/`false` as `NSNumber`, so a plain
+    /// `as? Bool` cast isn't enough to tell them apart from numeric values. On Darwin the
+    /// CoreFoundation type ID is authoritative; swift-corelibs-Foundation has no CF type IDs,
+    /// but a Bool-backed `NSNumber` reports the C `char` encoding (`"c"`), which JSON integer
+    /// and double values never use.
+    private static func isBooleanNumber(_ number: NSNumber) -> Bool {
+        #if canImport(Darwin)
+        return CFGetTypeID(number) == CFBooleanGetTypeID()
+        #else
+        return number.objCType.pointee == 0x63  // 'c'
+        #endif
     }
 }
 

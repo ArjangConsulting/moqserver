@@ -1,6 +1,10 @@
 import Foundation
 import Logging
 
+#if canImport(FoundationNetworking)
+import FoundationNetworking
+#endif
+
 #if canImport(Glibc)
 import Glibc
 #elseif canImport(Darwin)
