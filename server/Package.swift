@@ -134,6 +134,7 @@ let package = Package(
         .target(
             name: "MoqAuthorCLI",
             dependencies: [
+                .product(name: "Logging", package: "swift-log"),
                 .target(name: "MoqCore"),
                 .target(name: "MoqFormat"),
                 .target(name: "MoqService"),

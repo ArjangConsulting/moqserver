@@ -3,6 +3,6 @@ import MoqAuthorCLI
 @main
 struct MoqAuthorRunEntry {
     static func main() async throws {
-        await MoqAuthorCommand.main()
+        await MoqAuthorCommand.runMain()
     }
 }
