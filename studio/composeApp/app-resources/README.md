@@ -26,3 +26,8 @@ committed except this file — the binaries are build artifacts, gitignored belo
 
 Verified end to end: the resulting `.app/Contents/app/resources/moq-format` launches standalone (no
 env vars) and `FormatProcess` successfully spawns it.
+
+CI packaging passes `-PusePrebuiltFormatBinary=true`: require the platform artifact to be present
+and executable, and do not replace it with a local Swift build. Local runs track MoqCore,
+MoqFormat, MoqImport, MoqService, the executable sources, package files and toolchain identity.
+Release packaging tasks use the same bundling prerequisite.
