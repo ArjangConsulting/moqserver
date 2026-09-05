@@ -59,6 +59,13 @@ hand-copied, so they can't drift from what actually gets enforced.
   import happened to order things) silently wins under normal content negotiation. Treat
   `W_NO_DEFAULT_VARIANT` as something to fix, not ignore.
 
+## No agent in the loop?
+
+This skill assumes `moq-mcp` (an agent session). A shell script or CI step with no MCP client
+should use `moq-author` instead — see `moqserver-serving-for-tests`'s "Scripted authoring in CI"
+and `server/AGENTS.md`'s "Scripted / CI Authoring". It wraps the same `MoqService`, so every trap
+above (case-insensitive names, the staleness guard, lowercase generated names) applies there too.
+
 ## See also
 
 - `moqserver-request-validation` — `request_rules`/`global_rules`, and the bundle-wide-auth trap.
