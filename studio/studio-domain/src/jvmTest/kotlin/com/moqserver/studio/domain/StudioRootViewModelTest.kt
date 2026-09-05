@@ -60,6 +60,51 @@ class StudioRootViewModelTest {
     )
 
     @Test
+    fun `save completion from before reload cannot change the reloaded baseline`() {
+        val viewModel = StudioRootViewModel()
+        val snapshot = sampleProject()
+        viewModel.projectLoaded(snapshot)
+        val generation = viewModel.state.value.projectGeneration
+        val reloaded = snapshot.copy(manifest = snapshot.manifest.copy(name = "Reloaded"))
+        viewModel.projectLoaded(reloaded)
+        viewModel.projectSaved(snapshot, snapshot.projectPath, generation)
+        assertEquals(reloaded, viewModel.state.value.originalProject)
+        assertFalse(viewModel.state.value.isDirty)
+    }
+
+    @Test
+    fun `save completion keeps edits made while saving dirty`() {
+        val viewModel = StudioRootViewModel()
+        val snapshot = sampleProject()
+        viewModel.projectLoaded(snapshot)
+        viewModel.updateManifest(snapshot.manifest.copy(name = "Newer edit"))
+        viewModel.projectSaved(snapshot, snapshot.projectPath)
+        assertTrue(viewModel.state.value.isDirty)
+        assertEquals("Newer edit", viewModel.state.value.project?.manifest?.name)
+        assertEquals(snapshot, viewModel.state.value.originalProject)
+    }
+
+    @Test
+    fun `save as records the saved snapshot at the new path`() {
+        val viewModel = StudioRootViewModel()
+        val snapshot = sampleProject()
+        viewModel.projectLoaded(snapshot)
+        viewModel.projectSaved(snapshot, "/tmp/saved-as.moqproj")
+        assertFalse(viewModel.state.value.isDirty)
+        assertEquals("/tmp/saved-as.moqproj", viewModel.state.value.originalProject?.projectPath)
+    }
+
+    @Test
+    fun `save completion cannot change a different open project`() {
+        val viewModel = StudioRootViewModel()
+        val snapshot = sampleProject()
+        val other = snapshot.copy(projectPath = "/tmp/other.moqproj")
+        viewModel.projectLoaded(other)
+        viewModel.projectSaved(snapshot, "/tmp/saved-as.moqproj")
+        assertEquals(other, viewModel.state.value.project)
+    }
+
+    @Test
     fun `ai state starts empty and not loading`() {
         val state = StudioRootViewModel().state.value.ai
 

@@ -233,6 +233,7 @@ fun main(args: Array<String>) {
         val aiSettings = remember { mutableStateOf(settingsRepo.load()) }
         val aiRegistry = remember(aiSettings.value) { buildAIRegistry(aiSettings.value) }
 		val showSettings = remember { mutableStateOf(false) }
+        val showRuntimeInspector = remember { mutableStateOf(false) }
 		val showExport = remember { mutableStateOf(false) }
 		val exportState = remember { mutableStateOf(ExportReferencesState()) }
 		val showImportURLDialog = remember { mutableStateOf(false) }
@@ -816,11 +817,46 @@ fun main(args: Array<String>) {
                         )
                     }
                 }
+                Menu("Tools") {
+                    Item("Runtime Inspector", onClick = { showRuntimeInspector.value = true })
+                    Item(
+                        "Retry format service",
+                        onClick = { scope.launch(exceptionHandler) { formatProcess.restart() } },
+                    )
+                    Item("Reload Project", enabled = state.project != null, onClick = {
+                        val project = state.project ?: return@Item
+                        if (confirmProjectTransition(window, state)) {
+                            scope.launch(exceptionHandler) {
+                                openProject(
+                                    project.projectPath,
+                                    repo,
+                                    appViewModel,
+                                    lastFileDirectory,
+                                    recentProjectsRepo,
+                                    Dispatchers.IO,
+                                )
+                            }
+                        }
+                    })
+                }
                 Menu("Help") {
                     Item("About $STUDIO_APP_DISPLAY_NAME", onClick = { showAboutDialog(window) })
                 }
             }
 
+            if (showRuntimeInspector.value) {
+                RuntimeInspectionWindow(
+                    state = state.runtime,
+                    onUpdate = appViewModel::runtimeUpdated,
+                    onAction = { action, name ->
+                        scope.launch(exceptionHandler) {
+                            inspectRuntime(appViewModel, action, name)
+                        }
+                    },
+                    onClose = { showRuntimeInspector.value = false },
+                    themeMode = themeMode.value,
+                )
+            }
             StudioTheme(themeMode = themeMode.value) {
 					App(
 						appViewModel = appViewModel,
