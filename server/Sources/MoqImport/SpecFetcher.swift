@@ -135,7 +135,11 @@ public enum SpecFetcher {
 
         var hints = addrinfo()
         hints.ai_family = AF_UNSPEC
+        #if canImport(Glibc)
+        hints.ai_socktype = Int32(SOCK_STREAM.rawValue)
+        #else
         hints.ai_socktype = SOCK_STREAM
+        #endif
         var result: UnsafeMutablePointer<addrinfo>?
         defer { if let result { freeaddrinfo(result) } }
 
