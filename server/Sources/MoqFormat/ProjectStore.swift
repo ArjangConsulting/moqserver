@@ -27,6 +27,8 @@ public actor ProjectStore {
     /// Opens an existing `.moqproj` bundle, first recovering any interrupted transaction left
     /// behind by a previous crash (see `recoverIfNeeded`).
     public init(path: String) throws {
+        let lock = try BundleLock(path: path)
+        defer { withExtendedLifetime(lock) {} }
         let recovered = try Self.recoverIfNeeded(at: path)
         self.project = try ProjectLoader().load(from: recovered)
         self.fingerprint = try? Self.computeFingerprint(at: recovered)
@@ -38,17 +40,28 @@ public actor ProjectStore {
     /// right after creation still leaves a reopenable, if empty, project.
     public static func create(manifest: ProjectManifest, at path: String) throws -> ProjectStore {
         let destination = (path as NSString).standardizingPath
+        try FileManager.default.createDirectory(
+            atPath: (destination as NSString).deletingLastPathComponent, withIntermediateDirectories: true)
+        let lock = try BundleLock(path: destination)
         let manifestPath = (destination as NSString).appendingPathComponent("project.yml")
         if FileManager.default.fileExists(atPath: manifestPath) {
             throw ProjectStoreError.projectAlreadyExists(destination)
         }
         let empty = MoqProject(manifest: manifest, endpoints: [], projectPath: destination)
         try ProjectWriter().write(empty, to: destination)
-        return try ProjectStore(path: destination)
+        return try ProjectStore(lockedPath: destination, lock: lock)
+    }
+
+    private init(lockedPath: String, lock: BundleLock) throws {
+        defer { withExtendedLifetime(lock) {} }
+        self.project = try ProjectLoader().load(from: lockedPath)
+        self.fingerprint = try Self.computeFingerprint(at: lockedPath)
     }
 
     /// The current in-memory project. May differ from what's on disk until `save()` is called.
     public var currentProject: MoqProject { project }
+
+    public var revision: String? { fingerprint?.map { String(format: "%02x", $0) }.joined() }
 
     // MARK: - Project-level operations
 
@@ -64,6 +77,13 @@ public actor ProjectStore {
             try save()
             return
         }
+        let sourceLock = try BundleLock(path: oldPath)
+        defer { withExtendedLifetime(sourceLock) {} }
+        try checkNotChangedOnDiskLocked()
+        guard !FileManager.default.fileExists(atPath: newDestination) else {
+            throw ProjectStoreError.projectAlreadyExists(newDestination)
+        }
+        let oldFingerprint = fingerprint
         project = MoqProject(manifest: project.manifest, endpoints: project.endpoints, projectPath: newDestination)
         fingerprint = nil
         do {
@@ -75,6 +95,7 @@ public actor ProjectStore {
         } catch {
             // Roll back the in-memory path change so the store still reflects reality.
             project = MoqProject(manifest: project.manifest, endpoints: project.endpoints, projectPath: oldPath)
+            fingerprint = oldFingerprint
             throw error
         }
         if FileManager.default.fileExists(atPath: oldPath) {
@@ -87,6 +108,9 @@ public actor ProjectStore {
     /// remains in memory, which is rarely what's wanted after an explicit delete.
     public func delete() throws {
         let path = project.projectPath
+        let lock = try BundleLock(path: path)
+        defer { withExtendedLifetime(lock) {} }
+        try checkNotChangedOnDiskLocked()
         guard FileManager.default.fileExists(atPath: path) else { return }
         try FileManager.default.removeItem(atPath: path)
         fingerprint = nil
@@ -109,6 +133,10 @@ public actor ProjectStore {
     /// or explicitly retarget (`rename(to:)`) rather than silently overwrite.
     public func save(sourceRoot: String? = nil) throws {
         let destination = project.projectPath
+        try FileManager.default.createDirectory(
+            atPath: (destination as NSString).deletingLastPathComponent, withIntermediateDirectories: true)
+        let lock = try BundleLock(path: destination)
+        defer { withExtendedLifetime(lock) {} }
         let parent = (destination as NSString).deletingLastPathComponent
         let base = (destination as NSString).lastPathComponent
         let transactionID = UUID().uuidString
@@ -117,14 +145,15 @@ public actor ProjectStore {
 
         var stagingCreated = false
         do {
+            stagingCreated = true
             let staged = try materializeAndStage(
                 project, into: stagingDir, sourceRoot: sourceRoot ?? project.projectPath)
-            stagingCreated = true
 
             // The staged bundle must be structurally reloadable before we touch the destination.
             _ = try ProjectLoader().load(from: stagingDir)
 
             let destinationExists = FileManager.default.fileExists(atPath: destination)
+            if !destinationExists, fingerprint != nil { throw ProjectStoreError.projectChangedOnDisk }
             if destinationExists {
                 let onDisk = try Self.computeFingerprint(at: destination)
                 if let expected = fingerprint, onDisk != expected {
@@ -189,9 +218,17 @@ public actor ProjectStore {
     /// silently built on top of and only discovered — if ever, with autosave off — much later at
     /// save time.
     private func checkNotChangedOnDisk() throws {
+        let lock = try BundleLock(path: project.projectPath)
+        defer { withExtendedLifetime(lock) {} }
+        try checkNotChangedOnDiskLocked()
+    }
+
+    private func checkNotChangedOnDiskLocked() throws {
         guard let expected = fingerprint else { return }
         let destination = project.projectPath
-        guard FileManager.default.fileExists(atPath: destination) else { return }
+        guard FileManager.default.fileExists(atPath: destination) else {
+            throw ProjectStoreError.projectChangedOnDisk
+        }
         let onDisk = try Self.computeFingerprint(at: destination)
         guard onDisk == expected else {
             throw ProjectStoreError.projectChangedOnDisk
@@ -300,11 +337,13 @@ public actor ProjectStore {
                 return ProjectVariant(
                     name: existing.name,
                     referenceName: existing.referenceName,
+                    description: existing.description,
                     isDefault: false,
                     status: existing.status,
                     headers: existing.headers,
                     requestMatch: existing.requestMatch,
                     body: existing.body,
+                    bodyEncoding: existing.bodyEncoding,
                     bodyFile: existing.bodyFile,
                     delayMs: existing.delayMs,
                     callCount: existing.callCount
@@ -465,6 +504,7 @@ public actor ProjectStore {
                 return ProjectVariant(
                     name: variant.name,
                     referenceName: variant.referenceName,
+                    description: variant.description,
                     isDefault: variant.isDefault,
                     status: variant.status,
                     headers: variant.headers,
@@ -671,6 +711,7 @@ public enum ProjectStoreError: Error, CustomStringConvertible, Equatable, Sendab
     case invalidEndpointID(String)
     case invalidFixturePath(String)
     case fixtureNotFound(String)
+    case projectBusy
     case projectChangedOnDisk
     case projectRecoveryRequired([String])
 
@@ -692,6 +733,8 @@ public enum ProjectStoreError: Error, CustomStringConvertible, Equatable, Sendab
             return "Invalid fixture path (must resolve inside fixtures/): \(path)"
         case .fixtureNotFound(let path):
             return "Fixture not found: \(path)"
+        case .projectBusy:
+            return "Another process is accessing this project. Retry after that operation completes."
         case .projectChangedOnDisk:
             return "The project on disk changed since it was last loaded or saved. Reopen before saving again."
         case .projectRecoveryRequired(let backups):

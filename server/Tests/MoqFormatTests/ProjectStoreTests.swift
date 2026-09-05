@@ -31,6 +31,52 @@ struct ProjectStoreTests {
         EndpointDocument(id: id, method: method, path: path, variants: variants)
     }
 
+    @Test("opening a bundle cannot recover another writer's active staging directory")
+    func recoveryRespectsLock() async throws {
+        let path = tempPath("locked-recovery")
+        _ = try ProjectStore.create(manifest: manifest(), at: path)
+        defer { try? FileManager.default.removeItem(atPath: path) }
+        let stage =
+            (path as NSString).deletingLastPathComponent + "/." + (path as NSString).lastPathComponent + ".staging-live"
+        try FileManager.default.createDirectory(atPath: stage, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(atPath: stage) }
+        let lock = try BundleLock(path: path)
+        defer { withExtendedLifetime(lock) {} }
+        #expect(throws: ProjectStoreError.projectBusy) { _ = try ProjectStore(path: path) }
+        #expect(FileManager.default.fileExists(atPath: stage))
+    }
+
+    @Test("a removed bundle is a conflict rather than permission to recreate stale data")
+    func deletedProjectIsConflict() async throws {
+        let path = tempPath("deleted-external")
+        let store = try ProjectStore.create(manifest: manifest(), at: path)
+        try FileManager.default.removeItem(atPath: path)
+        await #expect(throws: ProjectStoreError.projectChangedOnDisk) { try await store.save() }
+        #expect(!FileManager.default.fileExists(atPath: path))
+    }
+
+    @Test("changing the default and materializing fixtures preserve variant metadata")
+    func savePreservesVariantMetadata() async throws {
+        let path = tempPath("variant-metadata")
+        defer { try? FileManager.default.removeItem(atPath: path) }
+        let store = try ProjectStore.create(manifest: manifest(), at: path)
+        try await store.addEndpoint(
+            endpoint(variants: [
+                ProjectVariant(
+                    name: "binary", description: "A binary example", isDefault: true, status: 200,
+                    body: .string("AAEC"), bodyEncoding: .base64)
+            ]))
+        try await store.upsertVariant(
+            endpointID: "get-users", ProjectVariant(name: "other", isDefault: true, status: 200))
+        try await store.save()
+        let project = await store.currentProject
+        let variant = try #require(project.endpoints.first?.variants.first)
+        #expect(variant.description == "A binary example")
+        #expect(variant.isDefault == false)
+        let bodyFile = try #require(variant.bodyFile)
+        #expect(try Data(contentsOf: URL(fileURLWithPath: path).appendingPathComponent(bodyFile)) == Data([0, 1, 2]))
+    }
+
     // MARK: - Create / open
 
     @Test("create writes an empty structurally loadable bundle")

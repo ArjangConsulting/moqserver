@@ -59,7 +59,7 @@ public struct MoqService: Sendable {
         let dirty = await session.isDirty
         return ProjectDescription(
             name: project.manifest.name, description: project.manifest.description, path: project.projectPath,
-            endpointCount: project.endpoints.count, dirty: dirty)
+            endpointCount: project.endpoints.count, dirty: dirty, revision: await store.revision)
     }
 
     public func closeProject(handle: String) async {
@@ -221,7 +221,9 @@ public struct MoqService: Sendable {
     /// result persisted, rather than one endpoint or variant mutation at a time (an MCP session).
     /// Both end up going through the same `ProjectStore.save()` — this is not a second writer,
     /// just a different entry point into the one writer that exists.
-    public func writeProject(handle: String, project: MoqProject, force: Bool) async throws -> ProjectDescription {
+    public func writeProject(
+        handle: String, project: MoqProject, force: Bool, expectedRevision: String? = nil
+    ) async throws -> ProjectDescription {
         let session = try await session(handle)
         let targetPath = (project.projectPath as NSString).standardizingPath
 
@@ -249,6 +251,9 @@ public struct MoqService: Sendable {
         }
 
         let store = try await session.currentStore()
+        if let expectedRevision, await store.revision != expectedRevision {
+            throw ProjectStoreError.projectChangedOnDisk
+        }
         await store.replace(manifest: project.manifest, endpoints: project.endpoints)
         // Save As (retargeting to a path this session wasn't already open at): any bodyFile the
         // caller's endpoints reference still points at whatever this session's store was

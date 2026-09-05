@@ -77,6 +77,7 @@ private func projectStoreErrorCode(_ error: ProjectStoreError) -> String {
     case .invalidEndpointID: return "E_INVALID_ENDPOINT_ID"
     case .invalidFixturePath: return "E_INVALID_FIXTURE_PATH"
     case .fixtureNotFound: return "E_FIXTURE_NOT_FOUND"
+    case .projectBusy: return "E_PROJECT_BUSY"
     case .projectChangedOnDisk: return "E_PROJECT_CHANGED"
     case .projectRecoveryRequired: return "E_PROJECT_RECOVERY_REQUIRED"
     }
