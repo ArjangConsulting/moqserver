@@ -56,6 +56,18 @@ subprojects {
 	dependencies {
 		"detektPlugins"("io.gitlab.arturbosch.detekt:detekt-formatting:${rootProject.libs.versions.detekt.get()}")
 	}
+
+	// CI only keeps the console log; without full exception output a failing assertion shows up
+	// as a bare `org.junit.ComparisonFailure` with no expected/actual, which is unactionable
+	// from the log alone.
+	tasks.withType<Test>().configureEach {
+		testLogging {
+			events("failed", "skipped")
+			exceptionFormat = org.gradle.api.tasks.testing.logging.TestExceptionFormat.FULL
+			showStackTraces = true
+			showCauses = true
+		}
+	}
 }
 
 dependencies {
