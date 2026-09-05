@@ -5,12 +5,26 @@ import MoqCore
 /// Thread-safe in-memory endpoint storage using Swift concurrency.
 public actor InMemoryMockStore: MockStoring {
     private let logger = Logger(label: "moqserver.runtime.InMemoryMockStore")
-    private var endpoints: [EndpointKey: Endpoint] = [:]
+    var endpoints: [EndpointKey: Endpoint] = [:]
     /// GraphQL endpoints stored separately: multiple endpoints can share the same key (POST /graphql).
-    private var graphqlEndpoints: [EndpointKey: [Endpoint]] = [:]
+    var graphqlEndpoints: [EndpointKey: [Endpoint]] = [:]
     private var overridesPersistencePath: String?
 
+    var scenarios: [String: RuntimeScenario] = [:]
+    var activeScenario: String?
+    var runtimeSessions: [String: InMemoryMockStore] = [:]
+    var requestHistory: [RequestTrace] = []
+
     public init() {}
+
+    init(
+        endpoints: [EndpointKey: Endpoint], graphqlEndpoints: [EndpointKey: [Endpoint]],
+        scenarios: [String: RuntimeScenario]
+    ) {
+        self.endpoints = endpoints
+        self.graphqlEndpoints = graphqlEndpoints
+        self.scenarios = scenarios
+    }
 
     public func register(_ endpoint: Endpoint) {
         let key = endpoint.key
@@ -123,7 +137,7 @@ public actor InMemoryMockStore: MockStoring {
 
     // MARK: - Variant Overrides
 
-    private var variantOverrides: [String: String] = [:]
+    var variantOverrides: [String: String] = [:]
 
     public func setVariantOverride(for key: String, variant: String) {
         logger.info("Setting variant override '\(variant)' for \(key)")
@@ -147,7 +161,7 @@ public actor InMemoryMockStore: MockStoring {
 
     // MARK: - Call Counts
 
-    private var callCounts: [String: Int] = [:]
+    var callCounts: [String: Int] = [:]
 
     public func incrementCallCount(for key: String) -> Int {
         let count = (callCounts[key] ?? 0) + 1
@@ -166,6 +180,10 @@ public actor InMemoryMockStore: MockStoring {
 
     public func clear() {
         logger.info("Clearing all endpoints and overrides")
+        scenarios.removeAll()
+        runtimeSessions.removeAll()
+        requestHistory.removeAll()
+        activeScenario = nil
         endpoints.removeAll()
         graphqlEndpoints.removeAll()
         variantOverrides.removeAll()
@@ -199,7 +217,7 @@ public actor InMemoryMockStore: MockStoring {
         }
     }
 
-    private func persistVariantOverridesIfNeeded() {
+    func persistVariantOverridesIfNeeded() {
         guard let path = overridesPersistencePath else { return }
         let fileURL = URL(fileURLWithPath: path)
         let directoryURL = fileURL.deletingLastPathComponent()

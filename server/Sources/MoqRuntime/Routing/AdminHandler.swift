@@ -82,6 +82,10 @@ public struct AdminHandler: Sendable {
         try requireAdminAuth(req: req)
         let (_, keyString, subresource) = try await resolveEndpoint(req: req)
         switch subresource {
+        case .state:
+            guard let runtime = store as? InMemoryMockStore else { throw Abort(.notImplemented) }
+            await runtime.resetRuntimeState(for: keyString)
+            return MessageResponse(message: "State reset for \(keyString)")
         case .callCount:
             await store.resetCallCount(for: keyString)
             logger.info("Call count reset for \(keyString)")
@@ -101,6 +105,7 @@ public struct AdminHandler: Sendable {
     private enum ResolvedSubresource: Sendable {
         case variant
         case callCount
+        case state
         case none
     }
 
@@ -113,10 +118,13 @@ public struct AdminHandler: Sendable {
         let catchall = req.parameters.getCatchall().joined(separator: "/")
         let pathSegments: String
         let subresource: ResolvedSubresource
-        if (req.method == .PUT || req.method == .DELETE) && catchall.hasSuffix("/variant") {
+        if (req.method == .PUT || req.method == .DELETE) && (catchall == "variant" || catchall.hasSuffix("/variant")) {
             pathSegments = String(catchall.dropLast("/variant".count))
             subresource = .variant
-        } else if req.method == .DELETE && catchall.hasSuffix("/call-count") {
+        } else if req.method == .DELETE && (catchall == "state" || catchall.hasSuffix("/state")) {
+            pathSegments = String(catchall.dropLast("/state".count))
+            subresource = .state
+        } else if req.method == .DELETE && (catchall == "call-count" || catchall.hasSuffix("/call-count")) {
             pathSegments = String(catchall.dropLast("/call-count".count))
             subresource = .callCount
         } else {
@@ -177,7 +185,7 @@ public struct AdminHandler: Sendable {
         }
     }
 
-    private func requireAdminAuth(req: Request) throws {
+    func requireAdminAuth(req: Request) throws {
         guard let admin = config?.admin else { return }
 
         var authenticated = false

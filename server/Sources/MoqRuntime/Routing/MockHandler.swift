@@ -27,6 +27,26 @@ public struct MockHandler: Sendable {
 
     /// Called by the catch-all fallback route for paths not matched by any registered endpoint.
     public func handleNotFound(req: Request) async throws -> Response {
+        if let root = store as? InMemoryMockStore {
+            let runtime: InMemoryMockStore
+            if let id = req.headers.first(name: "X-Mock-Session") {
+                guard let session = await root.runtimeSession(id) else {
+                    throw Abort(.notFound, reason: "Unknown mock session")
+                }
+                runtime = session
+            } else {
+                runtime = root
+            }
+            await runtime.recordRequest(
+                RequestTrace(
+                    id: UUID().uuidString, timestamp: Date().timeIntervalSince1970,
+                    method: req.method.rawValue, path: req.url.path, endpoint: nil, status: 404,
+                    variant: nil, reason: "endpoint not found", callNumber: nil))
+        }
+        return notFoundResponse(req: req)
+    }
+
+    private func notFoundResponse(req: Request) -> Response {
         logger.warning("No endpoint found for \(req.method) \(req.url.path)")
         let errorResponse = ErrorResponse(
             error: "No mock endpoint found for \(req.method) \(req.url.path)",
@@ -45,6 +65,29 @@ public struct MockHandler: Sendable {
     /// for the route that Vapor already matched, so no store lookup is needed for REST endpoints.
     /// GraphQL endpoints still go through the store for operation-level matching.
     public func handle(req: Request, matchedKey: EndpointKey) async throws -> Response {
+        var handler = self
+        if let id = req.headers.first(name: "X-Mock-Session") {
+            guard let root = store as? InMemoryMockStore, let session = await root.runtimeSession(id) else {
+                throw Abort(.notFound, reason: "Unknown mock session")
+            }
+            handler = MockHandler(
+                store: session, config: config, authValidator: authValidator, requestValidator: requestValidator)
+        }
+        let response = try await handler.handleResolved(req: req, matchedKey: matchedKey)
+        if let runtime = handler.store as? InMemoryMockStore {
+            let selection = req.storage[SelectionKey.self]
+            await runtime.recordRequest(
+                RequestTrace(
+                    id: UUID().uuidString, timestamp: Date().timeIntervalSince1970,
+                    method: req.method.rawValue, path: req.url.path,
+                    endpoint: "\(matchedKey.method.rawValue) \(matchedKey.path)", status: Int(response.status.code),
+                    variant: selection?.variant, reason: selection?.reason ?? "request rejected",
+                    callNumber: selection?.callNumber))
+        }
+        return response
+    }
+
+    private func handleResolved(req: Request, matchedKey: EndpointKey) async throws -> Response {
         let method = HTTPMethodValue(rawValue: req.method.rawValue)
         let path = req.url.path
         logger.debug("Handling request \(req.method) \(path) → \(matchedKey.path)")
@@ -56,7 +99,7 @@ public struct MockHandler: Sendable {
         } else if let stored = await store.lookup(method: matchedKey.method, path: matchedKey.path) {
             endpoint = stored
         } else {
-            return try await handleNotFound(req: req)
+            return notFoundResponse(req: req)
         }
 
         // Auth validation — for API key auth read the custom header, not Authorization
@@ -68,6 +111,8 @@ public struct MockHandler: Sendable {
         }
         let authOutcome = authValidator.evaluate(endpoint.authRequirement, context: authContext)
         if let authError = authResponseFromOutcome(authOutcome) {
+            req.storage[SelectionKey.self] = SelectionDetail(
+                variant: nil, reason: "authentication failed", callNumber: nil)
             logger.warning("Auth failed for \(req.method) \(req.url.path)")
             return authError
         }
@@ -81,6 +126,8 @@ public struct MockHandler: Sendable {
             contentType: req.headers.first(name: .contentType)
         )
         if let validationError = requestValidator.validate(endpoint: endpoint, context: requestContext) {
+            req.storage[SelectionKey.self] = SelectionDetail(
+                variant: nil, reason: validationError.code.rawValue, callNumber: nil)
             let errorResponse = ErrorResponse(
                 error: validationError.message,
                 code: validationError.code.rawValue,
@@ -95,11 +142,22 @@ public struct MockHandler: Sendable {
 
         // Variant selection
         let endpointKeyString = "\(endpoint.key.method.rawValue) \(endpoint.key.path)"
-        let callNumber = await store.incrementCallCount(for: endpointKeyString)
+        let callNumber: Int
+        let adminOverride: String?
+        if let runtime = store as? InMemoryMockStore {
+            let context = await runtime.beginRequest(for: endpointKeyString)
+            callNumber = context.count
+            adminOverride = context.override
+        } else {
+            callNumber = await store.incrementCallCount(for: endpointKeyString)
+            adminOverride = await store.activeVariantOverride(for: endpointKeyString)
+        }
 
         if endpoint.strictCallCount, endpoint.variants.contains(where: { $0.callCount != nil }) {
             let hasExactMatch = endpoint.variants.contains { $0.callCount == callNumber }
             if !hasExactMatch {
+                req.storage[SelectionKey.self] = SelectionDetail(
+                    variant: nil, reason: "call count exceeded", callNumber: callNumber)
                 logger.warning("Call count exceeded for \(endpointKeyString): call #\(callNumber)")
                 let configuredCounts =
                     endpoint.variants.compactMap(\.callCount).sorted().map(String.init).joined(separator: ", ")
@@ -123,13 +181,15 @@ public struct MockHandler: Sendable {
 
         let variantName = resolveVariantName(
             header: req.headers.first(name: "X-Mock-Variant"),
-            adminOverride: await store.activeVariantOverride(for: endpointKeyString),
+            adminOverride: adminOverride,
             configOverride: config?.variantOverride(for: endpointKeyString)
         )
         logger.debug("Variant selection for \(endpointKeyString): requested=\(variantName ?? "default")")
 
-        guard let variant = selectVariant(endpoint: endpoint, named: variantName, req: req, callNumber: callNumber)
+        guard let selected = selectVariant(endpoint: endpoint, named: variantName, req: req, callNumber: callNumber)
         else {
+            req.storage[SelectionKey.self] = SelectionDetail(
+                variant: nil, reason: "no eligible variant", callNumber: callNumber)
             let availableNames = endpoint.variants.map(\.name).joined(separator: ", ")
             let requestedInfo: String
             if let variantName {
@@ -153,6 +213,22 @@ public struct MockHandler: Sendable {
                 body: .init(data: errorResponse.jsonData())
             )
         }
+
+        let variant = selected.variant
+        let source: String
+        if let variantName, !variant.matchesIdentifier(variantName) {
+            source = selected.reason + " (unknown override)"
+        } else if req.headers.first(name: "X-Mock-Variant") != nil {
+            source = "request header"
+        } else if adminOverride != nil {
+            source = "runtime override"
+        } else if variantName != nil {
+            source = "configuration override"
+        } else {
+            source = selected.reason
+        }
+        req.storage[SelectionKey.self] = SelectionDetail(
+            variant: variant.name, reason: source, callNumber: callNumber)
 
         if let packetLossResponse = simulatedPacketLossResponse(for: endpoint) {
             logger.info("Simulated packet loss for \(endpointKeyString)")
@@ -183,7 +259,9 @@ public struct MockHandler: Sendable {
         // endpoint, and which variant did it get?" from outside the process. An unmatched
         // request already logs at .warning (handleNotFound above); a matched one was previously
         // silent unless --log-level debug unlocked the finer-grained lines above.
-        logger.info("\(req.method) \(path) → \(variant.statusCode.code) (endpoint=\(endpointKeyString) variant=\(variant.name))")
+        logger.info(
+            "\(req.method) \(path) → \(variant.statusCode.code) (endpoint=\(endpointKeyString) variant=\(variant.name))"
+        )
         return Response(
             status: Vapor.HTTPResponseStatus(statusCode: Int(variant.statusCode.code)),
             headers: headers,
@@ -224,7 +302,7 @@ public struct MockHandler: Sendable {
 
     private func selectVariant(
         endpoint: Endpoint, named name: String?, req: Request, callNumber: Int
-    ) -> ResponseVariant? {
+    ) -> (variant: ResponseVariant, reason: String)? {
         // Narrow to variants scoped to this call number first. If that narrowing would eliminate
         // every candidate (call_count exhausted, e.g. call 3 when only call_count 1/2 are
         // defined), drop the call_count constraint entirely and fall back to today's ordinary
@@ -243,7 +321,7 @@ public struct MockHandler: Sendable {
         // Try variants with explicit requestMatch constraints first
         if let constrained = primaryCandidates.first(where: { $0.requestMatch != nil && variantMatches($0, req: req) }
         ) {
-            return constrained
+            return (constrained, "request match")
         }
 
         // Content negotiation: pick variant matching the Accept header
@@ -252,22 +330,18 @@ public struct MockHandler: Sendable {
             let acceptTypes = parseAcceptHeader(accept)
             let unconstrained = primaryCandidates.filter { $0.requestMatch == nil }
             if let negotiated = bestVariantForAccept(candidates: unconstrained, acceptTypes: acceptTypes) {
-                return negotiated
+                return (negotiated, "content negotiation")
             }
             return nil
         }
 
-        // Fall back to first matching variant
-        if let matched = primaryCandidates.first(where: { variantMatches($0, req: req) }) {
-            return matched
+        if let name, let matched = primaryCandidates.first(where: { variantMatches($0, req: req) }) {
+            return (matched, "named variant: \(name)")
         }
-
-        let effectiveDefault = effectiveVariants.first(where: \.isDefault) ?? effectiveVariants.first
-        if let effectiveDefault, variantMatches(effectiveDefault, req: req) {
-            return effectiveDefault
+        if let declared = effectiveVariants.first(where: { $0.isDefault && variantMatches($0, req: req) }) {
+            return (declared, "declared default")
         }
-
-        return effectiveVariants.first(where: { variantMatches($0, req: req) })
+        return effectiveVariants.first(where: { variantMatches($0, req: req) }).map { ($0, "declaration order") }
     }
 
     // MARK: - Content Negotiation
@@ -514,4 +588,14 @@ struct GraphQLRequestBody {
     func normalizedDocument() -> String {
         EndpointOperation.normalizeDocument(query)
     }
+}
+
+private struct SelectionDetail: Sendable {
+    let variant: String?
+    let reason: String
+    let callNumber: Int?
+}
+
+private struct SelectionKey: StorageKey {
+    typealias Value = SelectionDetail
 }

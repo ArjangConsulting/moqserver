@@ -238,7 +238,7 @@ curl -X PUT \
 
 ### DELETE `/_admin/endpoints/:method/**/variant`
 
-Clears the runtime variant override for the specified endpoint, returning it to normal variant selection (config override → request matching → first variant).
+Clears the runtime variant override for the specified endpoint, returning it to normal variant selection (config override → request matching → Accept negotiation → declared default → declaration order).
 
 **Request**
 
@@ -357,3 +357,25 @@ curl -s http://127.0.0.1:8080/_admin/endpoints | \
   jq '[.[] | select(.activeVariant != null)]'
 # Should return [] when no overrides are set
 ```
+
+## Scenarios, sessions and request history
+
+All routes below require the same admin credentials as endpoint management. Send `X-Mock-Session`
+for session-local operations; omit it for global state.
+
+| Method/path | Behavior |
+|---|---|
+| `GET /_admin/scenarios` | List/export named scenario definitions |
+| `PUT /_admin/scenarios` | Define `{name, overrides: {"METHOD /template": "variant"}}` |
+| `DELETE /_admin/scenarios` | Remove the definition named by `{name}`; active overrides remain until reset |
+| `PUT /_admin/scenario` | Activate `{name}`; atomically replace overrides and reset counters |
+| `DELETE /_admin/state` | Reset all overrides and counters |
+| `DELETE /_admin/endpoints/:method/**/state` | Reset one endpoint's override and counter together |
+| `GET /_admin/requests` | Newest-first history, at most 500 records |
+| `DELETE /_admin/requests` | Clear history |
+| `POST /_admin/sessions` | Create isolated state; returns `{id}` |
+| `DELETE /_admin/sessions/:id` | Release session (idempotent) |
+
+History records have `id`, `timestamp` (Unix seconds), `method`, `path`, `endpoint`, `status`,
+optional `variant`, `reason`, and optional `callNumber`. See [runtime workflows](RUNTIME_WORKFLOWS.md)
+for limits, lifecycle, scenario examples and parallel-test setup.

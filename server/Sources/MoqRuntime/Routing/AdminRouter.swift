@@ -15,21 +15,22 @@ public struct AdminRouter: Sendable {
     public func registerRoutes(on app: Application) {
         logger.info("Registering admin API routes under /_admin")
         let admin = app.grouped("_admin")
+        registerRuntimeRoutes(on: admin)
 
         admin.get("endpoints") { req async throws -> [EndpointListItem] in
-            try await handler.listEndpoints(req: req)
+            try await handler.scoped(req: req).listEndpoints(req: req)
         }
 
         admin.get("endpoints", ":method", "**") { req async throws -> EndpointDetail in
-            try await handler.getEndpoint(req: req)
+            try await handler.scoped(req: req).getEndpoint(req: req)
         }
 
         admin.put("endpoints", ":method", "**") { req async throws -> MessageResponse in
-            try await handler.setVariant(req: req)
+            try await handler.scoped(req: req).setVariant(req: req)
         }
 
         admin.delete("endpoints", ":method", "**") { req async throws -> MessageResponse in
-            try await handler.resetVariant(req: req)
+            try await handler.scoped(req: req).resetVariant(req: req)
         }
     }
 }
