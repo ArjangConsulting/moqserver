@@ -8,11 +8,11 @@ For cross-repo workflow and shared expectations, see the root `AGENTS.md`.
 
 ## Tech Stack
 
-- **Language**: Swift 5.10+ (package `swift-tools-version:5.10`); built and tested with the Swift 6.2 toolchain in CI
-- **Framework**: Vapor 4.121.x (async/await only — prepared for Vapor 5 migration)
+- **Language**: Swift 6.1+ (package `swift-tools-version:6.1`); built and tested with the Swift 6.2 toolchain in CI
+- **Framework**: Vapor 4.122+ (async/await only — prepared for Vapor 5 migration)
 - **Project Format**: `.moqproj` directory bundles (YAML manifest + endpoint files, parsed with Yams)
 - **CLI**: ArgumentParser (decoupled from Vapor lifecycle)
-- **Runtime**: macOS 12+, Linux
+- **Runtime**: macOS 13+, Linux
 
 ## Build & Test
 
@@ -41,6 +41,9 @@ The server is split into focused Swift package targets (see `Package.swift`):
 | `MoqCore` | Framework-agnostic domain types, protocols, validation |
 | `MoqFormat` | `.moqproj` file loading, writing, validation, runtime conversion, `ProjectStore` (mutating actor) |
 | `MoqImport` | OpenAPI 3.x / HAR spec parsing and conversion into `MoqProject` |
+| `MoqService` | Transport-neutral authoring sessions, mutations, validation |
+| `MoqFormatServiceRun` | `moq-format`: Content-Length-framed JSON-RPC for Studio |
+| `MoqAuthorCLI` / `MoqAuthorRun` | `moq-author`: one-shot scripted authoring |
 | `MoqRuntime` | Vapor app, routing, mock storage, admin API, auth |
 | `MoqCLI` | ArgumentParser subcommands wiring everything together |
 | `Run` | `@main` entry point for the `moqserver` binary |
@@ -139,7 +142,7 @@ Incoming request
   → HTTP response
 ```
 
-**Variant selection priority**: `X-Mock-Variant` header → `RequestMatch` constraints → `Accept` header content negotiation → first variant (default)
+**Variant selection**: call-count eligibility, then named selection (`X-Mock-Variant` → runtime override → config override), request matching, Accept negotiation, declared default, declaration order. See `../ARCHITECTURE.md` for fallback details.
 
 **Path parameter matching**: OpenAPI-style templates like `/users/{id}` are registered as Vapor `:id` route parameters, so Vapor's router handles matching natively.
 
@@ -192,3 +195,5 @@ Incoming request
 - `../docs/ADMIN_API.md` — admin API reference
 - `../docs/FORMAT_IMPLEMENTATION.md` — `.moqproj` format contract
 - `../docs/ERROR_CATALOG.md` — structured error shapes
+
+Authoring CLI contract: `../docs/AUTHORING_CLI.md`. Runtime scenarios, sessions, and diagnostics: `../docs/RUNTIME_WORKFLOWS.md`.

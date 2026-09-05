@@ -57,3 +57,15 @@ Auth failures also return `WWW-Authenticate` when applicable.
 - `.moqproj` request rules now support `match_type` for headers, query params, and cookies.
 - Supported `match_type` values are: `require`, `equal_to`, `not_equal_to`, `contains`, `not_contains`, `begins_with`, `ends_with`, `matches_regex`, `is_empty`, `not_empty`, `gt`, `gte`, `lt`, `lte`.
 - `.moqproj` network simulation now applies endpoint latency, jitter, and packet loss during serving.
+
+## Authoring and format-service recovery
+
+| Code | Recovery |
+|---|---|
+| `E_PROJECT_BUSY` | Another cooperating process holds the bundle lock; retry after it finishes. |
+| `E_PROJECT_CHANGED` | Disk content changed or the loaded bundle was deleted; reload or preserve edits with Save As. |
+| `E_INVALID_ARGUMENTS` | Correct CLI flags; moq-author exits 64 with a JSON error on stderr. |
+| `E_FORMAT_INCOMPATIBLE` | Studio requires its matching format protocol and capabilities; update the binary. |
+| `E_FORMAT_UNAVAILABLE` | Retry the format service from Studio's Tools menu. |
+
+`moq-author` suppresses routine library logs so failures are one parseable JSON document on stderr.

@@ -10,18 +10,18 @@ Canonical note: This is the single source of truth for AI agent guidance for **S
 - Entry point: `composeApp/src/desktopMain/kotlin/com/moqserver/studio/Main.kt` wires repositories/parsers/viewmodel and desktop callbacks.
 - UI routing: `composeApp/src/commonMain/kotlin/com/moqserver/studio/App.kt` switches `ImportReviewScreen` vs landing vs workspace from `StudioState`.
 - State owner: `studio-domain/src/commonMain/kotlin/com/moqserver/studio/domain/StudioRootViewModel.kt` is the single source of truth (`StateFlow<StudioState>`).
-- Project format boundary: `studio-project-format/` owns `.moqproj` schema, YAML codec, validation, and disk I/O (`ProjectRepository`).
-- Data/adapters boundary: `studio-data/` owns settings/credential adapters only; `studio-import/` owns import parsers; do not move project-format semantics here.
+- Project format boundary: `studio-project-format/` owns schema-generated models and the `moq-format` RPC/repository adapters. Swift `MoqFormat` owns YAML, validation, and persistence.
+- Data/adapters boundary: `studio-data/` owns settings/credential adapters only. Import parsing is delegated to Swift `MoqImport` through `moq-format`.
 
 ## Module Boundaries You Should Preserve
-- `composeApp -> studio-domain + studio-project-format + studio-data + studio-import + studio-ai + studio-ui + studio-code-editor + studio-logging`.
+- `composeApp -> studio-domain + studio-project-format + studio-data + studio-ai + studio-ui + studio-code-editor + studio-logging`.
 - `studio-domain` stays pure workflow logic (no desktop/Compose/IO concerns). Owns `ImportModels`, `ImportConverter`, and `VariantReferenceSyncPreference`.
-- `studio-data` depends on `studio-domain` + `studio-project-format` for adapter integration only. Owns settings/preferences repositories only (no import parsers).
-- `studio-import` owns `OpenAPIImportParser` and `HARImportParser` (JVM-only). Depends on `studio-domain` + `studio-project-format` + `studio-logging`.
+- `studio-data` owns settings/preferences repositories only (no import parsers).
+- `studio-import` was removed. `RemoteImportParsing` adapts the format service's parsed specs for domain import review.
 
 ## Core Data Flows (Examples)
-- Open/save project: file dialog -> `ProjectRepository.load/save` -> `StudioRootViewModel.projectLoaded/projectSaved`.
-- Import OpenAPI/HAR: parser in `studio-import` -> `startImport` -> review UI -> `confirmImport` -> persisted `.moqproj`.
+- Open/save project: file dialog -> `ProjectRepository.load/save` -> `StudioRootViewModel.projectLoaded/projectSaved` (completion must carry the saved snapshot).
+- Import OpenAPI/HAR: parser in Swift `MoqImport` via `FormatClient` -> `startImport` -> review UI -> `confirmImport` -> persisted `.moqproj`.
 - AI action: UI trigger -> `AIActionHandler.executeAIAction` -> provider registry call -> `aiAction` state update.
 
 ## AI Integration
@@ -35,7 +35,7 @@ Canonical note: This is the single source of truth for AI agent guidance for **S
 - Build desktop compile: `./gradlew :composeApp:compileKotlinDesktop`
 - Run app: `./gradlew :composeApp:run`
 - Full tests: `./gradlew test`
-- Focused tests: `./gradlew :composeApp:desktopTest` / `./gradlew :studio-domain:jvmTest` / `./gradlew :studio-project-format:jvmTest` / `./gradlew :studio-data:test` / `./gradlew :studio-import:test`
+- Focused tests: `./gradlew :composeApp:desktopTest` / `./gradlew :studio-domain:jvmTest` / `./gradlew :studio-project-format:jvmTest` / `./gradlew :studio-data:test`
 - Lint all modules: `./gradlew detektAll`
 - Detekt nuance: KMP modules need target-specific tasks (e.g. `:composeApp:detektDesktopMain`), while JVM modules use plain `detekt`.
 
@@ -52,3 +52,12 @@ Canonical note: This is the single source of truth for AI agent guidance for **S
 - Keep save/dirty invariants intact (`StudioState.isDirty`, `hasErrors`, `windowTitle`), since UI enablement depends on them.
 - When touching `.moqproj` persistence, preserve fixture migration/cleanup behavior in `ProjectRepository.save()`.
 - Do not add new `@Suppress` or `@file:Suppress` annotations just to satisfy Detekt, compile checks, pre-commit hooks, or commit-time verification. Refactor the code to satisfy the rule; if a suppression is truly unavoidable, stop and justify it explicitly instead of slipping it in during a fix.
+
+## Format service and runtime diagnostics
+- `FormatClient` verifies protocol version/capabilities for each subprocess generation.
+- `ProjectRepository` serializes IO workflows and retains the loaded disk revision across restarts.
+- Do not silently adopt a new disk baseline when recovering an unknown session.
+- Runtime Inspector is available under Tools; workflow state is `StudioState.runtime`, with HTTP IO in desktop adapters.
+- Local binary bundling tracks all format-service source dependencies. CI packaging uses `-PusePrebuiltFormatBinary=true` to preserve the staged artifact.
+- To use published dependencies without optional sibling checkouts, pass `-PuseLocalCompositeBuilds=false`.
+- Some local skills predate the format-service migration; use the current architecture above for ownership and command discovery.
