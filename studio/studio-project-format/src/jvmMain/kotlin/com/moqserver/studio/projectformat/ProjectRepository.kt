@@ -2,6 +2,9 @@ package com.moqserver.studio.projectformat
 
 import com.moqserver.studio.logging.loggerFor
 import com.moqserver.studio.projectformat.format.FormatClient
+import com.moqserver.studio.projectformat.format.FormatServiceException
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import java.io.File
 
 /**
@@ -19,6 +22,9 @@ import java.io.File
 class ProjectRepository(private val client: FormatClient) {
     private val logger = loggerFor<ProjectRepository>()
     private var sessionHandle: String? = null
+    private val operations = Mutex()
+    private var baselinePath: String? = null
+    private var baselineRevision: String? = null
 
     private suspend fun handle(): String {
         sessionHandle?.let { return it }
@@ -27,25 +33,65 @@ class ProjectRepository(private val client: FormatClient) {
         return handle
     }
 
-    suspend fun load(projectPath: String): MoqProject {
-        logger.info("Loading project from {}", projectPath)
-        val handle = handle()
-        client.openProject(handle, projectPath, force = false)
-        val project = client.readProject(handle)
-        logger.info("Project loaded: {} with {} endpoint(s)", project.manifest.name, project.endpoints.size)
-        return project
+    suspend fun load(projectPath: String): MoqProject = operations.withLock {
+        val fresh = client.openSession()
+        try {
+            val description = client.openProject(fresh, projectPath)
+            val project = client.readProject(fresh)
+            val previous = sessionHandle
+            sessionHandle = fresh
+            if (previous != null) runCatching { client.closeSession(previous) }
+            baselinePath = description.path
+            baselineRevision = description.revision
+            project
+        } catch (error: Exception) {
+            runCatching { client.closeSession(fresh) }
+            throw error
+        }
     }
 
-    /**
-     * Persists [project] to [path]. [path] and `project.projectPath` may differ — Save As passes
-     * a new [path] while [project] still carries wherever it was last loaded from or saved to.
-     */
-    suspend fun save(project: MoqProject, path: String) {
-        logger.info("Saving project {} to {}", project.manifest.name, path)
-        val handle = handle()
-        val target = if (project.projectPath == path) project else project.copy(projectPath = path)
-        client.writeProject(handle, target, force = false)
-        logger.info("Project saved: {} with {} endpoint(s)", target.manifest.name, target.endpoints.size)
+    suspend fun save(project: MoqProject, path: String) = operations.withLock {
+        val target = project.copy(projectPath = path)
+        val sameDestination = baselinePath?.let { File(it).canonicalPath == File(path).canonicalPath } ?: false
+        val expectedRevision = if (sameDestination) baselineRevision else null
+        val description = try {
+            client.writeProject(handle(), target, expectedRevision = expectedRevision)
+        } catch (error: FormatServiceException) {
+            if (error.code != "E_UNKNOWN_SESSION") throw error
+            val restored = restoreSession(verifyRevision = sameDestination)
+            try {
+                client.writeProject(
+                    restored,
+                    target,
+                    expectedRevision = expectedRevision,
+                ).also { sessionHandle = restored }
+            } catch (failure: Exception) {
+                runCatching { client.closeSession(restored) }
+                throw failure
+            }
+        }
+        baselinePath = description.path
+        baselineRevision = description.revision
+        logger.info("Project saved: {}", path)
+    }
+
+    private suspend fun restoreSession(verifyRevision: Boolean): String {
+        val fresh = client.openSession()
+        try {
+            baselinePath?.let { path ->
+                val restored = client.openProject(fresh, path)
+                if (verifyRevision && (baselineRevision == null || restored.revision != baselineRevision)) {
+                    throw FormatServiceException(
+                        "E_PROJECT_CHANGED",
+                        "The project changed on disk. Save As to preserve your edits, or reload the project.",
+                    )
+                }
+            }
+            return fresh
+        } catch (error: Exception) {
+            runCatching { client.closeSession(fresh) }
+            throw error
+        }
     }
 
     /**
@@ -72,6 +118,7 @@ class ProjectRepository(private val client: FormatClient) {
         val file = File(root, relativePath)
         val rootPath = root.canonicalFile.toPath()
         val filePath = file.canonicalFile.toPath()
-        return if (filePath.startsWith(rootPath)) file else null
+        val fixturesPath = rootPath.resolve(MoqProjectFormat.FIXTURES_DIR)
+        return if (filePath.startsWith(fixturesPath)) file else null
     }
 }

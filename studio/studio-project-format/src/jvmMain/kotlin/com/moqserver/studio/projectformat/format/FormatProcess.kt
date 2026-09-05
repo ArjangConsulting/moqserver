@@ -82,13 +82,26 @@ class FormatProcess(
     @Volatile private var stopped = false
     private var restartAttempts = 0
 
+    @Volatile var generation: Long = 0
+        private set
+    private var supervisor: kotlinx.coroutines.Job? = null
+
     fun start() {
+        if (supervisor?.isActive == true) return
         stopped = false
-        scope.launch { supervise() }
+        restartAttempts = 0
+        supervisor = scope.launch { supervise() }
+    }
+
+    suspend fun restart() {
+        stop()
+        supervisor?.join()
+        start()
     }
 
     fun stop() {
         stopped = true
+        _state.value = FormatServiceState.Unavailable("Format service stopped. Use Tools → Retry format service.")
         process?.destroy()
         failAllPending("moq-format process stopped")
     }
@@ -195,12 +208,14 @@ class FormatProcess(
             }
 
             process = proc
+            generation += 1
             _state.value = FormatServiceState.Ready
             logger.info("moq-format started (pid={})", proc.pid())
             val stderrJob = scope.launch { drainStderr(proc) }
             val startedAtMs = System.currentTimeMillis()
 
             readLoop(BufferedInputStream(proc.inputStream))
+            proc.destroy()
             stderrJob.cancel()
 
             // readLoop returned: the process's stdout closed (crash, or a clean `stop()`).
