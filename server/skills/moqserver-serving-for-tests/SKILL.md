@@ -41,19 +41,22 @@ in from the outside:
 - List currently-registered endpoints to confirm what the running server actually loaded.
 
 Admin paths tolerate a trailing slash either way — match whatever your app's real paths look like.
-Wrap these calls in a small test-support helper (select variant / reset variant / reset call count
-/ reset-all) with error messages that name the likely cause (wrong port, server not started, no
-such endpoint) rather than raw HTTP failures — every consuming app ends up needing the same handful
-of calls, so writing it once per app is avoidable duplication. See `moqserver-scenario-design` for
-when to reach for this versus `call_count`.
+For an iOS/macOS app, add `server/MoqTestSupport` (see its README) as a local Swift Package
+dependency of your test target instead of hand-rolling these HTTP calls — `MoqControl.selectVariant`
+/ `resetVariant` / `resetCallCount` / `resetAll` cover the admin API with error messages that name
+the likely cause (wrong port, server not started, no such endpoint) rather than raw HTTP failures.
+See `moqserver-scenario-design` for when to reach for this versus `call_count`.
 
-## Authoring is MCP-only
+## Scripted authoring in CI
 
-There is currently no `moqserver` CLI path for creating or editing a bundle from a script —
-`serve` and `validate` are the only subcommands. Bundle authoring goes through `moq-mcp` (an
-agent session) or hand-written YAML validated against `moq://schema/moqproj.json` /
-`format/schema.json`. Plan CI around a bundle that's already committed and validated, not around
-generating one at pipeline time.
+`moqserver` itself only `serve`s and `validate`s — it has no authoring subcommands, by design (see
+`server/AGENTS.md`'s note on `MoqCLI`'s dependency graph). For a script or CI step that needs to
+create or edit a bundle without an MCP client, use the separate `moq-author` binary instead: each
+subcommand (`project create`, `endpoint upsert`, `variant upsert`, `import har`, ...) is one atomic
+open-mutate-save-exit operation, taking structured arguments as a JSON file (or stdin), and
+printing `{"code", "message"}` on stderr with a non-zero exit on failure. See `server/AGENTS.md`'s
+"Scripted / CI Authoring" section. Prefer a bundle that's already committed and validated for most
+CI runs — reach for `moq-author` when a pipeline genuinely needs to generate or adjust one.
 
 ## See also
 

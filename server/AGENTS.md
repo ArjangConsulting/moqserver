@@ -78,6 +78,40 @@ Tools cover project lifecycle (`moq_create_project`, `moq_open_project`, `moq_de
 URL-based OpenAPI import is disabled unless the server process has `MOQ_MCP_ALLOW_NETWORK=1` set
 — `moq_import_openapi` with a local file path always works.
 
+## Scripted / CI Authoring
+
+`moq-author` is a standalone binary (built from `MoqAuthorRun`/`MoqAuthorCLI`) for authoring a
+bundle from a shell script or CI step, with no MCP client and no agent in the loop. `moq-mcp` and
+`moq-format` both assume a long-lived client speaking a stateful protocol — exactly what a one-shot
+script doesn't have — so `moq-author` instead runs one atomic operation per invocation: open (or
+create) the project, apply exactly one mutation, save, exit. Build and run it with:
+
+```bash
+swift build --product moq-author
+.build/debug/moq-author project create --path ./my-api.moqproj --name "My API"
+.build/debug/moq-author endpoint upsert --project ./my-api.moqproj --json endpoint.json
+.build/debug/moq-author variant upsert --project ./my-api.moqproj --json variant.json
+```
+
+Structured arguments (an endpoint, a variant, an import request) are passed as a JSON file or via
+stdin (`--json -`) rather than as a bespoke flag per nested field — the same `Decodable` payload
+shapes `moq-mcp` tool calls and `moq-format` JSON-RPC requests already decode, so a script authors
+the identical shape regardless of entry point. Every failure prints `{"code", "message"}` on
+stderr with a non-zero exit — the same error catalog (`E_...`) all three entry points share.
+
+Kept as a separate target/binary rather than added to `moqserver`'s own `serve`/`validate`
+subcommands so the `moqserver` binary's dependency graph stays free of `MoqImport`/OpenAPIKit, per
+the note on `MoqCLI` above.
+
+## Test Support for Consuming Apps
+
+`server/MoqTestSupport/` is a **separate** Swift package (its own `Package.swift`, targeting
+iOS/macOS) providing `MoqControl` — drives a running `moqserver`'s admin API from an app's own UI
+tests (select/reset a variant, reset a call count). It is not a target of this directory's own
+`Package.swift` and has its own `swift build`/`swift test`, run from `server/MoqTestSupport/`, since
+it links XCTest and targets Apple platforms only — see its README for why and how a consuming app
+adds it as a dependency.
+
 ## AI Skills for `.moqproj` authors
 
 `server/skills/` ships repo-local skills for any agent authoring or driving a bundle via

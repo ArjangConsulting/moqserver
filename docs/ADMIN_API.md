@@ -263,6 +263,42 @@ curl -X DELETE http://127.0.0.1:8080/_admin/endpoints/GET/api/v1/users/variant
 
 ---
 
+### DELETE `/_admin/endpoints/:method/**/call-count`
+
+Resets the endpoint's call counter to zero, so `call_count`-scoped variants become eligible from
+call 1 again. Independent of the variant override above — resetting one does not reset the other.
+
+**Request**
+
+```bash
+curl -X DELETE http://127.0.0.1:8080/_admin/endpoints/GET/api/v1/users/call-count
+```
+
+**Response** — `200 OK` — `MessageResponse`
+
+```json
+{
+  "message": "Call count reset for GET /api/v1/users"
+}
+```
+
+**Error responses**
+
+| Status | Condition |
+|--------|-----------|
+| `401 Unauthorized` | Admin auth required and credentials missing or invalid |
+| `404 Not Found` | No endpoint matches the given method + path |
+
+---
+
+## Test-Support Package
+
+For an iOS/macOS app, `server/MoqTestSupport` wraps the variant-override and call-count endpoints
+above as `MoqControl` (select/reset variant, reset call count, reset-all) for use directly from a
+UI test target — see its README rather than hand-rolling these HTTP calls per app.
+
+---
+
 ## Variant Override Persistence
 
 By default, runtime overrides set via `PUT /_admin/.../variant` are held in memory and lost on restart.

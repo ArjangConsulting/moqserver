@@ -14,6 +14,7 @@ let package = Package(
         .executable(name: "moqserver", targets: ["Run"]),
         .executable(name: "moq-mcp", targets: ["MoqMCPRun"]),
         .executable(name: "moq-format", targets: ["MoqFormatServiceRun"]),
+        .executable(name: "moq-author", targets: ["MoqAuthorRun"]),
     ],
     dependencies: [
         .package(url: "https://github.com/vapor/vapor.git", from: "4.122.0"),
@@ -118,6 +119,38 @@ let package = Package(
                 .target(name: "MoqService")
             ],
             path: "Sources/MoqFormatServiceRun"
+        ),
+
+        // MARK: - MoqAuthorCLI
+        // Scriptable, non-agent authoring surface over MoqService: one-shot subcommands
+        // (`moq-author endpoint upsert`, ...) that open a project, apply one mutation, save, and
+        // exit — no long-lived session across invocations, so a shell script or CI step composes
+        // several calls the same way it would any other CLI tool. Structured inputs (an endpoint,
+        // a variant, an import request) are the same Codable payloads moq-mcp/moq-format decode,
+        // passed as a JSON file or stdin — this is deliberately not a from-scratch flag surface
+        // for every nested field. Kept out of MoqCLI/Run (the `moqserver` binary) on purpose: that
+        // binary's dependency graph stays free of MoqImport/OpenAPIKit, per the note on MoqCLI
+        // below and in server/AGENTS.md.
+        .target(
+            name: "MoqAuthorCLI",
+            dependencies: [
+                .target(name: "MoqCore"),
+                .target(name: "MoqFormat"),
+                .target(name: "MoqService"),
+                .product(name: "ArgumentParser", package: "swift-argument-parser"),
+            ],
+            path: "Sources/MoqAuthorCLI"
+        ),
+
+        // MARK: - MoqAuthorRun
+        // Thin @main entry point producing the standalone moq-author executable (mirrors
+        // MoqCLI/Run and MoqMCP/MoqMCPRun).
+        .executableTarget(
+            name: "MoqAuthorRun",
+            dependencies: [
+                .target(name: "MoqAuthorCLI")
+            ],
+            path: "Sources/MoqAuthorRun"
         ),
 
         // MARK: - MoqRuntime
@@ -237,6 +270,15 @@ let package = Package(
                 .target(name: "MoqCore"),
             ],
             path: "Tests/MoqCLITests"
+        ),
+        .testTarget(
+            name: "MoqAuthorCLITests",
+            dependencies: [
+                .target(name: "MoqAuthorCLI"),
+                .target(name: "MoqCore"),
+                .target(name: "MoqFormat"),
+            ],
+            path: "Tests/MoqAuthorCLITests"
         ),
     ]
 )
