@@ -59,3 +59,10 @@ func openExistingProject(_ path: String, allowNetworkImport: Bool) async throws 
 var allowNetworkImportFromEnvironment: Bool {
     ProcessInfo.processInfo.environment["MOQ_AUTHOR_ALLOW_NETWORK"] == "1"
 }
+
+func authorImportOptions(_ path: String?) throws -> ImportInputCommon {
+    let options = try path.map { try decodeJSON(ImportInputCommon.self, from: $0) } ?? ImportInputCommon()
+    return ImportInputCommon(
+        acceptPaths: options.acceptPaths, updateDetails: options.updateDetails ?? false,
+        replaceExistingBodies: options.replaceExistingBodies ?? false)
+}

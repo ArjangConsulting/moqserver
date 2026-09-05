@@ -14,9 +14,21 @@ struct MoqAuthorCLITests {
     }
 
     func writeJSON(_ label: String, _ json: String) -> String {
-        let path = (NSTemporaryDirectory() as NSString).appendingPathComponent("author-cli-\(label)-\(UUID().uuidString).json")
+        let path = (NSTemporaryDirectory() as NSString).appendingPathComponent(
+            "author-cli-\(label)-\(UUID().uuidString).json")
         try! json.write(toFile: path, atomically: true, encoding: .utf8)
         return path
+    }
+
+    @Test("CLI imports preserve metadata unless explicitly enabled")
+    func importOptionsPreserveMetadata() throws {
+        #expect(try authorImportOptions(nil).updateDetails == false)
+        let path = writeJSON("options", #"{"replace_existing_bodies":true}"#)
+        defer { try? FileManager.default.removeItem(atPath: path) }
+        #expect(try authorImportOptions(path).updateDetails == false)
+        #expect(try authorImportOptions(path).replaceExistingBodies == true)
+        try #"{"update_details":true}"#.write(toFile: path, atomically: true, encoding: .utf8)
+        #expect(try authorImportOptions(path).updateDetails == true)
     }
 
     @Test("project create makes a bundle that endpoint upsert and variant upsert can build on")
