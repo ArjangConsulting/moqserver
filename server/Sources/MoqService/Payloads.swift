@@ -10,19 +10,23 @@ public struct ProjectDescription: Codable, Sendable {
     public let path: String
     public let endpointCount: Int
     public let dirty: Bool
+    public let revision: String?
 
     enum CodingKeys: String, CodingKey {
         case name, description, path
         case endpointCount = "endpoint_count"
-        case dirty
+        case dirty, revision
     }
 
-    public init(name: String, description: String?, path: String, endpointCount: Int, dirty: Bool) {
+    public init(
+        name: String, description: String?, path: String, endpointCount: Int, dirty: Bool, revision: String? = nil
+    ) {
         self.name = name
         self.description = description
         self.path = path
         self.endpointCount = endpointCount
         self.dirty = dirty
+        self.revision = revision
     }
 }
 

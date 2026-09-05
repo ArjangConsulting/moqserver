@@ -64,6 +64,8 @@ struct Dispatcher {
 
     private func route(_ method: String, params: Data?) async throws -> any Encodable {
         switch method {
+        case "service.info":
+            return ServiceInfo(protocolVersion: 1, capabilities: ["project-revision", "session-recovery"])
         case "session.open":
             return SessionHandle(handle: await service.openSession())
         case "session.close":
@@ -95,7 +97,8 @@ struct Dispatcher {
         case "project.write":
             let input = try decode(WriteProjectParams.self, params)
             return try await service.writeProject(
-                handle: input.handle, project: input.project, force: input.force ?? false)
+                handle: input.handle, project: input.project, force: input.force ?? false,
+                expectedRevision: input.expectedRevision)
         case "project.validate":
             let input = try decode(HandleOnlyInput.self, params)
             return try await service.validateProject(handle: input.handle)
@@ -162,6 +165,7 @@ struct Dispatcher {
 
 // MARK: - Parameter shapes
 
+private struct ServiceInfo: Codable { let protocolVersion: Int; let capabilities: [String] }
 private struct SessionHandle: Codable { let handle: String }
 private struct EmptyResult: Codable {}
 private struct HandleOnlyInput: Decodable { let handle: String }
@@ -192,6 +196,12 @@ private struct WriteProjectParams: Decodable {
     let handle: String
     let project: MoqProject
     let force: Bool?
+    let expectedRevision: String?
+
+    enum CodingKeys: String, CodingKey {
+        case handle, project, force
+        case expectedRevision = "expected_revision"
+    }
 }
 
 private struct ListEndpointsParams: Decodable {
