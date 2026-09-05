@@ -13,6 +13,21 @@ val macAppIconFile = "src/desktopMain/resources/icons/icon.icns"
 val linuxAppIconFile = "src/desktopMain/resources/icons/icon.png"
 val nativePackageVersion = project.version.toString().substringBefore('-').substringBefore('+')
 
+// Host platform subdirectory under app-resources/, matching what CI's release.yml stages and
+// what FormatBinaryLocator documents Compose exposing via `compose.application.resources.dir`.
+// Only the two platforms CI actually builds moq-format for (see format-binary job's matrix) are
+// recognized; anything else (Intel Mac, Windows) is left unbundled, same as before this task
+// existed — Studio still runs via MOQSERVER_FORMAT_BINARY or a $PATH moq-format.
+val hostFormatPlatform: String? = run {
+    val osName = System.getProperty("os.name").lowercase()
+    val osArch = System.getProperty("os.arch").lowercase()
+    when {
+        osName.contains("mac") && osArch in setOf("aarch64", "arm64") -> "macos-arm64"
+        osName.contains("linux") && osArch in setOf("amd64", "x86_64") -> "linux-x64"
+        else -> null
+    }
+}
+
 kotlin {
     jvm("desktop")
 
@@ -193,6 +208,85 @@ compose.desktop {
         }
     }
 }
+
+val bundleFormatBinary = tasks.register("bundleFormatBinary") {
+    group = "build"
+    description = "Builds moq-format for the host platform and stages it into app-resources/, " +
+        "so `run` and packaging tasks use a freshly built bundled binary instead of falling back " +
+        "to MOQSERVER_FORMAT_BINARY or \$PATH."
+    // Shells out to `swift build` and reflects its result straight into task inputs/outputs;
+    // simpler to keep this off the configuration cache than to route it through providers this
+    // script's other tasks don't need.
+    notCompatibleWithConfigurationCache("shells out to the Swift toolchain")
+
+    val serverDir = project.projectDir.resolve("../../server").normalize()
+    val platform = hostFormatPlatform
+
+    // Same inputs/outputs SwiftPM itself would use to decide a rebuild is needed, so Gradle's
+    // up-to-date check skips the (multi-second) `swift build` on unrelated changes.
+    if (platform != null) {
+        inputs.dir(serverDir.resolve("Sources/MoqCore"))
+        inputs.dir(serverDir.resolve("Sources/MoqFormat"))
+        inputs.dir(serverDir.resolve("Sources/MoqFormatServiceRun"))
+        inputs.file(serverDir.resolve("Package.swift"))
+        inputs.file(serverDir.resolve("Package.resolved"))
+    }
+    val destination = project.projectDir.resolve("app-resources/$platform/moq-format")
+    if (platform != null) {
+        outputs.file(destination)
+    }
+
+    onlyIf {
+        if (platform == null) {
+            logger.lifecycle(
+                "bundleFormatBinary: no moq-format platform recognized for " +
+                    "${System.getProperty("os.name")}/${System.getProperty("os.arch")}; skipping. " +
+                    "Studio will fall back to MOQSERVER_FORMAT_BINARY or a \$PATH moq-format."
+            )
+        }
+        platform != null
+    }
+
+    doLast {
+        val swiftAvailable = try {
+            providers.exec {
+                commandLine("swift", "--version")
+                isIgnoreExitValue = true
+            }.result.get()
+            true
+        } catch (error: Exception) {
+            false
+        }
+        if (!swiftAvailable) {
+            logger.lifecycle(
+                "bundleFormatBinary: no Swift toolchain found on \$PATH; skipping moq-format " +
+                    "bundling. Studio will fall back to MOQSERVER_FORMAT_BINARY or a \$PATH " +
+                    "moq-format."
+            )
+            return@doLast
+        }
+
+        providers.exec {
+            workingDir(serverDir)
+            commandLine("swift", "build", "-c", "release", "--product", "moq-format")
+        }.result.get()
+
+        val binPath = providers.exec {
+            workingDir(serverDir)
+            commandLine("swift", "build", "-c", "release", "--show-bin-path")
+        }.standardOutput.asText.get().trim()
+
+        val builtBinary = File(binPath, "moq-format")
+        check(builtBinary.isFile) { "swift build did not produce $builtBinary" }
+
+        destination.parentFile.mkdirs()
+        builtBinary.copyTo(destination, overwrite = true)
+        destination.setExecutable(true)
+    }
+}
+
+tasks.matching { it.name in setOf("run", "createDistributable", "packageDmg", "packageDeb") }
+    .configureEach { dependsOn(bundleFormatBinary) }
 
 tasks.register("registerMacApp") {
     group = "distribution"
