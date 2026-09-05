@@ -267,7 +267,7 @@ fun main(args: Array<String>) {
         }
 
         LaunchedEffect(Unit) {
-            appViewModel.setRecentProjects(recentProjectsRepo.load())
+            appViewModel.setRecentProjects(recentProjectsRepo.load().filter { File(it).isDirectory })
         }
 
         LaunchedEffect(aiRegistry) {
