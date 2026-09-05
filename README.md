@@ -82,3 +82,10 @@ See [`AGENTS.md`](AGENTS.md) for repository commands and product boundaries.
 ## License
 
 MIT
+
+## Authoring and test workflows
+
+- [Script and CI authoring with moq-author](docs/AUTHORING_CLI.md)
+- [Scenarios, isolated test sessions, and Studio Runtime Inspector](docs/RUNTIME_WORKFLOWS.md)
+- [Apple test-support client](server/MoqTestSupport/README.md)
+- [Current architecture and recovery model](ARCHITECTURE.md)
