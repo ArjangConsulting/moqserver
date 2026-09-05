@@ -83,8 +83,9 @@ internal suspend fun persistProject(
     recentProjectsRepo: RecentProjectsRepository,
     ioDispatcher: CoroutineDispatcher,
 ) {
+    val generation = appViewModel.state.value.projectGeneration
     runOnIo(ioDispatcher) { repo.save(project, path) }
-    appViewModel.projectSaved(path)
+    appViewModel.projectSaved(project, path, generation)
     appViewModel.addRecentProject(path)
     runOnIo(ioDispatcher) { recentProjectsRepo.save(appViewModel.state.value.recentProjects) }
 }

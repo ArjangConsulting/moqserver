@@ -197,13 +197,17 @@ class StudioRootViewModel(
         }
     }
 
+    private var projectGeneration = 0L
+
     fun projectLoaded(project: MoqProject) {
+        projectGeneration += 1
         resetContinuousHistoryWindow()
         undoStack.clear()
         redoStack.clear()
         _state.update {
             it.copy(
                 project = project,
+                projectGeneration = projectGeneration,
                 originalProject = project,
                 isDirty = false,
                 importState = null,
@@ -298,17 +302,12 @@ class StudioRootViewModel(
         _state.update { it.copy(selectedEndpointId = endpointId, pendingVariantName = variantName) }
     }
 
-    fun projectSaved(path: String) {
-        _state.update {
-            val updated = it.project?.copy(projectPath = path)
-            it.copy(
-                project = updated,
-                originalProject = updated,
-                isDirty = false,
-                statusLine = "All changes saved",
-                transientDiagnostic = null,
-            )
-        }
+    fun runtimeUpdated(runtime: RuntimeInspectionState) {
+        _state.update { it.copy(runtime = runtime) }
+    }
+
+    fun projectSaved(savedProject: MoqProject, path: String, generation: Long = state.value.projectGeneration) {
+        _state.update { it.afterProjectSaved(savedProject, path, generation) }
     }
 
     fun projectClosed() {
@@ -321,6 +320,7 @@ class StudioRootViewModel(
                 statusLine = "Project closed. Open a .moqproj directory to get started.",
                 recentProjects = it.recentProjects,
                 ai = it.ai,
+                runtime = it.runtime,
             )
         }
     }
@@ -734,6 +734,8 @@ class StudioRootViewModel(
 }
 
 data class StudioState(
+    val projectGeneration: Long = 0,
+    val runtime: RuntimeInspectionState = RuntimeInspectionState(),
     val project: MoqProject? = null,
     val originalProject: MoqProject? = null,
     val isDirty: Boolean = false,

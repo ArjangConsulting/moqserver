@@ -1,6 +1,7 @@
 package com.moqserver.studio
 
 import com.moqserver.studio.logging.loggerFor
+import com.moqserver.studio.projectformat.format.FormatServiceException
 import kotlinx.coroutines.CancellationException
 import java.io.File
 import javax.swing.JOptionPane
@@ -47,7 +48,7 @@ internal fun reportRecoverable(
     onUserMessage: (String) -> Unit,
 ) {
     throwable.rethrowIfCancellation()
-    val message = throwable.message ?: context
+    val message = recoveryMessage(throwable) ?: throwable.message ?: context
     errorLogger.error("{}: {}", context, message, throwable)
     appendCrashLog("$context: $message", throwable)
     onUserMessage(message)
@@ -93,4 +94,18 @@ private fun crashLogFile(): File {
         "win" in osName -> File(System.getenv("LOCALAPPDATA") ?: home, "moqserver-studio/studio-crash.log")
         else -> File(home, ".local/state/moqserver-studio/studio-crash.log")
     }
+}
+
+internal fun recoveryMessage(error: Throwable): String? = when ((error as? FormatServiceException)?.code) {
+    "E_PROJECT_CHANGED" ->
+        "The project changed on disk. Use File → Save As to keep your edits separately, " +
+        "or Tools → Reload Project to reload."
+    "E_PROJECT_BUSY" -> "Another process is saving this project. Wait for it to finish, then save again."
+    "E_FORMAT_UNAVAILABLE", "E_UNKNOWN_SESSION" ->
+        "The format service is unavailable. Use Tools → Retry format service, " +
+        "then retry your action. Your edits remain open."
+    "E_FORMAT_INCOMPATIBLE" ->
+        "The format service is incompatible. Update moq-format to the version shipped with Studio, " +
+        "then use Tools → Retry format service."
+    else -> null
 }
