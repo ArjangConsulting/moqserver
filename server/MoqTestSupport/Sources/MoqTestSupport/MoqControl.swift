@@ -78,8 +78,11 @@ public enum MoqControl {
 
     /// Clears both the variant override and the call counter. Safe to call when nothing was set.
     public static func resetAll(for method: String, path: String) {
-        try? resetVariant(for: method, path: path)
-        try? resetCallCount(for: method, path: path)
+        do {
+            try client.resetAll(for: method, path: path)
+        } catch {
+            XCTFail("moqserver reset failed: \(error)")
+        }
     }
 
     // MARK: - GET convenience
@@ -97,8 +100,7 @@ public enum MoqControl {
     }
 
     /// Convenience for the common case of a GET-only mocked endpoint.
-    public static func resetCallCount(forGET path: String, file: StaticString = #filePath, line: UInt = #line) throws
-    {
+    public static func resetCallCount(forGET path: String, file: StaticString = #filePath, line: UInt = #line) throws {
         try resetCallCount(for: "GET", path: path, file: file, line: line)
     }
 
@@ -115,16 +117,17 @@ public enum MoqControl {
     /// decide whether that's fatal.
     @discardableResult
     public static func waitUntilReady(timeout: TimeInterval = 10) -> Bool {
-        let deadline = Date().addingTimeInterval(timeout)
-        var request = URLRequest(url: baseURL.appendingPathComponent("_admin/endpoints"))
-        applyAuth(&request)
-        while Date() < deadline {
-            if let status = synchronousStatusCode(for: request), (200..<300).contains(status) {
-                return true
-            }
-            Thread.sleep(forTimeInterval: 0.2)
+        client.waitUntilReady(timeout: timeout)
+    }
+
+    private static var client: MoqClient {
+        let auth: MoqClient.Auth?
+        switch adminAuth {
+        case .none: auth = nil
+        case .bearer(let token): auth = .bearer(token)
+        case .apiKey(let header, let value): auth = .apiKey(header: header, value: value)
         }
-        return false
+        return MoqClient(baseURL: baseURL, auth: auth)
     }
 
     // MARK: - Private
@@ -137,86 +140,18 @@ public enum MoqControl {
     /// `internal` (not `private`) so `MoqControlTests` can exercise URL construction directly via
     /// `@testable import` without a live server.
     static func adminURL(method: String, path: String, subresource: String) -> URL {
-        let trimmed = path.hasPrefix("/") ? String(path.dropFirst()) : path
-        let normalized = trimmed.hasSuffix("/") ? String(trimmed.dropLast()) : trimmed
-        return
-            baseURL
-            .appendingPathComponent("_admin/endpoints")
-            .appendingPathComponent(method.uppercased())
-            .appendingPathComponent(normalized)
-            .appendingPathComponent(subresource)
-    }
-
-    private static func applyAuth(_ request: inout URLRequest) {
-        switch adminAuth {
-        case .none:
-            break
-        case .bearer(let token):
-            request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
-        case .apiKey(let header, let value):
-            request.setValue(value, forHTTPHeaderField: header)
-        }
-    }
-
-    private static func synchronousStatusCode(for request: URLRequest) -> Int? {
-        var status: Int?
-        let done = DispatchSemaphore(value: 0)
-        URLSession.shared.dataTask(with: request) { _, response, _ in
-            status = (response as? HTTPURLResponse)?.statusCode
-            done.signal()
-        }.resume()
-        _ = done.wait(timeout: .now() + 2)
-        return status
+        client.adminURL(method: method, path: path, subresource: subresource)
     }
 
     private static func send(
-        _ method: Method,
-        _ url: URL,
-        body: [String: String]? = nil,
-        file: StaticString = #filePath,
-        line: UInt = #line
+        _ method: Method, _ url: URL, body: [String: String]? = nil,
+        file: StaticString = #filePath, line: UInt = #line
     ) throws {
-        var request = URLRequest(url: url)
-        request.httpMethod = method.rawValue
-        applyAuth(&request)
-        if let body {
-            request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-            request.httpBody = try JSONSerialization.data(withJSONObject: body)
-        }
-
-        var result: (Data?, URLResponse?, (any Error)?)
-        let done = DispatchSemaphore(value: 0)
-        URLSession.shared.dataTask(with: request) { data, response, error in
-            result = (data, response, error)
-            done.signal()
-        }.resume()
-
-        guard done.wait(timeout: .now() + 10) == .success else {
-            XCTFail(
-                "moqserver admin call timed out: \(method.rawValue) \(url.path)",
-                file: file,
-                line: line
-            )
-            return
-        }
-        if let error = result.2 {
-            XCTFail(
-                "moqserver admin call failed: \(method.rawValue) \(url.path) — \(error.localizedDescription). "
-                    + "Is a moqserver instance running at \(baseURL)?",
-                file: file,
-                line: line
-            )
-            return
-        }
-        guard let status = (result.1 as? HTTPURLResponse)?.statusCode, (200..<300).contains(status)
-        else {
-            let detail = result.0.flatMap { String(data: $0, encoding: .utf8) } ?? "<no body>"
-            XCTFail(
-                "moqserver admin call rejected: \(method.rawValue) \(url.path) — \(detail)",
-                file: file,
-                line: line
-            )
-            return
+        do {
+            try client.send(method.rawValue, url: url, body: body)
+        } catch {
+            XCTFail("moqserver admin call failed: \(error)", file: file, line: line)
+            throw error
         }
     }
 }

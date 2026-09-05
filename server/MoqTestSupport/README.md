@@ -54,3 +54,24 @@ launches `moqserver` itself rather than assuming it's already up.
 **Reset what you set.** Overrides live in the running server process, not in the bundle — a test
 that sets one and doesn't clear it leaks the override into whatever test runs next. Prefer
 `resetAll(for:path:)` in `tearDown`.
+
+## Instance clients and parallel suites
+
+Prefer an immutable `MoqClient` for new tests. It throws `MoqControlError` on timeouts, transport
+failures and non-success responses. Timeouts cancel the URLSession task; cancellation does not
+undo a mutation the server has already accepted.
+
+```swift
+let client = MoqClient(baseURL: URL(string: "http://127.0.0.1:8080")!, auth: .bearer("admin-token"))
+let isolated = try client.createSession()
+// Configure the app to send X-Mock-Session: isolated.sessionID on its mock requests.
+try isolated.selectVariant("error", for: "GET", path: "/users")
+try isolated.resetAll() // overrides and counters together
+try isolated.closeSession() // always release in teardown
+```
+
+Use a separate server per suite if the app cannot attach the session header. `activateScenario`
+selects a previously defined scenario. The static `MoqControl` facade remains source-compatible
+for existing serial XCTest suites and records an assertion before propagating a failed call.
+
+CI tests this package independently on macOS and compiles a fresh downstream consumer package.
