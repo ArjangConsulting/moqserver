@@ -90,6 +90,12 @@ class FormatProcess(
         if (supervisor?.isActive == true) return
         stopped = false
         restartAttempts = 0
+        // Move out of any terminal `Unavailable` (left by a preceding `stop()`, e.g. via
+        // `restart()`) synchronously, before `supervise()` is even scheduled: a `call()` that
+        // races in right after `start()` returns would otherwise see that stale `Unavailable`
+        // via `awaitReadyProcess` and fail with E_FORMAT_UNAVAILABLE instead of waiting for the
+        // respawn to reach `Ready`.
+        _state.value = FormatServiceState.Starting
         supervisor = scope.launch { supervise() }
     }
 
