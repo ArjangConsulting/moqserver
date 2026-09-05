@@ -152,7 +152,7 @@ jobs:
           DIGEST="$(openssl dgst -sha256 -r "${RUNNER_TEMP}/${ARCHIVE}" | cut -d' ' -f1)"
           printf '%s *%s\n' "${DIGEST}" "${ARCHIVE}" > "${RUNNER_TEMP}/${ARCHIVE}.sha256"
           echo "archive=${RUNNER_TEMP}/${ARCHIVE}" >> "${GITHUB_ENV}"
-      - uses: actions/attest@v4.2.0
+      - uses: actions/attest@v4.2.2
         with:
           subject-path: ${{ env.archive }}
       - uses: actions/upload-artifact@v7.0.1
@@ -214,7 +214,7 @@ jobs:
           DIGEST="$(openssl dgst -sha256 -r "${RUNNER_TEMP}/${ARCHIVE}" | cut -d' ' -f1)"
           printf '%s *%s\n' "${DIGEST}" "${ARCHIVE}" > "${RUNNER_TEMP}/${ARCHIVE}.sha256"
           echo "archive=${RUNNER_TEMP}/${ARCHIVE}" >> "${GITHUB_ENV}"
-      - uses: actions/attest@v4.2.0
+      - uses: actions/attest@v4.2.2
         with:
           subject-path: ${{ env.archive }}
       - uses: actions/upload-artifact@v7.0.1
@@ -277,7 +277,7 @@ jobs:
           DIGEST="$(openssl dgst -sha256 -r "${RUNNER_TEMP}/${ARCHIVE}" | cut -d' ' -f1)"
           printf '%s *%s\n' "${DIGEST}" "${ARCHIVE}" > "${RUNNER_TEMP}/${ARCHIVE}.sha256"
           echo "archive=${RUNNER_TEMP}/${ARCHIVE}" >> "${GITHUB_ENV}"
-      - uses: actions/attest@v4.2.0
+      - uses: actions/attest@v4.2.2
         with:
           subject-path: ${{ env.archive }}
       - uses: actions/upload-artifact@v7.0.1
@@ -347,7 +347,7 @@ jobs:
             DIGEST="$(openssl dgst -sha256 -r "${file}" | cut -d' ' -f1)"
             printf '%s *%s\n' "${DIGEST}" "$(basename "${file}")" > "${file}.sha256"
           done
-      - uses: actions/attest@v4.2.0
+      - uses: actions/attest@v4.2.2
         with:
           subject-path: studio/composeApp/build/compose/binaries/main/dmg/*.dmg
       - uses: actions/upload-artifact@v7.0.1
@@ -401,7 +401,7 @@ jobs:
               gpg --batch --yes --pinentry-mode loopback --passphrase "${GPG_PASSPHRASE}" --detach-sign --armor "${file}"
             fi
           done
-      - uses: actions/attest@v4.2.0
+      - uses: actions/attest@v4.2.2
         with:
           subject-path: studio/composeApp/build/compose/binaries/main/deb/*.deb
       - uses: actions/upload-artifact@v7.0.1
@@ -466,7 +466,7 @@ jobs:
           DIGEST="$(openssl dgst -sha256 -r "${RUNNER_TEMP}/${ARCHIVE}" | cut -d' ' -f1)"
           printf '%s *%s\n' "${DIGEST}" "${ARCHIVE}" > "${RUNNER_TEMP}/${ARCHIVE}.sha256"
           echo "archive=${RUNNER_TEMP}/${ARCHIVE}" >> "${GITHUB_ENV}"
-      - uses: actions/attest@v4.2.0
+      - uses: actions/attest@v4.2.2
         with:
           subject-path: ${{ env.archive }}
       - uses: actions/upload-artifact@v7.0.1
@@ -531,7 +531,7 @@ jobs:
             ghcr.io/arjangconsulting/moqserver/server:${{ needs.preflight.outputs.version }} \
             --format '{{json .Manifest.Digest}}' | tr -d '"')"
           echo "digest=${DIGEST}" >> "${GITHUB_OUTPUT}"
-      - uses: actions/attest@v4.2.0
+      - uses: actions/attest@v4.2.2
         with:
           subject-name: ghcr.io/arjangconsulting/moqserver/server
           subject-digest: ${{ steps.publish-image.outputs.digest }}
