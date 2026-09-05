@@ -67,7 +67,8 @@ struct ContentNegotiationTests {
         defer { Task { try? await app.asyncShutdown() } }
 
         try await app.testing().test(
-            .GET, "/videos", beforeRequest: { req async in
+            .GET, "/videos",
+            beforeRequest: { req async in
                 req.headers.replaceOrAdd(name: .accept, value: "*/*")
             }
         ) { res async in

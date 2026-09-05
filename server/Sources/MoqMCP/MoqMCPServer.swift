@@ -199,7 +199,8 @@ let moqTools: [Tool] = [
                 "call_count": [
                     "type": "integer",
                     "minimum": 1,
-                    "description": "1-indexed. When set, this variant is only eligible on the Nth call to its endpoint.",
+                    "description":
+                        "1-indexed. When set, this variant is only eligible on the Nth call to its endpoint.",
                 ],
                 "autosave": ["type": "boolean", "default": true],
             ],

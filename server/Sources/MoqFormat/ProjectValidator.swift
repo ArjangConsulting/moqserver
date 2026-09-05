@@ -262,7 +262,8 @@ public struct ProjectValidator: ProjectValidating {
                     diagnostics.append(
                         .init(
                             severity: .error,
-                            message: "Duplicate variant name \"\(variant.name)\" (names are compared case-insensitively).",
+                            message:
+                                "Duplicate variant name \"\(variant.name)\" (names are compared case-insensitively).",
                             file: fileName,
                             field: "\(variantField).name",
                             code: .duplicateVariantName,

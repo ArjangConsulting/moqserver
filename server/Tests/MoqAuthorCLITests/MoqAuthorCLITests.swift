@@ -13,17 +13,17 @@ struct MoqAuthorCLITests {
             .appendingPathComponent("author-cli-test-\(label)-\(UUID().uuidString).moqproj")
     }
 
-    func writeJSON(_ label: String, _ json: String) -> String {
+    func writeJSON(_ label: String, _ json: String) throws -> String {
         let path = (NSTemporaryDirectory() as NSString).appendingPathComponent(
             "author-cli-\(label)-\(UUID().uuidString).json")
-        try! json.write(toFile: path, atomically: true, encoding: .utf8)
+        try json.write(toFile: path, atomically: true, encoding: .utf8)
         return path
     }
 
     @Test("CLI imports preserve metadata unless explicitly enabled")
     func importOptionsPreserveMetadata() throws {
         #expect(try authorImportOptions(nil).updateDetails == false)
-        let path = writeJSON("options", #"{"replace_existing_bodies":true}"#)
+        let path = try writeJSON("options", #"{"replace_existing_bodies":true}"#)
         defer { try? FileManager.default.removeItem(atPath: path) }
         #expect(try authorImportOptions(path).updateDetails == false)
         #expect(try authorImportOptions(path).replaceExistingBodies == true)
@@ -40,13 +40,13 @@ struct MoqAuthorCLITests {
         try await create.run()
         #expect(FileManager.default.fileExists(atPath: (path as NSString).appendingPathComponent("project.yml")))
 
-        let endpointJSON = writeJSON(
+        let endpointJSON = try writeJSON(
             "endpoint",
             #"{"id": "get-users", "method": "GET", "path": "/users"}"#)
         var upsertEndpoint = try EndpointUpsertCommand.parse(["--project", path, "--json", endpointJSON])
         try await upsertEndpoint.run()
 
-        let variantJSON = writeJSON(
+        let variantJSON = try writeJSON(
             "variant",
             #"{"endpoint_id": "get-users", "name": "success", "status": 200, "default": true, "body": {"ok": true}}"#)
         var upsertVariant = try VariantUpsertCommand.parse(["--project", path, "--json", variantJSON])
@@ -70,20 +70,20 @@ struct MoqAuthorCLITests {
         try await create.run()
         var upsertEndpoint = try EndpointUpsertCommand.parse([
             "--project", path, "--json",
-            writeJSON("endpoint2", #"{"id": "get-users", "method": "GET", "path": "/users"}"#),
+            try writeJSON("endpoint2", #"{"id": "get-users", "method": "GET", "path": "/users"}"#),
         ])
         try await upsertEndpoint.run()
 
         var first = try VariantUpsertCommand.parse([
             "--project", path, "--json",
-            writeJSON("v1", #"{"endpoint_id": "get-users", "name": "Success", "status": 200}"#),
+            try writeJSON("v1", #"{"endpoint_id": "get-users", "name": "Success", "status": 200}"#),
         ])
         try await first.run()
 
         // Re-upsert under a different casing — must replace in place, not add a second variant.
         var second = try VariantUpsertCommand.parse([
             "--project", path, "--json",
-            writeJSON("v2", #"{"endpoint_id": "get-users", "name": "success", "status": 201}"#),
+            try writeJSON("v2", #"{"endpoint_id": "get-users", "name": "success", "status": 201}"#),
         ])
         try await second.run()
 
