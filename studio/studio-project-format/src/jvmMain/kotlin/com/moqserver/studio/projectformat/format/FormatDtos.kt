@@ -21,6 +21,7 @@ data class ProjectDescription(
     @SerialName("endpoint_count")
     val endpointCount: Int,
     val dirty: Boolean,
+    val revision: String? = null,
 )
 
 @Serializable

@@ -73,6 +73,47 @@ class ProjectRepositoryTest {
     private fun tempProjectPath(label: String) =
         (System.getProperty("java.io.tmpdir") as String) + "/moqproj-$label-${UUID.randomUUID()}"
 
+    @Test
+    fun `restart restores a session without losing local edits`() = test { repo ->
+        val path = tempProjectPath("restart")
+        try {
+            val project = MoqProject(manifest("Restart"), listOf(endpoint("get-a", "/a")), path)
+            repo.save(project, path)
+            process?.restart()
+            repo.save(project.copy(manifest = manifest("Edited")), path)
+            assertEquals("Edited", repo.load(path).manifest.name)
+        } finally {
+            File(path).deleteRecursively()
+        }
+    }
+
+    @Test
+    fun `restart refuses to adopt an external edit as the save baseline`() = test { repo ->
+        val path = tempProjectPath("restart-conflict")
+        try {
+            val project = MoqProject(manifest("Restart"), listOf(endpoint("get-a", "/a")), path)
+            repo.save(project, path)
+            File(path, "project.yml").appendText("\n# external edit\n")
+            process?.restart()
+            val error = assertFailsWith<FormatServiceException> { repo.save(project, path) }
+            assertEquals("E_PROJECT_CHANGED", error.code)
+            assertTrue(File(path, "project.yml").readText().contains("# external edit"))
+            val savedCopy = "$path-copy"
+            try {
+                repo.save(project.copy(manifest = manifest("Local edits")), savedCopy)
+                assertEquals("Local edits", repo.load(savedCopy).manifest.name)
+                assertTrue(File(path, "project.yml").readText().contains("# external edit"))
+            } finally {
+                File(savedCopy).deleteRecursively()
+            }
+            // Explicit reload adopts the new baseline and makes saving possible again.
+            val reloaded = repo.load(path)
+            repo.save(reloaded, path)
+        } finally {
+            File(path).deleteRecursively()
+        }
+    }
+
     // MARK: - Load
 
     @Test

@@ -3,6 +3,8 @@ package com.moqserver.studio.projectformat.format
 import com.moqserver.studio.projectformat.EndpointDocument
 import com.moqserver.studio.projectformat.MoqProject
 import com.moqserver.studio.projectformat.ProjectVariant
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
@@ -11,7 +13,10 @@ import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.decodeFromJsonElement
 import kotlinx.serialization.json.encodeToJsonElement
+import kotlinx.serialization.json.intOrNull
+import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
 
 /**
@@ -95,11 +100,17 @@ class FormatClient(private val process: FormatProcess) {
      * [upsertEndpoint]/[upsertVariant] — a client (this one) that edits a [MoqProject] value in
      * memory and wants the complete result persisted, rather than one mutation at a time.
      */
-    suspend fun writeProject(handle: String, project: MoqProject, force: Boolean = false): ProjectDescription {
+    suspend fun writeProject(
+        handle: String,
+        project: MoqProject,
+        force: Boolean = false,
+        expectedRevision: String? = null,
+    ): ProjectDescription {
         val params = buildJsonObject {
             put("handle", handle)
             put("project", json.encodeToJsonElement(MoqProject.serializer(), project))
             put("force", force)
+            expectedRevision?.let { put("expected_revision", it) }
         }
         val result = call("project.write", params)
         return json.decodeFromJsonElement(ProjectDescription.serializer(), result)
@@ -262,7 +273,41 @@ class FormatClient(private val process: FormatProcess) {
 
     // MARK: - Plumbing
 
-    private suspend fun call(method: String, params: JsonElement): JsonElement = process.call(method, params)
+    private val handshakeLock = Mutex()
+    private var verifiedGeneration = -1L
+
+    private suspend fun call(method: String, params: JsonElement): JsonElement {
+        handshakeLock.withLock {
+            if (verifiedGeneration != process.generation) {
+                val info = negotiate()
+                requireFormatCompatibility(info)
+                verifiedGeneration = process.generation
+            }
+        }
+        return process.call(method, params)
+    }
+
+    private suspend fun negotiate(): JsonObject = try {
+        process.call("service.info", buildJsonObject {}).jsonObject
+    } catch (error: FormatServiceException) {
+        throw if (error.code == "E_FORMAT_UNAVAILABLE") {
+            error
+        } else {
+            FormatServiceException(
+                "E_FORMAT_INCOMPATIBLE",
+                "Update moq-format to the version shipped with Studio.",
+                error,
+            )
+        }
+    }
 
     private fun JsonElement.jsonPrimitiveContent(): String = (this as JsonPrimitive).content
+}
+
+internal fun requireFormatCompatibility(info: JsonObject) {
+    val version = info["protocolVersion"]?.jsonPrimitive?.intOrNull
+    val capabilities = info["capabilities"]?.jsonArray?.map { it.jsonPrimitive.content }.orEmpty()
+    if (version != 1 || "project-revision" !in capabilities || "session-recovery" !in capabilities) {
+        throw FormatServiceException("E_FORMAT_INCOMPATIBLE", "Update moq-format to the version shipped with Studio.")
+    }
 }
