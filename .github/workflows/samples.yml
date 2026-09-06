@@ -27,7 +27,7 @@ jobs:
           java-version: "17"
       - uses: gradle/actions/setup-gradle@v6.3.0
         with:
-          gradle-version: "8.9"
+          gradle-version: "9.7.1"
       - name: Build Android debug sample
         working-directory: samples/android
         run: gradle :app:assembleDebug
