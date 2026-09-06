@@ -46,7 +46,7 @@ jobs:
         with:
           swift-version: "6.2"
           skip-verify-signature: true
-      - uses: gradle/actions/setup-gradle@v6.2.0
+      - uses: gradle/actions/setup-gradle@v6.3.0
         with:
           cache-provider: basic
       - name: Build analyzed products
