@@ -5,7 +5,7 @@ plugins {
 
 android {
     namespace = "com.example.moqshowcase"
-    compileSdk = 36
+    compileSdk = 37
 
     defaultConfig {
         applicationId = "com.example.moqshowcase"
