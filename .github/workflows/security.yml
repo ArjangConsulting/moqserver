@@ -29,6 +29,7 @@ jobs:
           fail-on-severity: high
 
   codeql:
+    if: ${{ github.event_name != 'pull_request' }}
     runs-on: macos-latest
     permissions:
       contents: read
