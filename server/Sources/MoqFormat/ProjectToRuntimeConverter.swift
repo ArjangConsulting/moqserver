@@ -135,6 +135,7 @@ public enum ProjectToRuntimeConverter {
             body: body,
             delay: delay,
             requestMatch: variant.requestMatch,
+            stream: variant.stream,
             callCount: variant.callCount
         )
     }

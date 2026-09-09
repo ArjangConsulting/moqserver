@@ -3,19 +3,37 @@
   "$id": "https://moqserver.dev/schema/moqproj.schema.json",
   "title": "moqserver project manifest",
   "description": "Canonical schema for moqserver .moqproj YAML documents after YAML parsing.",
-  "$comment": "This schema validates individual parsed YAML documents (project.yml or endpoint file). Cross-file and filesystem checks must be implemented in moqserver validate and Studio export validation.",
+  "$comment": "A single schema supports two document shapes: project manifest and endpoint file.",
   "$defs": {
     "httpMethod": {
       "type": "string",
-      "enum": ["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"]
+      "enum": [
+        "GET",
+        "POST",
+        "PUT",
+        "PATCH",
+        "DELETE",
+        "HEAD",
+        "OPTIONS"
+      ]
     },
     "authType": {
       "type": "string",
-      "enum": ["none", "bearer", "basic", "api-key", "header"]
+      "enum": [
+        "none",
+        "bearer",
+        "basic",
+        "api-key",
+        "header"
+      ]
     },
     "graphqlOperationType": {
       "type": "string",
-      "enum": ["query", "mutation", "subscription"]
+      "enum": [
+        "query",
+        "mutation",
+        "subscription"
+      ]
     },
     "headersMap": {
       "type": "object",
@@ -74,23 +92,36 @@
           "type": "boolean"
         },
         "header_name": {
-          "type": ["string", "null"],
+          "type": [
+            "string",
+            "null"
+          ],
           "minLength": 1
         }
       },
-      "required": ["type", "verify"],
+      "required": [
+        "type",
+        "verify"
+      ],
       "allOf": [
         {
           "if": {
             "properties": {
               "type": {
-                "enum": ["api-key", "header"]
+                "enum": [
+                  "api-key",
+                  "header"
+                ]
               }
             },
-            "required": ["type"]
+            "required": [
+              "type"
+            ]
           },
           "then": {
-            "required": ["header_name"],
+            "required": [
+              "header_name"
+            ],
             "properties": {
               "header_name": {
                 "type": "string",
@@ -135,7 +166,9 @@
           ]
         }
       },
-      "required": ["name"]
+      "required": [
+        "name"
+      ]
     },
     "requestRules": {
       "type": "object",
@@ -180,13 +213,19 @@
           "minLength": 1
         }
       },
-      "required": ["type"],
+      "required": [
+        "type"
+      ],
       "anyOf": [
         {
-          "required": ["name"]
+          "required": [
+            "name"
+          ]
         },
         {
-          "required": ["document"]
+          "required": [
+            "document"
+          ]
         }
       ]
     },
@@ -223,7 +262,10 @@
         "body": {},
         "body_encoding": {
           "$comment": "How the inline body string is written in the document. Orthogonal to Content-Type, which says what the bytes mean and stays an open IANA registry. Only valid alongside a string 'body'; never with 'body_file', whose bytes are already final on disk.",
-          "enum": ["utf8", "base64"],
+          "enum": [
+            "utf8",
+            "base64"
+          ],
           "default": "utf8"
         },
         "body_file": {
@@ -238,13 +280,41 @@
           "$comment": "1-indexed. When set, this variant is only eligible on the Nth call to its endpoint.",
           "type": "integer",
           "minimum": 1
+        },
+        "stream": {
+          "type": "object",
+          "required": [
+            "chunk_bytes"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "chunk_bytes": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "interval_ms": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 60000
+            },
+            "disconnect_after_bytes": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
         }
       },
-      "required": ["name", "status"],
+      "required": [
+        "name",
+        "status"
+      ],
       "allOf": [
         {
           "not": {
-            "required": ["body", "body_file"]
+            "required": [
+              "body",
+              "body_file"
+            ]
           }
         }
       ]
@@ -306,7 +376,12 @@
           "type": "boolean"
         }
       },
-      "required": ["id", "method", "path", "variants"]
+      "required": [
+        "id",
+        "method",
+        "path",
+        "variants"
+      ]
     },
     "projectManifest": {
       "type": "object",
@@ -339,7 +414,11 @@
               "$ref": "#/$defs/networkConfig"
             }
           },
-          "required": ["delay_ms", "auth", "network"]
+          "required": [
+            "delay_ms",
+            "auth",
+            "network"
+          ]
         },
         "global_rules": {
           "type": "object",
@@ -357,10 +436,13 @@
           }
         }
       },
-      "required": ["version", "name", "defaults"]
+      "required": [
+        "version",
+        "name",
+        "defaults"
+      ]
     }
   },
-  "$comment": "A single schema supports two document shapes: project manifest and endpoint file.",
   "oneOf": [
     {
       "$ref": "#/$defs/projectManifest"

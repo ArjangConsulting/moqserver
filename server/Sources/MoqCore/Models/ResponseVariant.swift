@@ -28,6 +28,7 @@ public struct ResponseVariant: Sendable {
 
     /// 1-indexed call number this variant is scoped to. When set, this variant is only
     /// eligible on the Nth call to its endpoint. `nil` matches every call.
+    public let stream: ResponseStream?
     public let callCount: Int?
 
     public init(
@@ -39,6 +40,7 @@ public struct ResponseVariant: Sendable {
         body: Data? = nil,
         delay: TimeInterval? = nil,
         requestMatch: RequestMatch? = nil,
+        stream: ResponseStream? = nil,
         callCount: Int? = nil
     ) {
         self.name = name
@@ -49,6 +51,7 @@ public struct ResponseVariant: Sendable {
         self.body = body
         self.delay = delay
         self.requestMatch = requestMatch
+        self.stream = stream
         self.callCount = callCount
     }
 

@@ -346,6 +346,7 @@ public actor ProjectStore {
                     bodyEncoding: existing.bodyEncoding,
                     bodyFile: existing.bodyFile,
                     delayMs: existing.delayMs,
+                    stream: existing.stream,
                     callCount: existing.callCount
                 )
             }
@@ -513,6 +514,7 @@ public actor ProjectStore {
                     bodyEncoding: nil,
                     bodyFile: candidate,
                     delayMs: variant.delayMs,
+                    stream: variant.stream,
                     callCount: variant.callCount
                 )
             }
