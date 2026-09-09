@@ -249,7 +249,16 @@ public struct MockHandler: Sendable {
         }
 
         let body: Response.Body
-        if let data = variant.body {
+        if let stream = variant.stream {
+            try stream.validate()
+            let data = variant.body ?? Data()
+            headers.remove(name: .contentLength)
+            body = .init(managedAsyncStream: { writer in
+                try await stream.deliver(data) { chunk in
+                    try await writer.write(.buffer(ByteBuffer(data: chunk)))
+                }
+            }, count: -1)
+        } else if let data = variant.body {
             body = .init(data: data)
         } else {
             body = .empty

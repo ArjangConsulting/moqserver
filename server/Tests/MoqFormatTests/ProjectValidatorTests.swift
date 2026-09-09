@@ -32,6 +32,14 @@ struct ProjectValidatorTests {
         MoqProject(manifest: sampleManifest(), endpoints: endpoints, projectPath: "/tmp/test.moqproj")
     }
 
+    @Test("Rejects invalid streams constructed through the authoring API")
+    func rejectsInvalidStream() {
+        let project = makeProject(endpoints: [sampleEndpoint(variants: [
+            ProjectVariant(name: "invalid", status: 200, stream: ResponseStream(chunkBytes: 0))
+        ])])
+        #expect(validator.validate(project).contains { $0.code == .invalidStream })
+    }
+
     @Test("Valid project passes validation")
     func validProjectPasses() {
         let project = makeProject(endpoints: [sampleEndpoint()])

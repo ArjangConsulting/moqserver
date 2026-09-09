@@ -25,6 +25,7 @@ public struct ProjectVariant: Codable, Sendable, Equatable {
     public let delayMs: Int?
     /// 1-indexed call number this variant is scoped to. When set, this variant is only
     /// eligible on the Nth call to its endpoint. `nil` matches every call (today's behavior).
+    public let stream: ResponseStream?
     public let callCount: Int?
 
     public init(
@@ -39,6 +40,7 @@ public struct ProjectVariant: Codable, Sendable, Equatable {
         bodyEncoding: BodyEncoding? = nil,
         bodyFile: String? = nil,
         delayMs: Int? = nil,
+        stream: ResponseStream? = nil,
         callCount: Int? = nil
     ) {
         let normalizedReferenceName = referenceName?.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -55,6 +57,7 @@ public struct ProjectVariant: Codable, Sendable, Equatable {
         self.bodyEncoding = bodyEncoding
         self.bodyFile = bodyFile
         self.delayMs = delayMs
+        self.stream = stream
         self.callCount = callCount
     }
 
@@ -67,6 +70,7 @@ public struct ProjectVariant: Codable, Sendable, Equatable {
         case bodyEncoding = "body_encoding"
         case bodyFile = "body_file"
         case delayMs = "delay_ms"
+        case stream
         case callCount = "call_count"
     }
 
@@ -93,6 +97,7 @@ public struct ProjectVariant: Codable, Sendable, Equatable {
             bodyEncoding: try container.decodeIfPresent(BodyEncoding.self, forKey: .bodyEncoding),
             bodyFile: try container.decodeIfPresent(String.self, forKey: .bodyFile),
             delayMs: try container.decodeIfPresent(Int.self, forKey: .delayMs),
+            stream: try container.decodeIfPresent(ResponseStream.self, forKey: .stream),
             callCount: try container.decodeIfPresent(Int.self, forKey: .callCount)
         )
     }

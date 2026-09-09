@@ -19,7 +19,6 @@ public enum HARImporter {
     private static let cookieHeader = "Cookie"
     private static let harImportSuffix = "HAR Import"
     private static let defaultVersion = "1.0"
-    private static let defaultStatusCode = 200
     private static let validStatusRange = 100...599
     private static let defaultVariantName = "default"
     private static let successVariantPrefix = "success"
@@ -143,11 +142,6 @@ public enum HARImporter {
         return path.hasPrefix("/") ? path : "/\(path)"
     }
 
-    private static func normalizedStatusCode(_ status: Int?) -> Int {
-        guard let status, validStatusRange.contains(status) else { return defaultStatusCode }
-        return status
-    }
-
     private static func parseEntry(
         _ entry: HarEntry, entryNumber: Int, warnings: inout [String]
     ) -> ParsedHarEntry? {
@@ -169,11 +163,18 @@ public enum HARImporter {
             return warnAndSkip(&warnings, entryNumber, "invalid request URL '\(rawURL)'")
         }
 
+        guard let status = response.status, validStatusRange.contains(status) else {
+            return warnAndSkip(&warnings, entryNumber, "missing or invalid HTTP status; transport failures cannot be replayed as success")
+        }
+        if entry._error != nil || response._capture?.isComplete == false
+            || response._capture?.isTruncated == true {
+            return warnAndSkip(&warnings, entryNumber, "incomplete or failed capture; re-capture before importing")
+        }
         let sanitizedBody = responseBody(response)
         return ParsedHarEntry(
             key: GroupKey(method: method, path: normalizedPath(components)),
             exchange: CapturedExchange(
-                statusCode: normalizedStatusCode(response.status),
+                statusCode: status,
                 headers: responseHeaders(response),
                 body: sanitizedBody.value,
                 bodyIsBase64: sanitizedBody.isBase64,
@@ -534,6 +535,7 @@ struct HarCreator: Decodable {
 }
 
 struct HarEntry: Decodable {
+    let _error: String?
     let request: HarRequest?
     let response: HarResponse?
 }
@@ -559,15 +561,22 @@ struct HarRequest: Decodable {
     }
 }
 
+struct HarCapture: Decodable {
+    let isComplete: Bool?
+    let isTruncated: Bool?
+}
+
 struct HarResponse: Decodable {
     let status: Int?
     let headers: [HarHeader]
     let content: HarContent
+    let _capture: HarCapture?
 
-    private enum CodingKeys: String, CodingKey { case status, headers, content }
+    private enum CodingKeys: String, CodingKey { case status, headers, content, _capture }
 
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
+        _capture = try container.decodeIfPresent(HarCapture.self, forKey: ._capture)
         status = try container.decodeIfPresent(Int.self, forKey: .status)
         headers = try container.decodeIfPresent([HarHeader].self, forKey: .headers) ?? []
         content = try container.decodeIfPresent(HarContent.self, forKey: .content) ?? HarContent()

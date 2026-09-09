@@ -203,6 +203,16 @@ public struct ProjectValidator: ProjectValidating {
                         ))
                 }
 
+                if let stream = variant.stream {
+                    do { try stream.validate() }
+                    catch {
+                        diagnostics.append(.init(
+                            severity: .error, message: "Invalid response stream configuration.",
+                            file: fileName, field: "\(variantField).stream", code: .invalidStream,
+                            endpointID: endpoint.id, variantName: variant.name
+                        ))
+                    }
+                }
                 if let delayMs = variant.delayMs, delayMs < 0 {
                     diagnostics.append(
                         .init(

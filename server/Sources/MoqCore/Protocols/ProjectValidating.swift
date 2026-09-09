@@ -71,6 +71,7 @@ public enum DiagnosticCode: String, Sendable, Equatable {
     case multipleDefaultVariants = "E_MULTIPLE_DEFAULT_VARIANTS"
     case invalidVariantStatus = "E_INVALID_VARIANT_STATUS"
     case invalidDelay = "E_INVALID_DELAY"
+    case invalidStream = "E_INVALID_STREAM"
     case delayOverflow = "E_DELAY_OVERFLOW"
     case duplicateVariantName = "E_DUPLICATE_VARIANT_NAME"
     case missingVariantReferenceName = "E_MISSING_VARIANT_REFERENCE_NAME"

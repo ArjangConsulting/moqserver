@@ -89,3 +89,12 @@ MIT
 - [Scenarios, isolated test sessions, and Studio Runtime Inspector](docs/RUNTIME_WORKFLOWS.md)
 - [Apple test-support client](server/MoqTestSupport/README.md)
 - [Current architecture and recovery model](ARCHITECTURE.md)
+
+### Streaming response fixtures
+
+A variant can add `stream: {chunk_bytes: 8, interval_ms: 25}` to deliver its
+existing `body` or `body_file` in timed byte chunks. Byte boundaries may split UTF-8
+scalars, exercising incremental decoders. Set `disconnect_after_bytes` to end the
+stream with a transport error after that many bytes. `delay_ms` still controls the
+initial response delay; `interval_ms` is the delay between writes (0–60000).
+Fixtures remain unchanged on disk.
