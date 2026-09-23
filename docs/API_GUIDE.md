@@ -229,6 +229,9 @@ WWW-Authenticate: Bearer ... insufficient_scope ...
 
 ## 8. Mock OAuth Endpoints (`/_auth/*`)
 
+These endpoints are served by the always-on [`oauth-mock` add-on](ADDONS.md#oauth-mock). They are
+also available at `/_addons/oauth-mock/*`. The token endpoint reads form-urlencoded or JSON bodies.
+
 ### 8.1 POST `/_auth/token`
 
 Supported grant types:

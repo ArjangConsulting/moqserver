@@ -1,4 +1,5 @@
 import Foundation
+import MoqAddons
 import MoqCore
 
 /// Server configuration loaded from a YAML or JSON config file.
@@ -120,17 +121,17 @@ public struct ServerConfig: Codable, Sendable, ServerConfiguring {
     }
 
     static func validRedirectURI(_ value: String) -> URLComponents? {
-        guard let components = URLComponents(string: value),
-            let scheme = components.scheme?.lowercased(),
-            scheme == "http" || scheme == "https",
-            components.host != nil,
-            components.user == nil,
-            components.password == nil,
-            components.fragment == nil
-        else {
-            return nil
-        }
-        return components
+        OAuthMockConfig.validRedirectURI(value)
+    }
+
+    /// The `oauth-mock` add-on's settings, taken from the `auth` section.
+    public var oauthMockConfig: OAuthMockConfig {
+        OAuthMockConfig(
+            oauth2Clients: auth?.oauth2Clients?.map { .init(clientId: $0.clientId, clientSecret: $0.clientSecret) },
+            basicCredentials: auth?.basicCredentials?.map { .init(username: $0.username, password: $0.password) },
+            oauth2Tokens: auth?.oauth2Tokens,
+            oauth2TokenScopes: auth?.oauth2TokenScopes,
+            oauth2RedirectUris: auth?.oauth2RedirectUris)
     }
 
     public func variantOverride(for endpointKey: String) -> String? {

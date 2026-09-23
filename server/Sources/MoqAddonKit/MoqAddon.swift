@@ -33,6 +33,11 @@ public protocol MoqAddon: Sendable {
     /// H1: routes mounted under `/_addons/<id>/`.
     var routes: [AddonRoute] { get }
 
+    /// Extra path prefixes (as components) where `routes` are also mounted, for built-in features
+    /// that moved into an add-on and must keep their old URLs (e.g. `oauth-mock` at `/_auth`).
+    /// Only reserved paths belong here, so a bundle's endpoints can never collide with them.
+    var compatibilityRoutePrefixes: [[String]] { get }
+
     /// H2: facts about the request, exposed to this add-on's own `matches` and
     /// `traceAnnotations`. `nil` means the add-on has nothing to say about this request.
     func enrich(_ request: AddonRequest) async -> AnyCodableValue?
@@ -50,6 +55,8 @@ extension MoqAddon {
     }
 
     public var routes: [AddonRoute] { [] }
+
+    public var compatibilityRoutePrefixes: [[String]] { [] }
 
     public func enrich(_ request: AddonRequest) async -> AnyCodableValue? { nil }
 
@@ -145,6 +152,35 @@ public struct AddonHTTPRequest: Codable, Sendable, Equatable {
     }
 
     public func header(_ name: String) -> String? { headers[name.lowercased()] }
+
+    /// String parameters from an `application/x-www-form-urlencoded` or JSON-object body. JSON
+    /// values that aren't strings are skipped; other content types yield no parameters.
+    public func bodyParameters() -> [String: String] {
+        guard let body, !body.isEmpty else { return [:] }
+        let contentType = header("Content-Type")?.lowercased() ?? ""
+        if contentType.hasPrefix("application/x-www-form-urlencoded") {
+            var parameters: [String: String] = [:]
+            for pair in String(decoding: body, as: UTF8.self).split(separator: "&") {
+                let parts = pair.split(separator: "=", maxSplits: 1, omittingEmptySubsequences: false)
+                guard let rawName = parts.first else { continue }
+                let decode: (Substring) -> String = {
+                    let spaced = String($0).replacingOccurrences(of: "+", with: " ")
+                    return spaced.removingPercentEncoding ?? spaced
+                }
+                parameters[decode(rawName)] = parts.count > 1 ? decode(parts[1]) : ""
+            }
+            return parameters
+        }
+        if contentType.hasPrefix("application/json"),
+            case .object(let fields)? = try? JSONDecoder().decode(AnyCodableValue.self, from: body)
+        {
+            return fields.compactMapValues {
+                if case .string(let value) = $0 { return value }
+                return nil
+            }
+        }
+        return [:]
+    }
 }
 
 /// The response from an H1 route.

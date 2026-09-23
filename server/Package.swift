@@ -187,6 +187,7 @@ let package = Package(
             name: "MoqRuntime",
             dependencies: [
                 .target(name: "MoqAddonKit"),
+                .target(name: "MoqAddons"),
                 .target(name: "MoqCore"),
                 .product(name: "NIOCore", package: "swift-nio"),
                 .product(name: "Vapor", package: "vapor"),

@@ -71,6 +71,19 @@ refuses to start this add-on unless it binds to loopback (`127.0.0.1`, `localhos
 `10.0.2.2` routes to the host's `127.0.0.1`, so a loopback-bound server is reachable. The flag
 is only for physical devices, remote hosts, or setups that bind `0.0.0.0` (e.g. Docker).
 
+### `oauth-mock`
+
+The mock OAuth 2 endpoints: `POST token` (the `client_credentials`, `password`,
+`authorization_code`, and `refresh_token` grants) and `GET authorize`. They are mounted at
+`/_addons/oauth-mock/` and at the older `/_auth/` path, which is kept for compatibility.
+
+Unlike other add-ons, `oauth-mock` is **always on** and isn't listed under a bundle's `addons:`.
+It reads its settings from the `auth` section of the server config file (`oauth2Clients`,
+`basicCredentials`, `oauth2Tokens`, `oauth2TokenScopes`, `oauth2RedirectUris`). Before add-ons
+existed this was a built-in route, and making bundles opt in would have broken existing setups.
+The token endpoint reads form-urlencoded or JSON bodies; multipart bodies are no longer accepted.
+See [API_GUIDE.md §8](API_GUIDE.md#8-mock-oauth-endpoints-_auth) for request examples.
+
 ## Writing an add-on
 
 Add-ons are Swift types conforming to `MoqAddon` (`server/Sources/MoqAddonKit`), registered in
@@ -80,7 +93,7 @@ later.
 
 | Hook | Member | When |
 |---|---|---|
-| H1 | `routes` | Mounted under `/_addons/<id>/` at startup |
+| H1 | `routes`, `compatibilityRoutePrefixes` | Mounted under `/_addons/<id>/` (and any compatibility prefixes) at startup |
 | H2 | `enrich(_:)` | Once per request, after the session is resolved and before auth |
 | H5 | `matches(_:facts:)` | For each variant's `request_match.addons.<id>` |
 | H7 | `traceAnnotations(facts:)` | When the request-history row is written |
