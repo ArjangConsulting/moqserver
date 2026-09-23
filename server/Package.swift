@@ -38,11 +38,38 @@ let package = Package(
             path: "Sources/MoqCore"
         ),
 
+        // MARK: - MoqAddonKit
+        // The add-on API: the MoqAddon protocol, Codable hook payloads, and the catalog/active set.
+        // No Vapor types, so an out-of-process add-on transport can wrap it later.
+        .target(
+            name: "MoqAddonKit",
+            dependencies: [
+                .target(name: "MoqCore"),
+                .product(name: "Logging", package: "swift-log"),
+            ],
+            path: "Sources/MoqAddonKit"
+        ),
+
+        // MARK: - MoqAddons
+        // Add-ons compiled into moqserver (`AddonCatalog.builtIn`), e.g. `jwt-claims`.
+        .target(
+            name: "MoqAddons",
+            dependencies: [
+                .target(name: "MoqAddonKit"),
+                .target(name: "MoqCore"),
+                .product(name: "Logging", package: "swift-log"),
+            ],
+            path: "Sources/MoqAddons"
+        ),
+
         // MARK: - MoqFormat
-        // .moqproj project format: loading, writing, validation, and conversion.
+        // .moqproj project format: loading, writing, validation, and conversion. Depends on
+        // MoqAddons so every entry point validates `addons:` against the same built-in catalog.
         .target(
             name: "MoqFormat",
             dependencies: [
+                .target(name: "MoqAddonKit"),
+                .target(name: "MoqAddons"),
                 .target(name: "MoqCore"),
                 .product(name: "Yams", package: "Yams"),
                 .product(name: "Crypto", package: "swift-crypto"),
@@ -159,6 +186,7 @@ let package = Package(
         .target(
             name: "MoqRuntime",
             dependencies: [
+                .target(name: "MoqAddonKit"),
                 .target(name: "MoqCore"),
                 .product(name: "NIOCore", package: "swift-nio"),
                 .product(name: "Vapor", package: "vapor"),
@@ -172,6 +200,8 @@ let package = Package(
         .target(
             name: "MoqCLI",
             dependencies: [
+                .target(name: "MoqAddonKit"),
+                .target(name: "MoqAddons"),
                 .target(name: "MoqCore"),
                 .target(name: "MoqFormat"),
                 .target(name: "MoqRuntime"),
@@ -190,6 +220,15 @@ let package = Package(
         ),
 
         // MARK: - Tests
+        .testTarget(
+            name: "MoqAddonsTests",
+            dependencies: [
+                .target(name: "MoqAddonKit"),
+                .target(name: "MoqAddons"),
+                .target(name: "MoqCore"),
+            ],
+            path: "Tests/MoqAddonsTests"
+        ),
         .testTarget(
             name: "MoqCoreTests",
             dependencies: [
@@ -211,6 +250,8 @@ let package = Package(
         .testTarget(
             name: "MoqRuntimeTests",
             dependencies: [
+                .target(name: "MoqAddonKit"),
+                .target(name: "MoqAddons"),
                 .target(name: "MoqCore"),
                 .target(name: "MoqRuntime"),
                 .product(name: "VaporTesting", package: "vapor"),

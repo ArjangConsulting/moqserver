@@ -45,6 +45,14 @@
         "type": "string"
       }
     },
+    "addonsMap": {
+      "type": "object",
+      "$comment": "Keyed by add-on id. Values are opaque to the core format: each add-on validates its own entry (moqserver validate / moq-format), so Studio preserves them without editing.",
+      "propertyNames": {
+        "pattern": "^[a-z0-9][a-z0-9-]*$"
+      },
+      "minProperties": 1
+    },
     "requestMatch": {
       "type": "object",
       "additionalProperties": false,
@@ -58,6 +66,9 @@
         "body_contains": {
           "type": "string",
           "minLength": 1
+        },
+        "addons": {
+          "$ref": "#/$defs/addonsMap"
         }
       },
       "minProperties": 1
@@ -434,6 +445,9 @@
               "type": "boolean"
             }
           }
+        },
+        "addons": {
+          "$ref": "#/$defs/addonsMap"
         }
       },
       "required": [

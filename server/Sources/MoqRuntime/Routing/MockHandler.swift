@@ -1,5 +1,6 @@
 import Foundation
 import Logging
+import MoqAddonKit
 import MoqCore
 import Vapor
 
@@ -12,17 +13,20 @@ public struct MockHandler: Sendable {
     let config: ServerConfig?
     let authValidator: any AuthValidating
     let requestValidator: any RequestValidating
+    let addons: ActiveAddons
 
     public init(
         store: any MockStoring,
         config: ServerConfig? = nil,
         authValidator: (any AuthValidating)? = nil,
-        requestValidator: (any RequestValidating)? = nil
+        requestValidator: (any RequestValidating)? = nil,
+        addons: ActiveAddons = .none
     ) {
         self.store = store
         self.config = config
         self.authValidator = authValidator ?? AuthValidator(config: config?.auth?.toAuthConfig())
         self.requestValidator = requestValidator ?? RequestValidator()
+        self.addons = addons
     }
 
     /// Called by the catch-all fallback route for paths not matched by any registered endpoint.
@@ -37,11 +41,13 @@ public struct MockHandler: Sendable {
             } else {
                 runtime = root
             }
+            let facts = await addonFacts(for: req)
             await runtime.recordRequest(
                 RequestTrace(
                     id: UUID().uuidString, timestamp: Date().timeIntervalSince1970,
                     method: req.method.rawValue, path: req.url.path, endpoint: nil, status: 404,
-                    variant: nil, reason: "endpoint not found", callNumber: nil))
+                    variant: nil, reason: "endpoint not found", callNumber: nil,
+                    addons: traceAnnotations(facts)))
         }
         return notFoundResponse(req: req)
     }
@@ -71,7 +77,8 @@ public struct MockHandler: Sendable {
                 throw Abort(.notFound, reason: "Unknown mock session")
             }
             handler = MockHandler(
-                store: session, config: config, authValidator: authValidator, requestValidator: requestValidator)
+                store: session, config: config, authValidator: authValidator, requestValidator: requestValidator,
+                addons: addons)
         }
         let response = try await handler.handleResolved(req: req, matchedKey: matchedKey)
         if let runtime = handler.store as? InMemoryMockStore {
@@ -82,7 +89,8 @@ public struct MockHandler: Sendable {
                     method: req.method.rawValue, path: req.url.path,
                     endpoint: "\(matchedKey.method.rawValue) \(matchedKey.path)", status: Int(response.status.code),
                     variant: selection?.variant, reason: selection?.reason ?? "request rejected",
-                    callNumber: selection?.callNumber))
+                    callNumber: selection?.callNumber,
+                    addons: traceAnnotations(req.storage[AddonFactsKey.self] ?? AddonFacts())))
         }
         return response
     }
@@ -101,6 +109,10 @@ public struct MockHandler: Sendable {
         } else {
             return notFoundResponse(req: req)
         }
+
+        // Add-on facts (H2) — computed once, after the session is resolved and before auth, so
+        // request_match.addons (H5) and the history row (H7) read the same values.
+        _ = await addonFacts(for: req)
 
         // Auth validation — for API key auth read the custom header, not Authorization
         let authContext: AuthContext
@@ -461,7 +473,32 @@ public struct MockHandler: Sendable {
             }
         }
 
+        if !match.addons.isEmpty {
+            guard addons.matches(match.addons, facts: req.storage[AddonFactsKey.self] ?? AddonFacts()) else {
+                return false
+            }
+        }
+
         return true
+    }
+
+    // MARK: - Add-ons
+
+    private func addonFacts(for req: Request) async -> AddonFacts {
+        guard !addons.isEmpty else { return AddonFacts() }
+        if let cached = req.storage[AddonFactsKey.self] { return cached }
+        let facts = await addons.facts(
+            for: AddonRequest(
+                method: req.method.rawValue, path: req.url.path, query: extractQueryParameters(from: req),
+                headers: extractHeaders(from: req), sessionID: req.headers.first(name: "X-Mock-Session")))
+        req.storage[AddonFactsKey.self] = facts
+        logger.debug("Add-on facts for \(req.method) \(req.url.path): \(facts.values.keys.sorted())")
+        return facts
+    }
+
+    private func traceAnnotations(_ facts: AddonFacts) -> [String: [String: String]]? {
+        let annotations = addons.traceAnnotations(facts: facts)
+        return annotations.isEmpty ? nil : annotations
     }
 
     private func requestBodyString(_ req: Request) -> String? {
@@ -607,4 +644,8 @@ private struct SelectionDetail: Sendable {
 
 private struct SelectionKey: StorageKey {
     typealias Value = SelectionDetail
+}
+
+private struct AddonFactsKey: StorageKey {
+    typealias Value = AddonFacts
 }

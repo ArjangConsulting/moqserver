@@ -98,6 +98,8 @@ class ProjectModelsGenerator(schemaFile: File) {
         "authType" to "AuthType",
         "graphqlOperationType" to "OperationType",
         "headersMap" to "Map<String, String>",
+        // Opaque to Studio: each add-on validates its own entry, Studio only round-trips it.
+        "addonsMap" to "Map<String, YamlValue>",
     )
 
     /**

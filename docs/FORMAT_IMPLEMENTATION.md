@@ -54,6 +54,8 @@ Note: `body_file` references within `ProjectVariant` are plain `String` fields (
 
 `reference_name` is optional on endpoint and variant documents. Both products derive the same code-friendly default when it is absent. Response `headers` and `request_match.query`/`request_match.headers` values are strings; quote values that YAML could otherwise parse as numbers or booleans.
 
+`project.yml` may declare `addons:` (keyed by add-on id) and a variant's `request_match` may declare `addons:` (predicates keyed by add-on id). Both values are opaque to the core format and validated by the named add-on; see [ADDONS.md](ADDONS.md). `/_addons` is a reserved path.
+
 ### YAML loading
 
 - parse YAML into raw structures

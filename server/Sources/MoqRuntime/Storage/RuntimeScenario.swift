@@ -21,6 +21,8 @@ public struct RequestTrace: Codable, Sendable {
     public let variant: String?
     public let reason: String
     public let callNumber: Int?
+    /// Add-on annotations (H7), keyed by add-on id — e.g. `{"jwt-claims": {"sub": "user-1"}}`.
+    public var addons: [String: [String: String]]? = nil
 }
 
 public enum RuntimeScenarioError: Error, Sendable {

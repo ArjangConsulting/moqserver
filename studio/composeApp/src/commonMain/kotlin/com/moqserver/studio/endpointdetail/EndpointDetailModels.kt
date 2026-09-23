@@ -85,7 +85,16 @@ internal fun VariantRequestMatch.normalize(): VariantRequestMatch? {
 	val normalizedQuery = query?.filterKeys { it.isNotBlank() }?.takeIf { it.isNotEmpty() }
 	val normalizedHeaders = headers?.filterKeys { it.isNotBlank() }?.takeIf { it.isNotEmpty() }
 	val normalizedBodyContains = bodyContains?.takeIf { it.isNotBlank() }
-	return if (normalizedQuery == null && normalizedHeaders == null && normalizedBodyContains == null) {
+	// Add-on predicates are opaque to Studio: keep them untouched so a match that only has add-on
+	// predicates survives editing.
+	val nonEmptyAddons = addons?.takeIf { it.isNotEmpty() }
+	val hasPredicates = listOfNotNull(
+		normalizedQuery,
+		normalizedHeaders,
+		normalizedBodyContains,
+		nonEmptyAddons,
+	).isNotEmpty()
+	return if (!hasPredicates) {
 		null
 	} else {
 		copy(query = normalizedQuery, headers = normalizedHeaders, bodyContains = normalizedBodyContains)
