@@ -1,4 +1,5 @@
 import Logging
+import MoqAddonKit
 import MoqCore
 import Vapor
 
@@ -10,6 +11,7 @@ public func buildApp(
     config: ServerConfig? = nil,
     authValidator: (any AuthValidating)? = nil,
     requestValidator: (any RequestValidating)? = nil,
+    addons: ActiveAddons = .none,
     hostname: String = "127.0.0.1",
     port: Int = 8080
 ) async throws -> Application {
@@ -29,7 +31,8 @@ public func buildApp(
         store: store,
         config: config,
         authValidator: authValidator,
-        requestValidator: requestValidator
+        requestValidator: requestValidator,
+        addons: addons
     )
 
     app.get("health") { _ async -> [String: String] in
@@ -39,6 +42,8 @@ public func buildApp(
     let authRouter = AuthRouter(config: config)
     authRouter.registerRoutes(on: app)
 
+    AddonRouter(addons: addons).registerRoutes(on: app)
+
     let adminHandler = AdminHandler(store: store, config: config)
     let adminRouter = AdminRouter(handler: adminHandler)
     adminRouter.registerRoutes(on: app)
@@ -47,6 +52,6 @@ public func buildApp(
     let router = MockRouter(handler: handler, endpoints: endpoints)
     router.registerRoutes(on: app)
 
-    bootstrapLogger.info("App configured: auth, admin, and mock routes registered")
+    bootstrapLogger.info("App configured: auth, add-on, admin, and mock routes registered")
     return app
 }

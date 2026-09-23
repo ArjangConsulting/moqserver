@@ -167,7 +167,7 @@ struct ProjectValidatorTests {
         ])
 
         let errors = validator.validate(project).filter { $0.severity == .error }
-        #expect(errors.contains { $0.message.contains("request_match must define query, headers, or body_contains") })
+        #expect(errors.contains { $0.message.contains("request_match must define query, headers, body_contains, or addons") })
     }
 
     @Test("Rejects blank query and header names in variant request_match")
@@ -479,5 +479,70 @@ struct ProjectValidatorTests {
         let project = try loader.load(from: path)
         let errors = validator.validate(project).filter { $0.severity == .error }
         #expect(errors.isEmpty)
+    }
+
+    // MARK: - Add-ons
+
+    func addonProject(
+        addons: [String: AnyCodableValue]?, match: [String: AnyCodableValue] = [:]
+    ) -> MoqProject {
+        let base = sampleManifest()
+        let manifest = ProjectManifest(name: base.name, defaults: base.defaults, addons: addons)
+        let variants = [
+            ProjectVariant(name: "default", isDefault: true, status: 200),
+            ProjectVariant(name: "premium", status: 200, requestMatch: RequestMatch(addons: match)),
+        ]
+        return MoqProject(
+            manifest: manifest, endpoints: [sampleEndpoint(variants: match.isEmpty ? [variants[0]] : variants)],
+            projectPath: "/tmp/test.moqproj")
+    }
+
+    let jwtConfig: AnyCodableValue = .object(["verify_signature": .bool(false)])
+    let premiumSpec: AnyCodableValue = .object(["claims": .object(["premium": .bool(true)])])
+
+    @Test("Accepts an enabled add-on with a valid config and match spec")
+    func acceptsValidAddon() {
+        let project = addonProject(addons: ["jwt-claims": jwtConfig], match: ["jwt-claims": premiumSpec])
+        #expect(validator.validate(project).filter { $0.severity == .error }.isEmpty)
+    }
+
+    @Test("An unknown add-on id is an error in project.yml and in request_match")
+    func rejectsUnknownAddon() {
+        let project = addonProject(addons: ["nope": .object([:])], match: ["also-nope": premiumSpec])
+        let unknown = validator.validate(project).filter { $0.code == .unknownAddon }
+        #expect(unknown.map(\.field) == ["addons.nope", "variants[1].request_match.addons.also-nope"])
+        #expect(unknown.allSatisfy { $0.severity == .error })
+    }
+
+    @Test("Reports an add-on's own config diagnostics with a prefixed field")
+    func reportsAddonConfigErrors() {
+        let project = addonProject(addons: ["jwt-claims": .object([:])])
+        let errors = validator.validate(project).filter { $0.code == .invalidAddonConfig }
+        #expect(errors.map(\.field) == ["addons.jwt-claims.verify_signature"])
+    }
+
+    @Test("A request_match spec for an add-on that isn't enabled is an error")
+    func rejectsMatchOnDisabledAddon() {
+        let project = addonProject(addons: nil, match: ["jwt-claims": premiumSpec])
+        #expect(validator.validate(project).contains { $0.code == .addonNotEnabled })
+    }
+
+    @Test("Reports an invalid add-on match spec")
+    func rejectsInvalidMatchSpec() {
+        let project = addonProject(addons: ["jwt-claims": jwtConfig], match: ["jwt-claims": .object(["claims": .object([:])])])
+        let errors = validator.validate(project).filter { $0.code == .invalidAddonMatch }
+        #expect(errors.map(\.field) == ["variants[1].request_match.addons.jwt-claims.claims"])
+    }
+
+    @Test("Rejects a malformed add-on id")
+    func rejectsInvalidAddonID() {
+        let project = addonProject(addons: ["JWT_Claims": jwtConfig])
+        #expect(validator.validate(project).contains { $0.code == .invalidAddonID })
+    }
+
+    @Test("/_addons is reserved")
+    func addonsPathReserved() {
+        let project = makeProject(endpoints: [sampleEndpoint(path: "/_addons/jwt-claims/x")])
+        #expect(validator.validate(project).contains { $0.code == .reservedPath })
     }
 }

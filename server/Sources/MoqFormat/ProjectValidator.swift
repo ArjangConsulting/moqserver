@@ -1,12 +1,20 @@
 import Foundation
 import Logging
+import MoqAddonKit
+import MoqAddons
 import MoqCore
 
 private let logger = Logger(label: "moqserver.format.ProjectValidator")
 
 /// Validates a MoqProject against schema-level and semantic rules.
 public struct ProjectValidator: ProjectValidating {
-    public init() {}
+    /// Add-ons `addons:` and `request_match.addons` may name. Unknown ids are errors (a bundle
+    /// must never silently lose behaviour on a server build that lacks one).
+    let addonCatalog: AddonCatalog
+
+    public init(addonCatalog: AddonCatalog = .builtIn) {
+        self.addonCatalog = addonCatalog
+    }
 
     public func validate(_ project: MoqProject) -> [ValidationDiagnostic] {
         logger.info("Validating project '\(project.manifest.name)'")
@@ -345,13 +353,11 @@ public struct ProjectValidator: ProjectValidating {
                             ))
                     }
 
-                    if requestMatch.query.isEmpty && requestMatch.headers.isEmpty
-                        && (requestMatch.bodyContains?.isEmpty ?? true)
-                    {
+                    if requestMatch.isEmpty {
                         diagnostics.append(
                             .init(
                                 severity: .error,
-                                message: "Variant request_match must define query, headers, or body_contains.",
+                                message: "Variant request_match must define query, headers, body_contains, or addons.",
                                 file: fileName,
                                 field: "\(variantField).request_match",
                                 code: .emptyRequestMatch,
@@ -558,6 +564,8 @@ public struct ProjectValidator: ProjectValidating {
             }
         }
 
+        diagnostics.append(contentsOf: validateAddons(project))
+
         // Validate project-level auth
         diagnostics.append(
             contentsOf: validateAuth(
@@ -587,6 +595,79 @@ public struct ProjectValidator: ProjectValidating {
         logger.info("Validation complete: \(errors.count) error(s), \(warnings.count) warning(s)")
 
         return diagnostics
+    }
+
+    // MARK: - Add-on Validation
+
+    private func validateAddons(_ project: MoqProject) -> [ValidationDiagnostic] {
+        var diagnostics: [ValidationDiagnostic] = []
+        let enabled = project.manifest.addons ?? [:]
+
+        for (id, config) in enabled.sorted(by: { $0.key < $1.key }) {
+            let field = "addons.\(id)"
+            guard MoqFormatRules.isValidAddonID(id) else {
+                diagnostics.append(
+                    .init(
+                        severity: .error,
+                        message: "Add-on id \"\(id)\" must be lowercase alphanumeric with hyphens.",
+                        file: "project.yml", field: field, code: .invalidAddonID))
+                continue
+            }
+            guard let addonType = addonCatalog.addonType(for: id) else {
+                diagnostics.append(
+                    .init(
+                        severity: .error,
+                        message: "Unknown add-on \"\(id)\". Add-ons in this build: \(knownAddons).",
+                        file: "project.yml", field: field, code: .unknownAddon))
+                continue
+            }
+            for problem in addonType.validateConfig(config) {
+                diagnostics.append(
+                    .init(
+                        severity: .error, message: problem.message, file: "project.yml",
+                        field: problem.field.map { "\(field).\($0)" } ?? field, code: .invalidAddonConfig))
+            }
+        }
+
+        for endpoint in project.endpoints {
+            let fileName = "endpoints/\(endpoint.id).yml"
+            for (index, variant) in endpoint.variants.enumerated() {
+                guard let specs = variant.requestMatch?.addons else { continue }
+                for (id, spec) in specs.sorted(by: { $0.key < $1.key }) {
+                    let field = "variants[\(index)].request_match.addons.\(id)"
+                    guard let addonType = addonCatalog.addonType(for: id) else {
+                        diagnostics.append(
+                            .init(
+                                severity: .error,
+                                message: "Unknown add-on \"\(id)\". Add-ons in this build: \(knownAddons).",
+                                file: fileName, field: field, code: .unknownAddon, endpointID: endpoint.id,
+                                variantName: variant.name))
+                        continue
+                    }
+                    if enabled[id] == nil {
+                        diagnostics.append(
+                            .init(
+                                severity: .error,
+                                message:
+                                    "Add-on \"\(id)\" is not enabled. Add it under `addons:` in project.yml.",
+                                file: fileName, field: field, code: .addonNotEnabled, endpointID: endpoint.id,
+                                variantName: variant.name))
+                    }
+                    for problem in addonType.validateMatch(spec) {
+                        diagnostics.append(
+                            .init(
+                                severity: .error, message: problem.message, file: fileName,
+                                field: problem.field.map { "\(field).\($0)" } ?? field, code: .invalidAddonMatch,
+                                endpointID: endpoint.id, variantName: variant.name))
+                    }
+                }
+            }
+        }
+        return diagnostics
+    }
+
+    private var knownAddons: String {
+        addonCatalog.ids.isEmpty ? "none" : addonCatalog.ids.joined(separator: ", ")
     }
 
     // MARK: - Auth Validation

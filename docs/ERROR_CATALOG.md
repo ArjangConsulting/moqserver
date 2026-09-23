@@ -66,6 +66,11 @@ Auth failures also return `WWW-Authenticate` when applicable.
 | `E_PROJECT_CHANGED` | Disk content changed or the loaded bundle was deleted; reload or preserve edits with Save As. |
 | `E_INVALID_ARGUMENTS` | Correct CLI flags; moq-author exits 64 with a JSON error on stderr. |
 | `E_FORMAT_INCOMPATIBLE` | Studio requires its matching format protocol and capabilities; update the binary. |
+| `E_UNKNOWN_ADDON` | `addons:` or `request_match.addons` names an add-on this build doesn't have; remove it or use a build that includes it. |
+| `E_INVALID_ADDON_ID` | Add-on ids are lowercase alphanumeric with hyphens. |
+| `E_INVALID_ADDON_CONFIG` | Fix the add-on's config at the reported field (see [ADDONS.md](ADDONS.md)). |
+| `E_ADDON_NOT_ENABLED` | A variant matches on an add-on that `project.yml` doesn't enable; add it under `addons:`. |
+| `E_INVALID_ADDON_MATCH` | Fix the add-on's `request_match` spec at the reported field. |
 | `E_FORMAT_UNAVAILABLE` | Retry the format service from Studio's Tools menu. |
 
 `moq-author` suppresses routine library logs so failures are one parseable JSON document on stderr.

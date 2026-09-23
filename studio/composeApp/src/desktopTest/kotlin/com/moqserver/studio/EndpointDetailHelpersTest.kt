@@ -13,6 +13,7 @@ import com.moqserver.studio.projectformat.EndpointDocument
 import com.moqserver.studio.projectformat.ProjectVariant
 import com.moqserver.studio.projectformat.RequestRules
 import com.moqserver.studio.projectformat.RuleMatcher
+import com.moqserver.studio.projectformat.VariantRequestMatch
 import com.moqserver.studio.projectformat.YamlValue
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -171,6 +172,15 @@ class VariantAndRuleHelpersTest {
     fun `normalize preserves rules when headers are present`() {
         val rules = RequestRules(headers = listOf(RuleMatcher(name = "Auth", required = true)))
         assertNotNull(rules.normalize())
+    }
+
+    @Test
+    fun `request match normalize keeps add-on-only predicates untouched`() {
+        val addons = mapOf(
+            "jwt-claims" to YamlValue.Obj(mapOf("claims" to YamlValue.Obj(mapOf("premium" to YamlValue.Bool(true))))),
+        )
+        val match = VariantRequestMatch(query = mapOf(" " to "x"), addons = addons)
+        assertEquals(addons, match.normalize()?.addons)
     }
 }
 

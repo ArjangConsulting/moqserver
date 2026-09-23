@@ -1,6 +1,8 @@
 import ArgumentParser
 import Foundation
 import Logging
+import MoqAddonKit
+import MoqAddons
 import MoqCore
 import MoqFormat
 import MoqRuntime
@@ -35,6 +37,14 @@ public struct ServeCommand: AsyncParsableCommand {
                 + "info-level access log.")
     )
     var logLevel: String = "info"
+
+    @ArgumentParser.Flag(
+        name: .long,
+        help: ArgumentHelp(
+            "Let the jwt-claims add-on accept unverified tokens when --hostname is not loopback. Anyone "
+                + "who can reach the server can then forge a token with any claims.")
+    )
+    var allowUnverifiedJwt = false
 
     public init() {}
 
@@ -77,7 +87,8 @@ public struct ServeCommand: AsyncParsableCommand {
         await store.configureVariantOverridePersistence(path: serverConfig?.overridesPersistencePath)
 
         logger.info("Loading project from \(project)")
-        try await loadProject(from: project, into: store)
+        let loadedProject = try await loadProject(from: project, into: store)
+        let addons = try activateAddons(for: loadedProject)
 
         let endpointCount = await store.allEndpoints().count
         logger.info("Loaded \(endpointCount) endpoint(s) from project")
@@ -85,7 +96,8 @@ public struct ServeCommand: AsyncParsableCommand {
         print("Starting mock server on \(hostname):\(port)")
         logger.info("Starting mock server", metadata: ["hostname": "\(hostname)", "port": "\(port)"])
 
-        let app = try await buildApp(store: store, config: serverConfig, hostname: hostname, port: port)
+        let app = try await buildApp(
+            store: store, config: serverConfig, addons: addons, hostname: hostname, port: port)
 
         do {
             try await app.execute()
@@ -109,9 +121,28 @@ public struct ServeCommand: AsyncParsableCommand {
         print(warning)
     }
 
+    // MARK: - Add-ons
+
+    private func activateAddons(for project: MoqProject) throws -> ActiveAddons {
+        let environment = AddonEnvironment(hostname: hostname, allowUnverifiedJWT: allowUnverifiedJwt)
+        do {
+            let addons = try AddonCatalog.builtIn.activate(project.manifest.addons, environment: environment)
+            if !addons.isEmpty {
+                let ids = addons.addons.map { type(of: $0).id }.joined(separator: ", ")
+                logger.info("Activated add-ons", metadata: ["addons": "\(ids)"])
+                print("Add-ons: \(ids)")
+            }
+            return addons
+        } catch let error as AddonActivationError {
+            logger.error("Add-on activation failed", metadata: ["addon": "\(error.addonID)", "error": "\(error.message)"])
+            print("Aborting: \(error)")
+            throw ExitCode.failure
+        }
+    }
+
     // MARK: - Project Loading
 
-    private func loadProject(from path: String, into store: InMemoryMockStore) async throws {
+    private func loadProject(from path: String, into store: InMemoryMockStore) async throws -> MoqProject {
         let loader = ProjectLoader()
         let project = try loader.load(from: path)
 
@@ -142,5 +173,6 @@ public struct ServeCommand: AsyncParsableCommand {
             "Loaded project",
             metadata: ["name": "\(project.manifest.name)", "path": "\(path)", "endpoints": "\(endpoints.count)"])
         print("Loaded project \"\(project.manifest.name)\" from \(path)")
+        return project
     }
 }
