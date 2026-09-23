@@ -67,8 +67,15 @@ let isolated = try client.createSession()
 // Configure the app to send X-Mock-Session: isolated.sessionID on its mock requests.
 try isolated.selectVariant("error", for: "GET", path: "/users")
 try isolated.resetAll() // overrides and counters together
+// ... drive the app ...
+try isolated.assertNoUnmatchedRequests() // fails on any path the bundle doesn't mock
 try isolated.closeSession() // always release in teardown
 ```
+
+`requests()` returns the session's request history (newest first) as `MoqRequestRecord`s, with the
+matched endpoint, variant, selection reason, and add-on annotations such as the `jwt-claims` `sub`.
+`unmatchedRequests()` returns the requests no endpoint served, and `clearRequests()` resets the
+history.
 
 Use a separate server per suite if the app cannot attach the session header. `activateScenario`
 selects a previously defined scenario. The static `MoqControl` facade remains source-compatible

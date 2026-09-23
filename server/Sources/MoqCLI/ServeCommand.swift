@@ -46,6 +46,14 @@ public struct ServeCommand: AsyncParsableCommand {
     )
     var allowUnverifiedJwt = false
 
+    @ArgumentParser.Flag(
+        name: .long,
+        help: ArgumentHelp(
+            "Reject mock requests that have no X-Mock-Session header (428) instead of serving them from "
+                + "global state. Admin and health routes are unaffected.")
+    )
+    var requireSession = false
+
     public init() {}
 
     public mutating func run() async throws {
@@ -97,7 +105,8 @@ public struct ServeCommand: AsyncParsableCommand {
         logger.info("Starting mock server", metadata: ["hostname": "\(hostname)", "port": "\(port)"])
 
         let app = try await buildApp(
-            store: store, config: serverConfig, addons: addons, hostname: hostname, port: port)
+            store: store, config: serverConfig, addons: addons, requireSession: requireSession,
+            hostname: hostname, port: port)
 
         do {
             try await app.execute()

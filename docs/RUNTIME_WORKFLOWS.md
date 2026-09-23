@@ -34,12 +34,17 @@ overrides and request matching still apply. It does not delete scenario definiti
 
 There are at most 64 live sessions. Overrides and counters in one session cannot affect another.
 A request with no session header uses global state; an unknown session returns 404 instead of
-silently falling back. Session IDs select test state, not an authentication boundary. Admin
+silently falling back. Start the server with `serve --require-session` to reject mock requests that
+have no session header instead (`428`, code `session_required`). This catches an app code path that
+forgot the header. Rejected requests appear in the global `GET /_admin/requests` history with reason
+`missing session`. Admin, health, and add-on routes are unaffected. Session IDs select test state, not an authentication boundary. Admin
 credentials remain required when configured. If the app cannot attach a session header, use a
 separate server process/port for each parallel suite.
 
 For Apple tests, `MoqClient.createSession()` returns a configured client with `sessionID`; pass
 that ID to the app under test through its test configuration. Use `closeSession()` in teardown.
+Call `assertNoUnmatchedRequests()` before closing, so a request the bundle doesn't mock fails the test
+instead of the app silently tolerating a 404. `requests()` returns the session's full history.
 The static `MoqControl` API remains available for existing serial suites.
 
 ## Recovery in Studio

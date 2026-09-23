@@ -14,23 +14,28 @@ public struct MockHandler: Sendable {
     let authValidator: any AuthValidating
     let requestValidator: any RequestValidating
     let addons: ActiveAddons
+    /// When true, mock requests without `X-Mock-Session` are rejected instead of using global state.
+    let requireSession: Bool
 
     public init(
         store: any MockStoring,
         config: ServerConfig? = nil,
         authValidator: (any AuthValidating)? = nil,
         requestValidator: (any RequestValidating)? = nil,
-        addons: ActiveAddons = .none
+        addons: ActiveAddons = .none,
+        requireSession: Bool = false
     ) {
         self.store = store
         self.config = config
         self.authValidator = authValidator ?? AuthValidator(config: config?.auth?.toAuthConfig())
         self.requestValidator = requestValidator ?? RequestValidator()
         self.addons = addons
+        self.requireSession = requireSession
     }
 
     /// Called by the catch-all fallback route for paths not matched by any registered endpoint.
     public func handleNotFound(req: Request) async throws -> Response {
+        if let rejection = await missingSessionResponse(req: req) { return rejection }
         if let root = store as? InMemoryMockStore {
             let runtime: InMemoryMockStore
             if let id = req.headers.first(name: "X-Mock-Session") {
@@ -52,6 +57,33 @@ public struct MockHandler: Sendable {
         return notFoundResponse(req: req)
     }
 
+    /// With `requireSession`, a request that forgot `X-Mock-Session` would otherwise silently read
+    /// and mutate global state shared by every test. Reject it (428) and record it in the global
+    /// history so the offending call is visible via `GET /_admin/requests` without a session.
+    private func missingSessionResponse(req: Request) async -> Response? {
+        guard requireSession, req.headers.first(name: "X-Mock-Session") == nil else { return nil }
+        logger.warning("Rejected \(req.method) \(req.url.path): missing X-Mock-Session (--require-session)")
+        if let root = store as? InMemoryMockStore {
+            await root.recordRequest(
+                RequestTrace(
+                    id: UUID().uuidString, timestamp: Date().timeIntervalSince1970,
+                    method: req.method.rawValue, path: req.url.path, endpoint: nil, status: 428,
+                    variant: nil, reason: "missing session", callNumber: nil))
+        }
+        let errorResponse = ErrorResponse(
+            error: "Missing X-Mock-Session header",
+            code: "session_required",
+            detail: "Method: \(req.method.rawValue), Path: \(req.url.path)",
+            hint: "The server runs with --require-session. Create a session via POST /_admin/sessions and "
+                + "send its id as X-Mock-Session on every request."
+        )
+        return Response(
+            status: .preconditionRequired,
+            headers: ["Content-Type": "application/json"],
+            body: .init(data: errorResponse.jsonData())
+        )
+    }
+
     private func notFoundResponse(req: Request) -> Response {
         logger.warning("No endpoint found for \(req.method) \(req.url.path)")
         let errorResponse = ErrorResponse(
@@ -71,6 +103,7 @@ public struct MockHandler: Sendable {
     /// for the route that Vapor already matched, so no store lookup is needed for REST endpoints.
     /// GraphQL endpoints still go through the store for operation-level matching.
     public func handle(req: Request, matchedKey: EndpointKey) async throws -> Response {
+        if let rejection = await missingSessionResponse(req: req) { return rejection }
         var handler = self
         if let id = req.headers.first(name: "X-Mock-Session") {
             guard let root = store as? InMemoryMockStore, let session = await root.runtimeSession(id) else {
@@ -260,17 +293,18 @@ public struct MockHandler: Sendable {
             headers.add(name: name, value: value)
         }
 
+        let responseData = variant.body.map { Self.substituteBaseURL(in: $0, baseURL: Self.baseURL(for: req)) }
         let body: Response.Body
         if let stream = variant.stream {
             try stream.validate()
-            let data = variant.body ?? Data()
+            let data = responseData ?? Data()
             headers.remove(name: .contentLength)
             body = .init(managedAsyncStream: { writer in
                 try await stream.deliver(data) { chunk in
                     try await writer.write(.buffer(ByteBuffer(data: chunk)))
                 }
             }, count: -1)
-        } else if let data = variant.body {
+        } else if let data = responseData {
             body = .init(data: data)
         } else {
             body = .empty
@@ -480,6 +514,38 @@ public struct MockHandler: Sendable {
         }
 
         return true
+    }
+
+    // MARK: - Response templating
+
+    private static let baseURLToken = Data("{{baseURL}}".utf8)
+
+    /// The URL the client used to reach this server — scheme and host as the client sees them,
+    /// so an Android emulator calling `10.0.2.2:8080` gets `http://10.0.2.2:8080` back. Honors
+    /// `X-Forwarded-Proto`/`X-Forwarded-Host` for servers behind a proxy.
+    static func baseURL(for req: Request) -> String {
+        let scheme = req.headers.first(name: "X-Forwarded-Proto") ?? "http"
+        let configuration = req.application.http.server.configuration
+        let host =
+            req.headers.first(name: "X-Forwarded-Host") ?? req.headers.first(name: .host)
+            ?? "\(configuration.hostname):\(configuration.port)"
+        return "\(scheme)://\(host)"
+    }
+
+    /// Replaces every `{{baseURL}}` in a response body. Bodies without the token are returned
+    /// unchanged, byte for byte.
+    static func substituteBaseURL(in data: Data, baseURL: String) -> Data {
+        guard data.range(of: baseURLToken) != nil else { return data }
+        let replacement = Data(baseURL.utf8)
+        var result = Data()
+        var searchStart = data.startIndex
+        while let range = data.range(of: baseURLToken, in: searchStart..<data.endIndex) {
+            result.append(data[searchStart..<range.lowerBound])
+            result.append(replacement)
+            searchStart = range.upperBound
+        }
+        result.append(data[searchStart..<data.endIndex])
+        return result
     }
 
     // MARK: - Add-ons
