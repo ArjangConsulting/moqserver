@@ -15,8 +15,9 @@ Started from Novalingo's mocked UI-test work (the consumer requests are at the e
 | Q6 | `oauth-mock` keeps mounting `/_auth/*` as a compatibility alias. |
 
 Progress (2026-09-23): add-on API (`MoqAddonKit`, H1/H2/H5/H7/H8), `addons:` in the schema,
-validator and writer, and `jwt-claims` are built — see `docs/ADDONS.md`. Next: `oauth-mock`, then
-core items a–f.
+validator and writer, `jwt-claims`, and the `oauth-mock` migration are built — see
+`docs/ADDONS.md`. `oauth-mock` is the one exception to Q4: it is always on and configured by the
+server config, so existing `/_auth` users don't break. Next: core items a–f.
 
 Order: add-on API (`MoqAddonKit`, the `addons:` key and schema, H1/H2/H5/H7) → `jwt-claims` →
 `oauth-mock` migration → core items a–f.

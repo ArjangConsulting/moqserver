@@ -1,5 +1,6 @@
 import Logging
 import MoqAddonKit
+import MoqAddons
 import MoqCore
 import Vapor
 
@@ -27,6 +28,13 @@ public func buildApp(
     app.middleware.use(MockErrorMiddleware())
     bootstrapLogger.debug("Registered MockErrorMiddleware")
 
+    // oauth-mock is always active (it replaced the built-in /_auth router), configured from the
+    // server config rather than the bundle, unless the caller already supplied one.
+    let addons =
+        addons[OAuthMockAddon.id] == nil
+        ? ActiveAddons(addons.addons + [OAuthMockAddon(config: config?.oauthMockConfig ?? OAuthMockConfig())])
+        : addons
+
     let handler = MockHandler(
         store: store,
         config: config,
@@ -38,9 +46,6 @@ public func buildApp(
     app.get("health") { _ async -> [String: String] in
         ["status": "ready"]
     }
-
-    let authRouter = AuthRouter(config: config)
-    authRouter.registerRoutes(on: app)
 
     AddonRouter(addons: addons).registerRoutes(on: app)
 

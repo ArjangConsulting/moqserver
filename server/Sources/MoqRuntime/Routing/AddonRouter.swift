@@ -15,17 +15,23 @@ struct AddonRouter: Sendable {
     func registerRoutes(on app: Application) {
         for addon in addons.addons {
             let id = type(of: addon).id
+            let prefixes = [["_addons", id]] + addon.compatibilityRoutePrefixes
             for route in addon.routes {
-                let components = ["_addons", id].map(PathComponent.init(stringLiteral:))
-                    + route.path.map(PathComponent.init(stringLiteral:))
-                logger.info("Registering add-on route \(route.method) /\(components.map(\.description).joined(separator: "/"))")
-                let prefix = "/_addons/\(id)"
-                app.on(HTTPMethod(rawValue: route.method), components, body: .collect(maxSize: Self.maxBodySize)) {
-                    req async -> Response in
-                    let response = await route.handler(Self.addonRequest(from: req, prefix: prefix))
-                    return Self.vaporResponse(from: response)
+                for prefix in prefixes {
+                    register(route, under: prefix, on: app)
                 }
             }
+        }
+    }
+
+    private func register(_ route: AddonRoute, under prefix: [String], on app: Application) {
+        let components = (prefix + route.path).map(PathComponent.init(stringLiteral:))
+        let prefixPath = "/" + prefix.joined(separator: "/")
+        logger.info("Registering add-on route \(route.method) \(prefixPath)/\(route.path.joined(separator: "/"))")
+        app.on(HTTPMethod(rawValue: route.method), components, body: .collect(maxSize: Self.maxBodySize)) {
+            req async -> Response in
+            let response = await route.handler(Self.addonRequest(from: req, prefix: prefixPath))
+            return Self.vaporResponse(from: response)
         }
     }
 
