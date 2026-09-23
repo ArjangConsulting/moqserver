@@ -54,6 +54,8 @@ Note: `body_file` references within `ProjectVariant` are plain `String` fields (
 
 `reference_name` is optional on endpoint and variant documents. Both products derive the same code-friendly default when it is absent. Response `headers` and `request_match.query`/`request_match.headers` values are strings; quote values that YAML could otherwise parse as numbers or booleans.
 
+A response body (inline `body`, `body_file`, or a streamed body) may contain `{{baseURL}}`. At serve time it is replaced with the scheme and host the client used to reach the server, e.g. `http://10.0.2.2:8080` from an Android emulator. `X-Forwarded-Proto`/`X-Forwarded-Host` are honored. Bodies without the token are served byte for byte.
+
 `project.yml` may declare `addons:` (keyed by add-on id) and a variant's `request_match` may declare `addons:` (predicates keyed by add-on id). Both values are opaque to the core format and validated by the named add-on; see [ADDONS.md](ADDONS.md). `/_addons` is a reserved path.
 
 ### YAML loading

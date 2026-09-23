@@ -39,6 +39,7 @@ Auth failures also return `WWW-Authenticate` when applicable.
 |------|--------|---------|
 | `endpoint_not_found` | `404` | No registered mock endpoint matches the request method/path |
 | `variant_not_found` | `404` | No response variant matches the requested variant or request conditions |
+| `session_required` | `428` | `serve --require-session` is set and the request has no `X-Mock-Session` header |
 
 ## Network Simulation Errors
 
