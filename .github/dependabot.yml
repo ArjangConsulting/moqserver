@@ -16,3 +16,7 @@ updates:
     directory: /samples/android
     schedule:
       interval: weekly
+  - package-ecosystem: gradle
+    directory: /clients/kotlin
+    schedule:
+      interval: weekly

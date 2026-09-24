@@ -69,7 +69,8 @@ For Apple tests, `MoqClient.createSession()` returns a configured client with `s
 that ID to the app under test through its test configuration. Use `closeSession()` in teardown.
 Call `assertNoUnmatchedRequests()` before closing, so a request the bundle doesn't mock fails the test
 instead of the app silently tolerating a 404. `requests()` returns the session's full history.
-The static `MoqControl` API remains available for existing serial suites.
+The static `MoqControl` API remains available for existing serial suites. Android and JVM tests use
+the equivalent Kotlin client in [`clients/kotlin`](../clients/kotlin/README.md).
 
 ## Recovery in Studio
 

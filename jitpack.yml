@@ -1,0 +1,6 @@
+# JitPack builds the Kotlin test-support client from clients/kotlin (the repo root is not a Gradle
+# build). Consume it as com.github.ArjangConsulting.moqserver:moq-test-support:<commit-sha>.
+jdk:
+  - openjdk17
+install:
+  - cd clients/kotlin && VERSION="$VERSION" ./gradlew publishToMavenLocal

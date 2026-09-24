@@ -19,7 +19,8 @@ validator and writer, `jwt-claims`, and the `oauth-mock` migration are built —
 `docs/ADDONS.md`. `oauth-mock` is the one exception to Q4: it is always on and configured by the
 server config, so existing `/_auth` users don't break. Core items a (`MoqClient` history
 helpers), c (`serve --require-session`), d (`scenarios:` in `project.yml`), e
-(`serve --capture-request-bodies`) and f (`{{baseURL}}`) are also built. Next: b (Kotlin/JVM client).
+(`serve --capture-request-bodies`) and f (`{{baseURL}}`) are also built, and b is the Kotlin/JVM
+client in `clients/kotlin` (JitPack by SHA). All Novalingo requests a–f are done.
 
 Order: add-on API (`MoqAddonKit`, the `addons:` key and schema, H1/H2/H5/H7) → `jwt-claims` →
 `oauth-mock` migration → core items a–f.
