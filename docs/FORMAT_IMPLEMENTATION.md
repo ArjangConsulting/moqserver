@@ -56,6 +56,8 @@ Note: `body_file` references within `ProjectVariant` are plain `String` fields (
 
 A response body (inline `body`, `body_file`, or a streamed body) may contain `{{baseURL}}`. At serve time it is replaced with the scheme and host the client used to reach the server, e.g. `http://10.0.2.2:8080` from an Android emulator. `X-Forwarded-Proto`/`X-Forwarded-Host` are honored. Bodies without the token are served byte for byte.
 
+`project.yml` may declare `scenarios:`: named variant selections keyed by scenario name, each with an optional `description` and `variants` (endpoint id → variant name or reference_name). See [runtime workflows](RUNTIME_WORKFLOWS.md#scenarios-in-the-bundle).
+
 `project.yml` may declare `addons:` (keyed by add-on id) and a variant's `request_match` may declare `addons:` (predicates keyed by add-on id). Both values are opaque to the core format and validated by the named add-on; see [ADDONS.md](ADDONS.md). `/_addons` is a reserved path.
 
 ### YAML loading

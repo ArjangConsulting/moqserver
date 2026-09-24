@@ -69,6 +69,21 @@ public struct ProjectWriter: ProjectWriting {
             lines.append("  verify_cookies: \(rules.verifyCookies ?? false)")
         }
 
+        if let scenarios = manifest.scenarios, !scenarios.isEmpty {
+            lines.append("")
+            lines.append("scenarios:")
+            for (name, scenario) in scenarios.sorted(by: { $0.key < $1.key }) {
+                lines.append("  \(yamlQuote(name)):")
+                if let description = scenario.description {
+                    lines.append("    description: \(yamlQuote(description))")
+                }
+                lines.append("    variants:")
+                for (endpointID, variant) in scenario.variants.sorted(by: { $0.key < $1.key }) {
+                    lines.append("      \(yamlQuote(endpointID)): \(yamlQuote(variant))")
+                }
+            }
+        }
+
         if let addons = manifest.addons, !addons.isEmpty {
             lines.append("")
             lines.append("addons:")

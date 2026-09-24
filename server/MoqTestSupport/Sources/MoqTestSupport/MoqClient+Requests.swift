@@ -1,5 +1,29 @@
 import Foundation
 
+/// A request body recorded by `serve --capture-request-bodies <bytes>`.
+public struct MoqCapturedBody: Decodable, Equatable, Sendable {
+    /// Text for UTF-8 bodies, base64 otherwise (see `encoding`).
+    public let value: String
+    /// `"utf8"` or `"base64"`.
+    public let encoding: String
+    /// Full body size in bytes, before truncation.
+    public let size: Int
+    public let truncated: Bool
+
+    public init(value: String, encoding: String, size: Int, truncated: Bool) {
+        self.value = value
+        self.encoding = encoding
+        self.size = size
+        self.truncated = truncated
+    }
+
+    /// The body parsed as a JSON object, when it is complete UTF-8 JSON.
+    public var jsonObject: [String: Any]? {
+        guard encoding == "utf8", !truncated else { return nil }
+        return (try? JSONSerialization.jsonObject(with: Data(value.utf8))) as? [String: Any]
+    }
+}
+
 /// One row of the server's request history (`GET /_admin/requests`).
 public struct MoqRequestRecord: Decodable, Equatable, Sendable {
     public let id: String
@@ -16,10 +40,13 @@ public struct MoqRequestRecord: Decodable, Equatable, Sendable {
     public let callNumber: Int?
     /// Add-on annotations keyed by add-on id, e.g. `["jwt-claims": ["sub": "user-1"]]`.
     public let addons: [String: [String: String]]?
+    /// The request body, when the server captures bodies.
+    public let requestBody: MoqCapturedBody?
 
     public init(
         id: String, timestamp: Double, method: String, path: String, endpoint: String?, status: Int,
-        variant: String?, reason: String, callNumber: Int?, addons: [String: [String: String]]? = nil
+        variant: String?, reason: String, callNumber: Int?, addons: [String: [String: String]]? = nil,
+        requestBody: MoqCapturedBody? = nil
     ) {
         self.id = id
         self.timestamp = timestamp
@@ -31,6 +58,7 @@ public struct MoqRequestRecord: Decodable, Equatable, Sendable {
         self.reason = reason
         self.callNumber = callNumber
         self.addons = addons
+        self.requestBody = requestBody
     }
 
     /// Whether the request hit a path no endpoint in the bundle serves.

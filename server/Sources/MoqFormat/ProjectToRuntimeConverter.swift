@@ -59,6 +59,23 @@ public enum ProjectToRuntimeConverter {
         )
     }
 
+    /// Bundle scenarios as runtime overrides: scenario name → (`"METHOD /path"` → variant).
+    /// Endpoint ids the project doesn't contain are skipped; `ProjectValidator` reports them.
+    public static func scenarioOverrides(_ project: MoqProject) -> [String: [String: String]] {
+        let keysByID = Dictionary(
+            project.endpoints.map { ($0.id, "\(HTTPMethodValue(rawValue: $0.method).rawValue) \($0.path)") },
+            uniquingKeysWith: { first, _ in first })
+        var result: [String: [String: String]] = [:]
+        for (name, scenario) in project.manifest.scenarios ?? [:] {
+            var overrides: [String: String] = [:]
+            for (endpointID, variant) in scenario.variants {
+                if let key = keysByID[endpointID] { overrides[key] = variant }
+            }
+            result[name] = overrides
+        }
+        return result
+    }
+
     // MARK: - Auth Conversion
 
     static func convertAuth(_ auth: ProjectAuthConfig) -> AuthRequirement {

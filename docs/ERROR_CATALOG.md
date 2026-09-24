@@ -68,6 +68,9 @@ Auth failures also return `WWW-Authenticate` when applicable.
 | `E_INVALID_ARGUMENTS` | Correct CLI flags; moq-author exits 64 with a JSON error on stderr. |
 | `E_FORMAT_INCOMPATIBLE` | Studio requires its matching format protocol and capabilities; update the binary. |
 | `E_UNKNOWN_ADDON` | `addons:` or `request_match.addons` names an add-on this build doesn't have; remove it or use a build that includes it. |
+| `E_INVALID_SCENARIO` | A `scenarios:` entry has a bad name, no selections, or targets a GraphQL operation. |
+| `E_SCENARIO_UNKNOWN_ENDPOINT` | A scenario names an endpoint id the bundle doesn't have. |
+| `E_SCENARIO_UNKNOWN_VARIANT` | A scenario selects a variant (by name or reference_name) the endpoint doesn't have. |
 | `E_INVALID_ADDON_ID` | Add-on ids are lowercase alphanumeric with hyphens. |
 | `E_INVALID_ADDON_CONFIG` | Fix the add-on's config at the reported field (see [ADDONS.md](ADDONS.md)). |
 | `E_ADDON_NOT_ENABLED` | A variant matches on an add-on that `project.yml` doesn't enable; add it under `addons:`. |

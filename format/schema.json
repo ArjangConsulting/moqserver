@@ -394,6 +394,30 @@
         "variants"
       ]
     },
+    "scenario": {
+      "type": "object",
+      "$comment": "A named set of variant selections, activated at runtime via PUT /_admin/scenario. Keys of `variants` are endpoint ids; values are a variant name or reference_name. Unknown endpoints/variants are checked by project-level validation.",
+      "additionalProperties": false,
+      "properties": {
+        "description": {
+          "type": "string"
+        },
+        "variants": {
+          "type": "object",
+          "propertyNames": {
+            "pattern": "^[a-z0-9][a-z0-9-]*$"
+          },
+          "additionalProperties": {
+            "type": "string",
+            "minLength": 1
+          },
+          "minProperties": 1
+        }
+      },
+      "required": [
+        "variants"
+      ]
+    },
     "projectManifest": {
       "type": "object",
       "$comment": "This validates project.yml shape only. Presence of endpoints directory/files, reserved-path collisions, and single-default-variant checks require project-level validation.",
@@ -448,6 +472,17 @@
         },
         "addons": {
           "$ref": "#/$defs/addonsMap"
+        },
+        "scenarios": {
+          "type": "object",
+          "propertyNames": {
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "additionalProperties": {
+            "$ref": "#/$defs/scenario"
+          },
+          "maxProperties": 100
         }
       },
       "required": [

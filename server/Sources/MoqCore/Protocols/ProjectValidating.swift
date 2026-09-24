@@ -109,4 +109,7 @@ public enum DiagnosticCode: String, Sendable, Equatable {
     case invalidAddonConfig = "E_INVALID_ADDON_CONFIG"
     case addonNotEnabled = "E_ADDON_NOT_ENABLED"
     case invalidAddonMatch = "E_INVALID_ADDON_MATCH"
+    case invalidScenario = "E_INVALID_SCENARIO"
+    case scenarioUnknownEndpoint = "E_SCENARIO_UNKNOWN_ENDPOINT"
+    case scenarioUnknownVariant = "E_SCENARIO_UNKNOWN_VARIANT"
 }

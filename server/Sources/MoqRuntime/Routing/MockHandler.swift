@@ -16,6 +16,8 @@ public struct MockHandler: Sendable {
     let addons: ActiveAddons
     /// When true, mock requests without `X-Mock-Session` are rejected instead of using global state.
     let requireSession: Bool
+    /// Maximum request-body bytes recorded in history; `0` records none.
+    let requestBodyCaptureLimit: Int
 
     public init(
         store: any MockStoring,
@@ -23,7 +25,8 @@ public struct MockHandler: Sendable {
         authValidator: (any AuthValidating)? = nil,
         requestValidator: (any RequestValidating)? = nil,
         addons: ActiveAddons = .none,
-        requireSession: Bool = false
+        requireSession: Bool = false,
+        requestBodyCaptureLimit: Int = 0
     ) {
         self.store = store
         self.config = config
@@ -31,6 +34,7 @@ public struct MockHandler: Sendable {
         self.requestValidator = requestValidator ?? RequestValidator()
         self.addons = addons
         self.requireSession = requireSession
+        self.requestBodyCaptureLimit = max(0, requestBodyCaptureLimit)
     }
 
     /// Called by the catch-all fallback route for paths not matched by any registered endpoint.
@@ -52,7 +56,7 @@ public struct MockHandler: Sendable {
                     id: UUID().uuidString, timestamp: Date().timeIntervalSince1970,
                     method: req.method.rawValue, path: req.url.path, endpoint: nil, status: 404,
                     variant: nil, reason: "endpoint not found", callNumber: nil,
-                    addons: traceAnnotations(facts)))
+                    addons: traceAnnotations(facts), requestBody: capturedBody(req)))
         }
         return notFoundResponse(req: req)
     }
@@ -68,7 +72,7 @@ public struct MockHandler: Sendable {
                 RequestTrace(
                     id: UUID().uuidString, timestamp: Date().timeIntervalSince1970,
                     method: req.method.rawValue, path: req.url.path, endpoint: nil, status: 428,
-                    variant: nil, reason: "missing session", callNumber: nil))
+                    variant: nil, reason: "missing session", callNumber: nil, requestBody: capturedBody(req)))
         }
         let errorResponse = ErrorResponse(
             error: "Missing X-Mock-Session header",
@@ -111,7 +115,7 @@ public struct MockHandler: Sendable {
             }
             handler = MockHandler(
                 store: session, config: config, authValidator: authValidator, requestValidator: requestValidator,
-                addons: addons)
+                addons: addons, requireSession: requireSession, requestBodyCaptureLimit: requestBodyCaptureLimit)
         }
         let response = try await handler.handleResolved(req: req, matchedKey: matchedKey)
         if let runtime = handler.store as? InMemoryMockStore {
@@ -123,7 +127,8 @@ public struct MockHandler: Sendable {
                     endpoint: "\(matchedKey.method.rawValue) \(matchedKey.path)", status: Int(response.status.code),
                     variant: selection?.variant, reason: selection?.reason ?? "request rejected",
                     callNumber: selection?.callNumber,
-                    addons: traceAnnotations(req.storage[AddonFactsKey.self] ?? AddonFacts())))
+                    addons: traceAnnotations(req.storage[AddonFactsKey.self] ?? AddonFacts()),
+                    requestBody: capturedBody(req)))
         }
         return response
     }
@@ -514,6 +519,11 @@ public struct MockHandler: Sendable {
         }
 
         return true
+    }
+
+    private func capturedBody(_ req: Request) -> CapturedBody? {
+        guard requestBodyCaptureLimit > 0, let buffer = req.body.data, buffer.readableBytes > 0 else { return nil }
+        return CapturedBody.capture(Data(buffer: buffer), limit: requestBodyCaptureLimit)
     }
 
     // MARK: - Response templating

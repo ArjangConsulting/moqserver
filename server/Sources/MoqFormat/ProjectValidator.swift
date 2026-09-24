@@ -565,6 +565,7 @@ public struct ProjectValidator: ProjectValidating {
         }
 
         diagnostics.append(contentsOf: validateAddons(project))
+        diagnostics.append(contentsOf: validateScenarios(project))
 
         // Validate project-level auth
         diagnostics.append(
@@ -594,6 +595,68 @@ public struct ProjectValidator: ProjectValidating {
         let warnings = diagnostics.filter { $0.severity == .warning }
         logger.info("Validation complete: \(errors.count) error(s), \(warnings.count) warning(s)")
 
+        return diagnostics
+    }
+
+    // MARK: - Scenario Validation
+
+    private func validateScenarios(_ project: MoqProject) -> [ValidationDiagnostic] {
+        guard let scenarios = project.manifest.scenarios else { return [] }
+        var diagnostics: [ValidationDiagnostic] = []
+        if scenarios.count > MoqFormatRules.maxScenarios {
+            diagnostics.append(
+                .init(
+                    severity: .error, message: "At most \(MoqFormatRules.maxScenarios) scenarios are allowed.",
+                    file: "project.yml", field: "scenarios", code: .invalidScenario))
+        }
+        let endpointsByID = Dictionary(project.endpoints.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+        for (name, scenario) in scenarios.sorted(by: { $0.key < $1.key }) {
+            let field = "scenarios.\(name)"
+            if name.trimmingCharacters(in: .whitespaces).isEmpty || name.count > MoqFormatRules.maxScenarioNameLength {
+                diagnostics.append(
+                    .init(
+                        severity: .error,
+                        message: "Scenario names must be 1–\(MoqFormatRules.maxScenarioNameLength) characters.",
+                        file: "project.yml", field: field, code: .invalidScenario))
+            }
+            if scenario.variants.isEmpty {
+                diagnostics.append(
+                    .init(
+                        severity: .error, message: "Scenario \"\(name)\" must select at least one variant.",
+                        file: "project.yml", field: "\(field).variants", code: .invalidScenario))
+            }
+            for (endpointID, variantName) in scenario.variants.sorted(by: { $0.key < $1.key }) {
+                let variantField = "\(field).variants.\(endpointID)"
+                guard let endpoint = endpointsByID[endpointID] else {
+                    diagnostics.append(
+                        .init(
+                            severity: .error,
+                            message: "Scenario \"\(name)\" references unknown endpoint id \"\(endpointID)\".",
+                            file: "project.yml", field: variantField, code: .scenarioUnknownEndpoint))
+                    continue
+                }
+                if endpoint.operation != nil {
+                    diagnostics.append(
+                        .init(
+                            severity: .error,
+                            message:
+                                "Scenario \"\(name)\" selects a variant on GraphQL operation \"\(endpointID)\"; "
+                                + "scenarios address routes, and operations sharing a route are not addressable.",
+                            file: "project.yml", field: variantField, code: .invalidScenario,
+                            endpointID: endpointID))
+                } else if !endpoint.variants.contains(where: { $0.name == variantName || $0.referenceName == variantName }) {
+                    let available = endpoint.variants.map(\.name).joined(separator: ", ")
+                    diagnostics.append(
+                        .init(
+                            severity: .error,
+                            message:
+                                "Scenario \"\(name)\" selects unknown variant \"\(variantName)\" on \"\(endpointID)\". "
+                                + "Available: \(available).",
+                            file: "project.yml", field: variantField, code: .scenarioUnknownVariant,
+                            endpointID: endpointID))
+                }
+            }
+        }
         return diagnostics
     }
 

@@ -19,6 +19,10 @@ public enum MoqFormatRules {
     /// Add-on ids follow the endpoint-id shape: lowercase alphanumeric with hyphens.
     public static let addonIDPattern = "^[a-z0-9][a-z0-9-]*$"
 
+    /// Limits the runtime enforces on scenarios (`InMemoryMockStore.defineScenario`).
+    public static let maxScenarioNameLength = 100
+    public static let maxScenarios = 100
+
     /// HTTP methods accepted on an endpoint. Intentionally excludes `TRACE` and `CONNECT`:
     /// both are absent from mock-serving semantics (no coherent proxy-tunnel or diagnostic-echo
     /// behavior to mock), and neither has ever been accepted by this validator.
