@@ -14,6 +14,7 @@ public func buildApp(
     requestValidator: (any RequestValidating)? = nil,
     addons: ActiveAddons = .none,
     requireSession: Bool = false,
+    requestBodyCaptureLimit: Int = 0,
     hostname: String = "127.0.0.1",
     port: Int = 8080
 ) async throws -> Application {
@@ -42,7 +43,8 @@ public func buildApp(
         authValidator: authValidator,
         requestValidator: requestValidator,
         addons: addons,
-        requireSession: requireSession
+        requireSession: requireSession,
+        requestBodyCaptureLimit: requestBodyCaptureLimit
     )
 
     app.get("health") { _ async -> [String: String] in

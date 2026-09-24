@@ -17,6 +17,8 @@ final class MoqClientRequestsTests: XCTestCase {
         XCTAssertEqual(records.count, 3)
         XCTAssertEqual(records[0].addons, ["jwt-claims": ["sub": "alice"]])
         XCTAssertEqual(HistoryStub.lastSessionHeader, "s1")
+        XCTAssertEqual(records[1].requestBody?.jsonObject?["action"] as? String, "translate")
+        XCTAssertNil(records[0].requestBody)
     }
 
     func testUnmatchedRequestsAreOldestFirst() throws {
@@ -45,8 +47,9 @@ private final class HistoryStub: URLProtocol {
             [
               {"id":"3","timestamp":3,"method":"GET","path":"/missing","status":404,"reason":"endpoint not found",
                "addons":{"jwt-claims":{"sub":"alice"}}},
-              {"id":"2","timestamp":2,"method":"GET","path":"/users","endpoint":"GET /users","status":200,
-               "variant":"success","reason":"declared default","callNumber":1},
+              {"id":"2","timestamp":2,"method":"POST","path":"/ai","endpoint":"POST /ai","status":200,
+               "variant":"success","reason":"declared default","callNumber":1,
+               "requestBody":{"value":"{\\"action\\":\\"translate\\"}","encoding":"utf8","size":22,"truncated":false}},
               {"id":"1","timestamp":1,"method":"GET","path":"/balance","status":404,"reason":"endpoint not found"}
             ]
             """

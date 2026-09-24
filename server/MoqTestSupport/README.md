@@ -75,7 +75,8 @@ try isolated.closeSession() // always release in teardown
 `requests()` returns the session's request history (newest first) as `MoqRequestRecord`s, with the
 matched endpoint, variant, selection reason, and add-on annotations such as the `jwt-claims` `sub`.
 `unmatchedRequests()` returns the requests no endpoint served, and `clearRequests()` resets the
-history.
+history. When the server runs with `--capture-request-bodies`, `requestBody` holds what the app sent;
+`requestBody?.jsonObject` parses a complete JSON body.
 
 Use a separate server per suite if the app cannot attach the session header. `activateScenario`
 selects a previously defined scenario. The static `MoqControl` facade remains source-compatible

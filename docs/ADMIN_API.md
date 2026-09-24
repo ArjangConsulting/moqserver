@@ -377,6 +377,7 @@ for session-local operations; omit it for global state.
 | `DELETE /_admin/sessions/:id` | Release session (idempotent) |
 
 History records have `id`, `timestamp` (Unix seconds), `method`, `path`, `endpoint`, `status`,
-optional `variant`, `reason`, optional `callNumber`, and optional `addons` (add-on annotations
+optional `variant`, `reason`, optional `callNumber`, optional `requestBody` (with
+`serve --capture-request-bodies`: `{value, encoding, size, truncated}`), and optional `addons` (add-on annotations
 keyed by add-on id, e.g. `{"jwt-claims": {"sub": "user-1"}}` — see [ADDONS.md](ADDONS.md)). See [runtime workflows](RUNTIME_WORKFLOWS.md)
 for limits, lifecycle, scenario examples and parallel-test setup.

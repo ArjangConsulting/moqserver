@@ -23,6 +23,50 @@ public struct RequestTrace: Codable, Sendable {
     public let callNumber: Int?
     /// Add-on annotations (H7), keyed by add-on id — e.g. `{"jwt-claims": {"sub": "user-1"}}`.
     public var addons: [String: [String: String]]? = nil
+    /// The request body, captured only with `serve --capture-request-bodies <bytes>`.
+    public var requestBody: CapturedBody? = nil
+}
+
+/// A request body recorded in history, cut to the configured byte limit.
+public struct CapturedBody: Codable, Sendable, Equatable {
+    public enum Encoding: String, Codable, Sendable {
+        case utf8
+        case base64
+    }
+
+    /// The captured bytes: text for UTF-8 bodies, base64 otherwise.
+    public let value: String
+    public let encoding: Encoding
+    /// The full body size in bytes, before truncation.
+    public let size: Int
+    public let truncated: Bool
+
+    public init(value: String, encoding: Encoding, size: Int, truncated: Bool) {
+        self.value = value
+        self.encoding = encoding
+        self.size = size
+        self.truncated = truncated
+    }
+
+    /// Captures at most `limit` bytes of `data`. A cut inside a UTF-8 sequence backs off to the
+    /// previous character boundary so text stays text; non-UTF-8 bodies are base64-encoded.
+    public static func capture(_ data: Data, limit: Int) -> CapturedBody {
+        let truncated = data.count > limit
+        var prefix = data.prefix(limit)
+        if let text = String(data: prefix, encoding: .utf8) {
+            return CapturedBody(value: text, encoding: .utf8, size: data.count, truncated: truncated)
+        }
+        if truncated {
+            for _ in 0..<3 where !prefix.isEmpty {
+                prefix = prefix.dropLast()
+                if let text = String(data: prefix, encoding: .utf8) {
+                    return CapturedBody(value: text, encoding: .utf8, size: data.count, truncated: true)
+                }
+            }
+        }
+        return CapturedBody(
+            value: data.prefix(limit).base64EncodedString(), encoding: .base64, size: data.count, truncated: truncated)
+    }
 }
 
 public enum RuntimeScenarioError: Error, Sendable {

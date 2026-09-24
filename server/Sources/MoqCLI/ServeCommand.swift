@@ -54,6 +54,15 @@ public struct ServeCommand: AsyncParsableCommand {
     )
     var requireSession = false
 
+    @ArgumentParser.Option(
+        name: .long,
+        help: ArgumentHelp(
+            "Record up to this many bytes of each mock request's body in request history "
+                + "(GET /_admin/requests). 0 (default) records none. Bodies may contain credentials or "
+                + "personal data; enable only for test runs.")
+    )
+    var captureRequestBodies: Int = 0
+
     public init() {}
 
     public mutating func run() async throws {
@@ -90,6 +99,11 @@ public struct ServeCommand: AsyncParsableCommand {
             throw ExitCode.failure
         }
 
+        guard captureRequestBodies >= 0 else {
+            print("Invalid --capture-request-bodies \(captureRequestBodies). Use 0 or a positive byte count.")
+            throw ExitCode.validationFailure
+        }
+
         warnIfExposedWithoutAdminAuth(config: serverConfig)
 
         await store.configureVariantOverridePersistence(path: serverConfig?.overridesPersistencePath)
@@ -106,7 +120,7 @@ public struct ServeCommand: AsyncParsableCommand {
 
         let app = try await buildApp(
             store: store, config: serverConfig, addons: addons, requireSession: requireSession,
-            hostname: hostname, port: port)
+            requestBodyCaptureLimit: captureRequestBodies, hostname: hostname, port: port)
 
         do {
             try await app.execute()
@@ -177,6 +191,14 @@ public struct ServeCommand: AsyncParsableCommand {
         let endpoints = try ProjectToRuntimeConverter.convert(project)
         for endpoint in endpoints {
             await store.register(endpoint)
+        }
+        // Defined after every endpoint is registered (overrides are checked against them), and
+        // before any session exists, so each session's snapshot starts with them.
+        for (name, overrides) in ProjectToRuntimeConverter.scenarioOverrides(project).sorted(by: { $0.key < $1.key }) {
+            try await store.defineScenario(RuntimeScenario(name: name, overrides: overrides))
+        }
+        if let count = project.manifest.scenarios?.count, count > 0 {
+            logger.info("Defined bundle scenarios", metadata: ["count": "\(count)"])
         }
         logger.info(
             "Loaded project",

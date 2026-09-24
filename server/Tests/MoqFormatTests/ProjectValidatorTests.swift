@@ -545,4 +545,41 @@ struct ProjectValidatorTests {
         let project = makeProject(endpoints: [sampleEndpoint(path: "/_addons/jwt-claims/x")])
         #expect(validator.validate(project).contains { $0.code == .reservedPath })
     }
+
+    // MARK: - Scenarios
+
+    func scenarioProject(_ scenarios: [String: ProjectScenario]) -> MoqProject {
+        let base = sampleManifest()
+        let endpoint = sampleEndpoint(
+            id: "get-balance", path: "/balance",
+            variants: [
+                ProjectVariant(name: "default", isDefault: true, status: 200),
+                ProjectVariant(name: "Empty", referenceName: "empty_balance", status: 200),
+            ])
+        return MoqProject(
+            manifest: ProjectManifest(name: base.name, defaults: base.defaults, scenarios: scenarios),
+            endpoints: [endpoint], projectPath: "/tmp/test.moqproj")
+    }
+
+    @Test("Accepts scenarios that select variants by name or reference_name")
+    func acceptsScenarios() {
+        let project = scenarioProject([
+            "by-name": ProjectScenario(variants: ["get-balance": "Empty"]),
+            "by-reference": ProjectScenario(description: "d", variants: ["get-balance": "empty_balance"]),
+        ])
+        #expect(validator.validate(project).filter { $0.severity == .error }.isEmpty)
+    }
+
+    @Test("Rejects scenarios with unknown endpoints, unknown variants, or no selections")
+    func rejectsBadScenarios() {
+        let project = scenarioProject([
+            "a": ProjectScenario(variants: ["missing": "x"]),
+            "b": ProjectScenario(variants: ["get-balance": "empty"]),
+            "c": ProjectScenario(variants: [:]),
+        ])
+        let codes = validator.validate(project).compactMap(\.code)
+        #expect(codes.contains(.scenarioUnknownEndpoint))
+        #expect(codes.contains(.scenarioUnknownVariant))
+        #expect(codes.contains(.invalidScenario))
+    }
 }

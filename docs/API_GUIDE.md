@@ -39,6 +39,7 @@ Supported `serve` flags:
 | `--config` | No | — | Path to a YAML or JSON server config file |
 | `--log-level` | No | `info` | `trace`, `debug`, `info`, `notice`, `warning`, `error`, or `critical` |
 | `--require-session` | No | off | Reject mock requests without `X-Mock-Session` (`428`); see [runtime workflows](RUNTIME_WORKFLOWS.md#parallel-tests) |
+| `--capture-request-bodies` | No | `0` | Record up to N bytes of each mock request body in request history |
 | `--allow-unverified-jwt` | No | off | Let the [`jwt-claims` add-on](ADDONS.md#jwt-claims) run on a non-loopback `--hostname` |
 
 The server validates the project before binding the port. If there are validation errors it prints them and exits without starting. It then starts the add-ons the bundle enables (see [ADDONS.md](ADDONS.md)); an add-on that refuses its config or bind address also stops startup.
