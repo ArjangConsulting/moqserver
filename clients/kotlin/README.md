@@ -6,7 +6,9 @@ sessions, variant selection, scenarios, and request history.
 
 ## Adding it
 
-Distributed through [JitPack](https://jitpack.io), pinned by commit SHA:
+Distributed through [JitPack](https://jitpack.io), pinned by commit SHA. JitPack names the artifact
+after the repository, so the coordinates are `com.github.ArjangConsulting:moqserver:<sha>`. Use the
+short 10-character SHA, e.g. `05ec58b4d3`.
 
 ```kotlin
 // settings.gradle.kts
@@ -18,7 +20,7 @@ dependencyResolutionManagement {
 
 // app/build.gradle.kts
 dependencies {
-    androidTestImplementation("com.github.ArjangConsulting.moqserver:moq-test-support:<commit-sha>")
+    androidTestImplementation("com.github.ArjangConsulting:moqserver:<commit-sha>")
 }
 ```
 

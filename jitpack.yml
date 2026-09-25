@@ -1,5 +1,5 @@
 # JitPack builds the Kotlin test-support client from clients/kotlin (the repo root is not a Gradle
-# build). Consume it as com.github.ArjangConsulting.moqserver:moq-test-support:<commit-sha>.
+# build). Consume it as com.github.ArjangConsulting:moqserver:<commit-sha>.
 jdk:
   - openjdk17
 install:
