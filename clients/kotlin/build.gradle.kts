@@ -9,7 +9,9 @@ plugins {
     `maven-publish`
 }
 
-group = "com.github.ArjangConsulting.moqserver"
+// JitPack serves a single-module build as com.github.<owner>:<repo>:<sha>, whatever the
+// publication says, so the local coordinates match that to keep mavenLocal and JitPack identical.
+group = "com.github.ArjangConsulting"
 version = System.getenv("VERSION") ?: "local"
 
 repositories {
@@ -42,7 +44,7 @@ tasks.test {
 publishing {
     publications {
         create<MavenPublication>("maven") {
-            artifactId = "moq-test-support"
+            artifactId = "moqserver"
             from(components["java"])
         }
     }
