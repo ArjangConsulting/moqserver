@@ -44,6 +44,8 @@ The server is split into focused Swift package targets (see `Package.swift`):
 | `MoqService` | Transport-neutral authoring sessions, mutations, validation |
 | `MoqFormatServiceRun` | `moq-format`: Content-Length-framed JSON-RPC for Studio |
 | `MoqAuthorCLI` / `MoqAuthorRun` | `moq-author`: one-shot scripted authoring |
+| `MoqAddonKit` | Add-on API: `MoqAddon` protocol, Codable hook payloads, `AddonCatalog`/`ActiveAddons` |
+| `MoqAddons` | Built-in add-ons (`AddonCatalog.builtIn`), e.g. `jwt-claims` — see `../docs/ADDONS.md` |
 | `MoqRuntime` | Vapor app, routing, mock storage, admin API, auth |
 | `MoqCLI` | ArgumentParser subcommands wiring everything together |
 | `Run` | `@main` entry point for the `moqserver` binary |

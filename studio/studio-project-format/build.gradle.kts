@@ -88,6 +88,7 @@ class ProjectModelsGenerator(schemaFile: File) {
         "ruleMatcher" to "RuleMatcher",
         "graphqlOperation" to "EndpointOperation",
         "requestMatch" to "VariantRequestMatch",
+        "scenario" to "ProjectScenario",
         "variant" to "ProjectVariant",
         "endpoint" to "EndpointDocument",
     )
@@ -98,6 +99,8 @@ class ProjectModelsGenerator(schemaFile: File) {
         "authType" to "AuthType",
         "graphqlOperationType" to "OperationType",
         "headersMap" to "Map<String, String>",
+        // Opaque to Studio: each add-on validates its own entry, Studio only round-trips it.
+        "addonsMap" to "Map<String, YamlValue>",
     )
 
     /**
@@ -111,6 +114,7 @@ class ProjectModelsGenerator(schemaFile: File) {
         // would fall through to the generic "object" mapping.
         "projectManifest.defaults" to Override(type = "ProjectDefaults"),
         "projectManifest.global_rules" to Override(type = "GlobalRules?"),
+        "projectManifest.scenarios" to Override(type = "Map<String, ProjectScenario>?"),
         "projectManifest.defaults.delay_ms" to Override(type = "Int", default = "0", alwaysEncode = true),
         "endpoint.reference_name" to
             Override(type = "String", default = "defaultReferenceNameForEndpointId(id)"),
