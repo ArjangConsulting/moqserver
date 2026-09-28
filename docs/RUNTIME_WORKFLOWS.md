@@ -20,9 +20,28 @@ entry before changing anything, replaces all runtime overrides, and resets call 
 Requests already in flight keep their captured selection. GraphQL operation-specific scenarios
 are not supported by these REST keys; ambiguous entries are rejected.
 
-`GET /_admin/scenarios` exports definitions as JSON. Definitions are in memory, limited to 100 per
-store, and disappear on server restart. Check exported definitions into your test repository and
-load them at test setup. `DELETE /_admin/state` clears runtime overrides and counters; configuration
+### Scenarios in the bundle
+
+Prefer declaring scenarios in `project.yml`. They load at startup, before any session exists, so
+every session starts with them and there is nothing to load during test setup:
+
+```yaml
+scenarios:
+  out-of-credits:
+    description: Balance is zero, lesson purchase fails
+    variants:            # endpoint id -> variant name or reference_name
+      get-balance: empty
+      post-lesson: payment-required
+```
+
+`moqserver validate` rejects unknown endpoint ids (`E_SCENARIO_UNKNOWN_ENDPOINT`), unknown variants
+(`E_SCENARIO_UNKNOWN_VARIANT`), GraphQL operations, and scenarios with no selections
+(`E_INVALID_SCENARIO`). Activate them with `PUT /_admin/scenario` or `MoqClient.activateScenario`,
+exactly like scenarios defined at runtime.
+
+`GET /_admin/scenarios` exports definitions as JSON. Definitions added through the admin API are in
+memory, limited to 100 per store, and disappear on server restart; bundle scenarios are reloaded on
+every start. `DELETE /_admin/state` clears runtime overrides and counters; configuration
 overrides and request matching still apply. It does not delete scenario definitions or history.
 
 ## Parallel tests
@@ -34,13 +53,24 @@ overrides and request matching still apply. It does not delete scenario definiti
 
 There are at most 64 live sessions. Overrides and counters in one session cannot affect another.
 A request with no session header uses global state; an unknown session returns 404 instead of
-silently falling back. Session IDs select test state, not an authentication boundary. Admin
+silently falling back. Start the server with `serve --require-session` to reject mock requests that
+have no session header instead (`428`, code `session_required`). This catches an app code path that
+forgot the header. Rejected requests appear in the global `GET /_admin/requests` history with reason
+`missing session`. Admin, health, and add-on routes are unaffected.
+
+To assert what the app sent, start the server with `serve --capture-request-bodies <bytes>`. Each
+history row then carries `requestBody`: `{value, encoding: "utf8"|"base64", size, truncated}`, cut to
+at most that many bytes. It's off by default, because bodies can contain credentials or personal
+data. From Swift, use `MoqRequestRecord.requestBody?.jsonObject`. Session IDs select test state, not an authentication boundary. Admin
 credentials remain required when configured. If the app cannot attach a session header, use a
 separate server process/port for each parallel suite.
 
 For Apple tests, `MoqClient.createSession()` returns a configured client with `sessionID`; pass
 that ID to the app under test through its test configuration. Use `closeSession()` in teardown.
-The static `MoqControl` API remains available for existing serial suites.
+Call `assertNoUnmatchedRequests()` before closing, so a request the bundle doesn't mock fails the test
+instead of the app silently tolerating a 404. `requests()` returns the session's full history.
+The static `MoqControl` API remains available for existing serial suites. Android and JVM tests use
+the equivalent Kotlin client in [`clients/kotlin`](../clients/kotlin/README.md).
 
 ## Recovery in Studio
 

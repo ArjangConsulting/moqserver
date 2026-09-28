@@ -8,7 +8,8 @@ struct ResponseStreamTests {
         let body = Data("skipα\n\ndata: ok\n\n".utf8).dropFirst(4)
         var chunks: [Data] = []
         var waits: [Duration] = []
-        try await ResponseStream(chunkBytes: 1, intervalMs: 15).deliver(body,
+        try await ResponseStream(chunkBytes: 1, intervalMs: 15).deliver(
+            body,
             write: { chunks.append($0) }, sleep: { waits.append($0) })
         #expect(chunks.reduce(Data(), +) == body)
         #expect(waits == Array(repeating: .milliseconds(15), count: body.count - 1))

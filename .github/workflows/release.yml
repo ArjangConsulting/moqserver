@@ -504,14 +504,14 @@ jobs:
       attestations: write
     steps:
       - uses: actions/checkout@v7.0.1
-      - uses: docker/setup-buildx-action@v4.3.0
+      - uses: docker/setup-buildx-action@v4.4.1
       - uses: docker/login-action@v4.6.0
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ github.token }}
       - name: Build server image for scanning
-        uses: docker/build-push-action@v7.3.0
+        uses: docker/build-push-action@v7.4.0
         with:
           context: server
           load: true

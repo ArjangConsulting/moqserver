@@ -610,4 +610,73 @@ struct ProjectWriterTests {
 
         #expect(reloaded.endpoints.first?.variants.first?.description == "A populated response")
     }
+
+    @Test("Round-trips manifest addons and request_match.addons")
+    func roundTripsAddons() throws {
+        let addons: [String: AnyCodableValue] = [
+            "jwt-claims": .object([
+                "verify_signature": .bool(false), "header": .string("Authorization"),
+                "trace_claims": .array([.string("sub"), .string("email")]),
+            ])
+        ]
+        let spec: AnyCodableValue = .object([
+            "claims": .object(["premium": .bool(true), "firebase": .object(["sign_in_provider": .string("password")])])
+        ])
+        let project = MoqProject(
+            manifest: ProjectManifest(
+                name: "Addons",
+                defaults: ProjectDefaults(
+                    delayMs: 0, auth: ProjectAuthConfig(type: .none, verify: false), network: NetworkBehavior()),
+                addons: addons),
+            endpoints: [
+                EndpointDocument(
+                    id: "me", method: "GET", path: "/me",
+                    variants: [
+                        ProjectVariant(name: "default", isDefault: true, status: 200),
+                        ProjectVariant(
+                            name: "premium", status: 200, requestMatch: RequestMatch(addons: ["jwt-claims": spec])),
+                    ])
+            ],
+            projectPath: "/tmp/addons.moqproj")
+
+        let outputPath = (NSTemporaryDirectory() as NSString).appendingPathComponent(
+            "addons-\(UUID().uuidString).moqproj")
+        defer { try? FileManager.default.removeItem(atPath: outputPath) }
+        try ProjectWriter().write(project, to: outputPath)
+        let reloaded = try ProjectLoader().load(from: outputPath)
+
+        #expect(reloaded.manifest.addons == addons)
+        #expect(reloaded.endpoints.first?.variants[1].requestMatch?.addons == ["jwt-claims": spec])
+    }
+
+    @Test("Round-trips scenarios and converts them to runtime overrides")
+    func roundTripsScenarios() throws {
+        let scenarios = [
+            "out-of-credits": ProjectScenario(description: "Balance is zero", variants: ["get-balance": "empty"])
+        ]
+        let project = MoqProject(
+            manifest: ProjectManifest(
+                name: "Scenarios",
+                defaults: ProjectDefaults(
+                    delayMs: 0, auth: ProjectAuthConfig(type: .none, verify: false), network: NetworkBehavior()),
+                scenarios: scenarios),
+            endpoints: [
+                EndpointDocument(
+                    id: "get-balance", method: "get", path: "/balance",
+                    variants: [
+                        ProjectVariant(name: "default", isDefault: true, status: 200),
+                        ProjectVariant(name: "empty", status: 200),
+                    ])
+            ],
+            projectPath: "/tmp/scenarios.moqproj")
+
+        let outputPath = (NSTemporaryDirectory() as NSString).appendingPathComponent(
+            "scenarios-\(UUID().uuidString).moqproj")
+        defer { try? FileManager.default.removeItem(atPath: outputPath) }
+        try ProjectWriter().write(project, to: outputPath)
+        let reloaded = try ProjectLoader().load(from: outputPath)
+
+        #expect(reloaded.manifest.scenarios == scenarios)
+        #expect(ProjectToRuntimeConverter.scenarioOverrides(reloaded) == ["out-of-credits": ["GET /balance": "empty"]])
+    }
 }

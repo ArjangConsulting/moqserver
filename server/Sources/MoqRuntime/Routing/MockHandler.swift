@@ -1,5 +1,6 @@
 import Foundation
 import Logging
+import MoqAddonKit
 import MoqCore
 import Vapor
 
@@ -12,21 +13,33 @@ public struct MockHandler: Sendable {
     let config: ServerConfig?
     let authValidator: any AuthValidating
     let requestValidator: any RequestValidating
+    let addons: ActiveAddons
+    /// When true, mock requests without `X-Mock-Session` are rejected instead of using global state.
+    let requireSession: Bool
+    /// Maximum request-body bytes recorded in history; `0` records none.
+    let requestBodyCaptureLimit: Int
 
     public init(
         store: any MockStoring,
         config: ServerConfig? = nil,
         authValidator: (any AuthValidating)? = nil,
-        requestValidator: (any RequestValidating)? = nil
+        requestValidator: (any RequestValidating)? = nil,
+        addons: ActiveAddons = .none,
+        requireSession: Bool = false,
+        requestBodyCaptureLimit: Int = 0
     ) {
         self.store = store
         self.config = config
         self.authValidator = authValidator ?? AuthValidator(config: config?.auth?.toAuthConfig())
         self.requestValidator = requestValidator ?? RequestValidator()
+        self.addons = addons
+        self.requireSession = requireSession
+        self.requestBodyCaptureLimit = max(0, requestBodyCaptureLimit)
     }
 
     /// Called by the catch-all fallback route for paths not matched by any registered endpoint.
     public func handleNotFound(req: Request) async throws -> Response {
+        if let rejection = await missingSessionResponse(req: req) { return rejection }
         if let root = store as? InMemoryMockStore {
             let runtime: InMemoryMockStore
             if let id = req.headers.first(name: "X-Mock-Session") {
@@ -37,13 +50,42 @@ public struct MockHandler: Sendable {
             } else {
                 runtime = root
             }
+            let facts = await addonFacts(for: req)
             await runtime.recordRequest(
                 RequestTrace(
                     id: UUID().uuidString, timestamp: Date().timeIntervalSince1970,
                     method: req.method.rawValue, path: req.url.path, endpoint: nil, status: 404,
-                    variant: nil, reason: "endpoint not found", callNumber: nil))
+                    variant: nil, reason: "endpoint not found", callNumber: nil,
+                    addons: traceAnnotations(facts), requestBody: capturedBody(req)))
         }
         return notFoundResponse(req: req)
+    }
+
+    /// With `requireSession`, a request that forgot `X-Mock-Session` would otherwise silently read
+    /// and mutate global state shared by every test. Reject it (428) and record it in the global
+    /// history so the offending call is visible via `GET /_admin/requests` without a session.
+    private func missingSessionResponse(req: Request) async -> Response? {
+        guard requireSession, req.headers.first(name: "X-Mock-Session") == nil else { return nil }
+        logger.warning("Rejected \(req.method) \(req.url.path): missing X-Mock-Session (--require-session)")
+        if let root = store as? InMemoryMockStore {
+            await root.recordRequest(
+                RequestTrace(
+                    id: UUID().uuidString, timestamp: Date().timeIntervalSince1970,
+                    method: req.method.rawValue, path: req.url.path, endpoint: nil, status: 428,
+                    variant: nil, reason: "missing session", callNumber: nil, requestBody: capturedBody(req)))
+        }
+        let errorResponse = ErrorResponse(
+            error: "Missing X-Mock-Session header",
+            code: "session_required",
+            detail: "Method: \(req.method.rawValue), Path: \(req.url.path)",
+            hint: "The server runs with --require-session. Create a session via POST /_admin/sessions and "
+                + "send its id as X-Mock-Session on every request."
+        )
+        return Response(
+            status: .preconditionRequired,
+            headers: ["Content-Type": "application/json"],
+            body: .init(data: errorResponse.jsonData())
+        )
     }
 
     private func notFoundResponse(req: Request) -> Response {
@@ -65,13 +107,15 @@ public struct MockHandler: Sendable {
     /// for the route that Vapor already matched, so no store lookup is needed for REST endpoints.
     /// GraphQL endpoints still go through the store for operation-level matching.
     public func handle(req: Request, matchedKey: EndpointKey) async throws -> Response {
+        if let rejection = await missingSessionResponse(req: req) { return rejection }
         var handler = self
         if let id = req.headers.first(name: "X-Mock-Session") {
             guard let root = store as? InMemoryMockStore, let session = await root.runtimeSession(id) else {
                 throw Abort(.notFound, reason: "Unknown mock session")
             }
             handler = MockHandler(
-                store: session, config: config, authValidator: authValidator, requestValidator: requestValidator)
+                store: session, config: config, authValidator: authValidator, requestValidator: requestValidator,
+                addons: addons, requireSession: requireSession, requestBodyCaptureLimit: requestBodyCaptureLimit)
         }
         let response = try await handler.handleResolved(req: req, matchedKey: matchedKey)
         if let runtime = handler.store as? InMemoryMockStore {
@@ -82,7 +126,9 @@ public struct MockHandler: Sendable {
                     method: req.method.rawValue, path: req.url.path,
                     endpoint: "\(matchedKey.method.rawValue) \(matchedKey.path)", status: Int(response.status.code),
                     variant: selection?.variant, reason: selection?.reason ?? "request rejected",
-                    callNumber: selection?.callNumber))
+                    callNumber: selection?.callNumber,
+                    addons: traceAnnotations(req.storage[AddonFactsKey.self] ?? AddonFacts()),
+                    requestBody: capturedBody(req)))
         }
         return response
     }
@@ -101,6 +147,10 @@ public struct MockHandler: Sendable {
         } else {
             return notFoundResponse(req: req)
         }
+
+        // Add-on facts (H2) — computed once, after the session is resolved and before auth, so
+        // request_match.addons (H5) and the history row (H7) read the same values.
+        _ = await addonFacts(for: req)
 
         // Auth validation — for API key auth read the custom header, not Authorization
         let authContext: AuthContext
@@ -248,17 +298,19 @@ public struct MockHandler: Sendable {
             headers.add(name: name, value: value)
         }
 
+        let responseData = variant.body.map { Self.substituteBaseURL(in: $0, baseURL: Self.baseURL(for: req)) }
         let body: Response.Body
         if let stream = variant.stream {
             try stream.validate()
-            let data = variant.body ?? Data()
+            let data = responseData ?? Data()
             headers.remove(name: .contentLength)
-            body = .init(managedAsyncStream: { writer in
-                try await stream.deliver(data) { chunk in
-                    try await writer.write(.buffer(ByteBuffer(data: chunk)))
-                }
-            }, count: -1)
-        } else if let data = variant.body {
+            body = .init(
+                managedAsyncStream: { writer in
+                    try await stream.deliver(data) { chunk in
+                        try await writer.write(.buffer(ByteBuffer(data: chunk)))
+                    }
+                }, count: -1)
+        } else if let data = responseData {
             body = .init(data: data)
         } else {
             body = .empty
@@ -461,7 +513,69 @@ public struct MockHandler: Sendable {
             }
         }
 
+        if !match.addons.isEmpty {
+            guard addons.matches(match.addons, facts: req.storage[AddonFactsKey.self] ?? AddonFacts()) else {
+                return false
+            }
+        }
+
         return true
+    }
+
+    private func capturedBody(_ req: Request) -> CapturedBody? {
+        guard requestBodyCaptureLimit > 0, let buffer = req.body.data, buffer.readableBytes > 0 else { return nil }
+        return CapturedBody.capture(Data(buffer: buffer), limit: requestBodyCaptureLimit)
+    }
+
+    // MARK: - Response templating
+
+    private static let baseURLToken = Data("{{baseURL}}".utf8)
+
+    /// The URL the client used to reach this server — scheme and host as the client sees them,
+    /// so an Android emulator calling `10.0.2.2:8080` gets `http://10.0.2.2:8080` back. Honors
+    /// `X-Forwarded-Proto`/`X-Forwarded-Host` for servers behind a proxy.
+    static func baseURL(for req: Request) -> String {
+        let scheme = req.headers.first(name: "X-Forwarded-Proto") ?? "http"
+        let configuration = req.application.http.server.configuration
+        let host =
+            req.headers.first(name: "X-Forwarded-Host") ?? req.headers.first(name: .host)
+            ?? "\(configuration.hostname):\(configuration.port)"
+        return "\(scheme)://\(host)"
+    }
+
+    /// Replaces every `{{baseURL}}` in a response body. Bodies without the token are returned
+    /// unchanged, byte for byte.
+    static func substituteBaseURL(in data: Data, baseURL: String) -> Data {
+        guard data.range(of: baseURLToken) != nil else { return data }
+        let replacement = Data(baseURL.utf8)
+        var result = Data()
+        var searchStart = data.startIndex
+        while let range = data.range(of: baseURLToken, in: searchStart..<data.endIndex) {
+            result.append(data[searchStart..<range.lowerBound])
+            result.append(replacement)
+            searchStart = range.upperBound
+        }
+        result.append(data[searchStart..<data.endIndex])
+        return result
+    }
+
+    // MARK: - Add-ons
+
+    private func addonFacts(for req: Request) async -> AddonFacts {
+        guard !addons.isEmpty else { return AddonFacts() }
+        if let cached = req.storage[AddonFactsKey.self] { return cached }
+        let facts = await addons.facts(
+            for: AddonRequest(
+                method: req.method.rawValue, path: req.url.path, query: extractQueryParameters(from: req),
+                headers: extractHeaders(from: req), sessionID: req.headers.first(name: "X-Mock-Session")))
+        req.storage[AddonFactsKey.self] = facts
+        logger.debug("Add-on facts for \(req.method) \(req.url.path): \(facts.values.keys.sorted())")
+        return facts
+    }
+
+    private func traceAnnotations(_ facts: AddonFacts) -> [String: [String: String]]? {
+        let annotations = addons.traceAnnotations(facts: facts)
+        return annotations.isEmpty ? nil : annotations
     }
 
     private func requestBodyString(_ req: Request) -> String? {
@@ -607,4 +721,8 @@ private struct SelectionDetail: Sendable {
 
 private struct SelectionKey: StorageKey {
     typealias Value = SelectionDetail
+}
+
+private struct AddonFactsKey: StorageKey {
+    typealias Value = AddonFacts
 }

@@ -12,6 +12,7 @@ Do not duplicate those product guides in new files unless the repo structure cha
 - This is a mono-repo with two separate products.
 - `server/` is the Swift/Vapor mock server that loads and serves `.moqproj` bundles.
 - `studio/` is the Kotlin/Compose desktop app for authoring `.moqproj` projects.
+- `clients/kotlin/` is the Kotlin/JVM test-support client (Android/JVM counterpart of `server/MoqTestSupport`), a standalone Gradle build distributed via JitPack (`jitpack.yml`). Test with `cd clients/kotlin && ./gradlew test`.
 - Shared artifact: `.moqproj` directory bundles consumed by both products.
 - If a user request is ambiguous, confirm whether the change belongs to `server/` or `studio/` before editing code.
 
