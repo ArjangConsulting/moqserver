@@ -52,7 +52,8 @@ public struct JWTClaimsAddon: MoqAddon {
         }
         guard case .object(let claims)? = fields["claims"], !claims.isEmpty else {
             diagnostics.append(
-                AddonDiagnostic(field: "claims", message: "Must be a non-empty mapping of claim name to expected value."))
+                AddonDiagnostic(
+                    field: "claims", message: "Must be a non-empty mapping of claim name to expected value."))
             return diagnostics
         }
         return diagnostics
@@ -80,7 +81,8 @@ public struct JWTClaimsAddon: MoqAddon {
         }
         if !environment.isLoopbackBind {
             logger.warning(
-                "jwt-claims accepts unverified tokens on non-loopback bind \(environment.hostname) (--allow-unverified-jwt)")
+                "jwt-claims accepts unverified tokens on non-loopback bind \(environment.hostname) (--allow-unverified-jwt)"
+            )
         }
     }
 

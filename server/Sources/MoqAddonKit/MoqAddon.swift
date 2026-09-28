@@ -125,7 +125,8 @@ public struct AddonRequest: Codable, Sendable, Equatable {
         self.method = method
         self.path = path
         self.query = query
-        self.headers = Dictionary(headers.map { ($0.key.lowercased(), $0.value) }, uniquingKeysWith: { _, last in last })
+        self.headers = Dictionary(
+            headers.map { ($0.key.lowercased(), $0.value) }, uniquingKeysWith: { _, last in last })
         self.sessionID = sessionID
     }
 
@@ -147,7 +148,8 @@ public struct AddonHTTPRequest: Codable, Sendable, Equatable {
         self.method = method
         self.path = path
         self.query = query
-        self.headers = Dictionary(headers.map { ($0.key.lowercased(), $0.value) }, uniquingKeysWith: { _, last in last })
+        self.headers = Dictionary(
+            headers.map { ($0.key.lowercased(), $0.value) }, uniquingKeysWith: { _, last in last })
         self.body = body
     }
 

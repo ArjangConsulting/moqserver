@@ -65,7 +65,8 @@ struct BaseURLTemplatingTests {
     func substitutesHost() async throws {
         let app = try await app(body: #"{"avatar":"{{baseURL}}/img/a.png","next":"{{baseURL}}/p/2"}"#)
         try await app.testing().test(.GET, "/profile", headers: ["Host": "10.0.2.2:8080"]) { res async in
-            #expect(res.body.string == #"{"avatar":"http://10.0.2.2:8080/img/a.png","next":"http://10.0.2.2:8080/p/2"}"#)
+            #expect(
+                res.body.string == #"{"avatar":"http://10.0.2.2:8080/img/a.png","next":"http://10.0.2.2:8080/p/2"}"#)
         }
         try await app.testing().test(
             .GET, "/profile",

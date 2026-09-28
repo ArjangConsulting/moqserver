@@ -304,11 +304,12 @@ public struct MockHandler: Sendable {
             try stream.validate()
             let data = responseData ?? Data()
             headers.remove(name: .contentLength)
-            body = .init(managedAsyncStream: { writer in
-                try await stream.deliver(data) { chunk in
-                    try await writer.write(.buffer(ByteBuffer(data: chunk)))
-                }
-            }, count: -1)
+            body = .init(
+                managedAsyncStream: { writer in
+                    try await stream.deliver(data) { chunk in
+                        try await writer.write(.buffer(ByteBuffer(data: chunk)))
+                    }
+                }, count: -1)
         } else if let data = responseData {
             body = .init(data: data)
         } else {

@@ -104,7 +104,10 @@ struct JWTClaimsAddonTests {
     @Test("verify_signature must be set explicitly, and to false")
     func verifySignatureRequired() {
         #expect(JWTClaimsAddon.validateConfig(.object([:])).map(\.field) == ["verify_signature"])
-        #expect(JWTClaimsAddon.validateConfig(.object(["verify_signature": .bool(true)])).map(\.field) == ["verify_signature"])
+        #expect(
+            JWTClaimsAddon.validateConfig(.object(["verify_signature": .bool(true)])).map(\.field) == [
+                "verify_signature"
+            ])
         #expect(JWTClaimsAddon.validateConfig(.null).count == 1)
         #expect(JWTClaimsAddon.validateConfig(config).isEmpty)
     }
@@ -124,7 +127,10 @@ struct JWTClaimsAddonTests {
         #expect(JWTClaimsAddon.validateMatch(.object(["claims": .object(["premium": .bool(true)])])).isEmpty)
         #expect(!JWTClaimsAddon.validateMatch(.object(["claims": .object([:])])).isEmpty)
         #expect(!JWTClaimsAddon.validateMatch(.string("premium")).isEmpty)
-        #expect(JWTClaimsAddon.validateMatch(.object(["claims": .object(["a": .int(1)]), "x": .int(1)])).map(\.field) == ["x"])
+        #expect(
+            JWTClaimsAddon.validateMatch(.object(["claims": .object(["a": .int(1)]), "x": .int(1)])).map(\.field) == [
+                "x"
+            ])
     }
 
     // MARK: - Activation (Q5: loopback only unless --allow-unverified-jwt)
