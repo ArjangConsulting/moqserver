@@ -104,4 +104,12 @@ public enum DiagnosticCode: String, Sendable, Equatable {
     case duplicateCallCount = "E_DUPLICATE_CALL_COUNT"
     case strictCallCountWithoutCallCount = "W_STRICT_CALL_COUNT_WITHOUT_CALL_COUNT"
     case noDefaultVariant = "W_NO_DEFAULT_VARIANT"
+    case invalidAddonID = "E_INVALID_ADDON_ID"
+    case unknownAddon = "E_UNKNOWN_ADDON"
+    case invalidAddonConfig = "E_INVALID_ADDON_CONFIG"
+    case addonNotEnabled = "E_ADDON_NOT_ENABLED"
+    case invalidAddonMatch = "E_INVALID_ADDON_MATCH"
+    case invalidScenario = "E_INVALID_SCENARIO"
+    case scenarioUnknownEndpoint = "E_SCENARIO_UNKNOWN_ENDPOINT"
+    case scenarioUnknownVariant = "E_SCENARIO_UNKNOWN_VARIANT"
 }

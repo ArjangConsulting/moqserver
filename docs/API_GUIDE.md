@@ -38,8 +38,11 @@ Supported `serve` flags:
 | `--hostname` | No | `127.0.0.1` | Hostname to bind to |
 | `--config` | No | — | Path to a YAML or JSON server config file |
 | `--log-level` | No | `info` | `trace`, `debug`, `info`, `notice`, `warning`, `error`, or `critical` |
+| `--require-session` | No | off | Reject mock requests without `X-Mock-Session` (`428`); see [runtime workflows](RUNTIME_WORKFLOWS.md#parallel-tests) |
+| `--capture-request-bodies` | No | `0` | Record up to N bytes of each mock request body in request history |
+| `--allow-unverified-jwt` | No | off | Let the [`jwt-claims` add-on](ADDONS.md#jwt-claims) run on a non-loopback `--hostname` |
 
-The server validates the project before binding the port. If there are validation errors it prints them and exits without starting.
+The server validates the project before binding the port. If there are validation errors it prints them and exits without starting. It then starts the add-ons the bundle enables (see [ADDONS.md](ADDONS.md)); an add-on that refuses its config or bind address also stops startup.
 
 At the default `info` level, every matched request logs one access-log line — `METHOD path → status (endpoint=... variant=...)` — so "did the app actually call this endpoint, and which variant did it get?" is answerable from the server's own output. An unmatched request logs at `warning`. Pass `--log-level debug` for finer per-request detail (request routing, variant-selection reasoning, applied delay); `--log-level warning` or higher silences the access log.
 
@@ -227,6 +230,9 @@ WWW-Authenticate: Bearer ... insufficient_scope ...
 ```
 
 ## 8. Mock OAuth Endpoints (`/_auth/*`)
+
+These endpoints are served by the always-on [`oauth-mock` add-on](ADDONS.md#oauth-mock). They are
+also available at `/_addons/oauth-mock/*`. The token endpoint reads form-urlencoded or JSON bodies.
 
 ### 8.1 POST `/_auth/token`
 

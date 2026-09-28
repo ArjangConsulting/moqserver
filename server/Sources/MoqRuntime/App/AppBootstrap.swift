@@ -1,4 +1,6 @@
 import Logging
+import MoqAddonKit
+import MoqAddons
 import MoqCore
 import Vapor
 
@@ -10,6 +12,9 @@ public func buildApp(
     config: ServerConfig? = nil,
     authValidator: (any AuthValidating)? = nil,
     requestValidator: (any RequestValidating)? = nil,
+    addons: ActiveAddons = .none,
+    requireSession: Bool = false,
+    requestBodyCaptureLimit: Int = 0,
     hostname: String = "127.0.0.1",
     port: Int = 8080
 ) async throws -> Application {
@@ -25,19 +30,28 @@ public func buildApp(
     app.middleware.use(MockErrorMiddleware())
     bootstrapLogger.debug("Registered MockErrorMiddleware")
 
+    // oauth-mock is always active (it replaced the built-in /_auth router), configured from the
+    // server config rather than the bundle, unless the caller already supplied one.
+    let addons =
+        addons[OAuthMockAddon.id] == nil
+        ? ActiveAddons(addons.addons + [OAuthMockAddon(config: config?.oauthMockConfig ?? OAuthMockConfig())])
+        : addons
+
     let handler = MockHandler(
         store: store,
         config: config,
         authValidator: authValidator,
-        requestValidator: requestValidator
+        requestValidator: requestValidator,
+        addons: addons,
+        requireSession: requireSession,
+        requestBodyCaptureLimit: requestBodyCaptureLimit
     )
 
     app.get("health") { _ async -> [String: String] in
         ["status": "ready"]
     }
 
-    let authRouter = AuthRouter(config: config)
-    authRouter.registerRoutes(on: app)
+    AddonRouter(addons: addons).registerRoutes(on: app)
 
     let adminHandler = AdminHandler(store: store, config: config)
     let adminRouter = AdminRouter(handler: adminHandler)
@@ -47,6 +61,6 @@ public func buildApp(
     let router = MockRouter(handler: handler, endpoints: endpoints)
     router.registerRoutes(on: app)
 
-    bootstrapLogger.info("App configured: auth, admin, and mock routes registered")
+    bootstrapLogger.info("App configured: auth, add-on, admin, and mock routes registered")
     return app
 }
