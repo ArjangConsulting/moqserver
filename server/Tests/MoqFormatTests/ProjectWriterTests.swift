@@ -633,12 +633,14 @@ struct ProjectWriterTests {
                     id: "me", method: "GET", path: "/me",
                     variants: [
                         ProjectVariant(name: "default", isDefault: true, status: 200),
-                        ProjectVariant(name: "premium", status: 200, requestMatch: RequestMatch(addons: ["jwt-claims": spec])),
+                        ProjectVariant(
+                            name: "premium", status: 200, requestMatch: RequestMatch(addons: ["jwt-claims": spec])),
                     ])
             ],
             projectPath: "/tmp/addons.moqproj")
 
-        let outputPath = (NSTemporaryDirectory() as NSString).appendingPathComponent("addons-\(UUID().uuidString).moqproj")
+        let outputPath = (NSTemporaryDirectory() as NSString).appendingPathComponent(
+            "addons-\(UUID().uuidString).moqproj")
         defer { try? FileManager.default.removeItem(atPath: outputPath) }
         try ProjectWriter().write(project, to: outputPath)
         let reloaded = try ProjectLoader().load(from: outputPath)
@@ -668,7 +670,8 @@ struct ProjectWriterTests {
             ],
             projectPath: "/tmp/scenarios.moqproj")
 
-        let outputPath = (NSTemporaryDirectory() as NSString).appendingPathComponent("scenarios-\(UUID().uuidString).moqproj")
+        let outputPath = (NSTemporaryDirectory() as NSString).appendingPathComponent(
+            "scenarios-\(UUID().uuidString).moqproj")
         defer { try? FileManager.default.removeItem(atPath: outputPath) }
         try ProjectWriter().write(project, to: outputPath)
         let reloaded = try ProjectLoader().load(from: outputPath)

@@ -18,7 +18,8 @@ struct OAuthMockAddonTests {
         let app = try await buildApp(store: InMemoryMockStore(), config: config)
         for path in ["/_addons/oauth-mock/token", "/_auth/token"] {
             try await app.testing().test(
-                .POST, path, headers: form, body: ByteBuffer(string: "grant_type=client_credentials&client_id=a&client_secret=b")
+                .POST, path, headers: form,
+                body: ByteBuffer(string: "grant_type=client_credentials&client_id=a&client_secret=b")
             ) { res async in
                 #expect(res.status == .ok)
                 #expect(res.headers.first(name: "Cache-Control") == "no-store")
@@ -29,7 +30,9 @@ struct OAuthMockAddonTests {
             .GET, "/_addons/oauth-mock/authorize?response_type=code&redirect_uri=http://localhost/callback&state=s1"
         ) { res async in
             #expect(res.status == .found)
-            #expect(res.headers.first(name: "Location")?.hasPrefix("http://localhost/callback?code=mock-auth-code-") == true)
+            #expect(
+                res.headers.first(name: "Location")?.hasPrefix("http://localhost/callback?code=mock-auth-code-") == true
+            )
             #expect(res.headers.first(name: "Location")?.hasSuffix("&state=s1") == true)
         }
         try await app.asyncShutdown()
@@ -69,7 +72,8 @@ struct AddonHTTPRequestTests {
         let request = AddonHTTPRequest(
             method: "POST", path: "/", headers: ["Content-Type": "application/x-www-form-urlencoded; charset=utf-8"],
             body: Data("a=1&scope=read+write&redirect_uri=http%3A%2F%2Fx%2Fcb&flag".utf8))
-        #expect(request.bodyParameters() == ["a": "1", "scope": "read write", "redirect_uri": "http://x/cb", "flag": ""])
+        #expect(
+            request.bodyParameters() == ["a": "1", "scope": "read write", "redirect_uri": "http://x/cb", "flag": ""])
     }
 
     @Test("bodyParameters keeps only string values from JSON and ignores other types")
@@ -78,7 +82,8 @@ struct AddonHTTPRequestTests {
             method: "POST", path: "/", headers: ["Content-Type": "application/json"],
             body: Data(#"{"a":"x","n":1}"#.utf8))
         #expect(json.bodyParameters() == ["a": "x"])
-        let text = AddonHTTPRequest(method: "POST", path: "/", headers: ["Content-Type": "text/plain"], body: Data("a=1".utf8))
+        let text = AddonHTTPRequest(
+            method: "POST", path: "/", headers: ["Content-Type": "text/plain"], body: Data("a=1".utf8))
         #expect(text.bodyParameters().isEmpty)
     }
 

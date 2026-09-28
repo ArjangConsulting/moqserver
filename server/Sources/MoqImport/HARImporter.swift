@@ -164,10 +164,13 @@ public enum HARImporter {
         }
 
         guard let status = response.status, validStatusRange.contains(status) else {
-            return warnAndSkip(&warnings, entryNumber, "missing or invalid HTTP status; transport failures cannot be replayed as success")
+            return warnAndSkip(
+                &warnings, entryNumber,
+                "missing or invalid HTTP status; transport failures cannot be replayed as success")
         }
         if entry._error != nil || response._capture?.isComplete == false
-            || response._capture?.isTruncated == true {
+            || response._capture?.isTruncated == true
+        {
             return warnAndSkip(&warnings, entryNumber, "incomplete or failed capture; re-capture before importing")
         }
         let sanitizedBody = responseBody(response)

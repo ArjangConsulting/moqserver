@@ -48,7 +48,8 @@ struct AddonRuntimeTests {
             Endpoint(
                 key: EndpointKey(method: .get, path: "/user-access"), authRequirement: .none,
                 variants: [
-                    ResponseVariant(name: "free", isDefault: true, statusCode: .ok, body: Data(#"{"tier":"free"}"#.utf8)),
+                    ResponseVariant(
+                        name: "free", isDefault: true, statusCode: .ok, body: Data(#"{"tier":"free"}"#.utf8)),
                     ResponseVariant(
                         name: "premium", statusCode: .ok, body: Data(#"{"tier":"premium"}"#.utf8),
                         requestMatch: RequestMatch(addons: ["jwt-claims": premiumSpec])),
@@ -143,7 +144,8 @@ struct AddonRuntimeTests {
 
     @Test("Add-on routes are mounted under /_addons/<id>/")
     func addonRoutes() async throws {
-        let app = try await buildApp(store: await store(), addons: ActiveAddons([try EchoAddon(config: .null, environment: AddonEnvironment())]))
+        let app = try await buildApp(
+            store: await store(), addons: ActiveAddons([try EchoAddon(config: .null, environment: AddonEnvironment())]))
         try await app.testing().test(
             .POST, "/_addons/echo/echo/hello?q=1",
             beforeRequest: { req async throws in req.body = ByteBuffer(string: "payload") },

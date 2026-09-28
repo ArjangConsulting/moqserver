@@ -34,9 +34,11 @@ struct ProjectValidatorTests {
 
     @Test("Rejects invalid streams constructed through the authoring API")
     func rejectsInvalidStream() {
-        let project = makeProject(endpoints: [sampleEndpoint(variants: [
-            ProjectVariant(name: "invalid", status: 200, stream: ResponseStream(chunkBytes: 0))
-        ])])
+        let project = makeProject(endpoints: [
+            sampleEndpoint(variants: [
+                ProjectVariant(name: "invalid", status: 200, stream: ResponseStream(chunkBytes: 0))
+            ])
+        ])
         #expect(validator.validate(project).contains { $0.code == .invalidStream })
     }
 
@@ -167,7 +169,10 @@ struct ProjectValidatorTests {
         ])
 
         let errors = validator.validate(project).filter { $0.severity == .error }
-        #expect(errors.contains { $0.message.contains("request_match must define query, headers, body_contains, or addons") })
+        #expect(
+            errors.contains {
+                $0.message.contains("request_match must define query, headers, body_contains, or addons")
+            })
     }
 
     @Test("Rejects blank query and header names in variant request_match")
@@ -529,7 +534,8 @@ struct ProjectValidatorTests {
 
     @Test("Reports an invalid add-on match spec")
     func rejectsInvalidMatchSpec() {
-        let project = addonProject(addons: ["jwt-claims": jwtConfig], match: ["jwt-claims": .object(["claims": .object([:])])])
+        let project = addonProject(
+            addons: ["jwt-claims": jwtConfig], match: ["jwt-claims": .object(["claims": .object([:])])])
         let errors = validator.validate(project).filter { $0.code == .invalidAddonMatch }
         #expect(errors.map(\.field) == ["variants[1].request_match.addons.jwt-claims.claims"])
     }

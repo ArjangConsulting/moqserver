@@ -212,13 +212,13 @@ public struct ProjectValidator: ProjectValidating {
                 }
 
                 if let stream = variant.stream {
-                    do { try stream.validate() }
-                    catch {
-                        diagnostics.append(.init(
-                            severity: .error, message: "Invalid response stream configuration.",
-                            file: fileName, field: "\(variantField).stream", code: .invalidStream,
-                            endpointID: endpoint.id, variantName: variant.name
-                        ))
+                    do { try stream.validate() } catch {
+                        diagnostics.append(
+                            .init(
+                                severity: .error, message: "Invalid response stream configuration.",
+                                file: fileName, field: "\(variantField).stream", code: .invalidStream,
+                                endpointID: endpoint.id, variantName: variant.name
+                            ))
                     }
                 }
                 if let delayMs = variant.delayMs, delayMs < 0 {
@@ -644,7 +644,9 @@ public struct ProjectValidator: ProjectValidating {
                                 + "scenarios address routes, and operations sharing a route are not addressable.",
                             file: "project.yml", field: variantField, code: .invalidScenario,
                             endpointID: endpointID))
-                } else if !endpoint.variants.contains(where: { $0.name == variantName || $0.referenceName == variantName }) {
+                } else if !endpoint.variants.contains(where: {
+                    $0.name == variantName || $0.referenceName == variantName
+                }) {
                     let available = endpoint.variants.map(\.name).joined(separator: ", ")
                     diagnostics.append(
                         .init(

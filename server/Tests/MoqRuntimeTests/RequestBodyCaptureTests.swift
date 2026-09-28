@@ -35,7 +35,9 @@ struct RequestBodyCaptureTests {
         try await app.testing().test(.POST, "/missing", body: ByteBuffer(string: "short")) { _ async in }
 
         let sessionRow = try #require(await store.runtimeSession(id)?.recentRequests().first)
-        #expect(sessionRow.requestBody == CapturedBody(value: #"{"action":"trans"#, encoding: .utf8, size: 38, truncated: true))
+        #expect(
+            sessionRow.requestBody
+                == CapturedBody(value: #"{"action":"trans"#, encoding: .utf8, size: 38, truncated: true))
         #expect(await store.recentRequests().first?.requestBody?.value == "short")
         try await app.asyncShutdown()
     }
@@ -43,8 +45,12 @@ struct RequestBodyCaptureTests {
     @Test("A cut inside a UTF-8 character backs off; binary bodies are base64")
     func encodingRules() {
         let accented = Data("aé".utf8)  // 3 bytes: 61 C3 A9
-        #expect(CapturedBody.capture(accented, limit: 2) == CapturedBody(value: "a", encoding: .utf8, size: 3, truncated: true))
+        #expect(
+            CapturedBody.capture(accented, limit: 2)
+                == CapturedBody(value: "a", encoding: .utf8, size: 3, truncated: true))
         let binary = Data([0xFF, 0xFE, 0x00, 0x01])
-        #expect(CapturedBody.capture(binary, limit: 10) == CapturedBody(value: "//4AAQ==", encoding: .base64, size: 4, truncated: false))
+        #expect(
+            CapturedBody.capture(binary, limit: 10)
+                == CapturedBody(value: "//4AAQ==", encoding: .base64, size: 4, truncated: false))
     }
 }

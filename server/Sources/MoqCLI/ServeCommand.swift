@@ -157,7 +157,8 @@ public struct ServeCommand: AsyncParsableCommand {
             }
             return addons
         } catch let error as AddonActivationError {
-            logger.error("Add-on activation failed", metadata: ["addon": "\(error.addonID)", "error": "\(error.message)"])
+            logger.error(
+                "Add-on activation failed", metadata: ["addon": "\(error.addonID)", "error": "\(error.message)"])
             print("Aborting: \(error)")
             throw ExitCode.failure
         }
