@@ -13,7 +13,7 @@ snakeyaml = "3.2"
 swagger-parser = "2.1.48"
 slf4j = "2.0.20"
 detekt = "1.23.8"
-kover = "0.9.9"
+kover = "0.9.11"
 
 [libraries]
 coroutines-core = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-core", version.ref = "coroutines" }
