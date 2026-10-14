@@ -3,7 +3,7 @@
 // nothing but this library and kotlinx-serialization. Distributed through JitPack by commit SHA;
 // see README.md and ../../jitpack.yml.
 plugins {
-    kotlin("jvm") version "2.4.20"
+    kotlin("jvm") version "2.4.21"
     kotlin("plugin.serialization") version "2.4.20"
     `java-library`
     `maven-publish`
