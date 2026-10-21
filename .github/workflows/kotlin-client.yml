@@ -1,11 +1,7 @@
 name: Kotlin client
 
 on:
-  pull_request:
-    paths:
-      - ".github/workflows/kotlin-client.yml"
-      - "clients/kotlin/**"
-      - "jitpack.yml"
+  workflow_call:
   push:
     branches:
       - main

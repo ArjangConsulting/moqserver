@@ -1,13 +1,7 @@
 name: Project Format
 
 on:
-  pull_request:
-    paths:
-      - ".github/workflows/format.yml"
-      - "format/**"
-      - "samples/server/**"
-      - "server/**"
-      - "studio/studio-project-format/**"
+  workflow_call:
   push:
     branches: [main]
     paths:

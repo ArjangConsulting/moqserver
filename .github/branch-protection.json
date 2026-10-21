@@ -1,0 +1,12 @@
+{
+  "required_status_checks": {
+    "strict": true,
+    "checks": [
+      { "context": "Required CI", "app_id": 15368 },
+      { "context": "dependency-review", "app_id": 15368 }
+    ]
+  },
+  "enforce_admins": false,
+  "required_pull_request_reviews": null,
+  "restrictions": null
+}

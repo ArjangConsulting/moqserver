@@ -1,12 +1,7 @@
 name: Studio
 
 on:
-  pull_request:
-    paths:
-      - ".github/workflows/studio.yml"
-      - "studio/**"
-      - "format/**"
-      - "server/**"
+  workflow_call:
   push:
     branches:
       - main

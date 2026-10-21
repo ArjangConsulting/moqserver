@@ -1,0 +1,97 @@
+name: CI
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  changes:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      server: ${{ steps.filter.outputs.server }}
+      studio: ${{ steps.filter.outputs.studio }}
+      kotlin-client: ${{ steps.filter.outputs.kotlin-client }}
+      samples: ${{ steps.filter.outputs.samples }}
+      format: ${{ steps.filter.outputs.format }}
+    steps:
+      - uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d
+        id: filter
+        with:
+          filters: |
+            server:
+              - '.github/workflows/**'
+              - 'server/**'
+              - 'format/**'
+              - 'samples/server/**'
+              - 'Makefile'
+              - 'scripts/test_author_cli.py'
+              - 'scripts/test_support_consumer.py'
+            studio:
+              - '.github/workflows/**'
+              - 'studio/**'
+              - 'format/**'
+              - 'server/**'
+            kotlin-client:
+              - '.github/workflows/**'
+              - 'clients/kotlin/**'
+              - 'jitpack.yml'
+            samples:
+              - '.github/workflows/**'
+              - 'samples/android/**'
+              - 'samples/ios/**'
+            format:
+              - '.github/workflows/**'
+              - 'format/**'
+              - 'samples/server/**'
+              - 'server/**'
+              - 'studio/studio-project-format/**'
+
+  server:
+    needs: changes
+    if: needs.changes.outputs.server == 'true'
+    uses: ./.github/workflows/server.yml
+
+  studio:
+    needs: changes
+    if: needs.changes.outputs.studio == 'true'
+    uses: ./.github/workflows/studio.yml
+
+  kotlin-client:
+    needs: changes
+    if: needs.changes.outputs.kotlin-client == 'true'
+    uses: ./.github/workflows/kotlin-client.yml
+
+  samples:
+    needs: changes
+    if: needs.changes.outputs.samples == 'true'
+    uses: ./.github/workflows/samples.yml
+
+  format:
+    needs: changes
+    if: needs.changes.outputs.format == 'true'
+    uses: ./.github/workflows/format.yml
+
+  required:
+    name: Required CI
+    if: ${{ always() }}
+    needs: [changes, server, studio, kotlin-client, samples, format]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require successful checks for affected products
+        env:
+          NEEDS: ${{ toJSON(needs) }}
+        run: |
+          echo "$NEEDS" | jq -e '
+            . as $needs | .changes.result == "success" and
+            ([to_entries[] | select(.key != "changes") | . as $job |
+              if $needs.changes.outputs[$job.key] == "true" then
+                $job.value.result == "success"
+              else
+                $job.value.result == "skipped"
+              end] | all)
+          '
