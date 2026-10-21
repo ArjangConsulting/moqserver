@@ -155,7 +155,7 @@ jobs:
       - uses: actions/attest@v4.2.2
         with:
           subject-path: ${{ env.archive }}
-      - uses: actions/upload-artifact@v7.0.1
+      - uses: actions/upload-artifact@v7.0.2
         with:
           name: server-${{ matrix.suffix }}
           path: |
@@ -217,7 +217,7 @@ jobs:
       - uses: actions/attest@v4.2.2
         with:
           subject-path: ${{ env.archive }}
-      - uses: actions/upload-artifact@v7.0.1
+      - uses: actions/upload-artifact@v7.0.2
         with:
           name: mcp-${{ matrix.suffix }}
           path: |
@@ -280,7 +280,7 @@ jobs:
       - uses: actions/attest@v4.2.2
         with:
           subject-path: ${{ env.archive }}
-      - uses: actions/upload-artifact@v7.0.1
+      - uses: actions/upload-artifact@v7.0.2
         with:
           name: author-${{ matrix.suffix }}
           path: |
@@ -350,7 +350,7 @@ jobs:
       - uses: actions/attest@v4.2.2
         with:
           subject-path: studio/composeApp/build/compose/binaries/main/dmg/*.dmg
-      - uses: actions/upload-artifact@v7.0.1
+      - uses: actions/upload-artifact@v7.0.2
         with:
           name: studio-macos
           path: studio/composeApp/build/compose/binaries/main/dmg/*
@@ -404,7 +404,7 @@ jobs:
       - uses: actions/attest@v4.2.2
         with:
           subject-path: studio/composeApp/build/compose/binaries/main/deb/*.deb
-      - uses: actions/upload-artifact@v7.0.1
+      - uses: actions/upload-artifact@v7.0.2
         with:
           name: studio-linux
           path: studio/composeApp/build/compose/binaries/main/deb/*
@@ -469,7 +469,7 @@ jobs:
       - uses: actions/attest@v4.2.2
         with:
           subject-path: ${{ env.archive }}
-      - uses: actions/upload-artifact@v7.0.1
+      - uses: actions/upload-artifact@v7.0.2
         with:
           name: format-${{ matrix.suffix }}
           path: |
@@ -488,7 +488,7 @@ jobs:
           format: cyclonedx-json
           output-file: moqserver-${{ needs.preflight.outputs.version }}-sbom.cdx.json
           upload-artifact: false
-      - uses: actions/upload-artifact@v7.0.1
+      - uses: actions/upload-artifact@v7.0.2
         with:
           name: sbom
           path: moqserver-${{ needs.preflight.outputs.version }}-sbom.cdx.json

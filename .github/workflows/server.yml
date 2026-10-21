@@ -84,7 +84,7 @@ jobs:
 
       - name: Upload Server coverage
         if: ${{ matrix.os == 'ubuntu-latest' }}
-        uses: actions/upload-artifact@v7.0.1
+        uses: actions/upload-artifact@v7.0.2
         with:
           name: server-coverage
           path: server/.build/debug/codecov/moqserver.json
