@@ -1,15 +1,7 @@
 name: Server
 
 on:
-  pull_request:
-    paths:
-      - ".github/workflows/server.yml"
-      - "server/**"
-      - "format/**"
-      - "samples/server/**"
-      - "Makefile"
-      - "scripts/test_author_cli.py"
-      - "scripts/test_support_consumer.py"
+  workflow_call:
   push:
     branches:
       - main
