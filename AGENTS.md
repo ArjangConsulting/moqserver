@@ -42,7 +42,7 @@ Do not duplicate those product guides in new files unless the repo structure cha
 - Shared format CI is defined in `.github/workflows/format.yml`; security automation is in `.github/workflows/security.yml` and `.github/dependabot.yml`.
 - Pull request CI is coordinated by `.github/workflows/ci.yml`; its `Required CI` check waits for the affected product workflows. Keep path filters there when adding or changing product checks.
 - Dependabot auto-merge is defined in `.github/workflows/dependabot-auto-merge.yml` and includes major updates. It relies on the required checks in `.github/branch-protection.json`.
-- Apply the tracked branch protection settings with `gh api --method PUT repos/ArjangConsulting/moqserver/branches/main/protection --input .github/branch-protection.json` after the CI gate is available on `main`.
+- Apply the tracked branch protection settings with `gh api --method PUT repos/ArjangConsulting/moqserver/branches/main/protection --input .github/branch-protection.json`. Older PRs must update their branches to receive the `Required CI` check.
 
 ## Common Commands
 - Run all commands from the repo root unless noted otherwise.
