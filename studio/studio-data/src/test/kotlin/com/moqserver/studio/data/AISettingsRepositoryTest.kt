@@ -1,5 +1,6 @@
 package com.moqserver.studio.data
 
+import com.maniramezan.credentialkeychain.KeychainUnavailableException
 import com.moqserver.studio.domain.VariantReferenceSyncPreference
 import java.io.File
 import kotlin.test.Test
@@ -164,7 +165,7 @@ private class UnavailableCredentialStore : SecureCredentialStore {
 
     override fun write(key: String, value: String) {
         if (value.isBlank()) return
-        throw SecureStorageUnavailableException("TestOS")
+        throw KeychainUnavailableException(KeychainUnavailableException.Reason.Unsupported, "TestOS")
     }
 
     override fun delete(key: String) = Unit

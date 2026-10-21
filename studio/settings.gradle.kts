@@ -19,7 +19,10 @@ dependencyResolutionManagement {
     repositories {
         google()
         mavenCentral()
-        maven("https://jitpack.io")
+        maven("https://jitpack.io") {
+            // JitPack builds io.github.<user> groups from GitHub sources; these libraries publish to Maven Central only.
+            content { excludeGroupByRegex("io\\.github\\.maniramezan.*") }
+        }
     }
 }
 
