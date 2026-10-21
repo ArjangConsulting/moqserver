@@ -1,5 +1,6 @@
 package com.moqserver.studio.data
 
+import com.maniramezan.credentialkeychain.KeychainUnavailableException
 import com.moqserver.studio.logging.loggerFor
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
@@ -125,11 +126,13 @@ class AISettingsRepository(
             } else {
                 credentialStore.write(credentialKey, value)
             }
-        } catch (e: SecureStorageUnavailableException) {
-            throw IllegalStateException(
-                "API keys cannot be saved because secure credential storage is unavailable. ${e.message}",
-                e,
-            )
+        } catch (e: KeychainUnavailableException) {
+            val message = if (e.reason == KeychainUnavailableException.Reason.Unsupported) {
+                "API keys cannot be saved because secure credential storage is unavailable. ${e.message}"
+            } else {
+                "Failed to save secure credential '$credentialKey': ${e.message}"
+            }
+            throw IllegalStateException(message, e)
         } catch (e: Exception) {
             throw IllegalStateException("Failed to save secure credential '$credentialKey': ${e.message}", e)
         }

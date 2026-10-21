@@ -7,6 +7,7 @@ dependencies {
     implementation(projects.studioDomain)
     implementation(projects.studioLogging)
     implementation(projects.studioProjectFormat)
+    implementation(libs.credential.keychain)
     implementation(libs.kotlinx.serialization.json)
     implementation(libs.ktor.client.cio)
     implementation(libs.ktor.client.content.negotiation)
