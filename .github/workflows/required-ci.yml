@@ -1,0 +1,44 @@
+name: Required CI
+
+on:
+  pull_request:
+
+permissions:
+  actions: read
+  contents: read
+
+concurrency:
+  group: required-ci-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  required-ci:
+    name: Required CI
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - name: Wait for applicable PR workflows
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          sleep 20
+          for attempt in $(seq 1 180); do
+            runs=$(gh api --paginate --slurp "repos/$GH_REPO/actions/runs?head_sha=$HEAD_SHA&event=pull_request&per_page=100" \
+              --jq '[.[].workflow_runs[] | select(.name != "Required CI")] | sort_by(.id) | group_by(.workflow_id) | map(max_by(.id))')
+            if jq -e 'length > 0 and any(.[]; .name == "Security") and all(.[]; .status == "completed" and .conclusion == "success")' <<< "$runs" > /dev/null; then
+              echo "All applicable PR workflows passed."
+              exit 0
+            fi
+            if jq -e 'any(.[]; .status == "completed" and .conclusion != "success")' <<< "$runs" > /dev/null; then
+              jq -r '.[] | select(.status == "completed" and .conclusion != "success") | "\(.name): \(.conclusion) \(.html_url)"' <<< "$runs"
+              exit 1
+            fi
+            echo "Waiting for PR workflows ($attempt/180)."
+            sleep 10
+          done
+          echo "Timed out waiting for PR workflows."
+          exit 1
