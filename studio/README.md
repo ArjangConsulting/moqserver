@@ -104,7 +104,6 @@ The repository root contains other products and tooling, so Studio-specific Inte
 - `studio-domain` — shared state, DTOs, and app workflow logic
 - `studio-data` — local settings/credential adapters plus OpenAPI/HAR import adapters
 - `studio-ai` — provider abstractions, prompt building, and direct AI integrations
-- `studio-code-editor` — Swing-backed JSON/YAML editor wrappers
 - `studio-logging` — logging helpers
 
 ## Local skills

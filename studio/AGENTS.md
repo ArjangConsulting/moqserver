@@ -14,7 +14,7 @@ Canonical note: This is the single source of truth for AI agent guidance for **S
 - Data/adapters boundary: `studio-data/` owns settings/credential adapters only. Import parsing is delegated to Swift `MoqImport` through `moq-format`.
 
 ## Module Boundaries You Should Preserve
-- `composeApp -> studio-domain + studio-project-format + studio-data + studio-ai + studio-ui + studio-code-editor + studio-logging`.
+- `composeApp -> studio-domain + studio-project-format + studio-data + studio-ai + studio-ui + studio-logging`.
 - `studio-domain` stays pure workflow logic (no desktop/Compose/IO concerns). Owns `ImportModels`, `ImportConverter`, and `VariantReferenceSyncPreference`.
 - `studio-data` owns settings/preferences repositories only (no import parsers).
 - `studio-import` was removed. `RemoteImportParsing` adapts the format service's parsed specs for domain import review.

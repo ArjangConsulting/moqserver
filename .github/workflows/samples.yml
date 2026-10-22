@@ -1,11 +1,7 @@
 name: Mobile Samples
 
 on:
-  pull_request:
-    paths:
-      - ".github/workflows/samples.yml"
-      - "samples/android/**"
-      - "samples/ios/**"
+  workflow_call:
   push:
     branches: [main]
     paths:

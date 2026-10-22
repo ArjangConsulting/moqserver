@@ -2,7 +2,7 @@ name: Dependabot auto-merge
 
 on:
   workflow_run:
-    workflows: ["Project Format", "Kotlin client", "Mobile Samples", "Security", "Server", "Studio", "Required CI"]
+    workflows: ["CI", "Security"]
     types: [completed]
   workflow_dispatch:
 
@@ -29,7 +29,7 @@ jobs:
           GH_REPO: ${{ github.repository }}
           DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
           REQUIRE_APPROVAL: "false"
-          REQUIRED_WORKFLOWS: '["Security", "Required CI"]'
+          REQUIRED_WORKFLOWS: '["Security", "CI"]'
         shell: bash
         run: |
           set -euo pipefail

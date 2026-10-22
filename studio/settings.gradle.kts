@@ -19,7 +19,10 @@ dependencyResolutionManagement {
     repositories {
         google()
         mavenCentral()
-        maven("https://jitpack.io")
+        maven("https://jitpack.io") {
+            // JitPack builds io.github.<user> groups from GitHub sources; these libraries publish to Maven Central only.
+            content { excludeGroupByRegex("io\\.github\\.maniramezan.*") }
+        }
     }
 }
 
@@ -29,12 +32,14 @@ if (providers.gradleProperty("useLocalCompositeBuilds").orNull != "false" && fil
 if (providers.gradleProperty("useLocalCompositeBuilds").orNull != "false" && file("../../kenwork/settings.gradle.kts").isFile) {
 	includeBuild("../../kenwork")
 }
+if (providers.gradleProperty("useLocalCompositeBuilds").orNull != "false" && file("../../kmp-code-editor/settings.gradle.kts").isFile) {
+	includeBuild("../../kmp-code-editor")
+}
 
 include(":composeApp")
 include(":studio-ai")
 include(":studio-domain")
 include(":studio-data")
-include(":studio-code-editor")
 include(":studio-export")
 include(":studio-logging")
 include(":studio-project-format")
