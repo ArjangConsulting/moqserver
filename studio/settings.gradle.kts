@@ -32,7 +32,10 @@ if (providers.gradleProperty("useLocalCompositeBuilds").orNull != "false" && fil
 if (providers.gradleProperty("useLocalCompositeBuilds").orNull != "false" && file("../../kenwork/settings.gradle.kts").isFile) {
 	includeBuild("../../kenwork")
 }
-if (providers.gradleProperty("useLocalCompositeBuilds").orNull != "false" && file("../../kmp-code-editor/settings.gradle.kts").isFile) {
+val codeEditorCompositeBuild = providers.gradleProperty("codeEditorCompositeBuild").orNull
+if (codeEditorCompositeBuild != null) {
+	includeBuild(codeEditorCompositeBuild)
+} else if (providers.gradleProperty("useLocalCompositeBuilds").orNull != "false" && file("../../kmp-code-editor/settings.gradle.kts").isFile) {
 	includeBuild("../../kmp-code-editor")
 }
 

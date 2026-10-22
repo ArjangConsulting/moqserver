@@ -1,22 +1,32 @@
 version: 2
+multi-ecosystem-groups:
+  dependencies:
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 1
 updates:
   - package-ecosystem: github-actions
     directory: /
-    schedule:
-      interval: weekly
+    patterns:
+      - '*'
+    multi-ecosystem-group: dependencies
   - package-ecosystem: swift
     directory: /server
-    schedule:
-      interval: weekly
+    patterns:
+      - '*'
+    multi-ecosystem-group: dependencies
   - package-ecosystem: gradle
     directory: /studio
-    schedule:
-      interval: weekly
+    patterns:
+      - '*'
+    multi-ecosystem-group: dependencies
   - package-ecosystem: gradle
     directory: /samples/android
-    schedule:
-      interval: weekly
+    patterns:
+      - '*'
+    multi-ecosystem-group: dependencies
   - package-ecosystem: gradle
     directory: /clients/kotlin
-    schedule:
-      interval: weekly
+    patterns:
+      - '*'
+    multi-ecosystem-group: dependencies
