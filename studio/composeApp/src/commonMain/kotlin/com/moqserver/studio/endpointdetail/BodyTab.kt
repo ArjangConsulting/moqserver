@@ -18,10 +18,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
+import com.arjangconsulting.codeeditor.CodeEditor
+import com.arjangconsulting.codeeditor.CodeEditorDefaults
+import com.arjangconsulting.codeeditor.CodeEditorLabels
+import com.arjangconsulting.codeeditor.JsonRules
 import com.moqserver.studio.designsystem.StudioColors
 import com.moqserver.studio.designsystem.StudioDimens
-import com.moqserver.studio.designsystem.toAwtColor
-import com.moqserver.studio.editor.JsonCodeEditor
 import com.moqserver.studio.projectformat.ProjectVariant
 import com.moqserver.studio.ui.*
 
@@ -50,8 +52,6 @@ private object BodyTabStrings {
 private val bodyPanelColor = StudioColors.editorPanelBackground.copy(alpha = 0.97f)
 private val bodyPanelBorderColor = StudioColors.editorPanelBorder
 private val bodyPanelContentColor = StudioColors.editorPanelContent
-private val bodyEditorBackgroundColor = StudioColors.editorPanelBackground.toAwtColor()
-private val bodyEditorForegroundColor = StudioColors.editorPanelContent.toAwtColor()
 
 @Composable
 internal fun BodyTab(
@@ -354,16 +354,21 @@ private fun BodyEditorPanel(
 			} else {
 				when (selectedFormat) {
 					BodyFormat.JSON -> {
-						JsonCodeEditor(
-							text = currentText,
-							onTextChange = {},
+						CodeEditor(
+							value = currentText,
+							onValueChange = {},
 							readOnly = true,
+							language = JsonRules,
 							modifier = Modifier
 								.fillMaxWidth()
 								.height(280.dp)
 								.padding(top = StudioDimens.xxs, start = StudioDimens.s, end = StudioDimens.xs, bottom = StudioDimens.xs),
-							backgroundColor = bodyEditorBackgroundColor,
-							foregroundColor = bodyEditorForegroundColor,
+							colors = CodeEditorDefaults.colors().copy(
+								background = StudioColors.editorPanelBackground,
+								foreground = StudioColors.editorPanelContent,
+								gutterBackground = StudioColors.editorPanelBackground,
+							),
+							labels = CodeEditorLabels(editorDescription = "Response body"),
 						)
 					}
 					BodyFormat.RAW -> {
