@@ -56,7 +56,7 @@ kotlin {
                 implementation(projects.studioData)
                 implementation(projects.studioExport)
                 implementation(projects.studioProjectFormat)
-                implementation(projects.studioCodeEditor)
+                implementation(libs.kmp.code.editor)
                 implementation(projects.studioLogging)
                 implementation(projects.studioUi)
                 implementation(compose.desktop.currentOs)
