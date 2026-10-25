@@ -1,15 +1,23 @@
 package com.moqserver.studio.data
 
+import io.github.maniramezan.testcommons.TemporaryDirectory
 import java.io.File
+import kotlin.test.AfterTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 class ImportHistoryRepositoryTest {
+	private val temporaryDirectory = TemporaryDirectory("import-history-test")
+
+	@AfterTest
+	fun tearDown() {
+		temporaryDirectory.remove()
+	}
 
 	private fun makeRepo(): Pair<ImportHistoryRepository, File> {
-		val dir = createTempDir("import-history-test")
+		val dir = File(temporaryDirectory.file, "history")
 		return ImportHistoryRepository(historyDir = dir) to dir
 	}
 
@@ -17,22 +25,20 @@ class ImportHistoryRepositoryTest {
 
 	@Test
 	fun `loadDeselected returns empty set when no history file exists`() {
-		val (repo, dir) = makeRepo()
+		val (repo, _) = makeRepo()
 		val result = repo.loadDeselected("/tmp/myproject.moqproj")
 		assertEquals(emptySet(), result)
-		dir.deleteRecursively()
 	}
 
 	@Test
 	fun `loadDeselected returns saved IDs for the given project path`() {
-		val (repo, dir) = makeRepo()
+		val (repo, _) = makeRepo()
 		val ids = setOf("get-users", "post-items")
 		repo.saveDeselected("/tmp/myproject.moqproj", ids)
 
 		val result = repo.loadDeselected("/tmp/myproject.moqproj")
 
 		assertEquals(ids, result)
-		dir.deleteRecursively()
 	}
 
 	@Test
@@ -51,21 +57,19 @@ class ImportHistoryRepositoryTest {
 		val result = repo.loadDeselected("/tmp/myproject.moqproj")
 
 		assertEquals(emptySet(), result)
-		dir.deleteRecursively()
 	}
 
 	// ---------- saveDeselected ----------
 
 	@Test
 	fun `saveDeselected persists IDs and round-trips through loadDeselected`() {
-		val (repo, dir) = makeRepo()
+		val (repo, _) = makeRepo()
 		val ids = setOf("delete-item-param", "patch-users-param")
 
 		repo.saveDeselected("/tmp/project.moqproj", ids)
 		val loaded = repo.loadDeselected("/tmp/project.moqproj")
 
 		assertEquals(ids, loaded)
-		dir.deleteRecursively()
 	}
 
 	@Test
@@ -77,12 +81,11 @@ class ImportHistoryRepositoryTest {
 		repo.saveDeselected("/tmp/project.moqproj", emptySet())
 
 		assertFalse(dir.listFiles()?.any { it.name.endsWith(".json") } == true, "File should be deleted when set is empty")
-		dir.deleteRecursively()
 	}
 
 	@Test
 	fun `saveDeselected creates parent directory if it does not exist`() {
-		val base = createTempDir("import-history-parent")
+		val base = temporaryDirectory.file
 		val nestedDir = File(base, "nested/subdir")
 		assertFalse(nestedDir.exists())
 
@@ -90,7 +93,6 @@ class ImportHistoryRepositoryTest {
 		repo.saveDeselected("/tmp/proj.moqproj", setOf("get-items"))
 
 		assertTrue(nestedDir.exists(), "Directory should be created by save")
-		base.deleteRecursively()
 	}
 
 	@Test
@@ -110,45 +112,35 @@ class ImportHistoryRepositoryTest {
 		val mIndex = content.indexOf("m-endpoint")
 		val zIndex = content.indexOf("z-endpoint")
 		assertTrue(aIndex < mIndex && mIndex < zIndex, "IDs should be stored in sorted order")
-		dir.deleteRecursively()
 	}
 
 	// ---------- project path isolation ----------
 
 	@Test
 	fun `different project paths use separate history files`() {
-		val (repo, dir) = makeRepo()
+		val (repo, _) = makeRepo()
 
 		repo.saveDeselected("/tmp/project-a.moqproj", setOf("get-items"))
 		repo.saveDeselected("/tmp/project-b.moqproj", setOf("post-users"))
 
 		assertEquals(setOf("get-items"), repo.loadDeselected("/tmp/project-a.moqproj"))
 		assertEquals(setOf("post-users"), repo.loadDeselected("/tmp/project-b.moqproj"))
-		dir.deleteRecursively()
 	}
 
 	// ---------- path slug edge cases ----------
 
 	@Test
 	fun `loadDeselected handles paths with special characters without throwing`() {
-		val (repo, dir) = makeRepo()
+		val (repo, _) = makeRepo()
 		// Paths with spaces, colons, slashes — all should produce a safe file name
 		val result = repo.loadDeselected("/Users/a b/my project: (dev).moqproj")
 		assertEquals(emptySet(), result)
-		dir.deleteRecursively()
 	}
 
 	@Test
 	fun `loadDeselected with empty path string does not throw`() {
-		val (repo, dir) = makeRepo()
+		val (repo, _) = makeRepo()
 		val result = repo.loadDeselected("")
 		assertEquals(emptySet(), result)
-		dir.deleteRecursively()
 	}
 }
-
-private fun createTempDir(prefix: String): File =
-	File.createTempFile(prefix, null).also {
-		it.delete()
-		it.mkdir()
-	}

@@ -9,6 +9,7 @@ import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
+import io.github.maniramezan.kmpcomponents.KmpTheme
 import io.github.maniramezan.kmpcomponents.ThemeMode
 import io.github.maniramezan.kmpcomponents.isDark
 
@@ -24,7 +25,7 @@ internal fun resolveDarkTheme(
 	systemInDarkTheme: Boolean,
 ): Boolean = themeMode.toSharedThemeMode().isDark(systemInDarkTheme)
 
-private fun StudioThemeMode.toSharedThemeMode(): ThemeMode = when (this) {
+fun StudioThemeMode.toSharedThemeMode(): ThemeMode = when (this) {
 	StudioThemeMode.SYSTEM -> ThemeMode.SYSTEM
 	StudioThemeMode.LIGHT -> ThemeMode.LIGHT
 	StudioThemeMode.DARK -> ThemeMode.DARK
@@ -55,16 +56,27 @@ fun StudioTheme(
 		systemInDarkTheme = isSystemInDarkTheme(),
 	)
 
-	MaterialTheme(
-		colorScheme = if (darkTheme) studioDarkColors() else studioLightColors(),
-		typography = studioTypography(),
-		content = content,
-	)
+	KmpTheme(mode = themeMode.toSharedThemeMode(), tokens = studioThemeTokens) {
+		val brandColors = if (darkTheme) studioDarkColors() else studioLightColors()
+		val sharedColors = MaterialTheme.colorScheme
+		MaterialTheme(
+			colorScheme = brandColors.copy(
+				outlineVariant = sharedColors.outlineVariant,
+				surfaceContainerLowest = sharedColors.surfaceContainerLowest,
+				surfaceContainerLow = sharedColors.surfaceContainerLow,
+				surfaceContainer = sharedColors.surfaceContainer,
+				surfaceContainerHigh = sharedColors.surfaceContainerHigh,
+				surfaceContainerHighest = sharedColors.surfaceContainerHighest,
+			),
+			typography = studioTypography(),
+			content = content,
+		)
+	}
 }
 
 // ── Light color scheme ─────────────────────────────────────
 
-private fun studioLightColors(): ColorScheme = lightColorScheme(
+internal fun studioLightColors(): ColorScheme = lightColorScheme(
 	primary = Color(0xFF1F5EFF),
 	onPrimary = Color.White,
 	primaryContainer = Color(0xFFDDE5FF),
@@ -92,7 +104,11 @@ private fun studioLightColors(): ColorScheme = lightColorScheme(
 
 // ── Dark color scheme ──────────────────────────────────────
 
-private fun studioDarkColors(): ColorScheme = darkColorScheme(
+/**
+ * Studio's dark color scheme. Also used on its own for surfaces that stay dark in every theme, such
+ * as the code panels drawn on [StudioColors.editorPanelBackground].
+ */
+fun studioDarkColors(): ColorScheme = darkColorScheme(
 	primary = Color(0xFFB3C5FF),
 	onPrimary = Color(0xFF002A78),
 	primaryContainer = Color(0xFF24438F),

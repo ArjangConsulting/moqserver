@@ -39,6 +39,7 @@ kotlin {
                 implementation(projects.studioProjectFormat)
                 implementation(libs.compose.runtime)
                 implementation(libs.compose.foundation)
+                implementation(libs.kmp.components)
                 implementation(compose.material3)
                 implementation(libs.compose.material.icons.extended)
                 implementation(libs.compose.ui)
@@ -69,6 +70,7 @@ kotlin {
         val desktopTest by getting {
             dependencies {
                 implementation(kotlin("test"))
+                implementation(libs.testcommons.compose)
             }
         }
     }

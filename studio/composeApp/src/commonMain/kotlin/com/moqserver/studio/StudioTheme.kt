@@ -22,9 +22,6 @@ typealias StudioDimens = com.moqserver.studio.designsystem.StudioDimens
 /** @see com.moqserver.studio.designsystem.StudioTypography */
 typealias StudioTypography = com.moqserver.studio.designsystem.StudioTypography
 
-/** @see com.moqserver.studio.designsystem.StudioShapes */
-typealias StudioShapes = com.moqserver.studio.designsystem.StudioShapes
-
 /** @see com.moqserver.studio.designsystem.StudioThemeMode */
 typealias StudioThemeMode = DesignSystemThemeMode
 

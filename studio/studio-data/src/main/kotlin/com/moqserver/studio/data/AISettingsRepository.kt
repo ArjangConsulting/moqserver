@@ -1,5 +1,6 @@
 package com.moqserver.studio.data
 
+import com.maniramezan.credentialkeychain.CredentialKeychain
 import com.maniramezan.credentialkeychain.KeychainUnavailableException
 import com.moqserver.studio.logging.loggerFor
 import kotlinx.serialization.json.Json
@@ -12,7 +13,9 @@ import java.nio.file.StandardCopyOption
 
 class AISettingsRepository(
     private val settingsFile: File = defaultSettingsFile(),
-    private val credentialStore: SecureCredentialStore = SecureCredentialStore.default(),
+    private val credentialStore: CredentialKeychain = CredentialKeychain.forCurrentPlatform(
+        serviceName = CREDENTIAL_SERVICE_NAME,
+    ),
 ) {
     private val logger = loggerFor<AISettingsRepository>()
     private val json = Json {
@@ -63,7 +66,11 @@ class AISettingsRepository(
             ANTHROPIC_API_KEY_CREDENTIAL to settings.anthropic.apiKey,
             GEMINI_API_KEY_CREDENTIAL to settings.gemini.apiKey,
         )
-        val previous = updates.associate { (key, _) -> key to credentialStore.read(key) }
+        val previous = try {
+            updates.associate { (key, _) -> key to credentialStore.read(key) }
+        } catch (error: KeychainUnavailableException) {
+            throw IllegalStateException(credentialFailureMessage(error.reason), error)
+        }
         try {
             updates.forEach { (key, value) -> persistCredential(key, value) }
             writeSettingsAtomically(persistedSettings)
@@ -89,7 +96,7 @@ class AISettingsRepository(
             credentialStore.write(credentialKey, legacyFallback)
             CredentialLoad(legacyFallback, migrationSucceeded = true)
         }
-        } catch (e: Exception) {
+    } catch (e: Exception) {
         logger.warn("Failed to load secure credential '$credentialKey': ${e.message}")
         CredentialLoad(legacyFallback, migrationSucceeded = legacyFallback.isBlank())
     }
@@ -127,12 +134,7 @@ class AISettingsRepository(
                 credentialStore.write(credentialKey, value)
             }
         } catch (e: KeychainUnavailableException) {
-            val message = if (e.reason == KeychainUnavailableException.Reason.Unsupported) {
-                "API keys cannot be saved because secure credential storage is unavailable. ${e.message}"
-            } else {
-                "Failed to save secure credential '$credentialKey': ${e.message}"
-            }
-            throw IllegalStateException(message, e)
+            throw IllegalStateException(credentialFailureMessage(e.reason), e)
         } catch (e: Exception) {
             throw IllegalStateException("Failed to save secure credential '$credentialKey': ${e.message}", e)
         }
@@ -156,6 +158,7 @@ class AISettingsRepository(
     }
 
     companion object {
+        private const val CREDENTIAL_SERVICE_NAME = "com.moqserver.studio"
         private const val OPENAI_API_KEY_CREDENTIAL = "openai.api-key"
         private const val ANTHROPIC_API_KEY_CREDENTIAL = "anthropic.api-key"
         private const val GEMINI_API_KEY_CREDENTIAL = "gemini.api-key"

@@ -3,29 +3,24 @@ package com.moqserver.studio.ui
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.width
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.ExposedDropdownMenuAnchorType
-import androidx.compose.material3.ExposedDropdownMenuBox
-import androidx.compose.material3.ExposedDropdownMenuDefaults
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.moqserver.studio.designsystem.StudioDimens
-import com.moqserver.studio.designsystem.placeholderTextFieldColors
 import com.moqserver.studio.projectformat.MatchType
 import com.moqserver.studio.projectformat.RuleMatcher
+import io.github.maniramezan.kmpcomponents.FormTextField
+import io.github.maniramezan.kmpcomponents.MenuPicker
+
+private object MatchConditionStrings {
+	const val MATCH_VALUE = "Match value"
+	const val CONDITION = "Condition"
+}
 
 internal val MatchType.displayName: String
 	get() = when (this) {
@@ -64,7 +59,6 @@ internal val RuleMatcher.effectiveMatchType: MatchType
  *   selected match type needs no value — useful for keeping columns aligned in a table.
  * @param modifier Applied to the outermost Row.
  */
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MatchConditionEditor(
 	ruleMatcher: RuleMatcher,
@@ -82,55 +76,33 @@ fun MatchConditionEditor(
 		fallbackMatchType in availableMatchTypes -> fallbackMatchType
 		else -> availableMatchTypes.firstOrNull() ?: ruleMatcher.effectiveMatchType
 	}
-	val placeholderColors = placeholderTextFieldColors()
-	var expanded by remember { mutableStateOf(false) }
 
 	Row(
 		modifier = modifier,
 		horizontalArrangement = Arrangement.spacedBy(StudioDimens.xs),
 		verticalAlignment = Alignment.CenterVertically,
 	) {
-		ExposedDropdownMenuBox(
-			expanded = expanded,
-			onExpandedChange = { if (enabled) expanded = !expanded },
+		MenuPicker(
+			items = availableMatchTypes,
+			selected = matchType,
+			onSelect = { type ->
+				onUpdate(ruleMatcher.copy(matchType = type, match = if (type.needsValue) ruleMatcher.match else null))
+			},
+			label = MatchConditionStrings.CONDITION,
+			itemLabel = { it.displayName },
+			enabled = enabled,
 			modifier = Modifier.width(dropdownWidth),
-		) {
-			OutlinedTextField(
-				value = matchType.displayName,
-				onValueChange = {},
-				enabled = enabled,
-				readOnly = true,
-				singleLine = true,
-				trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
-				modifier = Modifier.menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable).fillMaxWidth(),
-			)
-			DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
-				availableMatchTypes.forEach { type ->
-					DropdownMenuItem(
-						text = { Text(type.displayName) },
-						onClick = {
-							onUpdate(
-								ruleMatcher.copy(
-									matchType = type,
-									match = if (type.needsValue) ruleMatcher.match else null,
-								),
-							)
-							expanded = false
-						},
-					)
-				}
-			}
-		}
+		)
 
 		if (matchType.needsValue) {
-			OutlinedTextField(
+			FormTextField(
 				value = ruleMatcher.match ?: "",
 				onValueChange = { newMatch -> onUpdate(ruleMatcher.copy(match = newMatch.ifBlank { null })) },
 				enabled = enabled,
-				placeholder = { Text("Match value", color = placeholderColors.disabledPlaceholderColor) },
+				placeholder = MatchConditionStrings.MATCH_VALUE,
 				singleLine = true,
-				colors = placeholderColors,
 				modifier = if (valueWidth != null) Modifier.width(valueWidth) else Modifier.weight(1f),
+				label = MatchConditionStrings.MATCH_VALUE,
 			)
 		} else if (showValuePlaceholder) {
 			Spacer(if (valueWidth != null) Modifier.width(valueWidth) else Modifier.weight(1f))

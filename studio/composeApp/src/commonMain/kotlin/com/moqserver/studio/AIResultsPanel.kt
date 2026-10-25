@@ -14,13 +14,9 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.Button
-import androidx.compose.material3.Card
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -36,6 +32,14 @@ import com.moqserver.studio.domain.GenerateVariantsResult
 import com.moqserver.studio.domain.GeneratedVariant
 import com.moqserver.studio.domain.RefineProjectResult
 import com.moqserver.studio.domain.SpecFinding
+import io.github.maniramezan.kmpcomponents.EmptyState
+import io.github.maniramezan.kmpcomponents.ErrorState
+import io.github.maniramezan.kmpcomponents.LoadingState
+import io.github.maniramezan.kmpcomponents.PrimaryButton
+import io.github.maniramezan.kmpcomponents.StatusTone
+import io.github.maniramezan.kmpcomponents.ThemeCard
+import io.github.maniramezan.kmpcomponents.ThemeTextButton
+import io.github.maniramezan.kmpcomponents.TonalBadge
 
 private object AIResultsPanelStrings {
     const val SPEC_ANALYSIS = "Spec Analysis"
@@ -89,40 +93,24 @@ fun AIResultsPanel(
                 },
                 style = MaterialTheme.typography.titleMedium,
             )
-            TextButton(onClick = onDismiss) { Text(AIResultsPanelStrings.CLOSE) }
+            ThemeTextButton(
+                text = AIResultsPanelStrings.CLOSE,
+                onClick = onDismiss,
+            )
         }
 
         HorizontalDivider()
 
         // Loading
         if (aiAction.loading) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(StudioDimens.l),
-                modifier = Modifier.padding(vertical = StudioDimens.xxxl),
-            ) {
-                CircularProgressIndicator(
-                    modifier = Modifier.size(StudioDimens.mediumSpinnerSize),
-                    strokeWidth = StudioDimens.spinnerStrokeWidth,
-                )
-                Text(AIResultsPanelStrings.WORKING, style = MaterialTheme.typography.bodyMedium)
-            }
+            LoadingState(label = AIResultsPanelStrings.WORKING)
             return
         }
 
         // Error
         val errorMessage = aiAction.error
         if (errorMessage != null) {
-            Card(modifier = Modifier.fillMaxWidth()) {
-                Column(modifier = Modifier.padding(StudioDimens.xl)) {
-                    Text(
-                        AIResultsPanelStrings.ERROR,
-                        style = MaterialTheme.typography.titleSmall,
-                        color = MaterialTheme.colorScheme.error,
-                    )
-                    Text(errorMessage, style = MaterialTheme.typography.bodySmall)
-                }
-            }
+            ErrorState(title = AIResultsPanelStrings.ERROR, message = errorMessage)
             return
         }
 
@@ -163,7 +151,7 @@ fun AIResultsPanel(
 private fun AnalyzeResultView(response: CompanionResponse<AnalyzeSpecResult>) {
     val findings = response.result.findings
     if (findings.isEmpty()) {
-        Text(AIResultsPanelStrings.NO_FINDINGS, style = MaterialTheme.typography.bodyMedium)
+        EmptyState(title = AIResultsPanelStrings.NO_FINDINGS)
         return
     }
 
@@ -173,19 +161,21 @@ private fun AnalyzeResultView(response: CompanionResponse<AnalyzeSpecResult>) {
 
 @Composable
 private fun FindingCard(finding: SpecFinding) {
-    Card(modifier = Modifier.fillMaxWidth()) {
-        Row(modifier = Modifier.padding(StudioDimens.l), horizontalArrangement = Arrangement.spacedBy(StudioDimens.l)) {
-            Text(
+    ThemeCard(
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+Row(horizontalArrangement = Arrangement.spacedBy(StudioDimens.l)) {
+            TonalBadge(
                 text = when (finding.severity) {
                     FindingSeverity.ERROR -> AIResultsPanelStrings.SEVERITY_ERROR
                     FindingSeverity.WARNING -> AIResultsPanelStrings.SEVERITY_WARNING
                     FindingSeverity.INFO -> AIResultsPanelStrings.SEVERITY_INFO
                 },
-                style = MaterialTheme.typography.labelSmall,
-                modifier = Modifier
-                            .clip(RoundedCornerShape(StudioDimens.xs))
-                            .background(MaterialTheme.colorScheme.tertiaryContainer)
-                            .padding(horizontal = StudioDimens.s, vertical = StudioDimens.xxs),
+                tone = when (finding.severity) {
+                    FindingSeverity.ERROR -> StatusTone.ERROR
+                    FindingSeverity.WARNING -> StatusTone.WARNING
+                    FindingSeverity.INFO -> StatusTone.INFO
+                },
             )
             Column(verticalArrangement = Arrangement.spacedBy(StudioDimens.xs)) {
                 Text(finding.message, style = MaterialTheme.typography.bodySmall)
@@ -211,7 +201,7 @@ private fun GenerateResultView(
 ) {
     val variants = response.result.variants
     if (variants.isEmpty()) {
-        Text(AIResultsPanelStrings.NO_VARIANTS, style = MaterialTheme.typography.bodyMedium)
+        EmptyState(title = AIResultsPanelStrings.NO_VARIANTS)
         return
     }
 
@@ -224,11 +214,9 @@ private fun GeneratedVariantCard(
     variant: GeneratedVariant,
     onAccept: (GeneratedVariant) -> Unit,
 ) {
-    Card(modifier = Modifier.fillMaxWidth()) {
-        Column(
-            modifier = Modifier.padding(StudioDimens.l),
-            verticalArrangement = Arrangement.spacedBy(StudioDimens.m),
-        ) {
+    ThemeCard(
+        modifier = Modifier.fillMaxWidth(),
+    ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -242,7 +230,10 @@ private fun GeneratedVariantCard(
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
-                Button(onClick = { onAccept(variant) }) { Text(AIResultsPanelStrings.ACCEPT) }
+                PrimaryButton(
+                    text = AIResultsPanelStrings.ACCEPT,
+                    onClick = { onAccept(variant) },
+                )
             }
 
             variant.description?.let {
@@ -260,7 +251,6 @@ private fun GeneratedVariantCard(
                     .background(MaterialTheme.colorScheme.surfaceVariant)
                     .padding(StudioDimens.m),
             )
-        }
     }
 }
 
@@ -271,17 +261,15 @@ private fun RefineResultView(
 ) {
     val suggestions = response.result.suggestions
     if (suggestions.isEmpty()) {
-        Text(AIResultsPanelStrings.NO_SUGGESTIONS, style = MaterialTheme.typography.bodyMedium)
+        EmptyState(title = AIResultsPanelStrings.NO_SUGGESTIONS)
         return
     }
 
     Text("${suggestions.size} suggestion(s)", style = MaterialTheme.typography.bodySmall)
     suggestions.forEach { suggestion ->
-        Card(modifier = Modifier.fillMaxWidth()) {
-            Column(
-                modifier = Modifier.padding(StudioDimens.l),
-                verticalArrangement = Arrangement.spacedBy(StudioDimens.s),
-            ) {
+        ThemeCard(
+            modifier = Modifier.fillMaxWidth(),
+        ) {
                 Row(horizontalArrangement = Arrangement.spacedBy(StudioDimens.m)) {
                     Text(
                         text = suggestion.category,
@@ -308,7 +296,6 @@ private fun RefineResultView(
                         }
                     }
                 }
-            }
         }
     }
 }

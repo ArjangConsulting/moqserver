@@ -6,7 +6,6 @@
     <ID>ArgumentListWrapping:OpenAPIImportParser.kt$OpenAPIImportParser$( operation, openAPI.security.orEmpty(), securitySchemes )</ID>
     <ID>ArgumentListWrapping:OpenAPIImportParser.kt$OpenAPIImportParser$("image/svg")</ID>
     <ID>ArgumentListWrapping:OpenAPIImportParser.kt$OpenAPIImportParser$(lower)</ID>
-    <ID>ArgumentListWrapping:SecureCredentialStore.kt$MacOSKeychainCredentialStore$("Keychain command failed for '{}': {}", args.firstOrNull().orEmpty(), stderr.ifBlank { exitCode.toString() })</ID>
     <ID>CyclomaticComplexMethod:HARImportParser.kt$HARImportParser$fun parse(content: String): ParsedSpec</ID>
     <ID>CyclomaticComplexMethod:OpenAPIImportParser.kt$OpenAPIImportParser$private fun resolveAuth( operation: Operation, globalSecurity: List&lt;SecurityRequirement&gt;, securitySchemes: Map&lt;String, SecurityScheme&gt;, ): Pair&lt;AuthType, String?&gt;</ID>
     <ID>DestructuringDeclarationWithTooManyEntries:OpenAPIImportParser.kt$OpenAPIImportParser$val (reqQuery, reqHeaders, reqCookies, requiresBody, acceptedContentTypes) = extractRequestRules(operation, pathItem.parameters.orEmpty())</ID>
@@ -32,7 +31,5 @@
     <ID>TrailingCommaOnCallSite:OpenAPIImportParser.kt$OpenAPIImportParser$( ParsedResponse(name = name, statusCode = code, headers = responseHeaders) )</ID>
     <ID>TrailingCommaOnCallSite:OpenAPIImportParser.kt$OpenAPIImportParser$( operation, openAPI.security.orEmpty(), securitySchemes )</ID>
     <ID>TrailingCommaOnCallSite:OpenAPIImportParser.kt$OpenAPIImportParser$( value.entries.associate { (k, v) -&gt; k.toString() to anyToJsonElement(v) } )</ID>
-    <ID>UseCheckOrError:SecureCredentialStore.kt$UnsupportedSecureCredentialStore$throw IllegalStateException("Secure credential storage is not available on $osName.")</ID>
-    <ID>Wrapping:SecureCredentialStore.kt$MacOSKeychainCredentialStore$exitCode.toString()</ID>
   </CurrentIssues>
 </SmellBaseline>

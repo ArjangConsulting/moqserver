@@ -1,211 +1,130 @@
 package com.moqserver.studio
 
-import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.VerticalDivider
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.dp
+import androidx.compose.ui.platform.LocalDensity
 import com.moqserver.studio.domain.StudioState
 import com.moqserver.studio.projectformat.EndpointDocument
 import com.moqserver.studio.projectformat.displayAlias
 import com.moqserver.studio.ui.MethodBadge
 import com.moqserver.studio.ui.VariantCountBadge
+import io.github.maniramezan.kmpcomponents.ContentRow
+import io.github.maniramezan.kmpcomponents.EmptyState
+import io.github.maniramezan.kmpcomponents.HorizontalSplitPane
+import io.github.maniramezan.kmpcomponents.SearchField
+import io.github.maniramezan.kmpcomponents.SearchFieldLabels
+import io.github.maniramezan.kmpcomponents.SidebarNavigation
+import io.github.maniramezan.kmpcomponents.SplitPaneLabels
+
+private object EndpointBrowserStrings {
+	const val SEARCH = "Search endpoints..."
+	const val CLEAR_SEARCH = "Clear endpoint search"
+	const val RESIZE = "Resize endpoint browser"
+	const val SELECT_ENDPOINT = "Select an endpoint"
+	const val NO_PROJECT = "No project loaded"
+	const val OPEN_PROJECT = "Open or import a project to browse its endpoints."
+	const val NO_MATCHES = "No matching endpoints"
+	const val NO_MATCHES_HELP = "Try a different method, alias, path, or tag."
+}
 
 @Composable
 fun EndpointBrowser(
-    state: StudioState,
-    onSelectEndpoint: (String) -> Unit,
-    detailContent: @Composable () -> Unit,
+	state: StudioState,
+	onSelectEndpoint: (String) -> Unit,
+	detailContent: @Composable () -> Unit,
 ) {
-    val project = state.project
-    if (project == null) {
-        EmptyProjectState()
-        return
-    }
-
-    var searchQuery by remember { mutableStateOf("") }
-    val filteredEndpoints = remember(project.endpoints, searchQuery) {
-        if (searchQuery.isBlank()) {
-            project.endpoints
-        } else {
-            val q = searchQuery.lowercase()
-            project.endpoints.filter { ep ->
-                ep.id.lowercase().contains(q) ||
-                    ep.path.lowercase().contains(q) ||
-                    ep.method.lowercase().contains(q) ||
-                    ep.displayAlias.lowercase().contains(q) ||
-                    ep.tags?.any { it.lowercase().contains(q) } == true
-            }
-        }
-    }
-
-	// Group by first path segment
+	val project = state.project
+	if (project == null) {
+		EmptyState(title = EndpointBrowserStrings.NO_PROJECT, message = EndpointBrowserStrings.OPEN_PROJECT)
+		return
+	}
+	var searchQuery by remember { mutableStateOf("") }
+	var sidebarSplit by remember { mutableFloatStateOf(0.25f) }
+	val filteredEndpoints = remember(project.endpoints, searchQuery) {
+		val query = searchQuery.trim()
+		project.endpoints.filter { endpoint ->
+			query.isEmpty() || listOf(endpoint.id, endpoint.path, endpoint.method, endpoint.displayAlias)
+				.plus(endpoint.tags.orEmpty()).any { it.contains(query, ignoreCase = true) }
+		}
+	}
 	val grouped = remember(filteredEndpoints) {
-		filteredEndpoints.groupBy { ep ->
-			ep.tags
-				?.firstOrNull()
-				?.takeIf { it.isNotBlank() }
-				?: run {
-					val segments = ep.path.removePrefix("/").split("/")
-					if (segments.size > 1) "/${segments.first()}" else ep.path
-				}
+		filteredEndpoints.groupBy { endpoint ->
+			endpoint.tags?.firstOrNull()?.takeIf(String::isNotBlank) ?: run {
+				val segments = endpoint.path.removePrefix("/").split("/")
+				if (segments.size > 1) "/${segments.first()}" else endpoint.path
+			}
 		}.toSortedMap()
 	}
-
-    Row(modifier = Modifier.fillMaxSize()) {
-        // Left sidebar
-        Column(
-            modifier = Modifier
-                .width(StudioDimens.endpointBrowserWidth)
-                .fillMaxHeight()
-                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)),
-        ) {
-            OutlinedTextField(
-                value = searchQuery,
-                onValueChange = { searchQuery = it },
-                placeholder = { Text("Search endpoints...") },
-                singleLine = true,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(StudioDimens.m),
-            )
-
-            LazyColumn(
-                modifier = Modifier.fillMaxSize(),
-            ) {
-                grouped.forEach { (group, endpoints) ->
-                    item {
-                        Text(
-                            text = group,
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.padding(
-                                start = StudioDimens.l,
-                                top = StudioDimens.l,
-                                bottom = StudioDimens.xs,
-                            ),
-                        )
-                    }
-
-                    items(endpoints, key = { it.id }) { endpoint ->
-                        EndpointListItem(
-                            endpoint = endpoint,
-                            isSelected = state.selectedEndpointId == endpoint.id,
-                            onClick = { onSelectEndpoint(endpoint.id) },
-                        )
-                    }
-                }
-            }
-        }
-
-        VerticalDivider()
-
-        // Right detail pane
-        Box(modifier = Modifier.fillMaxSize().weight(1f)) {
-            if (state.selectedEndpoint != null) {
-                detailContent()
-            } else {
-                Column(
-                    modifier = Modifier.fillMaxSize(),
-                    verticalArrangement = Arrangement.Center,
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                ) {
-                    Text(
-                        "Select an endpoint",
-                        style = MaterialTheme.typography.bodyLarge,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-            }
-        }
-    }
+	BoxWithConstraints(Modifier.fillMaxSize()) {
+	val minimumSidebarWidth = StudioDimens.endpointBrowserWidth * LocalDensity.current.fontScale.coerceAtLeast(1f)
+	val minimumSplit = (minimumSidebarWidth / maxWidth).coerceIn(0.2f, 0.6f)
+	HorizontalSplitPane(
+		split = sidebarSplit,
+		onSplitChange = { sidebarSplit = it },
+		modifier = Modifier.fillMaxSize(),
+		minSplit = minimumSplit,
+		maxSplit = 0.8f,
+		labels = SplitPaneLabels(handleDescription = EndpointBrowserStrings.RESIZE),
+		leading = {
+			SidebarNavigation(modifier = Modifier.fillMaxHeight(), header = {
+				SearchField(
+					value = searchQuery,
+					onValueChange = { searchQuery = it },
+					labels = SearchFieldLabels(EndpointBrowserStrings.SEARCH, EndpointBrowserStrings.CLEAR_SEARCH),
+				)
+			}) {
+				if (filteredEndpoints.isEmpty()) {
+					EmptyState(title = EndpointBrowserStrings.NO_MATCHES, message = EndpointBrowserStrings.NO_MATCHES_HELP)
+				}
+				LazyColumn(Modifier.weight(1f)) {
+					grouped.forEach { (group, endpoints) ->
+						item(key = "group-$group") {
+							Text(
+								text = group,
+								style = MaterialTheme.typography.labelSmall,
+								modifier = Modifier.padding(vertical = StudioDimens.m),
+							)
+						}
+						items(endpoints, key = { "endpoint-${it.id}" }) { endpoint ->
+							EndpointListItem(endpoint, state.selectedEndpointId == endpoint.id) { onSelectEndpoint(endpoint.id) }
+						}
+					}
+				}
+			}
+		},
+		trailing = {
+			Box(Modifier.fillMaxSize()) {
+				if (state.selectedEndpoint != null) detailContent() else EmptyState(EndpointBrowserStrings.SELECT_ENDPOINT)
+			}
+		},
+	)
+	}
 }
 
 @Composable
-private fun EndpointListItem(
-    endpoint: EndpointDocument,
-    isSelected: Boolean,
-    onClick: () -> Unit,
-) {
-    val bgColor = if (isSelected) {
-        MaterialTheme.colorScheme.primaryContainer
-    } else {
-        MaterialTheme.colorScheme.surface.copy(alpha = 0f)
-    }
-
-    Surface(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(onClick = onClick)
-            .padding(horizontal = StudioDimens.xs, vertical = 1.dp),
-        color = bgColor,
-        shape = RoundedCornerShape(StudioDimens.s),
-    ) {
-        Row(
-            modifier = Modifier.padding(horizontal = StudioDimens.l, vertical = StudioDimens.m),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(StudioDimens.m),
-        ) {
-            MethodBadge(endpoint.method)
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = endpoint.displayAlias,
-                    style = MaterialTheme.typography.bodyMedium,
-                    fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
-                )
-                Text(
-                    text = endpoint.path,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-            VariantCountBadge(endpoint.variants.size)
-        }
-    }
-}
-
-@Composable
-private fun EmptyProjectState() {
-    Column(
-        modifier = Modifier.fillMaxSize(),
-        verticalArrangement = Arrangement.Center,
-        horizontalAlignment = Alignment.CenterHorizontally,
-    ) {
-        Text(
-            "No project loaded",
-            style = MaterialTheme.typography.headlineSmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-        Spacer(Modifier.height(StudioDimens.m))
-        Text(
-            "Open a .moqproj directory from the Dashboard",
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-    }
+private fun EndpointListItem(endpoint: EndpointDocument, isSelected: Boolean, onClick: () -> Unit) {
+	ContentRow(
+		title = endpoint.displayAlias,
+		supportingText = endpoint.path,
+		modifier = Modifier.fillMaxWidth(),
+		selected = isSelected,
+		onClick = onClick,
+		leadingContent = { MethodBadge(endpoint.method) },
+		trailingContent = { VariantCountBadge(endpoint.variants.size) },
+	)
 }

@@ -1,9 +1,7 @@
 package com.moqserver.studio
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -21,24 +19,12 @@ import androidx.compose.material.icons.outlined.ArrowDropUp
 import androidx.compose.material.icons.outlined.AutoAwesome
 import androidx.compose.material.icons.outlined.Refresh
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.Checkbox
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
-import androidx.compose.material3.TriStateCheckbox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateMapOf
@@ -47,6 +33,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.vector.rememberVectorPainter
 import androidx.compose.ui.state.ToggleableState
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -56,15 +43,34 @@ import com.moqserver.studio.domain.EndpointUpdateStatus
 import com.moqserver.studio.domain.ImportEndpointEntry
 import com.moqserver.studio.domain.ImportSourceType
 import com.moqserver.studio.domain.ImportState
-import com.moqserver.studio.domain.ProviderKind
 import com.moqserver.studio.domain.UpdateSelection
 import com.moqserver.studio.domain.selectedGeneratedResponses
 import com.moqserver.studio.projectformat.AuthType
 import com.moqserver.studio.ui.MethodBadge
+import io.github.maniramezan.kmpcomponents.FlowLayout
+import io.github.maniramezan.kmpcomponents.FormTextField
+import io.github.maniramezan.kmpcomponents.InlineProgressIndicator
+import io.github.maniramezan.kmpcomponents.LoadingIconButton
+import io.github.maniramezan.kmpcomponents.MenuPicker
+import io.github.maniramezan.kmpcomponents.PrimaryButton
+import io.github.maniramezan.kmpcomponents.ProgressIndicator
+import io.github.maniramezan.kmpcomponents.SecondaryButton
+import io.github.maniramezan.kmpcomponents.SectionCard
+import io.github.maniramezan.kmpcomponents.StatusMessage
+import io.github.maniramezan.kmpcomponents.StatusTone
+import io.github.maniramezan.kmpcomponents.ThemeCheckbox
+import io.github.maniramezan.kmpcomponents.ThemeIconButton
+import io.github.maniramezan.kmpcomponents.ThemeTextButton
+import io.github.maniramezan.kmpcomponents.ThemeTriStateCheckbox
+import io.github.maniramezan.kmpcomponents.TonalBadge
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
 
 private object ImportReviewStrings {
+	const val EXPAND_GROUP = "Expand endpoint group"
+	const val COLLAPSE_GROUP = "Collapse endpoint group"
+	const val REFRESH_AI = "Refresh AI status"
+	const val CHECKING_AI = "Checking AI providers"
 	const val IMPORT_OPENAPI = "Import OpenAPI Spec"
 	const val IMPORT_HAR = "Import HAR File"
 	const val UPDATE_OPENAPI = "Update from OpenAPI Spec"
@@ -235,43 +241,25 @@ fun ImportReviewScreen(
 
         // Warnings
         if (state.warnings.isNotEmpty()) {
-            Card(
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.errorContainer,
-                ),
-                modifier = Modifier.fillMaxWidth(),
-            ) {
-                Column(modifier = Modifier.padding(StudioDimens.l)) {
-                    Text(
-                        ImportReviewStrings.WARNINGS,
-                        style = MaterialTheme.typography.labelLarge,
-                        color = MaterialTheme.colorScheme.onErrorContainer,
-                    )
-                    for (warning in state.warnings.take(5)) {
-                        Text(
-                            text = warning,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onErrorContainer,
-                        )
-                    }
-                    if (state.warnings.size > 5) {
-                        Text(
-                            text = "${ImportReviewStrings.AND_MORE_PREFIX}${state.warnings.size - 5}${ImportReviewStrings.AND_MORE_SUFFIX}",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onErrorContainer,
-                        )
-                    }
-                }
+            val warnings = state.warnings.take(5).toMutableList()
+            if (state.warnings.size > 5) {
+                warnings += "${ImportReviewStrings.AND_MORE_PREFIX}${state.warnings.size - 5}${ImportReviewStrings.AND_MORE_SUFFIX}"
             }
+            StatusMessage(
+                title = ImportReviewStrings.WARNINGS,
+                message = warnings.joinToString("\n"),
+                tone = StatusTone.WARNING,
+                modifier = Modifier.fillMaxWidth(),
+            )
             Spacer(Modifier.height(StudioDimens.l))
         }
 
         // Project name (only for new-project imports)
         if (!isUpdateMode) {
-            OutlinedTextField(
+            FormTextField(
                 value = state.projectName,
                 onValueChange = onUpdateProjectName,
-                label = { Text(ImportReviewStrings.PROJECT_NAME) },
+                label = ImportReviewStrings.PROJECT_NAME,
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth(0.5f),
             )
@@ -281,25 +269,11 @@ fun ImportReviewScreen(
 
 		if (state.source == ImportSourceType.OPENAPI) {
             val selectableProviders = aiProviders.filter { it.available }
-            Card(
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceVariant,
-                ),
+            SectionCard(
+                title = ImportReviewStrings.GENERATE_ALL,
                 modifier = Modifier.fillMaxWidth(),
+                description = ImportReviewStrings.GENERATE_ALL_HELP,
             ) {
-                Column(
-                    modifier = Modifier.padding(StudioDimens.l),
-                    verticalArrangement = Arrangement.spacedBy(StudioDimens.s),
-                ) {
-                    Text(
-                        text = ImportReviewStrings.GENERATE_ALL,
-                        style = MaterialTheme.typography.titleSmall,
-                    )
-                    Text(
-                        text = ImportReviewStrings.GENERATE_ALL_HELP,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(StudioDimens.s),
@@ -324,19 +298,12 @@ fun ImportReviewScreen(
                             onClick = onRefreshAIProviders,
                         )
                     }
-                    if (aiProvidersLoading) {
-                        Text(
-                            text = ImportReviewStrings.AI_CHECKING,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
+                    if (aiProvidersLoading) InlineProgressIndicator(label = ImportReviewStrings.AI_CHECKING)
                     if (state.aiBulkState.running) {
-                        Text(
-                            text = ImportReviewStrings.BULK_PROGRESS_PREFIX +
+                        ProgressIndicator(
+                            label = ImportReviewStrings.BULK_PROGRESS_PREFIX +
                                 "${state.aiBulkState.completedCount}/${state.aiBulkState.totalCount}",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            progress = state.aiBulkState.completedCount.toFloat() / state.aiBulkState.totalCount.coerceAtLeast(1),
                         )
                     } else if (!canGenerateWithAi) {
                         Text(
@@ -345,24 +312,16 @@ fun ImportReviewScreen(
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     }
-                    Button(
+                    PrimaryButton(
+                        text = ImportReviewStrings.GENERATE_ALL,
                         onClick = { showBulkDialog = true },
                         enabled = canGenerateWithAi && state.acceptedCount > 0 && !state.aiBulkState.running && !aiProvidersLoading,
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = MaterialTheme.colorScheme.tertiary,
-                            contentColor = MaterialTheme.colorScheme.onTertiary,
-                        ),
-                    ) {
-                        Icon(Icons.Outlined.AutoAwesome, contentDescription = null)
-                        Spacer(Modifier.width(StudioDimens.s))
-                        Text(ImportReviewStrings.GENERATE_ALL)
-                    }
+                    )
                     Text(
                         text = ImportReviewStrings.GENERATE_INDIVIDUAL_HELP,
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
-                }
             }
 
             Spacer(Modifier.height(StudioDimens.l))
@@ -379,8 +338,14 @@ fun ImportReviewScreen(
 				style = MaterialTheme.typography.titleSmall,
 			)
                         Row(horizontalArrangement = Arrangement.spacedBy(StudioDimens.m)) {
-                TextButton(onClick = onSelectAll) { Text(ImportReviewStrings.SELECT_ALL) }
-                TextButton(onClick = onDeselectAll) { Text(ImportReviewStrings.DESELECT_ALL) }
+                ThemeTextButton(
+                    text = ImportReviewStrings.SELECT_ALL,
+                    onClick = onSelectAll,
+                )
+                ThemeTextButton(
+                    text = ImportReviewStrings.DESELECT_ALL,
+                    onClick = onDeselectAll,
+                )
             }
         }
 
@@ -457,17 +422,17 @@ fun ImportReviewScreen(
             horizontalArrangement = Arrangement.End,
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            OutlinedButton(onClick = onCancel) {
-                Text(ImportReviewStrings.CANCEL)
-            }
+            SecondaryButton(
+                text = ImportReviewStrings.CANCEL,
+                onClick = onCancel,
+            )
             Spacer(Modifier.width(StudioDimens.m))
-			Button(
+			PrimaryButton(
+				text = if (isUpdateMode) ImportReviewStrings.UPDATE else ImportReviewStrings.IMPORT,
 				onClick = onConfirm,
 				enabled = state.effectiveAcceptedCount > 0 && state.projectName.isNotBlank() &&
 					(!isUpdateMode || state.updateSelection.hasEnabledParts),
-			) {
-				Text(if (isUpdateMode) ImportReviewStrings.UPDATE else ImportReviewStrings.IMPORT)
-			}
+			)
         }
     }
 }
@@ -477,58 +442,28 @@ private fun UpdateSelectionCard(
 	selection: UpdateSelection,
 	onSelectionChange: (UpdateSelection) -> Unit,
 ) {
-	Card(
-		colors = CardDefaults.cardColors(
-			containerColor = MaterialTheme.colorScheme.surfaceVariant,
-		),
+	SectionCard(
+		title = ImportReviewStrings.UPDATE_PARTS,
+		description = ImportReviewStrings.UPDATE_PARTS_HELP,
 		modifier = Modifier.fillMaxWidth(),
 	) {
-		Column(
-			modifier = Modifier.padding(StudioDimens.l),
-			verticalArrangement = Arrangement.spacedBy(StudioDimens.s),
-		) {
-			Text(
-				text = ImportReviewStrings.UPDATE_PARTS,
-				style = MaterialTheme.typography.titleSmall,
+		FlowLayout {
+			ThemeCheckbox(
+				label = ImportReviewStrings.UPDATE_PART_URL,
+				checked = selection.url,
+				onCheckedChange = { onSelectionChange(selection.copy(url = it)) },
 			)
-			Text(
-				text = ImportReviewStrings.UPDATE_PARTS_HELP,
-				style = MaterialTheme.typography.bodySmall,
-				color = MaterialTheme.colorScheme.onSurfaceVariant,
+			ThemeCheckbox(
+				label = ImportReviewStrings.UPDATE_PART_DETAILS,
+				checked = selection.details,
+				onCheckedChange = { onSelectionChange(selection.copy(details = it)) },
 			)
-			Row(horizontalArrangement = Arrangement.spacedBy(StudioDimens.l)) {
-				UpdateSelectionToggle(
-					label = ImportReviewStrings.UPDATE_PART_URL,
-					checked = selection.url,
-					onCheckedChange = { onSelectionChange(selection.copy(url = it)) },
-				)
-				UpdateSelectionToggle(
-					label = ImportReviewStrings.UPDATE_PART_DETAILS,
-					checked = selection.details,
-					onCheckedChange = { onSelectionChange(selection.copy(details = it)) },
-				)
-				UpdateSelectionToggle(
-					label = ImportReviewStrings.UPDATE_PART_BODY,
-					checked = selection.body,
-					onCheckedChange = { onSelectionChange(selection.copy(body = it)) },
-				)
-			}
+			ThemeCheckbox(
+				label = ImportReviewStrings.UPDATE_PART_BODY,
+				checked = selection.body,
+				onCheckedChange = { onSelectionChange(selection.copy(body = it)) },
+			)
 		}
-	}
-}
-
-@Composable
-private fun UpdateSelectionToggle(
-	label: String,
-	checked: Boolean,
-	onCheckedChange: (Boolean) -> Unit,
-) {
-	Row(
-		verticalAlignment = Alignment.CenterVertically,
-		horizontalArrangement = Arrangement.spacedBy(StudioDimens.xs),
-	) {
-		Checkbox(checked = checked, onCheckedChange = onCheckedChange)
-		Text(label, style = MaterialTheme.typography.bodyMedium)
 	}
 }
 
@@ -566,25 +501,19 @@ private fun ImportGroupHeader(
 		verticalAlignment = Alignment.CenterVertically,
 		horizontalArrangement = Arrangement.spacedBy(StudioDimens.s),
 	) {
-		TriStateCheckbox(
+		ThemeTriStateCheckbox(
+			label = "$acceptedCount/$totalCount selected",
 			state = toggleableState,
 			onClick = {
 				onSetAccepted(toggleableState != ToggleableState.On)
 			},
 		)
-		TextButton(onClick = onToggleExpanded) {
-			Icon(
-				imageVector = if (expanded) Icons.Outlined.ArrowDropUp else Icons.Outlined.ArrowDropDown,
-				contentDescription = null,
-			)
-			Text(group)
-		}
-		Text(
-			text = "$acceptedCount/$totalCount selected",
-			style = MaterialTheme.typography.labelSmall,
-			color = MaterialTheme.colorScheme.onSurfaceVariant,
-			modifier = Modifier.weight(1f),
+		ThemeIconButton(
+			icon = rememberVectorPainter(if (expanded) Icons.Outlined.ArrowDropUp else Icons.Outlined.ArrowDropDown),
+			contentDescription = if (expanded) ImportReviewStrings.COLLAPSE_GROUP else ImportReviewStrings.EXPAND_GROUP,
+			onClick = onToggleExpanded,
 		)
+		Text(group)
 	}
 }
 
@@ -593,63 +522,23 @@ private fun RefreshAIProvidersIcon(
     loading: Boolean,
     onClick: () -> Unit,
 ) {
-    Box(
-        modifier = Modifier
-            .background(
-                color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.7f),
-                shape = RoundedCornerShape(StudioDimens.m),
-            )
-            .clickable(enabled = !loading, onClick = onClick)
-            .padding(StudioDimens.s),
-        contentAlignment = Alignment.Center,
-    ) {
-        if (loading) {
-            CircularProgressIndicator(
-                modifier = Modifier.size(StudioDimens.smallSpinnerSize),
-                strokeWidth = StudioDimens.thinSpinnerStroke,
-            )
-        } else {
-            Icon(
-                Icons.Outlined.Refresh,
-                contentDescription = "Refresh AI status",
-                tint = MaterialTheme.colorScheme.onSecondaryContainer,
-            )
-        }
-    }
+    LoadingIconButton(
+        loading = loading,
+        icon = rememberVectorPainter(Icons.Outlined.Refresh),
+        contentDescription = ImportReviewStrings.REFRESH_AI,
+        loadingLabel = ImportReviewStrings.CHECKING_AI,
+        onClick = onClick,
+    )
 }
 
 @Composable
 private fun EndpointStatusBadge(status: EndpointUpdateStatus) {
-	val (label, containerColor, contentColor) = when (status) {
-		EndpointUpdateStatus.NEW -> Triple(
-			ImportReviewStrings.STATUS_NEW,
-			StudioColors.success.copy(alpha = 0.15f),
-			StudioColors.success,
-		)
-		EndpointUpdateStatus.CHANGED -> Triple(
-			ImportReviewStrings.STATUS_CHANGED,
-			MaterialTheme.colorScheme.primaryContainer,
-			MaterialTheme.colorScheme.onPrimaryContainer,
-		)
-		EndpointUpdateStatus.UNCHANGED -> Triple(
-			ImportReviewStrings.STATUS_UNCHANGED,
-			MaterialTheme.colorScheme.surfaceVariant,
-			MaterialTheme.colorScheme.onSurfaceVariant,
-		)
+	val (label, tone) = when (status) {
+		EndpointUpdateStatus.NEW -> ImportReviewStrings.STATUS_NEW to StatusTone.SUCCESS
+		EndpointUpdateStatus.CHANGED -> ImportReviewStrings.STATUS_CHANGED to StatusTone.WARNING
+		EndpointUpdateStatus.UNCHANGED -> ImportReviewStrings.STATUS_UNCHANGED to StatusTone.INFO
 	}
-	Box(
-		modifier = Modifier
-			.background(color = containerColor, shape = RoundedCornerShape(StudioDimens.xs))
-			.padding(horizontal = StudioDimens.s, vertical = 2.dp),
-		contentAlignment = Alignment.Center,
-	) {
-		Text(
-			text = label,
-			style = MaterialTheme.typography.labelSmall,
-			color = contentColor,
-			fontWeight = FontWeight.Medium,
-		)
-	}
+	TonalBadge(text = label, tone = tone)
 }
 
 @Composable
@@ -684,9 +573,11 @@ private fun ImportEndpointRow(
 				verticalAlignment = Alignment.CenterVertically,
 				modifier = Modifier.fillMaxWidth(),
 			) {
-				Checkbox(
+				ThemeCheckbox(
 					checked = accepted,
 					onCheckedChange = { onToggle() },
+					label = endpoint.path,
+					modifier = Modifier.weight(1f),
 				)
 				MethodBadge(endpoint.method)
 				Spacer(Modifier.width(StudioDimens.s))
@@ -695,11 +586,7 @@ private fun ImportEndpointRow(
 					EndpointStatusBadge(entry.updateStatus)
 					Spacer(Modifier.width(StudioDimens.s))
 				}
-				Text(
-					text = endpoint.path,
-					style = MaterialTheme.typography.bodyMedium.copy(fontFamily = FontFamily.Monospace),
-					modifier = Modifier.weight(1f),
-				)
+
 				val totalVariantCount = endpoint.responses.size + entry.selectedGeneratedResponses.size
 				Text(
 					text = "$totalVariantCount variant${if (totalVariantCount != 1) "s" else ""}",
@@ -708,31 +595,20 @@ private fun ImportEndpointRow(
 				)
 				if (canGenerateWithAi) {
 					Spacer(Modifier.width(StudioDimens.s))
-					FilledIconButton(
+					LoadingIconButton(
+						loading = entry.aiGenerationLoading,
+						icon = rememberVectorPainter(Icons.Outlined.AutoAwesome),
+						contentDescription = ImportReviewStrings.GENERATE,
+						loadingLabel = ImportReviewStrings.AI_LOADING,
 						onClick = onAIClick,
-						enabled = accepted && !entry.aiGenerationLoading && !bulkGenerationRunning,
-						colors = IconButtonDefaults.filledIconButtonColors(
-							containerColor = MaterialTheme.colorScheme.tertiaryContainer,
-							contentColor = MaterialTheme.colorScheme.onTertiaryContainer,
-						),
-					) {
-						if (entry.aiGenerationLoading) {
-							CircularProgressIndicator(
-								modifier = Modifier.size(StudioDimens.smallSpinnerSize),
-								strokeWidth = StudioDimens.thinSpinnerStroke,
-							)
-						} else {
-							Icon(
-								Icons.Outlined.AutoAwesome,
-								contentDescription = ImportReviewStrings.GENERATE,
-							)
-						}
-					}
+						enabled = accepted && !bulkGenerationRunning,
+					)
 				}
 				Spacer(Modifier.width(StudioDimens.m))
-				TextButton(onClick = { expanded = !expanded }) {
-					Text(if (expanded) ImportReviewStrings.HIDE else ImportReviewStrings.DETAILS)
-				}
+				ThemeTextButton(
+					text = if (expanded) ImportReviewStrings.HIDE else ImportReviewStrings.DETAILS,
+					onClick = { expanded = !expanded },
+				)
 			}
 
 			if (endpoint.tags.isNotEmpty()) {
@@ -755,21 +631,9 @@ private fun ImportEndpointRow(
 			}
 
 			entry.aiGenerationError?.let { error ->
-				Text(
-					text = ImportReviewStrings.AI_ERROR_PREFIX + error,
-					style = MaterialTheme.typography.labelSmall,
-					color = MaterialTheme.colorScheme.error,
-					modifier = Modifier.padding(start = 48.dp),
-				)
+				StatusMessage(message = ImportReviewStrings.AI_ERROR_PREFIX + error, tone = StatusTone.ERROR)
 			}
-			if (entry.aiGenerationLoading) {
-				Text(
-					text = ImportReviewStrings.AI_LOADING,
-					style = MaterialTheme.typography.labelSmall,
-					color = MaterialTheme.colorScheme.onSurfaceVariant,
-					modifier = Modifier.padding(start = 48.dp),
-				)
-			}
+			if (entry.aiGenerationLoading) InlineProgressIndicator(label = ImportReviewStrings.AI_LOADING)
 
 			if (expanded) {
 				Column(
@@ -800,18 +664,14 @@ private fun ImportEndpointRow(
 									)
 								}
 							}
-							OutlinedTextField(
+							FormTextField(
 								value = resp.name,
 								onValueChange = { onUpdateResponseName(responseIndex, it) },
-								label = {
-									Text(
-										if (preservesExistingVariantName) {
+								label = if (preservesExistingVariantName) {
 											ImportReviewStrings.EXISTING_VARIANT_NAME
 										} else {
 											ImportReviewStrings.VARIANT_NAME
 										},
-									)
-								},
 								enabled = !preservesExistingVariantName,
 								singleLine = true,
 								modifier = Modifier.fillMaxWidth(),
@@ -827,9 +687,11 @@ private fun ImportEndpointRow(
 								horizontalArrangement = Arrangement.spacedBy(StudioDimens.m),
 								verticalAlignment = Alignment.CenterVertically,
 							) {
-								Checkbox(
+								ThemeCheckbox(
 									checked = generatedResponseIndex in entry.selectedGeneratedResponseIndices,
 									onCheckedChange = { onToggleGeneratedResponse(generatedResponseIndex) },
+									label = resp.name,
+									modifier = Modifier.weight(1f),
 								)
 								Icon(
 									Icons.Outlined.AutoAwesome,
@@ -850,10 +712,10 @@ private fun ImportEndpointRow(
 									)
 								}
 							}
-							OutlinedTextField(
+							FormTextField(
 								value = resp.name,
 								onValueChange = { onUpdateGeneratedResponseName(generatedResponseIndex, it) },
-								label = { Text(ImportReviewStrings.VARIANT_NAME) },
+								label = ImportReviewStrings.VARIANT_NAME,
 								enabled = true,
 								singleLine = true,
 								modifier = Modifier.fillMaxWidth(),
@@ -880,9 +742,10 @@ private fun ImportEndpointRow(
 private fun VariantBodyPreview(body: String) {
 	var expanded by remember(body) { mutableStateOf(false) }
 	Column(verticalArrangement = Arrangement.spacedBy(StudioDimens.xxs)) {
-		TextButton(onClick = { expanded = !expanded }) {
-			Text(if (expanded) ImportReviewStrings.HIDE_BODY else ImportReviewStrings.SHOW_BODY)
-		}
+		ThemeTextButton(
+			text = if (expanded) ImportReviewStrings.HIDE_BODY else ImportReviewStrings.SHOW_BODY,
+			onClick = { expanded = !expanded },
+		)
 		if (expanded) {
 			val preview = remember(body) { formatBodyPreview(body) }
 			Text(
@@ -928,52 +791,14 @@ private fun ImportAIProviderSelector(
     selectedId: String?,
     onSelect: (String) -> Unit,
 ) {
-    var expanded by remember { mutableStateOf(false) }
-    val selected = providers.find { it.id == selectedId } ?: providers.first()
-
-    Box {
-        Row(
-            modifier = Modifier
-                .clickable { expanded = true }
-                .background(
-                    color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.7f),
-                    shape = RoundedCornerShape(StudioDimens.m),
-                )
-                .padding(horizontal = StudioDimens.m, vertical = StudioDimens.s),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(StudioDimens.xs),
-        ) {
-            Text(selected.displayName)
-            Icon(
-                Icons.Outlined.ArrowDropDown,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.onSecondaryContainer,
-            )
-        }
-        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
-            providers.forEach { provider ->
-                DropdownMenuItem(
-                    text = {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(StudioDimens.s),
-                        ) {
-                            Text(provider.displayName)
-                            Text(
-                                text = if (provider.kind == ProviderKind.LOCAL) "Local" else "Hosted",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                        }
-                    },
-                    onClick = {
-                        onSelect(provider.id)
-                        expanded = false
-                    },
-                )
-            }
-        }
-    }
+    val selected = providers.find { it.id == selectedId } ?: providers.firstOrNull() ?: return
+    MenuPicker(
+        items = providers,
+        selected = selected,
+        onSelect = { onSelect(it.id) },
+        label = ImportReviewStrings.AI_PROVIDER,
+        itemLabel = { it.displayName },
+    )
 }
 
 @Composable
@@ -1009,40 +834,30 @@ private fun SingleEndpointAIDialog(
 					style = MaterialTheme.typography.bodySmall,
 					color = MaterialTheme.colorScheme.onSurfaceVariant,
 				)
-				OutlinedTextField(
+				FormTextField(
 					value = hint,
 					onValueChange = { hint = it },
-					label = { Text(ImportReviewStrings.AI_CONTEXT_HINT_LABEL) },
-					placeholder = {
-						Text(
-							ImportReviewStrings.AI_CONTEXT_HINT_PLACEHOLDER,
-							style = MaterialTheme.typography.bodySmall,
-						)
-					},
-					minLines = 2,
-					maxLines = 4,
-					modifier = Modifier.fillMaxWidth(),
-					textStyle = MaterialTheme.typography.bodySmall,
+					label = ImportReviewStrings.AI_CONTEXT_HINT_LABEL,
+					placeholder = ImportReviewStrings.AI_CONTEXT_HINT_PLACEHOLDER,
+					modifier = Modifier.fillMaxWidth().heightIn(
+						min = StudioDimens.multilineFieldMinHeight,
+						max = StudioDimens.multilineFieldMaxHeight,
+					),
+					singleLine = false,
 				)
 			}
 		},
 		confirmButton = {
-			Button(
+			PrimaryButton(
+				text = ImportReviewStrings.GENERATE,
 				onClick = { onGenerate(hint) },
-				colors = ButtonDefaults.buttonColors(
-					containerColor = MaterialTheme.colorScheme.tertiary,
-					contentColor = MaterialTheme.colorScheme.onTertiary,
-				),
-			) {
-				Icon(Icons.Outlined.AutoAwesome, contentDescription = null)
-				Spacer(Modifier.width(StudioDimens.s))
-				Text(ImportReviewStrings.GENERATE)
-			}
+			)
 		},
 		dismissButton = {
-			OutlinedButton(onClick = onDismiss) {
-				Text(ImportReviewStrings.CANCEL)
-			}
+			SecondaryButton(
+				text = ImportReviewStrings.CANCEL,
+				onClick = onDismiss,
+			)
 		},
 	)
 }
@@ -1095,19 +910,16 @@ private fun BulkAIDialog(
 										modifier = Modifier.weight(1f),
 									)
 								}
-								OutlinedTextField(
+								FormTextField(
 									value = hints[index].orEmpty(),
 									onValueChange = { hints[index] = it },
-									placeholder = {
-										Text(
-											ImportReviewStrings.AI_CONTEXT_HINT_PLACEHOLDER,
-											style = MaterialTheme.typography.bodySmall,
-										)
-									},
-									minLines = 1,
-									maxLines = 2,
-									modifier = Modifier.fillMaxWidth(),
-									textStyle = MaterialTheme.typography.bodySmall,
+									placeholder = ImportReviewStrings.AI_CONTEXT_HINT_PLACEHOLDER,
+									modifier = Modifier.fillMaxWidth().heightIn(
+										min = StudioDimens.multilineFieldMinHeight,
+										max = StudioDimens.multilineFieldMaxHeight,
+									),
+									label = ImportReviewStrings.AI_CONTEXT_HINT_LABEL,
+									singleLine = false,
 								)
 							}
 						}
@@ -1116,22 +928,16 @@ private fun BulkAIDialog(
 			}
 		},
 		confirmButton = {
-			Button(
+			PrimaryButton(
+				text = ImportReviewStrings.GENERATE_ALL,
 				onClick = { onGenerate(hints.toMap()) },
-				colors = ButtonDefaults.buttonColors(
-					containerColor = MaterialTheme.colorScheme.tertiary,
-					contentColor = MaterialTheme.colorScheme.onTertiary,
-				),
-			) {
-				Icon(Icons.Outlined.AutoAwesome, contentDescription = null)
-				Spacer(Modifier.width(StudioDimens.s))
-				Text(ImportReviewStrings.GENERATE_ALL)
-			}
+			)
 		},
 		dismissButton = {
-			OutlinedButton(onClick = onDismiss) {
-				Text(ImportReviewStrings.CANCEL)
-			}
+			SecondaryButton(
+				text = ImportReviewStrings.CANCEL,
+				onClick = onDismiss,
+			)
 		},
 	)
 }

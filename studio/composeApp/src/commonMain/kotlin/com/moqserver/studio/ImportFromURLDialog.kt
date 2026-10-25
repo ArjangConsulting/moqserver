@@ -1,49 +1,38 @@
 package com.moqserver.studio
 
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.CloudDownload
-import androidx.compose.material.icons.outlined.ExpandLess
-import androidx.compose.material.icons.outlined.ExpandMore
-import androidx.compose.material.icons.outlined.Lock
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.ExposedDropdownMenuAnchorType
-import androidx.compose.material3.ExposedDropdownMenuBox
-import androidx.compose.material3.ExposedDropdownMenuDefaults
-import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.input.ImeAction
-import androidx.compose.ui.text.input.PasswordVisualTransformation
-import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
+import io.github.maniramezan.kmpcomponents.DisclosureCard
+import io.github.maniramezan.kmpcomponents.FormTextField
+import io.github.maniramezan.kmpcomponents.InlineProgressIndicator
+import io.github.maniramezan.kmpcomponents.MenuPicker
+import io.github.maniramezan.kmpcomponents.PrimaryButton
+import io.github.maniramezan.kmpcomponents.SecondaryButton
+import io.github.maniramezan.kmpcomponents.SecretTextField
+import io.github.maniramezan.kmpcomponents.StatusMessage
+import io.github.maniramezan.kmpcomponents.StatusTone
 
 private object ImportURLStrings {
+	const val INVALID_URL = "Enter a valid spec URL"
+	const val EXPANDED = "Authentication expanded"
+	const val COLLAPSED = "Authentication collapsed"
 	const val OPENAPI_DIALOG_TITLE = "Import OpenAPI from URL"
 	const val SWAGGER_DIALOG_TITLE = "Import Swagger from URL"
 	const val UPDATE_OPENAPI_DIALOG_TITLE = "Update from OpenAPI URL"
@@ -147,241 +136,88 @@ internal fun ImportFromURLDialog(
 	val isUrlValid = state.url.isNotBlank() && looksLikeUrl(state.url)
 	val canSubmit = isUrlValid && !state.loading
 	val dialogCopy = importFromURLDialogCopy(state)
-	val submitOnEnter = remember(canSubmit, onConfirm) {
-		{
-			if (canSubmit) onConfirm()
-		}
-	}
-
+	val keyboardActions = KeyboardActions(onDone = { if (canSubmit) onConfirm() })
 	AlertDialog(
-		onDismissRequest = {
-			if (!state.loading) onDismiss()
-		},
-		title = {
-			Row(
-				verticalAlignment = Alignment.CenterVertically,
-				horizontalArrangement = Arrangement.spacedBy(StudioDimens.s),
-			) {
-				Icon(
-					Icons.Outlined.CloudDownload,
-					contentDescription = null,
-					modifier = Modifier.size(24.dp),
-				)
-				Text(dialogCopy.title)
-			}
-		},
+		onDismissRequest = { if (!state.loading) onDismiss() },
+		title = { Text(dialogCopy.title) },
 		text = {
 			Column(
+				modifier = Modifier.width(480.dp).verticalScroll(rememberScrollState()),
 				verticalArrangement = Arrangement.spacedBy(StudioDimens.m),
-				modifier = Modifier.width(480.dp),
 			) {
-				// URL input field.
-				OutlinedTextField(
+				FormTextField(
 					value = state.url,
 					onValueChange = onUrlChange,
-					label = { Text(ImportURLStrings.URL_LABEL) },
-					placeholder = {
-						Text(
-							ImportURLStrings.URL_PLACEHOLDER,
-							style = MaterialTheme.typography.bodySmall,
-						)
-					},
-					singleLine = true,
+					label = ImportURLStrings.URL_LABEL,
+					placeholder = ImportURLStrings.URL_PLACEHOLDER,
+					supportingText = ImportURLStrings.URL_HELPER,
+					errorText = if (state.url.isNotBlank() && !isUrlValid) ImportURLStrings.INVALID_URL else null,
 					modifier = Modifier.fillMaxWidth(),
-					textStyle = MaterialTheme.typography.bodyMedium.copy(fontFamily = FontFamily.Monospace),
 					enabled = !state.loading,
-					isError = state.url.isNotBlank() && !isUrlValid,
 					keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
-					keyboardActions = KeyboardActions(onDone = { submitOnEnter() }),
+					keyboardActions = keyboardActions,
 				)
-				Text(
-					text = ImportURLStrings.URL_HELPER,
-					style = MaterialTheme.typography.bodySmall,
-					color = MaterialTheme.colorScheme.onSurfaceVariant,
-				)
-
-				// Auth section (collapsible).
-				TextButton(
-					onClick = { authExpanded = !authExpanded },
-					enabled = !state.loading,
-				) {
-					Icon(
-						Icons.Outlined.Lock,
-						contentDescription = null,
-						modifier = Modifier.size(16.dp),
-					)
-					Spacer(Modifier.width(StudioDimens.xs))
-					Text(ImportURLStrings.AUTH_SECTION, style = MaterialTheme.typography.labelMedium)
-					Spacer(Modifier.width(StudioDimens.xs))
-					Icon(
-						if (authExpanded) Icons.Outlined.ExpandLess else Icons.Outlined.ExpandMore,
-						contentDescription = null,
-						modifier = Modifier.size(16.dp),
-					)
-				}
-
-				AnimatedVisibility(visible = authExpanded) {
-					Column(
-						verticalArrangement = Arrangement.spacedBy(StudioDimens.s),
-						modifier = Modifier.padding(start = StudioDimens.m),
-					) {
-						Text(
-							text = ImportURLStrings.AUTH_HELPER,
-							style = MaterialTheme.typography.bodySmall,
-							color = MaterialTheme.colorScheme.onSurfaceVariant,
-						)
-
-						AuthTypeSelector(
-							selected = state.authType,
-							onSelect = onAuthTypeChange,
-							enabled = !state.loading,
-						)
-
-						when (state.authType) {
-							URLAuthType.BEARER -> {
-								var revealToken by remember { mutableStateOf(false) }
-								OutlinedTextField(
+				DisclosureCard(
+					expanded = authExpanded,
+					onExpandedChange = { if (!state.loading) authExpanded = it },
+					expandedLabel = ImportURLStrings.EXPANDED,
+					collapsedLabel = ImportURLStrings.COLLAPSED,
+					summary = { Text(ImportURLStrings.AUTH_SECTION) },
+					detail = {
+						Column(verticalArrangement = Arrangement.spacedBy(StudioDimens.m)) {
+							Text(ImportURLStrings.AUTH_HELPER, style = MaterialTheme.typography.bodySmall)
+							MenuPicker(
+								items = URLAuthType.entries,
+								selected = state.authType,
+								onSelect = onAuthTypeChange,
+								label = ImportURLStrings.AUTH_SECTION,
+								itemLabel = { it.label },
+								enabled = !state.loading,
+							)
+							when (state.authType) {
+								URLAuthType.BEARER -> SecretTextField(
 									value = state.bearerToken,
 									onValueChange = onBearerTokenChange,
-									label = { Text(ImportURLStrings.TOKEN_LABEL) },
-									placeholder = {
-										Text(
-											ImportURLStrings.TOKEN_PLACEHOLDER,
-											style = MaterialTheme.typography.bodySmall,
-										)
-									},
-									singleLine = true,
-									modifier = Modifier.fillMaxWidth(),
-									textStyle = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace),
+									label = ImportURLStrings.TOKEN_LABEL,
 									enabled = !state.loading,
-									visualTransformation = if (revealToken) VisualTransformation.None else PasswordVisualTransformation(),
-									trailingIcon = {
-										TextButton(onClick = { revealToken = !revealToken }) {
-											Text(if (revealToken) ImportURLStrings.HIDE_SECRET else ImportURLStrings.SHOW_SECRET)
-										}
-									},
-									keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
-									keyboardActions = KeyboardActions(onDone = { submitOnEnter() }),
+									showLabel = ImportURLStrings.SHOW_SECRET,
+									hideLabel = ImportURLStrings.HIDE_SECRET,
+									imeAction = ImeAction.Done,
+									keyboardActions = keyboardActions,
 								)
+								URLAuthType.BASIC -> {
+									FormTextField(
+										value = state.basicUsername,
+										onValueChange = onBasicUsernameChange,
+										label = ImportURLStrings.USERNAME_LABEL,
+										enabled = !state.loading,
+										keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
+									)
+									SecretTextField(
+										value = state.basicPassword,
+										onValueChange = onBasicPasswordChange,
+										label = ImportURLStrings.PASSWORD_LABEL,
+										enabled = !state.loading,
+										showLabel = ImportURLStrings.SHOW_SECRET,
+										hideLabel = ImportURLStrings.HIDE_SECRET,
+										imeAction = ImeAction.Done,
+										keyboardActions = keyboardActions,
+									)
+								}
+								URLAuthType.NONE -> Unit
 							}
-							URLAuthType.BASIC -> {
-								var revealPassword by remember { mutableStateOf(false) }
-								OutlinedTextField(
-									value = state.basicUsername,
-									onValueChange = onBasicUsernameChange,
-									label = { Text(ImportURLStrings.USERNAME_LABEL) },
-									singleLine = true,
-									modifier = Modifier.fillMaxWidth(),
-									textStyle = MaterialTheme.typography.bodySmall,
-									enabled = !state.loading,
-									keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
-								)
-								OutlinedTextField(
-									value = state.basicPassword,
-									onValueChange = onBasicPasswordChange,
-									label = { Text(ImportURLStrings.PASSWORD_LABEL) },
-									singleLine = true,
-									modifier = Modifier.fillMaxWidth(),
-									textStyle = MaterialTheme.typography.bodySmall,
-									enabled = !state.loading,
-									visualTransformation = if (revealPassword) VisualTransformation.None else PasswordVisualTransformation(),
-									trailingIcon = {
-										TextButton(onClick = { revealPassword = !revealPassword }) {
-											Text(if (revealPassword) ImportURLStrings.HIDE_SECRET else ImportURLStrings.SHOW_SECRET)
-										}
-									},
-									keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
-									keyboardActions = KeyboardActions(onDone = { submitOnEnter() }),
-								)
-							}
-							URLAuthType.NONE -> {}
 						}
-					}
-				}
-
-				// Error display.
-				if (state.error != null) {
-					Text(
-						text = state.error,
-						style = MaterialTheme.typography.bodySmall,
-						color = MaterialTheme.colorScheme.error,
-						modifier = Modifier
-							.fillMaxWidth()
-							.padding(vertical = StudioDimens.xs),
-					)
-				}
-			}
-		},
-		confirmButton = {
-			Button(
-				onClick = onConfirm,
-				enabled = canSubmit,
-			) {
-				if (state.loading) {
-					CircularProgressIndicator(
-						modifier = Modifier.size(16.dp),
-						strokeWidth = 2.dp,
-						color = MaterialTheme.colorScheme.onPrimary,
-					)
-					Spacer(Modifier.width(StudioDimens.s))
-					Text(ImportURLStrings.FETCHING)
-				} else {
-					Icon(Icons.Outlined.CloudDownload, contentDescription = null)
-					Spacer(Modifier.width(StudioDimens.s))
-					Text(dialogCopy.submitButton)
-				}
-			}
-		},
-		dismissButton = {
-			OutlinedButton(
-				onClick = onDismiss,
-				enabled = !state.loading,
-			) {
-				Text(ImportURLStrings.CANCEL_BUTTON)
-			}
-		},
-	)
-}
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun AuthTypeSelector(
-	selected: URLAuthType,
-	onSelect: (URLAuthType) -> Unit,
-	enabled: Boolean,
-) {
-	var expanded by remember { mutableStateOf(false) }
-
-	ExposedDropdownMenuBox(
-		expanded = expanded,
-		onExpandedChange = { if (enabled) expanded = it },
-	) {
-		OutlinedTextField(
-			value = selected.label,
-			onValueChange = {},
-			readOnly = true,
-			trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
-			modifier = Modifier
-				.menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable)
-				.fillMaxWidth(),
-			textStyle = MaterialTheme.typography.bodySmall,
-			enabled = enabled,
-		)
-		ExposedDropdownMenu(
-			expanded = expanded,
-			onDismissRequest = { expanded = false },
-		) {
-			URLAuthType.entries.forEach { authType ->
-				DropdownMenuItem(
-					text = { Text(authType.label, style = MaterialTheme.typography.bodySmall) },
-					onClick = {
-						onSelect(authType)
-						expanded = false
 					},
 				)
+				state.error?.let { StatusMessage(message = it, tone = StatusTone.ERROR) }
+				if (state.loading) InlineProgressIndicator(label = ImportURLStrings.FETCHING)
 			}
-		}
-	}
+		},
+		confirmButton = { PrimaryButton(text = dialogCopy.submitButton, onClick = onConfirm, enabled = canSubmit) },
+		dismissButton = {
+			SecondaryButton(text = ImportURLStrings.CANCEL_BUTTON, onClick = onDismiss, enabled = !state.loading)
+		},
+	)
 }
 
 /**

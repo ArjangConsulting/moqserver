@@ -49,9 +49,11 @@ import com.moqserver.studio.projectformat.format.FormatClient
 import com.moqserver.studio.projectformat.format.FormatProcess
 import com.moqserver.studio.projectformat.format.ImportAuthInput
 import com.moqserver.studio.projectformat.format.RemoteProjectValidator
+import io.github.maniramezan.kmpcomponents.CheckStatus
 import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
 import java.io.File
 import javax.swing.JOptionPane
@@ -207,6 +209,8 @@ fun main(args: Array<String>) {
     System.setProperty("apple.awt.application.name", STUDIO_APP_DISPLAY_NAME)
     logger.info("moqserver studio starting (args={})", args.toList())
     installCrashHandlers()
+    val settingsRepo = AISettingsRepository()
+    val initialSettings = runBlocking(Dispatchers.IO) { settingsRepo.load() }
     application {
         // .moqproj reading, writing, validation, and HAR/OpenAPI import parsing all go through
         // moq-format, a supervised subprocess (see FormatProcess doc comment for why: a Swift
@@ -227,10 +231,9 @@ fun main(args: Array<String>) {
         DisposableEffect(formatProcess) {
             onDispose { formatProcess.stop() }
         }
-        val settingsRepo = remember { AISettingsRepository() }
         val recentProjectsRepo = remember { RecentProjectsRepository() }
         val importHistoryRepo = remember { ImportHistoryRepository() }
-        val aiSettings = remember { mutableStateOf(settingsRepo.load()) }
+        val aiSettings = remember { mutableStateOf(initialSettings) }
         val aiRegistry = remember(aiSettings.value) { buildAIRegistry(aiSettings.value) }
 		val showSettings = remember { mutableStateOf(false) }
         val showRuntimeInspector = remember { mutableStateOf(false) }
@@ -1133,20 +1136,20 @@ fun main(args: Array<String>) {
                         },
                         onTestAIProvider = { providerId, testSettings, onStatus ->
                             scope.launch(exceptionHandler) {
-                                onStatus(ProviderConnectionStatus.Checking)
+                                onStatus(CheckStatus.Checking)
                                 val provider = buildAIProviderForTesting(testSettings, providerId)
                                 if (provider == null) {
-                                    onStatus(ProviderConnectionStatus.Failure("Unknown AI provider."))
+                                    onStatus(CheckStatus.Failure("Unknown AI provider."))
                                     return@launch
                                 }
 
                                 val issues = withContext(Dispatchers.IO) { provider.validateConfig() }
                                 if (issues.isNotEmpty()) {
-                                    onStatus(ProviderConnectionStatus.Failure(issues.first()))
+                                    onStatus(CheckStatus.Failure(issues.first()))
                                     return@launch
                                 }
 
-                                onStatus(ProviderConnectionStatus.Success("Connection successful"))
+                                onStatus(CheckStatus.Success("Connection successful"))
                             }
                         },
                         onSaveAISettings = { updatedAISettings ->
