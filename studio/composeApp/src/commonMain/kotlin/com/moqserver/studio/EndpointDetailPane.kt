@@ -1,6 +1,5 @@
 package com.moqserver.studio
 
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -14,6 +13,16 @@ import com.moqserver.studio.domain.VariantReferenceSyncPreference
 import com.moqserver.studio.endpointdetail.*
 import com.moqserver.studio.projectformat.*
 import com.moqserver.studio.ui.*
+import io.github.maniramezan.kmpcomponents.ConfirmDialog
+import io.github.maniramezan.kmpcomponents.FormTextField
+import io.github.maniramezan.kmpcomponents.InfoTooltip
+import io.github.maniramezan.kmpcomponents.MenuPicker
+import io.github.maniramezan.kmpcomponents.SegmentedContent
+import io.github.maniramezan.kmpcomponents.SegmentedItem
+import io.github.maniramezan.kmpcomponents.TabChip
+import io.github.maniramezan.kmpcomponents.TabChipRow
+import io.github.maniramezan.kmpcomponents.ThemeCard
+import io.github.maniramezan.kmpcomponents.ThemeTextButton
 
 private object EndpointDetailStrings {
     const val DELETE_ENDPOINT_TITLE = "Delete endpoint?"
@@ -67,26 +76,17 @@ fun EndpointDetailPane(
     var showDeleteConfirm by remember { mutableStateOf(false) }
 
     if (showDeleteConfirm) {
-        AlertDialog(
-            onDismissRequest = { showDeleteConfirm = false },
-            title = { Text(EndpointDetailStrings.DELETE_ENDPOINT_TITLE) },
-            text = {
-                Text(
-                    "Delete \"${endpoint.displayAlias}\" (${endpoint.method} ${endpoint.path})? This cannot be undone.",
-                )
+        ConfirmDialog(
+            title = EndpointDetailStrings.DELETE_ENDPOINT_TITLE,
+            message = "Delete \"${endpoint.displayAlias}\" (${endpoint.method} ${endpoint.path})? This cannot be undone.",
+            onConfirm = {
+                showDeleteConfirm = false
+                onDeleteEndpoint()
             },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        showDeleteConfirm = false
-                        onDeleteEndpoint()
-                    },
-                    colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error),
-                ) { Text(EndpointDetailStrings.DELETE) }
-            },
-            dismissButton = {
-                TextButton(onClick = { showDeleteConfirm = false }) { Text(EndpointDetailStrings.CANCEL) }
-            },
+            onDismiss = { showDeleteConfirm = false },
+            confirmLabel = EndpointDetailStrings.DELETE,
+            dismissLabel = EndpointDetailStrings.CANCEL,
+            destructive = true,
         )
     }
 
@@ -130,12 +130,11 @@ private fun EndpointHeader(
     ) {
         MethodBadge(endpoint.method)
         Text(endpoint.path, style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f))
-        TextButton(
+        ThemeTextButton(
+            text = EndpointDetailStrings.DELETE,
             onClick = onDelete,
-            colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error),
-        ) {
-            Text(EndpointDetailStrings.DELETE)
-        }
+            destructive = true,
+        )
     }
 
     Text(
@@ -163,42 +162,42 @@ private fun EndpointMetadataForm(
 
     MethodAndPathRow(endpoint = endpoint, onUpdateEndpoint = onUpdateEndpoint)
 
-    OutlinedTextField(
+    FormTextField(
         value = endpoint.alias ?: endpoint.displayAlias,
         onValueChange = {
             onUpdateEndpoint(endpoint.copy(alias = it.ifBlank { null }))
         },
-        label = { Text(EndpointDetailStrings.ALIAS_LABEL) },
+        label = EndpointDetailStrings.ALIAS_LABEL,
         singleLine = true,
-        trailingIcon = { InfoTooltip(EndpointDetailStrings.ALIAS_TOOLTIP) },
         modifier = Modifier.fillMaxWidth(),
+        trailingContent = { InfoTooltip(EndpointDetailStrings.ALIAS_TOOLTIP) },
     )
 
-    OutlinedTextField(
+    FormTextField(
         value = endpoint.referenceName,
         onValueChange = { onUpdateEndpoint(endpoint.copy(referenceName = it)) },
-        label = { Text(EndpointDetailStrings.REFERENCE_NAME) },
+        label = EndpointDetailStrings.REFERENCE_NAME,
         singleLine = true,
-        isError = referenceNameBlank || referenceNameInvalid || referenceNameConflict,
-        supportingText = {
-            when {
-                referenceNameBlank -> Text(EndpointDetailStrings.REFERENCE_NAME_REQUIRED)
-                referenceNameInvalid -> Text(EndpointDetailStrings.REFERENCE_NAME_INVALID)
-                referenceNameConflict -> Text(EndpointDetailStrings.REFERENCE_NAME_CONFLICT)
-            }
-        },
-        trailingIcon = { InfoTooltip(EndpointDetailStrings.REFERENCE_NAME_TOOLTIP) },
         modifier = Modifier.fillMaxWidth(),
+        errorText = when {
+            referenceNameBlank -> EndpointDetailStrings.REFERENCE_NAME_REQUIRED
+            referenceNameInvalid -> EndpointDetailStrings.REFERENCE_NAME_INVALID
+            referenceNameConflict -> EndpointDetailStrings.REFERENCE_NAME_CONFLICT
+            else -> null
+        },
+        trailingContent = { InfoTooltip(EndpointDetailStrings.REFERENCE_NAME_TOOLTIP) },
     )
 
-    OutlinedTextField(
+    FormTextField(
         value = endpoint.description.orEmpty(),
         onValueChange = { onUpdateEndpoint(endpoint.copy(description = it.ifBlank { null })) },
-        label = { Text(EndpointDetailStrings.DESCRIPTION_LABEL) },
-        minLines = 2,
-        maxLines = 4,
-        trailingIcon = { InfoTooltip(EndpointDetailStrings.DESCRIPTION_TOOLTIP) },
-        modifier = Modifier.fillMaxWidth(),
+        label = EndpointDetailStrings.DESCRIPTION_LABEL,
+        modifier = Modifier.fillMaxWidth().heightIn(
+            min = StudioDimens.multilineFieldMinHeight,
+            max = StudioDimens.multilineFieldMaxHeight,
+        ),
+        trailingContent = { InfoTooltip(EndpointDetailStrings.DESCRIPTION_TOOLTIP) },
+        singleLine = false,
     )
 }
 
@@ -208,40 +207,22 @@ private fun MethodAndPathRow(
     onUpdateEndpoint: (EndpointDocument) -> Unit,
 ) {
     Row(horizontalArrangement = Arrangement.spacedBy(StudioDimens.l)) {
-        var methodExpanded by remember { mutableStateOf(false) }
-        Box {
-            OutlinedTextField(
-                value = endpoint.method,
-                onValueChange = {},
-                label = { Text(EndpointDetailStrings.METHOD_LABEL) },
-                readOnly = true,
-                modifier = Modifier.width(120.dp),
-            )
-            Box(
-                modifier = Modifier
-                    .matchParentSize()
-                    .clickable { methodExpanded = true },
-            )
-            DropdownMenu(expanded = methodExpanded, onDismissRequest = { methodExpanded = false }) {
-                listOf("GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS").forEach { method ->
-                    DropdownMenuItem(
-                        text = { Text(method) },
-                        onClick = {
-                            onUpdateEndpoint(endpoint.copy(method = method))
-                            methodExpanded = false
-                        },
-                    )
-                }
-            }
-        }
+        MenuPicker(
+            items = listOf("GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"),
+            selected = endpoint.method,
+            onSelect = { onUpdateEndpoint(endpoint.copy(method = it)) },
+            label = EndpointDetailStrings.METHOD_LABEL,
+            itemLabel = { it },
+            modifier = Modifier.width(140.dp),
+        )
 
-        OutlinedTextField(
+        FormTextField(
             value = endpoint.path,
             onValueChange = { onUpdateEndpoint(endpoint.copy(path = it)) },
-            label = { Text(EndpointDetailStrings.PATH_LABEL) },
+            label = EndpointDetailStrings.PATH_LABEL,
             singleLine = true,
-            trailingIcon = { InfoTooltip(EndpointDetailStrings.PATH_TOOLTIP) },
             modifier = Modifier.weight(1f),
+            trailingContent = { InfoTooltip(EndpointDetailStrings.PATH_TOOLTIP) },
         )
     }
 }
@@ -381,7 +362,7 @@ private fun VariantTabs(
     onAdd: () -> Unit,
     onRemove: (Int) -> Unit,
 ) {
-    TabStrip {
+    TabChipRow {
         variants.forEachIndexed { index, variant ->
             val isSelected = index == selectedIndex
             val label = buildString {
@@ -392,6 +373,7 @@ private fun VariantTabs(
                 label = label,
                 selected = isSelected,
                 onClick = { onSelect(index) },
+                closeDescription = "${EndpointDetailStrings.DELETE} ${variant.name}",
                 onClose = if (variants.size > 1) { { onRemove(index) } } else null,
             )
         }
@@ -419,19 +401,14 @@ private fun VariantDeleteConfirmDialog(
             isDefault -> EndpointDetailStrings.DELETE_DEFAULT_VARIANT_MSG
             else -> EndpointDetailStrings.DELETE_EDITED_VARIANT_MSG
         }
-        AlertDialog(
-            onDismissRequest = onDismiss,
-            title = { Text(EndpointDetailStrings.DELETE_VARIANT_TITLE) },
-            text = { Text(message) },
-            confirmButton = {
-                TextButton(
-                    onClick = { onConfirm(deleteIndex) },
-                    colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error),
-                ) { Text(EndpointDetailStrings.DELETE) }
-            },
-            dismissButton = {
-                TextButton(onClick = onDismiss) { Text(EndpointDetailStrings.CANCEL) }
-            },
+        ConfirmDialog(
+            title = EndpointDetailStrings.DELETE_VARIANT_TITLE,
+            message = message,
+            onConfirm = { onConfirm(deleteIndex) },
+            onDismiss = onDismiss,
+            confirmLabel = EndpointDetailStrings.DELETE,
+            dismissLabel = EndpointDetailStrings.CANCEL,
+            destructive = true,
         )
     }
 }
@@ -456,14 +433,17 @@ private fun VariantDetailCard(
     onGenerateBody: (String) -> Unit,
     onRequestRemove: () -> Unit,
 ) {
-    Card(modifier = Modifier.fillMaxWidth()) {
+    ThemeCard(modifier = Modifier.fillMaxWidth(), contentPadding = PaddingValues(0.dp)) {
         Column(
             modifier = Modifier.padding(StudioDimens.xl),
             verticalArrangement = Arrangement.spacedBy(StudioDimens.xl),
         ) {
-            DetailTabs(selectedTab = selectedTab, onSelect = onSelectTab)
-
-            when (selectedTab) {
+            SegmentedContent(
+                items = VariantDetailTab.entries.map { SegmentedItem(it.title) },
+                selectedIndex = selectedTab.ordinal,
+                onSelectionChanged = { onSelectTab(VariantDetailTab.entries[it]) },
+            ) { index, _ ->
+            when (VariantDetailTab.entries[index]) {
                 VariantDetailTab.SUMMARY -> VariantSummaryTab(
                     endpoint = endpoint,
                     variant = variant,
@@ -532,22 +512,7 @@ private fun VariantDetailCard(
                     onUpdateStrictCallCount = { onUpdateEndpoint(endpoint.copy(strictCallCount = it)) },
                 )
             }
-        }
-    }
-}
-
-@Composable
-private fun DetailTabs(
-    selectedTab: VariantDetailTab,
-    onSelect: (VariantDetailTab) -> Unit,
-) {
-    TabStrip {
-        VariantDetailTab.entries.forEach { tab ->
-            TabChip(
-                label = tab.title,
-                selected = tab == selectedTab,
-                onClick = { onSelect(tab) },
-            )
+            }
         }
     }
 }

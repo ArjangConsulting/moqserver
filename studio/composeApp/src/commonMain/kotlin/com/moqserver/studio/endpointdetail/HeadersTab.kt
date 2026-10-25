@@ -1,18 +1,22 @@
 package com.moqserver.studio.endpointdetail
 
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.Delete
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.style.TextAlign
 import com.moqserver.studio.designsystem.StudioDimens
 import com.moqserver.studio.projectformat.MatchType
 import com.moqserver.studio.projectformat.RequestRules
 import com.moqserver.studio.projectformat.RuleMatcher
 import com.moqserver.studio.ui.*
+import io.github.maniramezan.kmpcomponents.FormTextField
+import io.github.maniramezan.kmpcomponents.ThemeCheckbox
+import io.github.maniramezan.kmpcomponents.ThemeTextButton
 
 private object HeadersTabStrings {
     const val DELETE_ALL_TITLE = "Delete all headers?"
@@ -41,9 +45,11 @@ internal fun HeadersTab(
 	requestRules: RequestRules,
 	onUpdate: (Map<String, String>, RequestRules) -> Unit,
 ) {
+	val tableScale = LocalDensity.current.fontScale.coerceAtLeast(1f)
+
 	val headerCriteria = requestRules.headers ?: emptyList()
 	val headersList = headers.entries.toList()
-	val placeholderColors = placeholderTextFieldColors()
+
 	val hasAnyHeaders = hasHeaderEntries(headers, requestRules)
 	var showDeleteAllConfirm by remember { mutableStateOf(false) }
 
@@ -87,24 +93,32 @@ internal fun HeadersTab(
 				color = MaterialTheme.colorScheme.onSurfaceVariant,
 			)
 		} else {
-			HeadersTableHeader()
-			HorizontalDivider()
-			headersList.forEachIndexed { index, (key, value) ->
-				val ruleMatcher = headerCriteria.find { it.name.equals(key, ignoreCase = true) }
-				val isRequired = ruleMatcher != null
-				HeaderRow(
-					key = key,
-					value = value,
-					index = index,
-					headers = headers,
-					headerCriteria = headerCriteria,
-					requestRules = requestRules,
-					isRequired = isRequired,
-					ruleMatcher = ruleMatcher,
-					placeholderColors = placeholderColors,
-					onUpdate = onUpdate,
-					onRemove = { removeHeader(key, isRequired) },
-				)
+			BoxWithConstraints(Modifier.fillMaxWidth()) {
+				val minimumWidth = (
+					StudioDimens.tableNameColumnWidth + StudioDimens.tableActionColumnWidth +
+						StudioDimens.tableConditionColumnWidth + StudioDimens.tableMatchValueColumnWidth * 2 +
+						StudioDimens.tableDeleteButtonSize + StudioDimens.xxxl
+				) * tableScale
+				Column(Modifier.horizontalScroll(rememberScrollState()).width(maxWidth.coerceAtLeast(minimumWidth))) {
+					HeadersTableHeader()
+					HorizontalDivider()
+					headersList.forEachIndexed { index, (key, value) ->
+						val ruleMatcher = headerCriteria.find { it.name.equals(key, ignoreCase = true) }
+						val isRequired = ruleMatcher != null
+						HeaderRow(
+							key = key,
+							value = value,
+							index = index,
+							headers = headers,
+							headerCriteria = headerCriteria,
+							requestRules = requestRules,
+							isRequired = isRequired,
+							ruleMatcher = ruleMatcher,
+							onUpdate = onUpdate,
+							onRemove = { removeHeader(key, isRequired) },
+						)
+					}
+				}
 			}
 		}
 	}
@@ -124,22 +138,24 @@ private fun HeadersToolbar(
 		Text(HeadersTabStrings.RESPONSE_HEADERS, style = MaterialTheme.typography.titleSmall)
 		Row(horizontalArrangement = Arrangement.spacedBy(StudioDimens.m), verticalAlignment = Alignment.CenterVertically) {
 			if (hasAnyHeaders) {
-				TextButton(
+				ThemeTextButton(
+					text = HeadersTabStrings.DELETE_ALL,
 					onClick = onDeleteAll,
-					colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error),
-				) {
-					Text(HeadersTabStrings.DELETE_ALL)
-				}
+					destructive = true,
+				)
 			}
-			TextButton(onClick = onAdd) {
-				Text(HeadersTabStrings.ADD)
-			}
+			ThemeTextButton(
+				text = HeadersTabStrings.ADD,
+				onClick = onAdd,
+			)
 		}
 	}
 }
 
 @Composable
 private fun HeadersTableHeader() {
+	val tableScale = LocalDensity.current.fontScale.coerceAtLeast(1f)
+
 	Row(
 		modifier = Modifier.fillMaxWidth().padding(horizontal = StudioDimens.xs),
 		horizontalArrangement = Arrangement.spacedBy(StudioDimens.xs),
@@ -149,7 +165,7 @@ private fun HeadersTableHeader() {
 			HeadersTabStrings.HEADER_NAME,
 			style = MaterialTheme.typography.labelSmall,
 			color = MaterialTheme.colorScheme.onSurfaceVariant,
-			modifier = Modifier.width(headerNameColumnWidth),
+			modifier = Modifier.width(headerNameColumnWidth * tableScale),
 		)
 		Text(
 			HeadersTabStrings.HEADER_VALUE,
@@ -162,21 +178,21 @@ private fun HeadersTableHeader() {
 			style = MaterialTheme.typography.labelSmall,
 			color = MaterialTheme.colorScheme.onSurfaceVariant,
 			textAlign = TextAlign.Center,
-			modifier = Modifier.width(StudioDimens.tableActionColumnWidth),
+			modifier = Modifier.width(StudioDimens.tableActionColumnWidth * tableScale),
 		)
 		Text(
 			HeadersTabStrings.CONDITION,
 			style = MaterialTheme.typography.labelSmall,
 			color = MaterialTheme.colorScheme.onSurfaceVariant,
-			modifier = Modifier.width(headerConditionColumnWidth),
+			modifier = Modifier.width(headerConditionColumnWidth * tableScale),
 		)
 		Text(
 			HeadersTabStrings.MATCH_VALUE,
 			style = MaterialTheme.typography.labelSmall,
 			color = MaterialTheme.colorScheme.onSurfaceVariant,
-			modifier = Modifier.width(headerMatchValueColumnWidth),
+			modifier = Modifier.width(headerMatchValueColumnWidth * tableScale),
 		)
-		Spacer(Modifier.width(StudioDimens.tableDeleteButtonSize))
+		Spacer(Modifier.width(StudioDimens.tableDeleteButtonSize * tableScale))
 	}
 }
 
@@ -190,16 +206,17 @@ private fun HeaderRow(
 	requestRules: RequestRules,
 	isRequired: Boolean,
 	ruleMatcher: RuleMatcher?,
-	placeholderColors: TextFieldColors,
 	onUpdate: (Map<String, String>, RequestRules) -> Unit,
 	onRemove: () -> Unit,
 ) {
+	val tableScale = LocalDensity.current.fontScale.coerceAtLeast(1f)
+
 	Row(
-		modifier = Modifier.fillMaxWidth().padding(horizontal = StudioDimens.xs),
+		modifier = Modifier.fillMaxWidth().padding(horizontal = StudioDimens.xs, vertical = StudioDimens.m),
 		horizontalArrangement = Arrangement.spacedBy(StudioDimens.xs),
 		verticalAlignment = Alignment.CenterVertically,
 	) {
-		OutlinedTextField(
+		FormTextField(
 			value = key,
 			onValueChange = { newKey ->
 				val entries = headers.entries.toMutableList()
@@ -219,13 +236,12 @@ private fun HeaderRow(
 				}
 				onUpdate(updatedHeaders, updatedRules)
 			},
-			placeholder = { Text(HeadersTabStrings.NAME_PLACEHOLDER, color = placeholderColors.disabledPlaceholderColor) },
+			placeholder = HeadersTabStrings.NAME_PLACEHOLDER,
 			singleLine = true,
-			textStyle = MaterialTheme.typography.bodySmall,
-			colors = placeholderColors,
-			modifier = Modifier.width(headerNameColumnWidth),
+			modifier = Modifier.width(headerNameColumnWidth * tableScale),
+			label = HeadersTabStrings.HEADER_NAME,
 		)
-		OutlinedTextField(
+		FormTextField(
 			value = value,
 			onValueChange = { newValue ->
 				val updated = headers.entries.mapIndexed { entryIndex, entry ->
@@ -233,14 +249,16 @@ private fun HeaderRow(
 				}
 				onUpdate(headers.keys.zip(updated).associate { it.first to it.second }, requestRules)
 			},
-			placeholder = { Text(HeadersTabStrings.VALUE_PLACEHOLDER, color = placeholderColors.disabledPlaceholderColor) },
+			placeholder = HeadersTabStrings.VALUE_PLACEHOLDER,
 			singleLine = true,
-			textStyle = MaterialTheme.typography.bodySmall,
-			colors = placeholderColors,
 			modifier = Modifier.weight(2f),
+			label = HeadersTabStrings.HEADER_VALUE,
 		)
-		Box(modifier = Modifier.width(StudioDimens.tableActionColumnWidth), contentAlignment = Alignment.Center) {
-			Checkbox(
+		Box(
+			modifier = Modifier.width(StudioDimens.tableActionColumnWidth * tableScale),
+			contentAlignment = Alignment.Center,
+		) {
+			ThemeCheckbox(
 				checked = isRequired,
 				onCheckedChange = { checked ->
 					val updatedRules = if (checked) {
@@ -260,6 +278,7 @@ private fun HeaderRow(
 					}
 					onUpdate(headers, updatedRules)
 				},
+				label = HeadersTabStrings.REQUIRED,
 			)
 		}
 		MatchConditionEditor(
@@ -282,19 +301,15 @@ private fun HeaderRow(
 			availableMatchTypes = headerMatchTypes,
 			fallbackMatchType = MatchType.EQUAL_TO,
 			enabled = isRequired,
-			dropdownWidth = headerConditionColumnWidth,
-			valueWidth = headerMatchValueColumnWidth,
+			dropdownWidth = headerConditionColumnWidth * tableScale,
+			valueWidth = headerMatchValueColumnWidth * tableScale,
 			showValuePlaceholder = true,
 		)
-		IconButton(
+		ThemeTextButton(
+			text = HeadersTabStrings.DELETE_HEADER,
 			onClick = onRemove,
-			modifier = Modifier.size(StudioDimens.tableDeleteButtonSize),
-		) {
-			Icon(
-				imageVector = Icons.Outlined.Delete,
-				contentDescription = HeadersTabStrings.DELETE_HEADER,
-				tint = MaterialTheme.colorScheme.error,
-			)
-		}
+			destructive = true,
+			modifier = Modifier.width(StudioDimens.tableDeleteButtonSize * tableScale),
+		)
 	}
 }

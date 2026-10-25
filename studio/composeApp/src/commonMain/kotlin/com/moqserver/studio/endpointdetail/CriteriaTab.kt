@@ -1,14 +1,16 @@
 package com.moqserver.studio.endpointdetail
 
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import com.moqserver.studio.designsystem.StudioDimens
 import com.moqserver.studio.projectformat.*
 import com.moqserver.studio.ui.*
+import io.github.maniramezan.kmpcomponents.FormTextField
+import io.github.maniramezan.kmpcomponents.InfoTooltip
+import io.github.maniramezan.kmpcomponents.MenuPicker
+import io.github.maniramezan.kmpcomponents.ThemeSwitch
 
 private object CriteriaTabStrings {
     const val OVERRIDE_AUTH = "Override Auth Evaluation"
@@ -124,18 +126,14 @@ internal fun CriteriaTab(
 			availableMatchTypes = listOf(MatchType.EQUAL_TO),
 			fallbackMatchType = MatchType.EQUAL_TO,
 		)
-		OutlinedTextField(
+		FormTextField(
 			value = variantRequestMatch.bodyContains.orEmpty(),
 			onValueChange = {
 				onUpdateVariant(variant.withNormalizedRequestMatch(variantRequestMatch.copy(bodyContains = it.ifBlank { null })))
 			},
-			label = {
-				Row(verticalAlignment = Alignment.CenterVertically) {
-					Text(CriteriaTabStrings.BODY_CONTAINS)
-					InfoTooltip(CriteriaTabStrings.BODY_CONTAINS_TOOLTIP)
-				}
-			},
+			label = CriteriaTabStrings.BODY_CONTAINS,
 			modifier = Modifier.fillMaxWidth(),
+			trailingContent = { InfoTooltip(CriteriaTabStrings.BODY_CONTAINS_TOOLTIP) },
 		)
 	}
 }
@@ -145,17 +143,12 @@ private fun StrictCallCountSection(
 	strictCallCount: Boolean?,
 	onUpdate: (Boolean?) -> Unit,
 ) {
-	Row(
-		verticalAlignment = Alignment.CenterVertically,
-		horizontalArrangement = Arrangement.spacedBy(StudioDimens.m),
-	) {
-		Text(CriteriaTabStrings.STRICT_CALL_COUNT, style = MaterialTheme.typography.titleSmall)
-		InfoTooltip(CriteriaTabStrings.STRICT_CALL_COUNT_TOOLTIP)
-		Switch(
-			checked = strictCallCount == true,
-			onCheckedChange = { onUpdate(if (it) true else null) },
-		)
-	}
+	ThemeSwitch(
+		checked = strictCallCount == true,
+		onCheckedChange = { onUpdate(if (it) true else null) },
+		label = CriteriaTabStrings.STRICT_CALL_COUNT,
+		tooltip = CriteriaTabStrings.STRICT_CALL_COUNT_TOOLTIP,
+	)
 }
 
 @Composable
@@ -163,57 +156,31 @@ private fun AuthConfigSection(
 	auth: ProjectAuthConfig?,
 	onUpdate: (ProjectAuthConfig?) -> Unit,
 ) {
-	var hasAuth by remember(auth) { mutableStateOf(auth != null) }
+	val hasAuth = auth != null
 
-	Row(
-		verticalAlignment = Alignment.CenterVertically,
-		horizontalArrangement = Arrangement.spacedBy(StudioDimens.m),
-	) {
-		Text(CriteriaTabStrings.OVERRIDE_AUTH, style = MaterialTheme.typography.titleSmall)
-		InfoTooltip(CriteriaTabStrings.OVERRIDE_AUTH_TOOLTIP)
-		Switch(
-			checked = hasAuth,
-			onCheckedChange = {
-				hasAuth = it
-				if (it) {
-					onUpdate(ProjectAuthConfig(type = AuthType.BEARER, verify = true))
-				} else {
-					onUpdate(null)
-				}
-			},
-		)
-	}
+	ThemeSwitch(
+		checked = hasAuth,
+		onCheckedChange = { onUpdate(if (it) ProjectAuthConfig(type = AuthType.BEARER, verify = true) else null) },
+		label = CriteriaTabStrings.OVERRIDE_AUTH,
+		tooltip = CriteriaTabStrings.OVERRIDE_AUTH_TOOLTIP,
+	)
 
-	if (hasAuth && auth != null) {
+	if (auth != null) {
 		Row(horizontalArrangement = Arrangement.spacedBy(StudioDimens.l)) {
-			var typeExpanded by remember { mutableStateOf(false) }
-			Box {
-				OutlinedTextField(
-					value = auth.type.displayLabel(),
-					onValueChange = {},
-					label = { Text(CriteriaTabStrings.TYPE_LABEL) },
-					readOnly = true,
-					modifier = Modifier.width(StudioDimens.tableNameColumnWidth),
-				)
-				Box(modifier = Modifier.matchParentSize().clickable { typeExpanded = true })
-				DropdownMenu(expanded = typeExpanded, onDismissRequest = { typeExpanded = false }) {
-					AuthType.entries.forEach { type ->
-						DropdownMenuItem(
-							text = { Text(type.displayLabel()) },
-							onClick = {
-								onUpdate(auth.copy(type = type, headerName = type.defaultHeaderName()))
-								typeExpanded = false
-							},
-						)
-					}
-				}
-			}
+			MenuPicker(
+				items = AuthType.entries,
+				selected = auth.type,
+				onSelect = { onUpdate(auth.copy(type = it, headerName = it.defaultHeaderName())) },
+				label = CriteriaTabStrings.TYPE_LABEL,
+				itemLabel = { it.displayLabel() },
+				modifier = Modifier.width(StudioDimens.tableNameColumnWidth),
+			)
 
 			if (auth.type == AuthType.API_KEY || auth.type == AuthType.HEADER) {
-				OutlinedTextField(
+				FormTextField(
 					value = auth.headerName ?: auth.type.defaultHeaderName() ?: "",
 					onValueChange = { onUpdate(auth.copy(headerName = it.ifBlank { null })) },
-					label = { Text(CriteriaTabStrings.HEADER_NAME_LABEL) },
+					label = CriteriaTabStrings.HEADER_NAME_LABEL,
 					singleLine = true,
 					modifier = Modifier.weight(1f),
 				)
@@ -241,30 +208,18 @@ private fun NetworkSection(
 	network: NetworkBehavior?,
 	onUpdate: (NetworkBehavior?) -> Unit,
 ) {
-	var hasNetwork by remember(network) { mutableStateOf(network != null) }
+	val hasNetwork = network != null
 
-	Row(
-		verticalAlignment = Alignment.CenterVertically,
-		horizontalArrangement = Arrangement.spacedBy(StudioDimens.m),
-	) {
-		Text(CriteriaTabStrings.NETWORK_SIMULATION, style = MaterialTheme.typography.titleSmall)
-		InfoTooltip(CriteriaTabStrings.NETWORK_SIMULATION_TOOLTIP)
-		Switch(
-			checked = hasNetwork,
-			onCheckedChange = {
-				hasNetwork = it
-				if (it) {
-					onUpdate(NetworkBehavior(latencyMs = 0, jitterMs = 0))
-				} else {
-					onUpdate(null)
-				}
-			},
-		)
-	}
+	ThemeSwitch(
+		checked = hasNetwork,
+		onCheckedChange = { onUpdate(if (it) NetworkBehavior(latencyMs = 0, jitterMs = 0) else null) },
+		label = CriteriaTabStrings.NETWORK_SIMULATION,
+		tooltip = CriteriaTabStrings.NETWORK_SIMULATION_TOOLTIP,
+	)
 
-	if (hasNetwork && network != null) {
+	if (network != null) {
 		Row(horizontalArrangement = Arrangement.spacedBy(StudioDimens.l)) {
-            OutlinedTextField(
+            FormTextField(
                 value = (network.latencyMs ?: 0).toString(),
                 onValueChange = {
                     when (val update = acceptedIntInput(it, network.latencyMs ?: 0)) {
@@ -272,16 +227,12 @@ private fun NetworkSection(
                         NumericInputUpdate.Ignored -> Unit
                     }
                 },
-				label = {
-					Row(verticalAlignment = Alignment.CenterVertically) {
-						Text(CriteriaTabStrings.LATENCY_LABEL)
-						InfoTooltip(CriteriaTabStrings.LATENCY_TOOLTIP)
-					}
-				},
-				singleLine = true,
-				modifier = Modifier.weight(1f),
-			)
-            OutlinedTextField(
+                label = CriteriaTabStrings.LATENCY_LABEL,
+                singleLine = true,
+                modifier = Modifier.weight(1f),
+                trailingContent = { InfoTooltip(CriteriaTabStrings.LATENCY_TOOLTIP) },
+            )
+            FormTextField(
                 value = (network.jitterMs ?: 0).toString(),
                 onValueChange = {
                     when (val update = acceptedIntInput(it, network.jitterMs ?: 0)) {
@@ -289,16 +240,12 @@ private fun NetworkSection(
                         NumericInputUpdate.Ignored -> Unit
                     }
                 },
-				label = {
-					Row(verticalAlignment = Alignment.CenterVertically) {
-						Text(CriteriaTabStrings.JITTER_LABEL)
-						InfoTooltip(CriteriaTabStrings.JITTER_TOOLTIP)
-					}
-				},
-				singleLine = true,
-				modifier = Modifier.weight(1f),
-			)
-            OutlinedTextField(
+                label = CriteriaTabStrings.JITTER_LABEL,
+                singleLine = true,
+                modifier = Modifier.weight(1f),
+                trailingContent = { InfoTooltip(CriteriaTabStrings.JITTER_TOOLTIP) },
+            )
+            FormTextField(
                 value = (network.packetLossPercent ?: 0.0).toString(),
                 onValueChange = {
                     when (val update = acceptedDoubleInput(it, network.packetLossPercent ?: 0.0)) {
@@ -306,15 +253,11 @@ private fun NetworkSection(
                         NumericInputUpdate.Ignored -> Unit
                     }
                 },
-				label = {
-					Row(verticalAlignment = Alignment.CenterVertically) {
-						Text(CriteriaTabStrings.PACKET_LOSS_LABEL)
-						InfoTooltip(CriteriaTabStrings.PACKET_LOSS_TOOLTIP)
-					}
-				},
-				singleLine = true,
-				modifier = Modifier.weight(1f),
-			)
+                label = CriteriaTabStrings.PACKET_LOSS_LABEL,
+                singleLine = true,
+                modifier = Modifier.weight(1f),
+                trailingContent = { InfoTooltip(CriteriaTabStrings.PACKET_LOSS_TOOLTIP) },
+            )
 		}
 	}
 }

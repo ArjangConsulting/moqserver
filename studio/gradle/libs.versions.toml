@@ -1,7 +1,7 @@
 [versions]
 jdk = "25"
 kotlin = "2.4.21"
-compose = "1.12.0"
+compose = "1.12.2"
 compose-material-icons = "1.7.3"
 coroutines = "1.11.0"
 serialization = "1.11.0"
@@ -13,6 +13,7 @@ swagger-parser = "2.1.48"
 slf4j = "2.0.20"
 detekt = "1.23.8"
 kover = "0.9.11"
+testcommons = "0.1.0"
 
 [libraries]
 coroutines-core = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-core", version.ref = "coroutines" }
@@ -36,11 +37,13 @@ snakeyaml-engine = { module = "org.snakeyaml:snakeyaml-engine", version.ref = "s
 swagger-parser = { module = "io.swagger.parser.v3:swagger-parser", version.ref = "swagger-parser" }
 slf4j-api = { module = "org.slf4j:slf4j-api", version.ref = "slf4j" }
 slf4j-simple = { module = "org.slf4j:slf4j-simple", version.ref = "slf4j" }
-kmp-components = { module = "io.github.maniramezan.kmpcomponents:components", version = "0.1.1" }
+kmp-components = { module = "io.github.maniramezan.kmpcomponents:components", version = "0.2.0" }
 # Not yet published; resolved from the sibling kmp-code-editor checkout until its first release.
 kmp-code-editor = { module = "com.arjangconsulting.codeeditor:code-editor", version = "0.1.0" }
 kenwork-network-core = { module = "io.github.maniramezan.kenwork:network-core", version = "0.5.1" }
 credential-keychain = { module = "io.github.maniramezan:credential-keychain-kotlin", version = "0.1.1" }
+testcommons-compose = { module = "io.github.maniramezan.testcommons:compose", version.ref = "testcommons" }
+testcommons-core = { module = "io.github.maniramezan.testcommons:core", version.ref = "testcommons" }
 
 [plugins]
 kotlin-multiplatform = { id = "org.jetbrains.kotlin.multiplatform", version.ref = "kotlin" }

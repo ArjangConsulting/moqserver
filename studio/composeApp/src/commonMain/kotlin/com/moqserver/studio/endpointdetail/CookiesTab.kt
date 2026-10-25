@@ -1,18 +1,22 @@
 package com.moqserver.studio.endpointdetail
 
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.Delete
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.style.TextAlign
 import com.moqserver.studio.designsystem.StudioDimens
 import com.moqserver.studio.projectformat.MatchType
 import com.moqserver.studio.projectformat.RequestRules
 import com.moqserver.studio.projectformat.RuleMatcher
 import com.moqserver.studio.ui.*
+import io.github.maniramezan.kmpcomponents.FormTextField
+import io.github.maniramezan.kmpcomponents.ThemeCheckbox
+import io.github.maniramezan.kmpcomponents.ThemeTextButton
 
 private object CookiesTabStrings {
     const val DELETE_ALL_TITLE = "Delete all cookies?"
@@ -40,8 +44,10 @@ internal fun CookiesTab(
 	requestRules: RequestRules,
 	onUpdate: (RequestRules) -> Unit,
 ) {
+	val tableScale = LocalDensity.current.fontScale.coerceAtLeast(1f)
+
 	val cookies = requestRules.cookies ?: emptyList()
-	val placeholderColors = placeholderTextFieldColors()
+
 	var showDeleteAllConfirm by remember { mutableStateOf(false) }
 
 	if (showDeleteAllConfirm) {
@@ -72,18 +78,26 @@ internal fun CookiesTab(
 			return@Column
 		}
 
-		CookiesTableHeader()
-		HorizontalDivider()
+		BoxWithConstraints(Modifier.fillMaxWidth()) {
+			val minimumWidth = (
+				StudioDimens.tableNameColumnWidth + StudioDimens.tableActionColumnWidth +
+					StudioDimens.tableConditionColumnWidth + StudioDimens.tableMatchValueColumnWidth * 2 +
+					StudioDimens.tableDeleteButtonSize + StudioDimens.xxxl
+			) * tableScale
+			Column(Modifier.horizontalScroll(rememberScrollState()).width(maxWidth.coerceAtLeast(minimumWidth))) {
+				CookiesTableHeader()
+				HorizontalDivider()
 
-		cookies.forEachIndexed { index, cookie ->
-			CookieRow(
-				cookie = cookie,
-				index = index,
-				cookies = cookies,
-				requestRules = requestRules,
-				placeholderColors = placeholderColors,
-				onUpdate = onUpdate,
-			)
+				cookies.forEachIndexed { index, cookie ->
+					CookieRow(
+						cookie = cookie,
+						index = index,
+						cookies = cookies,
+						requestRules = requestRules,
+						onUpdate = onUpdate,
+					)
+				}
+			}
 		}
 	}
 }
@@ -102,22 +116,24 @@ private fun CookiesToolbar(
 		Text(CookiesTabStrings.REQUEST_COOKIES, style = MaterialTheme.typography.titleSmall)
 		Row(horizontalArrangement = Arrangement.spacedBy(StudioDimens.m), verticalAlignment = Alignment.CenterVertically) {
 			if (hasCookies) {
-				TextButton(
+				ThemeTextButton(
+					text = CookiesTabStrings.DELETE_ALL,
 					onClick = onDeleteAll,
-					colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error),
-				) {
-					Text(CookiesTabStrings.DELETE_ALL)
-				}
+					destructive = true,
+				)
 			}
-			TextButton(onClick = onAdd) {
-				Text(CookiesTabStrings.ADD)
-			}
+			ThemeTextButton(
+				text = CookiesTabStrings.ADD,
+				onClick = onAdd,
+			)
 		}
 	}
 }
 
 @Composable
 private fun CookiesTableHeader() {
+	val tableScale = LocalDensity.current.fontScale.coerceAtLeast(1f)
+
 	Row(
 		modifier = Modifier.fillMaxWidth().padding(horizontal = StudioDimens.xs),
 		horizontalArrangement = Arrangement.spacedBy(StudioDimens.xs),
@@ -127,7 +143,7 @@ private fun CookiesTableHeader() {
 			CookiesTabStrings.COOKIE_NAME,
 			style = MaterialTheme.typography.labelSmall,
 			color = MaterialTheme.colorScheme.onSurfaceVariant,
-			modifier = Modifier.width(cookieNameColumnWidth),
+			modifier = Modifier.width(cookieNameColumnWidth * tableScale),
 		)
 		Text(
 			CookiesTabStrings.COOKIE_VALUE,
@@ -140,21 +156,21 @@ private fun CookiesTableHeader() {
 			style = MaterialTheme.typography.labelSmall,
 			color = MaterialTheme.colorScheme.onSurfaceVariant,
 			textAlign = TextAlign.Center,
-			modifier = Modifier.width(StudioDimens.tableActionColumnWidth),
+			modifier = Modifier.width(StudioDimens.tableActionColumnWidth * tableScale),
 		)
 		Text(
 			CookiesTabStrings.CONDITION,
 			style = MaterialTheme.typography.labelSmall,
 			color = MaterialTheme.colorScheme.onSurfaceVariant,
-			modifier = Modifier.width(cookieConditionColumnWidth),
+			modifier = Modifier.width(cookieConditionColumnWidth * tableScale),
 		)
 		Text(
 			CookiesTabStrings.MATCH_VALUE,
 			style = MaterialTheme.typography.labelSmall,
 			color = MaterialTheme.colorScheme.onSurfaceVariant,
-			modifier = Modifier.width(cookieMatchValueColumnWidth),
+			modifier = Modifier.width(cookieMatchValueColumnWidth * tableScale),
 		)
-		Spacer(Modifier.width(StudioDimens.tableDeleteButtonSize))
+		Spacer(Modifier.width(StudioDimens.tableDeleteButtonSize * tableScale))
 	}
 }
 
@@ -185,28 +201,26 @@ private fun CookieRow(
 	index: Int,
 	cookies: List<RuleMatcher>,
 	requestRules: RequestRules,
-	placeholderColors: TextFieldColors,
 	onUpdate: (RequestRules) -> Unit,
 ) {
+	val tableScale = LocalDensity.current.fontScale.coerceAtLeast(1f)
+
 	Row(
-		modifier = Modifier.fillMaxWidth().padding(horizontal = StudioDimens.xs),
+		modifier = Modifier.fillMaxWidth().padding(horizontal = StudioDimens.xs, vertical = StudioDimens.m),
 		horizontalArrangement = Arrangement.spacedBy(StudioDimens.xs),
 		verticalAlignment = Alignment.CenterVertically,
 	) {
-		OutlinedTextField(
+		FormTextField(
 			value = cookie.name,
 			onValueChange = { newName ->
 				onUpdate(requestRules.copy(cookies = cookies.updated(index, normalizedCookie(cookie.copy(name = newName)))))
 			},
-			placeholder = {
-				Text(CookiesTabStrings.COOKIE_NAME_PLACEHOLDER, color = placeholderColors.disabledPlaceholderColor)
-			},
+			placeholder = CookiesTabStrings.COOKIE_NAME_PLACEHOLDER,
 			singleLine = true,
-			textStyle = MaterialTheme.typography.bodySmall,
-			colors = placeholderColors,
-			modifier = Modifier.width(cookieNameColumnWidth),
+			modifier = Modifier.width(cookieNameColumnWidth * tableScale),
+			label = CookiesTabStrings.COOKIE_NAME,
 		)
-		OutlinedTextField(
+		FormTextField(
 			value = cookie.match.orEmpty(),
 			onValueChange = { newValue ->
 				onUpdate(
@@ -218,14 +232,16 @@ private fun CookieRow(
 					),
 				)
 			},
-			placeholder = { Text(CookiesTabStrings.VALUE_PLACEHOLDER, color = placeholderColors.disabledPlaceholderColor) },
+			placeholder = CookiesTabStrings.VALUE_PLACEHOLDER,
 			singleLine = true,
-			textStyle = MaterialTheme.typography.bodySmall,
-			colors = placeholderColors,
 			modifier = Modifier.weight(2f),
+			label = CookiesTabStrings.COOKIE_VALUE,
 		)
-		Box(modifier = Modifier.width(StudioDimens.tableActionColumnWidth), contentAlignment = Alignment.Center) {
-			Checkbox(
+		Box(
+			modifier = Modifier.width(StudioDimens.tableActionColumnWidth * tableScale),
+			contentAlignment = Alignment.Center,
+		) {
+			ThemeCheckbox(
 				checked = cookie.required == true,
 				onCheckedChange = { checked ->
 					val updated = if (checked) {
@@ -235,6 +251,7 @@ private fun CookieRow(
 					}
 					onUpdate(requestRules.copy(cookies = cookies.updated(index, updated)))
 				},
+				label = CookiesTabStrings.REQUIRED,
 			)
 		}
 		MatchConditionEditor(
@@ -246,22 +263,18 @@ private fun CookieRow(
 			availableMatchTypes = headerMatchTypes,
 			fallbackMatchType = MatchType.EQUAL_TO,
 			enabled = cookie.required == true,
-			dropdownWidth = cookieConditionColumnWidth,
-			valueWidth = cookieMatchValueColumnWidth,
+			dropdownWidth = cookieConditionColumnWidth * tableScale,
+			valueWidth = cookieMatchValueColumnWidth * tableScale,
 			showValuePlaceholder = true,
 		)
-		IconButton(
+		ThemeTextButton(
+			text = CookiesTabStrings.DELETE_COOKIE,
 			onClick = {
 				val updated = cookies.toMutableList().also { it.removeAt(index) }
 				onUpdate(requestRules.copy(cookies = updated.ifEmpty { null }))
 			},
-			modifier = Modifier.size(StudioDimens.tableDeleteButtonSize),
-		) {
-			Icon(
-				imageVector = Icons.Outlined.Delete,
-				contentDescription = CookiesTabStrings.DELETE_COOKIE,
-				tint = MaterialTheme.colorScheme.error,
-			)
-		}
+			destructive = true,
+			modifier = Modifier.width(StudioDimens.tableDeleteButtonSize * tableScale),
+		)
 	}
 }

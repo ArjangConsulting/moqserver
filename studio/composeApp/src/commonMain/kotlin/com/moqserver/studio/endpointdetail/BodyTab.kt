@@ -6,9 +6,7 @@ import androidx.compose.foundation.relocation.BringIntoViewRequester
 import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.AutoAwesome
 import androidx.compose.material.icons.outlined.Close
-import androidx.compose.material.icons.outlined.ContentCopy
 import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material.icons.outlined.Save
 import androidx.compose.material3.*
@@ -17,6 +15,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.rememberVectorPainter
 import androidx.compose.ui.unit.dp
 import com.arjangconsulting.codeeditor.CodeEditor
 import com.arjangconsulting.codeeditor.CodeEditorDefaults
@@ -24,8 +23,20 @@ import com.arjangconsulting.codeeditor.CodeEditorLabels
 import com.arjangconsulting.codeeditor.JsonRules
 import com.moqserver.studio.designsystem.StudioColors
 import com.moqserver.studio.designsystem.StudioDimens
+import com.moqserver.studio.designsystem.studioDarkColors
 import com.moqserver.studio.projectformat.ProjectVariant
 import com.moqserver.studio.ui.*
+import io.github.maniramezan.kmpcomponents.CopyButton
+import io.github.maniramezan.kmpcomponents.CopyButtonLabels
+import io.github.maniramezan.kmpcomponents.FormTextField
+import io.github.maniramezan.kmpcomponents.InlineProgressIndicator
+import io.github.maniramezan.kmpcomponents.KeyValueRow
+import io.github.maniramezan.kmpcomponents.SecondaryButton
+import io.github.maniramezan.kmpcomponents.SegmentedControl
+import io.github.maniramezan.kmpcomponents.StatusMessage
+import io.github.maniramezan.kmpcomponents.StatusTone
+import io.github.maniramezan.kmpcomponents.ThemeIconButton
+import io.github.maniramezan.kmpcomponents.ThemeTextButton
 
 private object BodyTabStrings {
     const val FILE_NOT_FOUND = "File not found."
@@ -35,6 +46,7 @@ private object BodyTabStrings {
 	const val CANCEL_BODY_EDIT = "Cancel body edit"
 	const val SAVE_BODY_EDIT = "Save body edit"
 	const val EDIT_BODY = "Edit body"
+	const val COPIED_BODY = "Body copied"
 	const val COPY_BODY = "Copy body"
 	const val GENERATE_BODY = "Generate body"
 	const val AI_PROMPT_TITLE = "Generate response body"
@@ -50,6 +62,17 @@ private object BodyTabStrings {
 }
 
 private val bodyPanelColor = StudioColors.editorPanelBackground.copy(alpha = 0.97f)
+
+/**
+ * Code editor colors for the always-dark body panel. Chrome comes from Studio's dark scheme, so line
+ * numbers, selection, and popups stay readable in the light app theme too; token colors follow the
+ * panel background and use the editor's dark syntax palette.
+ */
+internal val bodyEditorColors = CodeEditorDefaults.colorsFrom(studioDarkColors()).copy(
+	background = StudioColors.editorPanelBackground,
+	foreground = StudioColors.editorPanelContent,
+	gutterBackground = StudioColors.editorPanelBackground,
+)
 private val bodyPanelBorderColor = StudioColors.editorPanelBorder
 private val bodyPanelContentColor = StudioColors.editorPanelContent
 
@@ -96,7 +119,7 @@ internal fun BodyTab(
 		else -> null
 	}
 	val isJsonBody = variant.isJsonBody(editableText)
-	var isEditing by remember(variant.name, selectedFormat, bodyFile, body) { mutableStateOf(false) }
+	var isEditing by remember(variant.name, bodyFile, body) { mutableStateOf(false) }
 	var draftText by remember(variant.name, bodyFile, body) { mutableStateOf(editableText.orEmpty()) }
 	var formatBeforeEdit by remember(variant.name) {
 		mutableStateOf(if (body != null && variant.isJsonBody()) BodyFormat.JSON else BodyFormat.RAW)
@@ -196,29 +219,10 @@ internal fun BodyTab(
 				)
 			}
 			currentText != null -> {
-				BodyFormatTabs(selectedFormat = selectedFormat, onSelect = { selectedFormat = it })
-				if (isGeneratingWithAi) {
-					Row(
-						verticalAlignment = Alignment.CenterVertically,
-						horizontalArrangement = Arrangement.spacedBy(StudioDimens.m),
-					) {
-						CircularProgressIndicator(
-							modifier = Modifier.size(StudioDimens.smallSpinnerSize),
-							strokeWidth = StudioDimens.thinSpinnerStroke,
-						)
-						Text(
-							text = BodyTabStrings.AI_GENERATING,
-							style = MaterialTheme.typography.bodySmall,
-							color = MaterialTheme.colorScheme.onSurfaceVariant,
-						)
-					}
-				}
+				BodyFormatTabs(selectedFormat = selectedFormat, enabled = !isEditing, onSelect = { selectedFormat = it })
+				if (isGeneratingWithAi) InlineProgressIndicator(label = BodyTabStrings.AI_GENERATING)
 				generationError?.let { error ->
-					Text(
-						text = BodyTabStrings.AI_ERROR_PREFIX + error,
-						style = MaterialTheme.typography.bodySmall,
-						color = MaterialTheme.colorScheme.error,
-					)
+					StatusMessage(message = BodyTabStrings.AI_ERROR_PREFIX + error, tone = StatusTone.ERROR)
 				}
 				BodyEditorPanel(
 					currentText = currentText,
@@ -267,17 +271,15 @@ internal fun BodyTab(
 @Composable
 private fun BodyFormatTabs(
 	selectedFormat: BodyFormat,
+	enabled: Boolean,
 	onSelect: (BodyFormat) -> Unit,
 ) {
-	TabStrip {
-		BodyFormat.entries.forEach { format ->
-			TabChip(
-				label = format.label,
-				selected = format == selectedFormat,
-				onClick = { onSelect(format) },
-			)
-		}
-	}
+	SegmentedControl(
+		options = BodyFormat.entries.map { it.label },
+		enabled = enabled,
+		selectedIndex = selectedFormat.ordinal,
+		onOptionSelected = { onSelect(BodyFormat.entries[it]) },
+	)
 }
 
 @Composable
@@ -327,9 +329,6 @@ private fun BodyEditorPanel(
 					canGenerateWithAi = canGenerateWithAi,
 					isGeneratingWithAi = isGeneratingWithAi,
 					isJsonBody = isJsonBody,
-					onCopyBody = {
-						copyTextToClipboard(if (isEditing) draftText else currentText)
-					},
 					onEdit = onEdit,
 					onGenerateBody = onGenerateBody,
 					onCancel = onCancel,
@@ -363,11 +362,7 @@ private fun BodyEditorPanel(
 								.fillMaxWidth()
 								.height(280.dp)
 								.padding(top = StudioDimens.xxs, start = StudioDimens.s, end = StudioDimens.xs, bottom = StudioDimens.xs),
-							colors = CodeEditorDefaults.colors().copy(
-								background = StudioColors.editorPanelBackground,
-								foreground = StudioColors.editorPanelContent,
-								gutterBackground = StudioColors.editorPanelBackground,
-							),
+							colors = bodyEditorColors,
 							labels = CodeEditorLabels(editorDescription = "Response body"),
 						)
 					}
@@ -412,7 +407,6 @@ private fun BodyTabActions(
 	canGenerateWithAi: Boolean,
 	isGeneratingWithAi: Boolean,
 	isJsonBody: Boolean,
-	onCopyBody: () -> Unit,
 	onEdit: () -> Unit,
 	onGenerateBody: () -> Unit,
 	onCancel: () -> Unit,
@@ -425,48 +419,48 @@ private fun BodyTabActions(
 		verticalAlignment = Alignment.CenterVertically,
 	) {
 		if (isEditing && isJsonBody) {
-			OutlinedButton(
-                onClick = onValidateJson,
-                contentPadding = PaddingValues(horizontal = StudioDimens.l, vertical = StudioDimens.m),
-            ) {
-				Text(BodyTabStrings.VALIDATE_JSON)
-			}
-			FilledTonalButton(
-                onClick = onFormatJson,
-                contentPadding = PaddingValues(horizontal = StudioDimens.l, vertical = StudioDimens.m),
-            ) {
-				Text(BodyTabStrings.FORMAT_JSON)
-			}
+			SecondaryButton(
+				text = BodyTabStrings.VALIDATE_JSON,
+				onClick = onValidateJson,
+			)
+			SecondaryButton(
+				text = BodyTabStrings.FORMAT_JSON,
+				onClick = onFormatJson,
+			)
 		}
 
-		IconButton(onClick = onCopyBody, enabled = copyText.isNotEmpty()) {
-			Icon(Icons.Outlined.ContentCopy, contentDescription = BodyTabStrings.COPY_BODY)
-		}
+		CopyButton(
+			text = copyText,
+			enabled = copyText.isNotEmpty(),
+			labels = CopyButtonLabels(copy = BodyTabStrings.COPY_BODY, copied = BodyTabStrings.COPIED_BODY),
+		)
 
 		when {
 			isEditing -> {
-				IconButton(onClick = onCancel) {
-					Icon(Icons.Outlined.Close, contentDescription = BodyTabStrings.CANCEL_BODY_EDIT)
-				}
-				FilledTonalIconButton(onClick = onSave) {
-					Icon(Icons.Outlined.Save, contentDescription = BodyTabStrings.SAVE_BODY_EDIT)
-				}
+				ThemeIconButton(
+					icon = rememberVectorPainter(Icons.Outlined.Close),
+					contentDescription = BodyTabStrings.CANCEL_BODY_EDIT,
+					onClick = onCancel,
+				)
+				ThemeIconButton(
+					icon = rememberVectorPainter(Icons.Outlined.Save),
+					contentDescription = BodyTabStrings.SAVE_BODY_EDIT,
+					onClick = onSave,
+				)
 			}
 			canEdit -> {
 				if (canGenerateWithAi) {
-					FilledTonalButton(
+					SecondaryButton(
+						text = BodyTabStrings.GENERATE_BODY,
 						onClick = onGenerateBody,
 						enabled = !isGeneratingWithAi,
-						contentPadding = PaddingValues(horizontal = StudioDimens.l, vertical = StudioDimens.m),
-					) {
-						Icon(Icons.Outlined.AutoAwesome, contentDescription = BodyTabStrings.GENERATE_BODY)
-						Spacer(modifier = Modifier.width(StudioDimens.s))
-						Text(BodyTabStrings.GENERATE_BODY)
-					}
+					)
 				}
-				FilledTonalIconButton(onClick = onEdit) {
-					Icon(Icons.Outlined.Edit, contentDescription = BodyTabStrings.EDIT_BODY)
-				}
+				ThemeIconButton(
+					icon = rememberVectorPainter(Icons.Outlined.Edit),
+					contentDescription = BodyTabStrings.EDIT_BODY,
+					onClick = onEdit,
+				)
 			}
 		}
 	}
@@ -497,25 +491,30 @@ private fun AIBodyPromptDialog(
 				AIBodyContextRow(BodyTabStrings.AI_CONTEXT_VARIANT, variant.name)
 				AIBodyContextRow(BodyTabStrings.AI_CONTEXT_STATUS, variant.status.toString())
 				providerLabel?.let { AIBodyContextRow(BodyTabStrings.AI_CONTEXT_PROVIDER, it) }
-				OutlinedTextField(
+				FormTextField(
 					value = prompt,
 					onValueChange = onPromptChange,
-					label = { Text(BodyTabStrings.AI_PROMPT_LABEL) },
-					minLines = 4,
-					maxLines = 8,
-					modifier = Modifier.fillMaxWidth(),
+					label = BodyTabStrings.AI_PROMPT_LABEL,
+					modifier = Modifier.fillMaxWidth().heightIn(
+						min = StudioDimens.multilineFieldMinHeight,
+						max = StudioDimens.multilineFieldMaxHeight,
+					),
+					singleLine = false,
 				)
 			}
 		},
 		confirmButton = {
-			TextButton(onClick = onConfirm, enabled = prompt.isNotBlank()) {
-				Text(BodyTabStrings.AI_GENERATE_ACTION)
-			}
+			ThemeTextButton(
+				text = BodyTabStrings.AI_GENERATE_ACTION,
+				onClick = onConfirm,
+				enabled = prompt.isNotBlank(),
+			)
 		},
 		dismissButton = {
-			TextButton(onClick = onDismiss) {
-				Text("Cancel")
-			}
+			ThemeTextButton(
+				text = "Cancel",
+				onClick = onDismiss,
+			)
 		},
 	)
 }
@@ -525,15 +524,5 @@ private fun AIBodyContextRow(
 	label: String,
 	value: String,
 ) {
-	Column(verticalArrangement = Arrangement.spacedBy(StudioDimens.xxs)) {
-		Text(
-			text = label,
-			style = MaterialTheme.typography.labelSmall,
-			color = MaterialTheme.colorScheme.onSurfaceVariant,
-		)
-		Text(
-			text = value,
-			style = MaterialTheme.typography.bodyMedium,
-		)
-	}
+	KeyValueRow(key = label, value = value)
 }

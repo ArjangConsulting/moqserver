@@ -5,22 +5,28 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.text.selection.SelectionContainer
-import androidx.compose.material3.Button
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Window
 import androidx.compose.ui.window.rememberWindowState
 import com.moqserver.studio.domain.RuntimeInspectionState
+import io.github.maniramezan.kmpcomponents.ContentRow
+import io.github.maniramezan.kmpcomponents.EmptyState
+import io.github.maniramezan.kmpcomponents.FlowLayout
+import io.github.maniramezan.kmpcomponents.FormTextField
+import io.github.maniramezan.kmpcomponents.InlineProgressIndicator
+import io.github.maniramezan.kmpcomponents.NoticeCard
+import io.github.maniramezan.kmpcomponents.PrimaryButton
+import io.github.maniramezan.kmpcomponents.SecondaryButton
+import io.github.maniramezan.kmpcomponents.SecretTextField
+import io.github.maniramezan.kmpcomponents.StatusTone
 
 private object RuntimeStrings {
 	const val TITLE = "Runtime Inspector"
@@ -39,6 +45,10 @@ private object RuntimeStrings {
 	const val EDIT = "Edit"
 	const val DELETE = "Delete"
 	const val CLEAR = "Clear history"
+	const val LOADING = "Refreshing runtime state..."
+	const val SHOW = "Show"
+	const val HIDE = "Hide"
+	const val RETRY = "Retry"
 	const val EMPTY = "No requests recorded. Make a request to the server, then refresh."
 }
 
@@ -61,7 +71,7 @@ internal fun RuntimeInspectionWindow(
 				verticalArrangement = Arrangement.spacedBy(StudioDimens.xs),
 			) {
 				ConnectionFields(state, onUpdate)
-				Row(horizontalArrangement = Arrangement.spacedBy(StudioDimens.xs)) {
+				FlowLayout {
 					ActionButton(RuntimeStrings.REFRESH, RuntimeAction.REFRESH, state, onAction)
 					ActionButton(RuntimeStrings.RESET, RuntimeAction.RESET, state, onAction)
 					if (state.sessionId.isBlank()) {
@@ -73,30 +83,45 @@ internal fun RuntimeInspectionWindow(
 				SelectionContainer {
 					Text(if (state.sessionId.isBlank()) RuntimeStrings.GLOBAL else RuntimeStrings.SESSION + state.sessionId)
 				}
-				state.error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+				if (state.loading) InlineProgressIndicator(label = RuntimeStrings.LOADING)
+				state.error?.let {
+					NoticeCard(
+						message = it,
+						tone = StatusTone.ERROR,
+						actionLabel = RuntimeStrings.RETRY,
+						onAction = { onAction(RuntimeAction.REFRESH, null) },
+					)
+				}
 				ScenarioFields(state, onUpdate, onAction)
 				ActionButton(RuntimeStrings.CLEAR, RuntimeAction.CLEAR_HISTORY, state, onAction)
 				LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(StudioDimens.xs)) {
 					items(state.scenarios, key = { "scenario-${it.name}" }) { scenario ->
 						Row(horizontalArrangement = Arrangement.spacedBy(StudioDimens.xs)) {
-							OutlinedButton(
+							SecondaryButton(
+								text = RuntimeStrings.ACTIVATE + scenario.name,
 								enabled = !state.loading,
 								onClick = { onAction(RuntimeAction.ACTIVATE_SCENARIO, scenario.name) },
-							) {
-								Text(RuntimeStrings.ACTIVATE + scenario.name)
-							}
-							OutlinedButton(enabled = !state.loading, onClick = {
+							)
+							SecondaryButton(
+								text = RuntimeStrings.EDIT,
+								enabled = !state.loading,
+								onClick = {
 								onUpdate(state.copy(scenarioName = scenario.name, scenarioOverrides = scenario.overridesJson))
-							}) { Text(RuntimeStrings.EDIT) }
-							OutlinedButton(enabled = !state.loading, onClick = { onAction(RuntimeAction.DELETE_SCENARIO, scenario.name) }) {
-								Text(RuntimeStrings.DELETE)
-							}
+							},
+							)
+							SecondaryButton(
+								text = RuntimeStrings.DELETE,
+								enabled = !state.loading,
+								onClick = { onAction(RuntimeAction.DELETE_SCENARIO, scenario.name) },
+							)
 						}
 					}
-					if (state.requests.isEmpty()) item { Text(RuntimeStrings.EMPTY) }
+					if (state.requests.isEmpty()) item { EmptyState(title = RuntimeStrings.EMPTY) }
 					items(state.requests, key = { it.id }) { request ->
-						Text("${request.status} ${request.method} ${request.path} — ${request.variant ?: "—"}")
-						Text("${request.reason} · call ${request.callNumber ?: "—"}", style = MaterialTheme.typography.bodySmall)
+						ContentRow(
+							title = "${request.status} ${request.method} ${request.path}",
+							supportingText = "${request.reason} · call ${request.callNumber ?: "—"} · ${request.variant ?: "—"}",
+						)
 					}
 				}
 			}
@@ -107,21 +132,23 @@ internal fun RuntimeInspectionWindow(
 @Composable
 private fun ConnectionFields(state: RuntimeInspectionState, onUpdate: (RuntimeInspectionState) -> Unit) {
 	Row(horizontalArrangement = Arrangement.spacedBy(StudioDimens.xs)) {
-		OutlinedTextField(
-			state.serverUrl,
-			{ onUpdate(state.copy(serverUrl = it, sessionId = "", requests = emptyList(), scenarios = emptyList())) },
-			label = { Text(RuntimeStrings.URL) },
+		FormTextField(
+			label = RuntimeStrings.URL,
 			enabled = !state.loading,
 			singleLine = true,
 			modifier = Modifier.weight(1f),
+			value = state.serverUrl,
+			onValueChange = {
+				onUpdate(state.copy(serverUrl = it, sessionId = "", requests = emptyList(), scenarios = emptyList()))
+			},
 		)
-		OutlinedTextField(
-			state.bearerToken,
-			{ onUpdate(state.copy(bearerToken = it)) },
-			label = { Text(RuntimeStrings.TOKEN) },
+		SecretTextField(
+			value = state.bearerToken,
+			onValueChange = { onUpdate(state.copy(bearerToken = it)) },
+			label = RuntimeStrings.TOKEN,
 			enabled = !state.loading,
-			singleLine = true,
-			visualTransformation = PasswordVisualTransformation(),
+			showLabel = RuntimeStrings.SHOW,
+			hideLabel = RuntimeStrings.HIDE,
 			modifier = Modifier.weight(1f),
 		)
 	}
@@ -133,20 +160,23 @@ private fun ScenarioFields(
 	onUpdate: (RuntimeInspectionState) -> Unit,
 	onAction: (RuntimeAction, String?) -> Unit,
 ) {
-	OutlinedTextField(
-		state.scenarioName,
-		{ onUpdate(state.copy(scenarioName = it)) },
-		label = { Text(RuntimeStrings.NAME) },
+	FormTextField(
+		label = RuntimeStrings.NAME,
 		enabled = !state.loading,
 		singleLine = true,
+		value = state.scenarioName,
+		onValueChange = { onUpdate(state.copy(scenarioName = it)) },
 	)
-	OutlinedTextField(
-		state.scenarioOverrides,
-		{ onUpdate(state.copy(scenarioOverrides = it)) },
-		label = { Text(RuntimeStrings.OVERRIDES) },
+	FormTextField(
+		label = RuntimeStrings.OVERRIDES,
 		enabled = !state.loading,
-		modifier = Modifier.fillMaxWidth(),
-		maxLines = 3,
+		modifier = Modifier.fillMaxWidth().heightIn(
+			min = StudioDimens.multilineFieldMinHeight,
+			max = StudioDimens.multilineFieldMaxHeight,
+		),
+		value = state.scenarioOverrides,
+		onValueChange = { onUpdate(state.copy(scenarioOverrides = it)) },
+		singleLine = false,
 	)
 	ActionButton(RuntimeStrings.SAVE, RuntimeAction.SAVE_SCENARIO, state, onAction)
 }
@@ -158,5 +188,9 @@ private fun ActionButton(
 	state: RuntimeInspectionState,
 	onAction: (RuntimeAction, String?) -> Unit,
 ) {
-	Button(enabled = !state.loading, onClick = { onAction(action, null) }) { Text(label) }
+	PrimaryButton(
+		text = label,
+		enabled = !state.loading,
+		onClick = { onAction(action, null) },
+	)
 }

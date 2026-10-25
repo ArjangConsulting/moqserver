@@ -1,12 +1,8 @@
 package com.moqserver.studio
 
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -16,18 +12,11 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.Button
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.Checkbox
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -40,6 +29,14 @@ import com.moqserver.composeapp.generated.resources.logo_javascript
 import com.moqserver.composeapp.generated.resources.logo_kotlin
 import com.moqserver.composeapp.generated.resources.logo_swift
 import com.moqserver.studio.export.ExportLanguage
+import io.github.maniramezan.kmpcomponents.FlowLayout
+import io.github.maniramezan.kmpcomponents.FormTextField
+import io.github.maniramezan.kmpcomponents.PrimaryButton
+import io.github.maniramezan.kmpcomponents.SectionCard
+import io.github.maniramezan.kmpcomponents.SelectableCard
+import io.github.maniramezan.kmpcomponents.ThemeCard
+import io.github.maniramezan.kmpcomponents.ThemeCheckbox
+import io.github.maniramezan.kmpcomponents.ThemeTextButton
 import org.jetbrains.compose.resources.painterResource
 
 private object ExportStrings {
@@ -71,7 +68,6 @@ data class ExportReferencesState(
         get() = selectedLanguages.isNotEmpty() && destinationFolder != null
 }
 
-@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun ExportReferencesScreen(
     state: ExportReferencesState,
@@ -115,7 +111,6 @@ private fun ExportHeader() {
     }
 }
 
-@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun LanguageSelectionSection(
     state: ExportReferencesState,
@@ -127,7 +122,7 @@ private fun LanguageSelectionSection(
             style = MaterialTheme.typography.titleSmall,
             fontWeight = FontWeight.SemiBold,
         )
-        FlowRow(
+        FlowLayout(
             horizontalArrangement = Arrangement.spacedBy(StudioDimens.m),
             verticalArrangement = Arrangement.spacedBy(StudioDimens.m),
         ) {
@@ -158,32 +153,29 @@ private fun PackageFieldsSection(
     val showJava = ExportLanguage.JAVA in state.selectedLanguages
     if (!showKotlin && !showJava) return
 
-    Card(modifier = Modifier.fillMaxWidth()) {
-        Column(
-            modifier = Modifier.padding(StudioDimens.xl),
-            verticalArrangement = Arrangement.spacedBy(StudioDimens.l),
-        ) {
+    ThemeCard(
+        modifier = Modifier.fillMaxWidth(),
+    ) {
             if (showKotlin) {
-                OutlinedTextField(
+                FormTextField(
                     value = state.kotlinPackage,
                     onValueChange = { onStateChange(state.copy(kotlinPackage = it)) },
-                    label = { Text(ExportStrings.KOTLIN_PACKAGE) },
-                    placeholder = { Text(ExportStrings.KOTLIN_PACKAGE_PLACEHOLDER) },
+                    label = ExportStrings.KOTLIN_PACKAGE,
+                    placeholder = ExportStrings.KOTLIN_PACKAGE_PLACEHOLDER,
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
                 )
             }
             if (showJava) {
-                OutlinedTextField(
+                FormTextField(
                     value = state.javaPackage,
                     onValueChange = { onStateChange(state.copy(javaPackage = it)) },
-                    label = { Text(ExportStrings.JAVA_PACKAGE) },
-                    placeholder = { Text(ExportStrings.JAVA_PACKAGE_PLACEHOLDER) },
+                    label = ExportStrings.JAVA_PACKAGE,
+                    placeholder = ExportStrings.JAVA_PACKAGE_PLACEHOLDER,
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
                 )
             }
-        }
     }
 }
 
@@ -193,26 +185,16 @@ private fun DescriptionsToggle(
     onStateChange: (ExportReferencesState) -> Unit,
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(StudioDimens.xxs)) {
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(StudioDimens.s),
-        ) {
-            Checkbox(
-                checked = state.includeApiDescriptions,
-                onCheckedChange = { onStateChange(state.copy(includeApiDescriptions = it)) },
-            )
-            Text(ExportStrings.INCLUDE_API_DESCRIPTIONS, style = MaterialTheme.typography.bodyMedium)
-        }
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(StudioDimens.s),
-        ) {
-            Checkbox(
-                checked = state.includeVariantDescriptions,
-                onCheckedChange = { onStateChange(state.copy(includeVariantDescriptions = it)) },
-            )
-            Text(ExportStrings.INCLUDE_VARIANT_DESCRIPTIONS, style = MaterialTheme.typography.bodyMedium)
-        }
+        ThemeCheckbox(
+            checked = state.includeApiDescriptions,
+            onCheckedChange = { onStateChange(state.copy(includeApiDescriptions = it)) },
+            label = ExportStrings.INCLUDE_API_DESCRIPTIONS,
+        )
+        ThemeCheckbox(
+            checked = state.includeVariantDescriptions,
+            onCheckedChange = { onStateChange(state.copy(includeVariantDescriptions = it)) },
+            label = ExportStrings.INCLUDE_VARIANT_DESCRIPTIONS,
+        )
     }
 }
 
@@ -221,16 +203,10 @@ private fun DestinationSection(
     state: ExportReferencesState,
     onChooseFolder: () -> Unit,
 ) {
-    Card(modifier = Modifier.fillMaxWidth()) {
-        Column(
-            modifier = Modifier.padding(StudioDimens.xl),
-            verticalArrangement = Arrangement.spacedBy(StudioDimens.m),
-        ) {
-            Text(
-                ExportStrings.DESTINATION,
-                style = MaterialTheme.typography.titleSmall,
-                fontWeight = FontWeight.SemiBold,
-            )
+    SectionCard(
+        title = ExportStrings.DESTINATION,
+        modifier = Modifier.fillMaxWidth(),
+    ) {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(StudioDimens.m),
@@ -245,11 +221,11 @@ private fun DestinationSection(
                     },
                     modifier = Modifier.weight(1f),
                 )
-                Button(onClick = onChooseFolder) {
-                    Text(ExportStrings.CHOOSE_FOLDER)
-                }
+                PrimaryButton(
+                    text = ExportStrings.CHOOSE_FOLDER,
+                    onClick = onChooseFolder,
+                )
             }
-        }
     }
 }
 
@@ -263,16 +239,16 @@ private fun ActionButtons(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.End,
     ) {
-        TextButton(onClick = onCancel) {
-            Text(ExportStrings.CANCEL)
-        }
+        ThemeTextButton(
+            text = ExportStrings.CANCEL,
+            onClick = onCancel,
+        )
         Spacer(modifier = Modifier.width(StudioDimens.m))
-        Button(
+        PrimaryButton(
+            text = ExportStrings.EXPORT,
             onClick = onExport,
             enabled = canExport,
-        ) {
-            Text(ExportStrings.EXPORT)
-        }
+        )
     }
 }
 
@@ -282,44 +258,13 @@ private fun LanguageCard(
     selected: Boolean,
     onClick: () -> Unit,
 ) {
-    val borderColor = if (selected) {
-        MaterialTheme.colorScheme.primary
-    } else {
-        MaterialTheme.colorScheme.outlineVariant
-    }
-    val containerColor = if (selected) {
-        MaterialTheme.colorScheme.primaryContainer
-    } else {
-        MaterialTheme.colorScheme.surface
-    }
-    val contentColor = if (selected) {
-        MaterialTheme.colorScheme.onPrimaryContainer
-    } else {
-        MaterialTheme.colorScheme.onSurface
-    }
-
-    Card(
-        modifier = Modifier.clickable(onClick = onClick),
-        shape = RoundedCornerShape(12.dp),
-        border = BorderStroke(if (selected) 2.dp else 1.dp, borderColor),
-        colors = CardDefaults.cardColors(containerColor = containerColor),
-    ) {
+    SelectableCard(selected = selected, onClick = onClick) {
         Row(
-            modifier = Modifier.padding(horizontal = StudioDimens.l, vertical = StudioDimens.m),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(StudioDimens.s),
         ) {
-            Image(
-                painter = languagePainter(language),
-                contentDescription = language.displayName,
-                modifier = Modifier.size(24.dp),
-            )
-            Text(
-                text = language.displayName,
-                style = MaterialTheme.typography.labelLarge,
-                fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
-                color = contentColor,
-            )
+            Image(painter = languagePainter(language), contentDescription = null, modifier = Modifier.size(24.dp))
+            Text(language.displayName, style = MaterialTheme.typography.labelLarge)
         }
     }
 }

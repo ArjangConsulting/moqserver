@@ -1,47 +1,50 @@
 package com.moqserver.studio
 
-import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.Button
-import androidx.compose.material3.Card
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.PasswordVisualTransformation
-import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import com.moqserver.studio.data.AISettings
-import com.moqserver.studio.data.AnthropicSettings
-import com.moqserver.studio.data.GeminiSettings
-import com.moqserver.studio.data.OllamaSettings
-import com.moqserver.studio.data.OpenAISettings
+import com.moqserver.studio.designsystem.toSharedThemeMode
+import io.github.maniramezan.kmpcomponents.AdaptiveContentContainer
+import io.github.maniramezan.kmpcomponents.CheckStatus
+import io.github.maniramezan.kmpcomponents.CheckStatusLabels
+import io.github.maniramezan.kmpcomponents.CheckStatusRow
+import io.github.maniramezan.kmpcomponents.FormTextField
+import io.github.maniramezan.kmpcomponents.PrimaryButton
+import io.github.maniramezan.kmpcomponents.ProviderConfigurationError
+import io.github.maniramezan.kmpcomponents.ProviderConfigurationField
+import io.github.maniramezan.kmpcomponents.ProviderConfigurationState
+import io.github.maniramezan.kmpcomponents.SecondaryButton
+import io.github.maniramezan.kmpcomponents.SecretTextField
+import io.github.maniramezan.kmpcomponents.SectionCard
+import io.github.maniramezan.kmpcomponents.SegmentedControl
+import io.github.maniramezan.kmpcomponents.SidebarItem
+import io.github.maniramezan.kmpcomponents.SidebarNavigation
+import io.github.maniramezan.kmpcomponents.ThemeModeLabels
+import io.github.maniramezan.kmpcomponents.ThemeModeSelector
+import io.github.maniramezan.kmpcomponents.ThemeVerticalDivider
+import io.github.maniramezan.kmpcomponents.isValid
+import io.github.maniramezan.kmpcomponents.validate
 
 private object PreferencesStrings {
 	const val TITLE = "Preferences"
@@ -50,6 +53,8 @@ private object PreferencesStrings {
 	const val AI = "AI"
 	const val APPEARANCE = "Appearance"
 	const val COLOR_SCHEME = "Color scheme"
+	const val REQUIRED = "Required"
+	const val INVALID_URL = "Enter a URL starting with http:// or https://"
 	const val COLOR_SCHEME_HELP = "Choose how moq studio looks by default."
 	const val SYSTEM = "System"
 	const val LIGHT = "Light"
@@ -75,126 +80,82 @@ private object PreferencesStrings {
 	const val TEST_CONNECTION_DISABLED = "Complete the required fields to test this provider."
 	const val NOT_TESTED = "Not tested yet"
 	const val TESTING = "Checking connection..."
-	const val CONNECTION_OK = "Connection successful"
 	const val TEST_CONNECTION_HELP = "Tests the current unsaved settings for this provider."
 	const val SHOW = "Show"
 	const val HIDE = "Hide"
 }
 
-private enum class PreferencesSection {
-	GENERAL,
-	AI,
-}
+private enum class PreferencesSection { GENERAL, AI }
 
-enum class AIProviderTab(
-	val id: String,
-	val label: String,
-) {
+enum class AIProviderTab(val id: String, val label: String) {
 	OLLAMA("ollama", PreferencesStrings.OLLAMA_TITLE),
 	OPENAI("openai", PreferencesStrings.OPENAI_TITLE),
 	ANTHROPIC("anthropic", PreferencesStrings.ANTHROPIC_TITLE),
 	GEMINI("gemini", PreferencesStrings.GEMINI_TITLE),
 }
 
-sealed interface ProviderConnectionStatus {
-	data object Idle : ProviderConnectionStatus
-	data object Checking : ProviderConnectionStatus
-	data class Success(val message: String) : ProviderConnectionStatus
-	data class Failure(val message: String) : ProviderConnectionStatus
-}
-
-data class PreferencesState(
-	val themeMode: StudioThemeMode,
-	val aiSettings: AISettings,
-)
+data class PreferencesState(val themeMode: StudioThemeMode, val aiSettings: AISettings)
 
 @Composable
 fun PreferencesScreen(
-    state: PreferencesState,
-    onThemeModeChange: (StudioThemeMode) -> Unit,
-    onSaveAISettings: (AISettings) -> Unit,
-    onTestAIProvider: (String, AISettings, (ProviderConnectionStatus) -> Unit) -> Unit,
+	state: PreferencesState,
+	onThemeModeChange: (StudioThemeMode) -> Unit,
+	onSaveAISettings: (AISettings) -> Unit,
+	onTestAIProvider: (String, AISettings, (CheckStatus) -> Unit) -> Unit,
 	modifier: Modifier = Modifier,
 ) {
 	var selectedSection by remember { mutableStateOf(PreferencesSection.GENERAL) }
-	var selectedProviderTab by remember(state.aiSettings.selectedProviderId) {
-		mutableStateOf(state.aiSettings.selectedProviderId?.let(::providerTabForId) ?: AIProviderTab.OLLAMA)
+	var selectedProvider by remember(state.aiSettings.selectedProviderId) {
+		mutableStateOf(
+			AIProviderTab.entries.firstOrNull { it.id == state.aiSettings.selectedProviderId } ?: AIProviderTab.OLLAMA,
+		)
 	}
-	var ollama by remember(state) { mutableStateOf(state.aiSettings.ollama) }
-	var openai by remember(state) { mutableStateOf(state.aiSettings.openai) }
-	var anthropic by remember(state) { mutableStateOf(state.aiSettings.anthropic) }
-	var gemini by remember(state) { mutableStateOf(state.aiSettings.gemini) }
-	var connectionStatus by remember { mutableStateOf<ProviderConnectionStatus>(ProviderConnectionStatus.Idle) }
+	var draft by remember(state.aiSettings) { mutableStateOf(state.aiSettings) }
+	var connectionStatus by remember(draft, selectedProvider) { mutableStateOf<CheckStatus>(CheckStatus.Idle) }
+	var connectionGeneration by remember { mutableIntStateOf(0) }
 
-	Surface(
-		modifier = modifier.fillMaxSize(),
-		color = MaterialTheme.colorScheme.background,
-	) {
-		Row(modifier = Modifier.fillMaxSize()) {
-			PreferencesSidebar(
-				selectedSection = selectedSection,
-				onSelect = {
-					selectedSection = it
-					connectionStatus = ProviderConnectionStatus.Idle
-				},
-			)
-			HorizontalDivider(modifier = Modifier.fillMaxHeight().width(1.dp))
-			Box(
-				modifier = Modifier
-					.weight(1f)
-					.fillMaxHeight()
-					.verticalScroll(rememberScrollState())
-					.padding(StudioDimens.xxxl),
+	Surface(modifier = modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
+		Row(Modifier.fillMaxSize()) {
+			SidebarNavigation(
+				modifier = Modifier.width(200.dp).fillMaxHeight(),
+				header = { Text(PreferencesStrings.TITLE, style = MaterialTheme.typography.titleMedium) },
 			) {
-				when (selectedSection) {
-					PreferencesSection.GENERAL -> GeneralPreferencesPane(
-						themeMode = state.themeMode,
-						onThemeModeChange = onThemeModeChange,
+				PreferencesSection.entries.forEach { section ->
+					SidebarItem(
+						label = if (section == PreferencesSection.GENERAL) PreferencesStrings.GENERAL else PreferencesStrings.AI,
+						selected = selectedSection == section,
+						onClick = {
+							selectedSection = section
+							connectionGeneration++
+							connectionStatus = CheckStatus.Idle
+						},
 					)
-
-					PreferencesSection.AI -> {
-						val unsavedAISettings = state.aiSettings.copy(
-							ollama = ollama,
-							openai = openai,
-							anthropic = anthropic,
-							gemini = gemini,
-						)
-
-						AIPreferencesPane(
-							selectedProviderTab = selectedProviderTab,
-							onSelectProviderTab = {
-								selectedProviderTab = it
-								connectionStatus = ProviderConnectionStatus.Idle
+				}
+			}
+			ThemeVerticalDivider(Modifier.fillMaxHeight())
+			Box(Modifier.weight(1f).fillMaxHeight().verticalScroll(rememberScrollState()).padding(StudioDimens.xl)) {
+				AdaptiveContentContainer {
+					when (selectedSection) {
+						PreferencesSection.GENERAL -> GeneralPreferencesPane(state.themeMode, onThemeModeChange)
+						PreferencesSection.AI -> AIPreferencesPane(
+							selectedProvider = selectedProvider,
+							onSelectProvider = {
+								selectedProvider = it
+								connectionGeneration++
 							},
-							ollama = ollama,
-							onOllamaChange = {
-								ollama = it
-								connectionStatus = ProviderConnectionStatus.Idle
-							},
-							openai = openai,
-							onOpenAIChange = {
-								openai = it
-								connectionStatus = ProviderConnectionStatus.Idle
-							},
-							anthropic = anthropic,
-							onAnthropicChange = {
-								anthropic = it
-								connectionStatus = ProviderConnectionStatus.Idle
-							},
-							gemini = gemini,
-							onGeminiChange = {
-								gemini = it
-								connectionStatus = ProviderConnectionStatus.Idle
+							draft = draft,
+							onDraftChange = {
+								draft = it
+								connectionGeneration++
 							},
 							connectionStatus = connectionStatus,
 							onTestConnection = {
-								onTestAIProvider(selectedProviderTab.id, unsavedAISettings) {
-									connectionStatus = it
+								val generation = ++connectionGeneration
+								onTestAIProvider(selectedProvider.id, draft) {
+									if (generation == connectionGeneration) connectionStatus = it
 								}
 							},
-							onSave = {
-								onSaveAISettings(unsavedAISettings.copy(selectedProviderId = selectedProviderTab.id))
-							},
+							onSave = { onSaveAISettings(draft.copy(selectedProviderId = selectedProvider.id)) },
 						)
 					}
 				}
@@ -203,413 +164,108 @@ fun PreferencesScreen(
 	}
 }
 
-private fun providerTabForId(providerId: String): AIProviderTab? = when (providerId) {
-	AIProviderTab.OLLAMA.id -> AIProviderTab.OLLAMA
-	AIProviderTab.OPENAI.id -> AIProviderTab.OPENAI
-	AIProviderTab.ANTHROPIC.id -> AIProviderTab.ANTHROPIC
-	AIProviderTab.GEMINI.id -> AIProviderTab.GEMINI
-	else -> null
-}
-
 @Composable
-private fun PreferencesSidebar(
-	selectedSection: PreferencesSection,
-	onSelect: (PreferencesSection) -> Unit,
-) {
-	Column(
-		modifier = Modifier
-			.width(220.dp)
-			.fillMaxHeight()
-			.padding(StudioDimens.l),
-		verticalArrangement = Arrangement.spacedBy(StudioDimens.xs),
-	) {
-		Text(
-			text = PreferencesStrings.TITLE,
-			style = MaterialTheme.typography.titleMedium,
-			fontWeight = FontWeight.SemiBold,
-			modifier = Modifier.padding(horizontal = StudioDimens.m, vertical = StudioDimens.s),
+private fun GeneralPreferencesPane(themeMode: StudioThemeMode, onThemeModeChange: (StudioThemeMode) -> Unit) {
+	SectionCard(title = PreferencesStrings.APPEARANCE, description = PreferencesStrings.COLOR_SCHEME_HELP) {
+		Text(PreferencesStrings.COLOR_SCHEME, style = MaterialTheme.typography.labelLarge)
+		ThemeModeSelector(
+			selected = themeMode.toSharedThemeMode(),
+			onSelect = { onThemeModeChange(StudioThemeMode.valueOf(it.name)) },
+			labels = ThemeModeLabels(PreferencesStrings.SYSTEM, PreferencesStrings.LIGHT, PreferencesStrings.DARK),
 		)
-		SidebarItem(
-			label = PreferencesStrings.GENERAL,
-			selected = selectedSection == PreferencesSection.GENERAL,
-			onClick = { onSelect(PreferencesSection.GENERAL) },
-		)
-		SidebarItem(
-			label = PreferencesStrings.AI,
-			selected = selectedSection == PreferencesSection.AI,
-			onClick = { onSelect(PreferencesSection.AI) },
-		)
-	}
-}
-
-@Composable
-private fun SidebarItem(
-	label: String,
-	selected: Boolean,
-	onClick: () -> Unit,
-	modifier: Modifier = Modifier,
-) {
-	val containerColor = if (selected) {
-		MaterialTheme.colorScheme.secondaryContainer
-	} else {
-		MaterialTheme.colorScheme.surface
-	}
-	val textColor = if (selected) {
-		MaterialTheme.colorScheme.onSecondaryContainer
-	} else {
-		MaterialTheme.colorScheme.onSurface
-	}
-
-	Box(
-		modifier = modifier
-			.fillMaxWidth()
-			.background(containerColor, RoundedCornerShape(10.dp))
-			.clickable(onClick = onClick)
-			.padding(horizontal = StudioDimens.m, vertical = StudioDimens.l),
-	) {
-		Text(label, color = textColor, style = MaterialTheme.typography.bodyMedium)
-	}
-}
-
-@Composable
-private fun GeneralPreferencesPane(
-	themeMode: StudioThemeMode,
-	onThemeModeChange: (StudioThemeMode) -> Unit,
-) {
-	Column(verticalArrangement = Arrangement.spacedBy(StudioDimens.xl)) {
-		Text(PreferencesStrings.GENERAL, style = MaterialTheme.typography.headlineSmall)
-		Card(modifier = Modifier.fillMaxWidth()) {
-			Column(
-				modifier = Modifier.padding(StudioDimens.xl),
-				verticalArrangement = Arrangement.spacedBy(StudioDimens.l),
-			) {
-				Column(verticalArrangement = Arrangement.spacedBy(StudioDimens.xxs)) {
-					Text(PreferencesStrings.APPEARANCE, style = MaterialTheme.typography.titleMedium)
-					Text(
-						PreferencesStrings.COLOR_SCHEME_HELP,
-						style = MaterialTheme.typography.bodySmall,
-						color = MaterialTheme.colorScheme.onSurfaceVariant,
-					)
-				}
-				ThemeModeDropdown(themeMode = themeMode, onThemeModeChange = onThemeModeChange)
-			}
-		}
-	}
-}
-
-@Composable
-private fun ThemeModeDropdown(
-	themeMode: StudioThemeMode,
-	onThemeModeChange: (StudioThemeMode) -> Unit,
-) {
-	var expanded by remember { mutableStateOf(false) }
-
-	Box {
-		OutlinedTextField(
-			value = themeModeLabel(themeMode),
-			onValueChange = {},
-			label = { Text(PreferencesStrings.COLOR_SCHEME) },
-			modifier = Modifier.fillMaxWidth(),
-			readOnly = true,
-		)
-		Box(
-			modifier = Modifier
-				.matchParentSize()
-				.clickable { expanded = true },
-		)
-		DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
-			DropdownMenuItem(
-				text = { Text(PreferencesStrings.SYSTEM) },
-				onClick = {
-					expanded = false
-					onThemeModeChange(StudioThemeMode.SYSTEM)
-				},
-			)
-			DropdownMenuItem(
-				text = { Text(PreferencesStrings.LIGHT) },
-				onClick = {
-					expanded = false
-					onThemeModeChange(StudioThemeMode.LIGHT)
-				},
-			)
-			DropdownMenuItem(
-				text = { Text(PreferencesStrings.DARK) },
-				onClick = {
-					expanded = false
-					onThemeModeChange(StudioThemeMode.DARK)
-				},
-			)
-		}
 	}
 }
 
 @Composable
 private fun AIPreferencesPane(
-	selectedProviderTab: AIProviderTab,
-	onSelectProviderTab: (AIProviderTab) -> Unit,
-	ollama: OllamaSettings,
-	onOllamaChange: (OllamaSettings) -> Unit,
-	openai: OpenAISettings,
-	onOpenAIChange: (OpenAISettings) -> Unit,
-	anthropic: AnthropicSettings,
-	onAnthropicChange: (AnthropicSettings) -> Unit,
-	gemini: GeminiSettings,
-	onGeminiChange: (GeminiSettings) -> Unit,
-	connectionStatus: ProviderConnectionStatus,
+	selectedProvider: AIProviderTab,
+	onSelectProvider: (AIProviderTab) -> Unit,
+	draft: AISettings,
+	onDraftChange: (AISettings) -> Unit,
+	connectionStatus: CheckStatus,
 	onTestConnection: () -> Unit,
 	onSave: () -> Unit,
 ) {
+	val configuration = selectedProvider.configuration(draft)
+	val apiKeyRequired = selectedProvider != AIProviderTab.OLLAMA
+	val canTest = configuration.isValid(apiKeyRequired)
 	Column(verticalArrangement = Arrangement.spacedBy(StudioDimens.xl)) {
-		Column(verticalArrangement = Arrangement.spacedBy(StudioDimens.xxs)) {
-			Text(PreferencesStrings.AI_TITLE, style = MaterialTheme.typography.headlineSmall)
-			Text(
-				PreferencesStrings.AI_SUBTITLE,
-				style = MaterialTheme.typography.bodyMedium,
-				color = MaterialTheme.colorScheme.onSurfaceVariant,
-			)
-		}
-
-		AIProviderTabs(
-			selectedProviderTab = selectedProviderTab,
-			onSelectProviderTab = onSelectProviderTab,
+		Text(PreferencesStrings.AI_TITLE, style = MaterialTheme.typography.headlineSmall)
+		Text(PreferencesStrings.AI_SUBTITLE, style = MaterialTheme.typography.bodyMedium)
+		SegmentedControl(
+			options = AIProviderTab.entries.map { it.label },
+			selectedIndex = selectedProvider.ordinal,
+			onOptionSelected = { onSelectProvider(AIProviderTab.entries[it]) },
 		)
-
-		when (selectedProviderTab) {
-			AIProviderTab.OLLAMA -> ProviderSettingsCard(
-				title = PreferencesStrings.OLLAMA_TITLE,
-				subtitle = PreferencesStrings.OLLAMA_SUBTITLE,
-				hint = PreferencesStrings.OLLAMA_HINT,
-				connectionStatus = connectionStatus,
-				canTestConnection = ollama.baseUrl.isNotBlank() && ollama.defaultModel.isNotBlank(),
-				onTestConnection = onTestConnection,
-			) {
-				OutlinedTextField(
-					value = ollama.baseUrl,
-					onValueChange = { onOllamaChange(ollama.copy(baseUrl = it)) },
-					label = { Text(PreferencesStrings.BASE_URL) },
-					modifier = Modifier.fillMaxWidth(),
-					singleLine = true,
-				)
-				OutlinedTextField(
-					value = ollama.defaultModel,
-					onValueChange = { onOllamaChange(ollama.copy(defaultModel = it)) },
-					label = { Text(PreferencesStrings.DEFAULT_MODEL) },
-					modifier = Modifier.fillMaxWidth(),
-					singleLine = true,
-				)
-			}
-
-			AIProviderTab.OPENAI -> ProviderSettingsCard(
-				title = PreferencesStrings.OPENAI_TITLE,
-				subtitle = PreferencesStrings.OPENAI_SUBTITLE,
-				hint = PreferencesStrings.OPENAI_HINT,
-				connectionStatus = connectionStatus,
-				canTestConnection = openai.apiKey.isNotBlank() && openai.baseUrl.isNotBlank() && openai.defaultModel.isNotBlank(),
-				onTestConnection = onTestConnection,
-			) {
-				ApiKeyField(value = openai.apiKey, onValueChange = { onOpenAIChange(openai.copy(apiKey = it)) })
-				OutlinedTextField(
-					value = openai.baseUrl,
-					onValueChange = { onOpenAIChange(openai.copy(baseUrl = it)) },
-					label = { Text(PreferencesStrings.BASE_URL) },
-					modifier = Modifier.fillMaxWidth(),
-					singleLine = true,
-				)
-				OutlinedTextField(
-					value = openai.defaultModel,
-					onValueChange = { onOpenAIChange(openai.copy(defaultModel = it)) },
-					label = { Text(PreferencesStrings.DEFAULT_MODEL) },
-					modifier = Modifier.fillMaxWidth(),
-					singleLine = true,
-				)
-			}
-
-			AIProviderTab.ANTHROPIC -> ProviderSettingsCard(
-				title = PreferencesStrings.ANTHROPIC_TITLE,
-				subtitle = PreferencesStrings.ANTHROPIC_SUBTITLE,
-				hint = PreferencesStrings.ANTHROPIC_HINT,
-				connectionStatus = connectionStatus,
-				canTestConnection = anthropic.apiKey.isNotBlank() && anthropic.baseUrl.isNotBlank() && anthropic.defaultModel.isNotBlank(),
-				onTestConnection = onTestConnection,
-			) {
-				ApiKeyField(value = anthropic.apiKey, onValueChange = { onAnthropicChange(anthropic.copy(apiKey = it)) })
-				OutlinedTextField(
-					value = anthropic.baseUrl,
-					onValueChange = { onAnthropicChange(anthropic.copy(baseUrl = it)) },
-					label = { Text(PreferencesStrings.BASE_URL) },
-					modifier = Modifier.fillMaxWidth(),
-					singleLine = true,
-				)
-				OutlinedTextField(
-					value = anthropic.defaultModel,
-					onValueChange = { onAnthropicChange(anthropic.copy(defaultModel = it)) },
-					label = { Text(PreferencesStrings.DEFAULT_MODEL) },
-					modifier = Modifier.fillMaxWidth(),
-					singleLine = true,
-				)
-			}
-
-			AIProviderTab.GEMINI -> ProviderSettingsCard(
-				title = PreferencesStrings.GEMINI_TITLE,
-				subtitle = PreferencesStrings.GEMINI_SUBTITLE,
-				hint = PreferencesStrings.GEMINI_HINT,
-				connectionStatus = connectionStatus,
-				canTestConnection = gemini.apiKey.isNotBlank() && gemini.baseUrl.isNotBlank() && gemini.defaultModel.isNotBlank(),
-				onTestConnection = onTestConnection,
-			) {
-				ApiKeyField(value = gemini.apiKey, onValueChange = { onGeminiChange(gemini.copy(apiKey = it)) })
-				OutlinedTextField(
-					value = gemini.baseUrl,
-					onValueChange = { onGeminiChange(gemini.copy(baseUrl = it)) },
-					label = { Text(PreferencesStrings.BASE_URL) },
-					modifier = Modifier.fillMaxWidth(),
-					singleLine = true,
-				)
-				OutlinedTextField(
-					value = gemini.defaultModel,
-					onValueChange = { onGeminiChange(gemini.copy(defaultModel = it)) },
-					label = { Text(PreferencesStrings.DEFAULT_MODEL) },
-					modifier = Modifier.fillMaxWidth(),
-					singleLine = true,
-				)
-			}
-		}
-
-		Row(
-			modifier = Modifier.fillMaxWidth(),
-			horizontalArrangement = Arrangement.End,
+		SectionCard(
+			title = selectedProvider.label,
+			description = if (apiKeyRequired) PreferencesStrings.OPENAI_SUBTITLE else PreferencesStrings.OLLAMA_SUBTITLE,
 		) {
-			Button(onClick = onSave) {
-				Text(PreferencesStrings.SAVE_AI)
+			key(selectedProvider) {
+				ProviderFields(
+					configuration = configuration,
+					apiKeyRequired = apiKeyRequired,
+					onChange = { onDraftChange(draft.withProviderConfiguration(selectedProvider, it)) },
+				)
 			}
-		}
-	}
-}
-
-@Composable
-private fun AIProviderTabs(
-	selectedProviderTab: AIProviderTab,
-	onSelectProviderTab: (AIProviderTab) -> Unit,
-) {
-	Row(horizontalArrangement = Arrangement.spacedBy(StudioDimens.s)) {
-		AIProviderTab.entries.forEach { providerTab ->
-			SidebarItem(
-				label = providerTab.label,
-				selected = selectedProviderTab == providerTab,
-				onClick = { onSelectProviderTab(providerTab) },
-				modifier = Modifier.weight(1f),
+			Text(providerHint(selectedProvider), style = MaterialTheme.typography.bodySmall)
+			Text(PreferencesStrings.TEST_CONNECTION_HELP, style = MaterialTheme.typography.bodySmall)
+			CheckStatusRow(
+				status = connectionStatus,
+				labels = CheckStatusLabels(PreferencesStrings.NOT_TESTED, PreferencesStrings.TESTING),
 			)
+			SecondaryButton(
+				text = PreferencesStrings.TEST_CONNECTION,
+				onClick = onTestConnection,
+				enabled = canTest && connectionStatus != CheckStatus.Checking,
+			)
+			if (!canTest) Text(PreferencesStrings.TEST_CONNECTION_DISABLED, style = MaterialTheme.typography.bodySmall)
 		}
+		PrimaryButton(text = PreferencesStrings.SAVE_AI, onClick = onSave)
 	}
 }
 
 @Composable
-private fun ApiKeyField(
-	value: String,
-	onValueChange: (String) -> Unit,
+private fun ProviderFields(
+	configuration: ProviderConfigurationState,
+	apiKeyRequired: Boolean,
+	onChange: (ProviderConfigurationState) -> Unit,
 ) {
-	var revealValue by remember { mutableStateOf(false) }
-
-	OutlinedTextField(
-		value = value,
-		onValueChange = onValueChange,
-		label = { Text(PreferencesStrings.API_KEY) },
+	val errors = configuration.validate(apiKeyRequired)
+	FormTextField(
+		value = configuration.baseUrl,
+		onValueChange = { onChange(configuration.copy(baseUrl = it)) },
+		label = PreferencesStrings.BASE_URL,
 		modifier = Modifier.fillMaxWidth(),
-		singleLine = true,
-		visualTransformation = if (revealValue) VisualTransformation.None else PasswordVisualTransformation(),
-		trailingIcon = {
-			TextButton(onClick = { revealValue = !revealValue }) {
-				Text(if (revealValue) PreferencesStrings.HIDE else PreferencesStrings.SHOW)
-			}
-		},
+		errorText = errors[ProviderConfigurationField.BASE_URL]?.let(::providerErrorLabel),
 	)
-}
-
-@Composable
-private fun ProviderSettingsCard(
-	title: String,
-	subtitle: String,
-	hint: String,
-	connectionStatus: ProviderConnectionStatus,
-	canTestConnection: Boolean,
-	onTestConnection: () -> Unit,
-	content: @Composable () -> Unit,
-) {
-	Card(modifier = Modifier.fillMaxWidth()) {
-		Column(
-			modifier = Modifier.padding(StudioDimens.xl),
-			verticalArrangement = Arrangement.spacedBy(StudioDimens.l),
-		) {
-			Row(
-				modifier = Modifier.fillMaxWidth(),
-				horizontalArrangement = Arrangement.SpaceBetween,
-				verticalAlignment = Alignment.Top,
-			) {
-				Column(
-					modifier = Modifier.weight(1f),
-					verticalArrangement = Arrangement.spacedBy(StudioDimens.xxs),
-				) {
-					Text(title, style = MaterialTheme.typography.titleSmall)
-					Text(
-						subtitle,
-						style = MaterialTheme.typography.bodySmall,
-						color = MaterialTheme.colorScheme.onSurfaceVariant,
-					)
-					Text(
-						PreferencesStrings.TEST_CONNECTION_HELP,
-						style = MaterialTheme.typography.bodySmall,
-						color = MaterialTheme.colorScheme.onSurfaceVariant,
-					)
-					Text(
-						hint,
-						style = MaterialTheme.typography.bodySmall,
-						color = MaterialTheme.colorScheme.onSurfaceVariant,
-					)
-					Text(
-						text = connectionStatusLabel(connectionStatus),
-						style = MaterialTheme.typography.bodySmall,
-						color = connectionStatusColor(connectionStatus),
-					)
-				}
-				Spacer(modifier = Modifier.width(StudioDimens.l))
-				Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(StudioDimens.xxs)) {
-					OutlinedButton(
-						onClick = onTestConnection,
-						enabled = canTestConnection && connectionStatus !is ProviderConnectionStatus.Checking,
-					) {
-					Text(PreferencesStrings.TEST_CONNECTION)
-					}
-					if (!canTestConnection) {
-						Text(
-							PreferencesStrings.TEST_CONNECTION_DISABLED,
-							style = MaterialTheme.typography.labelSmall,
-							color = MaterialTheme.colorScheme.onSurfaceVariant,
-						)
-					}
-				}
-			}
-			content()
-		}
+	FormTextField(
+		value = configuration.model,
+		onValueChange = { onChange(configuration.copy(model = it)) },
+		label = PreferencesStrings.DEFAULT_MODEL,
+		modifier = Modifier.fillMaxWidth(),
+		errorText = errors[ProviderConfigurationField.MODEL]?.let(::providerErrorLabel),
+	)
+	if (apiKeyRequired) {
+		SecretTextField(
+			value = configuration.apiKey,
+			onValueChange = { onChange(configuration.copy(apiKey = it)) },
+			label = PreferencesStrings.API_KEY,
+			modifier = Modifier.fillMaxWidth(),
+			showLabel = PreferencesStrings.SHOW,
+			hideLabel = PreferencesStrings.HIDE,
+		)
 	}
 }
 
-private fun themeModeLabel(themeMode: StudioThemeMode): String = when (themeMode) {
-	StudioThemeMode.SYSTEM -> PreferencesStrings.SYSTEM
-	StudioThemeMode.LIGHT -> PreferencesStrings.LIGHT
-	StudioThemeMode.DARK -> PreferencesStrings.DARK
+private fun providerErrorLabel(error: ProviderConfigurationError): String = when (error) {
+	ProviderConfigurationError.REQUIRED -> PreferencesStrings.REQUIRED
+	ProviderConfigurationError.INVALID_URL -> PreferencesStrings.INVALID_URL
 }
 
-private fun connectionStatusLabel(status: ProviderConnectionStatus): String = when (status) {
-	ProviderConnectionStatus.Idle -> PreferencesStrings.NOT_TESTED
-	ProviderConnectionStatus.Checking -> PreferencesStrings.TESTING
-	is ProviderConnectionStatus.Success -> status.message
-	is ProviderConnectionStatus.Failure -> status.message
-}
-
-@Composable
-private fun connectionStatusColor(status: ProviderConnectionStatus) = when (status) {
-	ProviderConnectionStatus.Idle -> MaterialTheme.colorScheme.onSurfaceVariant
-	ProviderConnectionStatus.Checking -> MaterialTheme.colorScheme.primary
-	is ProviderConnectionStatus.Success -> StudioColors.success
-	is ProviderConnectionStatus.Failure -> MaterialTheme.colorScheme.error
+private fun providerHint(provider: AIProviderTab): String = when (provider) {
+	AIProviderTab.OLLAMA -> PreferencesStrings.OLLAMA_HINT
+	AIProviderTab.OPENAI -> PreferencesStrings.OPENAI_HINT
+	AIProviderTab.ANTHROPIC -> PreferencesStrings.ANTHROPIC_HINT
+	AIProviderTab.GEMINI -> PreferencesStrings.GEMINI_HINT
 }

@@ -1,29 +1,24 @@
 package com.moqserver.studio
 
-import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.FolderOpen
+import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.outlined.Language
-import androidx.compose.material3.Card
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
@@ -39,8 +34,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.input.pointer.PointerIcon
-import androidx.compose.ui.input.pointer.pointerHoverIcon
+import androidx.compose.ui.graphics.vector.rememberVectorPainter
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import com.moqserver.composeapp.generated.resources.GreatVibes_Regular
@@ -51,6 +45,14 @@ import com.moqserver.studio.domain.AIState
 import com.moqserver.studio.domain.StudioRootViewModel
 import com.moqserver.studio.domain.StudioState
 import com.moqserver.studio.domain.VariantReferenceSyncPreference
+import io.github.maniramezan.kmpcomponents.ContentRow
+import io.github.maniramezan.kmpcomponents.KeyValueRow
+import io.github.maniramezan.kmpcomponents.SectionCard
+import io.github.maniramezan.kmpcomponents.StatusBar
+import io.github.maniramezan.kmpcomponents.StatusBarItem
+import io.github.maniramezan.kmpcomponents.StatusBarSeparator
+import io.github.maniramezan.kmpcomponents.ThemeCard
+import io.github.maniramezan.kmpcomponents.ThemeIconButton
 import org.jetbrains.compose.resources.Font
 
 private object AppStrings {
@@ -212,14 +214,17 @@ internal fun StudioLandingScreen(
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
 
-        Card(modifier = Modifier.fillMaxWidth()) {
-            Column(modifier = Modifier.padding(StudioDimens.xxl), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-                Text(AppStrings.OPEN_OR_IMPORT, style = MaterialTheme.typography.titleMedium)
+        SectionCard(
+            title = AppStrings.OPEN_OR_IMPORT,
+            modifier = Modifier.fillMaxWidth(),
+        ) {
 				Row(horizontalArrangement = Arrangement.spacedBy(StudioDimens.m)) {
 					Box {
-						FilledIconButton(onClick = { showFolderMenu = true }) {
-							Icon(Icons.Filled.FolderOpen, contentDescription = AppStrings.OPEN_OR_IMPORT)
-						}
+						ThemeIconButton(
+							icon = rememberVectorPainter(Icons.Filled.FolderOpen),
+							contentDescription = AppStrings.OPEN_OR_IMPORT,
+							onClick = { showFolderMenu = true },
+						)
 						DropdownMenu(
 							expanded = showFolderMenu,
 							onDismissRequest = { showFolderMenu = false },
@@ -255,9 +260,11 @@ internal fun StudioLandingScreen(
 						}
 					}
 					Box {
-						FilledIconButton(onClick = { showInternetMenu = true }) {
-							Icon(Icons.Outlined.Language, contentDescription = AppStrings.IMPORT_OPENAPI_URL)
-						}
+						ThemeIconButton(
+							icon = rememberVectorPainter(Icons.Outlined.Language),
+							contentDescription = AppStrings.IMPORT_OPENAPI_URL,
+							onClick = { showInternetMenu = true },
+						)
 						DropdownMenu(
 							expanded = showInternetMenu,
 							onDismissRequest = { showInternetMenu = false },
@@ -279,7 +286,6 @@ internal fun StudioLandingScreen(
 						}
 					}
 				}
-            }
         }
 
         RecentProjectsCard(
@@ -377,45 +383,20 @@ internal fun RecentProjectsCard(
 ) {
     if (recentProjects.isEmpty()) return
 
-    Card(modifier = Modifier.fillMaxWidth()) {
-        Column(modifier = Modifier.padding(StudioDimens.xxl), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            Text(AppStrings.RECENT_PROJECTS, style = MaterialTheme.typography.titleMedium)
-            recentProjects.forEach { path ->
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Column(
-                        modifier = Modifier
-                            .weight(1f)
-                            .clickable { onOpenProject(path) }
-                            .pointerHoverIcon(PointerIcon.Hand)
-                            .padding(vertical = StudioDimens.xs),
-                        verticalArrangement = Arrangement.spacedBy(StudioDimens.xxs),
-                    ) {
-                        Text(
-                            text = recentProjectLabel(path),
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.primary,
-                        )
-                        Text(
-                            text = path,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
-                    IconButton(
+    SectionCard(title = AppStrings.RECENT_PROJECTS, modifier = Modifier.fillMaxWidth()) {
+        recentProjects.forEach { path ->
+            ContentRow(
+                title = recentProjectLabel(path),
+                supportingText = path,
+                onClick = { onOpenProject(path) },
+                trailingContent = {
+                    ThemeIconButton(
+                        icon = rememberVectorPainter(Icons.Filled.Close),
+                        contentDescription = AppStrings.REMOVE_RECENT_PROJECT,
                         onClick = { onRemoveProject(path) },
-                        modifier = Modifier.size(36.dp),
-                    ) {
-                        Icon(
-                            imageVector = Icons.Filled.Close,
-                            contentDescription = AppStrings.REMOVE_RECENT_PROJECT,
-                        )
-                    }
-                }
-            }
+                    )
+                },
+            )
         }
     }
 }
@@ -435,60 +416,32 @@ internal fun WorkspaceStatusBar(
     val canShowAIDetails = state.ai.isReady && selectedProvider != null
     var showAIDetails by remember { mutableStateOf(false) }
 
-    Column(modifier = Modifier.fillMaxWidth()) {
-        HorizontalDivider()
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = StudioDimens.xl, vertical = StudioDimens.m),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Text("${AppStrings.AI_PROVIDER_PREFIX}$providerLabel", style = MaterialTheme.typography.labelMedium)
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(StudioDimens.l),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text(
-                    "${AppStrings.VERSION_PREFIX}${project.manifest.version}",
-                    style = MaterialTheme.typography.labelMedium,
-                )
-                StatusSeparator()
-                Text(
-                    "${project.endpoints.size}${AppStrings.ENDPOINTS_SUFFIX}",
-                    style = MaterialTheme.typography.labelMedium,
-                )
-                StatusSeparator()
-                Text(
-                    dirtyText,
-                    style = MaterialTheme.typography.labelMedium,
-                    color = dirtyColor,
-                )
-                StatusSeparator()
-                Box {
-                    Text(
-                        aiStatus.label,
-                        style = MaterialTheme.typography.labelMedium,
-                        color = aiStatus.color,
-                        modifier = if (canShowAIDetails) {
-                            Modifier
-                                .pointerHoverIcon(PointerIcon.Hand)
-                                .clickable { showAIDetails = true }
-                        } else {
-                            Modifier
-                        },
-                    )
-
-                    if (showAIDetails && selectedProvider != null) {
-                        AIConnectionDetailsPopover(
-                            provider = selectedProvider,
-                            onDismiss = { showAIDetails = false },
+    StatusBar(
+        start = { StatusBarItem("${AppStrings.AI_PROVIDER_PREFIX}$providerLabel") },
+        end = {
+            StatusBarItem("${AppStrings.VERSION_PREFIX}${project.manifest.version}")
+            StatusBarSeparator()
+            StatusBarItem("${project.endpoints.size}${AppStrings.ENDPOINTS_SUFFIX}")
+            StatusBarSeparator()
+            StatusBarItem(dirtyText, color = dirtyColor)
+            StatusBarSeparator()
+            Box {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    StatusBarItem(aiStatus.label, color = aiStatus.color)
+                    if (canShowAIDetails) {
+                        ThemeIconButton(
+                            icon = rememberVectorPainter(Icons.Outlined.Info),
+                            contentDescription = AppStrings.AI_CONNECTION_DETAILS,
+                            onClick = { showAIDetails = true },
                         )
                     }
                 }
+                if (showAIDetails && selectedProvider != null) {
+                    AIConnectionDetailsPopover(provider = selectedProvider, onDismiss = { showAIDetails = false })
+                }
             }
-        }
-    }
+        },
+    )
 }
 
 @Composable
@@ -500,7 +453,8 @@ private fun AIConnectionDetailsPopover(
         expanded = true,
         onDismissRequest = onDismiss,
     ) {
-        Card(
+        ThemeCard(
+            contentPadding = PaddingValues(0.dp),
             modifier = Modifier
                 .padding(horizontal = StudioDimens.s)
                 .width(320.dp),
@@ -541,18 +495,7 @@ private fun AIConnectionDetailRow(
     value: String,
     valueColor: Color = Color.Unspecified,
 ) {
-    Column(verticalArrangement = Arrangement.spacedBy(StudioDimens.xxs)) {
-        Text(
-            text = label,
-            style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-        Text(
-            text = value,
-            style = MaterialTheme.typography.bodyMedium,
-            color = valueColor,
-        )
-    }
+    KeyValueRow(key = label, value = value, valueStyle = MaterialTheme.typography.bodyMedium.copy(color = valueColor))
 }
 
 private data class StatusPresentation(
@@ -588,14 +531,4 @@ private fun aiStatusPresentation(ai: AIState): StatusPresentation = when {
         MaterialTheme.colorScheme.outline,
     )
     else -> StatusPresentation(AppStrings.NO_AI_PROVIDER, MaterialTheme.colorScheme.error)
-}
-
-@Composable
-private fun StatusSeparator() {
-    Box(
-        modifier = Modifier
-            .height(StudioDimens.l)
-            .width(1.dp)
-            .background(MaterialTheme.colorScheme.outlineVariant),
-    )
 }

@@ -1,13 +1,10 @@
 package com.moqserver.studio.endpointdetail
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -17,6 +14,12 @@ import com.moqserver.studio.projectformat.EndpointDocument
 import com.moqserver.studio.projectformat.ProjectVariant
 import com.moqserver.studio.projectformat.isValidReferenceName
 import com.moqserver.studio.ui.*
+import io.github.maniramezan.kmpcomponents.FormTextField
+import io.github.maniramezan.kmpcomponents.InfoTooltip
+import io.github.maniramezan.kmpcomponents.ThemeCard
+import io.github.maniramezan.kmpcomponents.ThemeCheckbox
+import io.github.maniramezan.kmpcomponents.ThemeSwitch
+import io.github.maniramezan.kmpcomponents.ThemeTextButton
 
 private object VariantSummaryStrings {
     const val MORE_HEADERS_PREFIX = "+"
@@ -82,12 +85,7 @@ private fun ApiCallSummaryCard(
 	endpoint: EndpointDocument,
 	variant: ProjectVariant,
 ) {
-	Card(
-		colors = CardDefaults.cardColors(
-			containerColor = MaterialTheme.colorScheme.surfaceVariant,
-		),
-		modifier = Modifier.fillMaxWidth(),
-	) {
+	ThemeCard(modifier = Modifier.fillMaxWidth(), contentPadding = PaddingValues(0.dp)) {
 		Column(
 			modifier = Modifier.padding(StudioDimens.l),
 			verticalArrangement = Arrangement.spacedBy(StudioDimens.m),
@@ -184,7 +182,7 @@ private fun VariantEditingControls(
 	}
 
 	Row(horizontalArrangement = Arrangement.spacedBy(StudioDimens.l)) {
-		OutlinedTextField(
+		FormTextField(
 			value = variant.name,
 			onValueChange = { updatedName ->
 				val result = applyVariantNameChange(
@@ -216,21 +214,12 @@ private fun VariantEditingControls(
 						showReferenceSyncDialog = true
 					}
 				},
-		label = {
-			Row(verticalAlignment = Alignment.CenterVertically) {
-				Text(VariantSummaryStrings.VARIANT_NAME)
-				InfoTooltip(VariantSummaryStrings.VARIANT_NAME_TOOLTIP)
-				}
-			},
+			label = VariantSummaryStrings.VARIANT_NAME,
 			singleLine = true,
-			isError = nameConflict,
-			supportingText = if (nameConflict) {
-				{ Text(VariantSummaryStrings.NAME_CONFLICT) }
-			} else {
-				null
-			},
+			errorText = if (nameConflict) VariantSummaryStrings.NAME_CONFLICT else null,
+			trailingContent = { InfoTooltip(VariantSummaryStrings.VARIANT_NAME_TOOLTIP) },
 		)
-		OutlinedTextField(
+		FormTextField(
 			value = variant.referenceName,
 			onValueChange = {
 				pendingReferenceUpdate = null
@@ -238,24 +227,18 @@ private fun VariantEditingControls(
 				rememberDecision = false
 				onUpdate(variant.copy(referenceName = it))
 			},
-		label = {
-			Row(verticalAlignment = Alignment.CenterVertically) {
-				Text(VariantSummaryStrings.REFERENCE_NAME)
-				InfoTooltip(VariantSummaryStrings.REFERENCE_NAME_TOOLTIP)
-				}
-			},
+			label = VariantSummaryStrings.REFERENCE_NAME,
 			singleLine = true,
-			isError = referenceNameBlank || referenceNameInvalid || referenceNameConflict,
-		supportingText = {
-			when {
-				referenceNameBlank -> Text(VariantSummaryStrings.REFERENCE_NAME_REQUIRED)
-				referenceNameInvalid -> Text(VariantSummaryStrings.REFERENCE_NAME_INVALID)
-				referenceNameConflict -> Text(VariantSummaryStrings.REFERENCE_NAME_CONFLICT)
-				}
-			},
 			modifier = Modifier.weight(1f),
+			errorText = when {
+				referenceNameBlank -> VariantSummaryStrings.REFERENCE_NAME_REQUIRED
+				referenceNameInvalid -> VariantSummaryStrings.REFERENCE_NAME_INVALID
+				referenceNameConflict -> VariantSummaryStrings.REFERENCE_NAME_CONFLICT
+				else -> null
+			},
+			trailingContent = { InfoTooltip(VariantSummaryStrings.REFERENCE_NAME_TOOLTIP) },
 		)
-        OutlinedTextField(
+        FormTextField(
             value = variant.status.toString(),
             onValueChange = { value ->
                 when (val update = acceptedIntInput(value, variant.status)) {
@@ -263,36 +246,24 @@ private fun VariantEditingControls(
                     NumericInputUpdate.Ignored -> Unit
                 }
             },
-		label = {
-			Row(verticalAlignment = Alignment.CenterVertically) {
-				Text(VariantSummaryStrings.STATUS)
-				InfoTooltip(VariantSummaryStrings.STATUS_TOOLTIP)
-				}
-			},
-			singleLine = true,
-			isError = statusError,
-		supportingText = if (statusError) {
-			{ Text(VariantSummaryStrings.STATUS_RANGE) }
-		} else {
-				null
-			},
-			modifier = Modifier.width(130.dp),
-		)
+            label = VariantSummaryStrings.STATUS,
+            singleLine = true,
+            modifier = Modifier.width(130.dp),
+            errorText = if (statusError) VariantSummaryStrings.STATUS_RANGE else null,
+            trailingContent = { InfoTooltip(VariantSummaryStrings.STATUS_TOOLTIP) },
+        )
 	}
 
-	OutlinedTextField(
+	FormTextField(
 		value = variant.description ?: "",
 		onValueChange = { onUpdate(variant.copy(description = it.ifBlank { null })) },
-		label = {
-			Row(verticalAlignment = Alignment.CenterVertically) {
-				Text(VariantSummaryStrings.DESCRIPTION)
-				InfoTooltip(VariantSummaryStrings.DESCRIPTION_TOOLTIP)
-			}
-		},
+		label = VariantSummaryStrings.DESCRIPTION,
 		singleLine = false,
-		minLines = 1,
-		maxLines = 3,
-		modifier = Modifier.fillMaxWidth(),
+		modifier = Modifier.fillMaxWidth().heightIn(
+			min = StudioDimens.multilineFieldMinHeight,
+			max = StudioDimens.multilineFieldMaxHeight,
+		),
+		trailingContent = { InfoTooltip(VariantSummaryStrings.DESCRIPTION_TOOLTIP) },
 	)
 
 	if (showReferenceSyncDialog && pendingReferenceUpdate != null) {
@@ -305,20 +276,16 @@ private fun VariantEditingControls(
 			text = {
 				Column(verticalArrangement = Arrangement.spacedBy(StudioDimens.m)) {
 					Text(VariantSummaryStrings.UPDATE_REFERENCE_MESSAGE)
-					Row(
-						verticalAlignment = Alignment.CenterVertically,
-						horizontalArrangement = Arrangement.spacedBy(StudioDimens.s),
-					) {
-						Checkbox(
-							checked = rememberDecision,
-							onCheckedChange = { rememberDecision = it },
-						)
-						Text(VariantSummaryStrings.REMEMBER_FOR_PROJECT)
-					}
+					ThemeCheckbox(
+						checked = rememberDecision,
+						onCheckedChange = { rememberDecision = it },
+						label = VariantSummaryStrings.REMEMBER_FOR_PROJECT,
+					)
 				}
 			},
 			confirmButton = {
-				TextButton(
+				ThemeTextButton(
+					text = VariantSummaryStrings.UPDATE_REFERENCE,
 					onClick = {
 						if (rememberDecision) {
 							persistPreference(VariantReferenceSyncPreference.ALWAYS_UPDATE)
@@ -328,12 +295,11 @@ private fun VariantEditingControls(
 						showReferenceSyncDialog = false
 						rememberDecision = false
 					},
-				) {
-					Text(VariantSummaryStrings.UPDATE_REFERENCE)
-				}
+				)
 			},
 			dismissButton = {
-				TextButton(
+				ThemeTextButton(
+					text = VariantSummaryStrings.KEEP_REFERENCE,
 					onClick = {
 						if (rememberDecision) {
 							persistPreference(VariantReferenceSyncPreference.NEVER_UPDATE)
@@ -342,9 +308,7 @@ private fun VariantEditingControls(
 						showReferenceSyncDialog = false
 						rememberDecision = false
 					},
-				) {
-					Text(VariantSummaryStrings.KEEP_REFERENCE)
-				}
+				)
 			},
 		)
 	}
@@ -353,14 +317,11 @@ private fun VariantEditingControls(
 
 	if (canRemove) {
 		Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-			TextButton(
+			ThemeTextButton(
+				text = VariantSummaryStrings.REMOVE_VARIANT,
 				onClick = onRemove,
-				colors = ButtonDefaults.textButtonColors(
-					contentColor = MaterialTheme.colorScheme.error,
-				),
-			) {
-				Text(VariantSummaryStrings.REMOVE_VARIANT)
-			}
+				destructive = true,
+			)
 		}
 	}
 }
@@ -375,26 +336,16 @@ private fun DefaultAndDelayRow(
 		verticalAlignment = Alignment.CenterVertically,
 		horizontalArrangement = Arrangement.spacedBy(StudioDimens.m),
 	) {
-		Text(VariantSummaryStrings.DEFAULT, style = MaterialTheme.typography.bodySmall)
-		InfoTooltip(VariantSummaryStrings.DEFAULT_TOOLTIP)
-		if (canRemove) {
-			Switch(
-				checked = variant.isDefault == true,
-				onCheckedChange = { onUpdate(variant.copy(isDefault = if (it) true else null)) },
-			)
-		} else {
-			Text(
-				text = VariantSummaryStrings.ONLY_VARIANT,
-				style = MaterialTheme.typography.labelSmall,
-				color = MaterialTheme.colorScheme.onSurfaceVariant,
-				modifier = Modifier
-					.clip(RoundedCornerShape(StudioDimens.xs))
-					.background(MaterialTheme.colorScheme.surfaceVariant)
-					.padding(horizontal = StudioDimens.m, vertical = StudioDimens.xs),
-			)
-		}
-		Spacer(Modifier.weight(1f))
-        OutlinedTextField(
+		ThemeSwitch(
+			checked = variant.isDefault == true,
+			onCheckedChange = { onUpdate(variant.copy(isDefault = if (it) true else null)) },
+			label = VariantSummaryStrings.DEFAULT,
+			tooltip = VariantSummaryStrings.DEFAULT_TOOLTIP,
+			enabled = canRemove,
+			supportingText = if (canRemove) null else VariantSummaryStrings.ONLY_VARIANT,
+			modifier = Modifier.weight(1f),
+		)
+        FormTextField(
             value = (variant.delayMs ?: 0).toString(),
             onValueChange = {
                 when (val update = acceptedPositiveIntOrNullInput(it, variant.delayMs)) {
@@ -402,16 +353,12 @@ private fun DefaultAndDelayRow(
                     NumericInputUpdate.Ignored -> Unit
                 }
             },
-		label = {
-			Row(verticalAlignment = Alignment.CenterVertically) {
-				Text(VariantSummaryStrings.DELAY_LABEL)
-				InfoTooltip(VariantSummaryStrings.DELAY_TOOLTIP)
-				}
-			},
-			singleLine = true,
-			modifier = Modifier.width(StudioDimens.tableNameColumnWidth),
-		)
-        OutlinedTextField(
+            label = VariantSummaryStrings.DELAY_LABEL,
+            singleLine = true,
+            modifier = Modifier.width(StudioDimens.tableNameColumnWidth),
+            trailingContent = { InfoTooltip(VariantSummaryStrings.DELAY_TOOLTIP) },
+        )
+        FormTextField(
             value = (variant.callCount ?: 0).toString(),
             onValueChange = {
                 when (val update = acceptedPositiveIntOrNullInput(it, variant.callCount)) {
@@ -419,14 +366,10 @@ private fun DefaultAndDelayRow(
                     NumericInputUpdate.Ignored -> Unit
                 }
             },
-			label = {
-				Row(verticalAlignment = Alignment.CenterVertically) {
-					Text(VariantSummaryStrings.CALL_COUNT_LABEL)
-					InfoTooltip(VariantSummaryStrings.CALL_COUNT_TOOLTIP)
-					}
-				},
-				singleLine = true,
-				modifier = Modifier.width(StudioDimens.tableNameColumnWidth),
-			)
+            label = VariantSummaryStrings.CALL_COUNT_LABEL,
+            singleLine = true,
+            modifier = Modifier.width(StudioDimens.tableNameColumnWidth),
+            trailingContent = { InfoTooltip(VariantSummaryStrings.CALL_COUNT_TOOLTIP) },
+        )
 	}
 }
