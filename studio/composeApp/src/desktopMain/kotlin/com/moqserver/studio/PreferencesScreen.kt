@@ -22,7 +22,6 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.unit.dp
 import com.moqserver.studio.data.AISettings
 import com.moqserver.studio.designsystem.toSharedThemeMode
 import io.github.maniramezan.kmpcomponents.AdaptiveContentContainer
@@ -117,7 +116,7 @@ fun PreferencesScreen(
 	Surface(modifier = modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
 		Row(Modifier.fillMaxSize()) {
 			SidebarNavigation(
-				modifier = Modifier.width(200.dp).fillMaxHeight(),
+				modifier = Modifier.width(StudioDimens.navigationSidebarWidth).fillMaxHeight(),
 				header = { Text(PreferencesStrings.TITLE, style = MaterialTheme.typography.titleMedium) },
 			) {
 				PreferencesSection.entries.forEach { section ->

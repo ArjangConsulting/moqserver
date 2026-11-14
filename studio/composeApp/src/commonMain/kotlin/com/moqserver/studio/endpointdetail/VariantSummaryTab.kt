@@ -7,7 +7,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.dp
 import com.moqserver.studio.designsystem.StudioDimens
 import com.moqserver.studio.domain.VariantReferenceSyncPreference
 import com.moqserver.studio.projectformat.EndpointDocument
@@ -85,7 +84,7 @@ private fun ApiCallSummaryCard(
 	endpoint: EndpointDocument,
 	variant: ProjectVariant,
 ) {
-	ThemeCard(modifier = Modifier.fillMaxWidth(), contentPadding = PaddingValues(0.dp)) {
+	ThemeCard(modifier = Modifier.fillMaxWidth(), contentPadding = PaddingValues(StudioDimens.none)) {
 		Column(
 			modifier = Modifier.padding(StudioDimens.l),
 			verticalArrangement = Arrangement.spacedBy(StudioDimens.m),
@@ -248,7 +247,7 @@ private fun VariantEditingControls(
             },
             label = VariantSummaryStrings.STATUS,
             singleLine = true,
-            modifier = Modifier.width(130.dp),
+            modifier = Modifier.width(StudioDimens.statusFieldWidth),
             errorText = if (statusError) VariantSummaryStrings.STATUS_RANGE else null,
             trailingContent = { InfoTooltip(VariantSummaryStrings.STATUS_TOOLTIP) },
         )

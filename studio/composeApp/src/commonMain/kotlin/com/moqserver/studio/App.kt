@@ -36,7 +36,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.rememberVectorPainter
 import androidx.compose.ui.text.font.FontFamily
-import androidx.compose.ui.unit.dp
 import com.moqserver.composeapp.generated.resources.GreatVibes_Regular
 import com.moqserver.composeapp.generated.resources.Res
 import com.moqserver.studio.domain.AIAction
@@ -454,10 +453,10 @@ private fun AIConnectionDetailsPopover(
         onDismissRequest = onDismiss,
     ) {
         ThemeCard(
-            contentPadding = PaddingValues(0.dp),
+            contentPadding = PaddingValues(StudioDimens.none),
             modifier = Modifier
                 .padding(horizontal = StudioDimens.s)
-                .width(320.dp),
+                .width(StudioDimens.popoverWidth),
         ) {
             Column(
                 modifier = Modifier.padding(StudioDimens.l),

@@ -18,7 +18,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.ImeAction
-import androidx.compose.ui.unit.dp
 import io.github.maniramezan.kmpcomponents.DisclosureCard
 import io.github.maniramezan.kmpcomponents.FormTextField
 import io.github.maniramezan.kmpcomponents.InlineProgressIndicator
@@ -142,7 +141,7 @@ internal fun ImportFromURLDialog(
 		title = { Text(dialogCopy.title) },
 		text = {
 			Column(
-				modifier = Modifier.width(480.dp).verticalScroll(rememberScrollState()),
+				modifier = Modifier.width(StudioDimens.dialogContentWidth).verticalScroll(rememberScrollState()),
 				verticalArrangement = Arrangement.spacedBy(StudioDimens.m),
 			) {
 				FormTextField(

@@ -13,7 +13,6 @@ import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Window
 import androidx.compose.ui.window.rememberWindowState
 import com.moqserver.studio.domain.RuntimeInspectionState
@@ -63,7 +62,10 @@ internal fun RuntimeInspectionWindow(
 	Window(
 		onCloseRequest = onClose,
 		title = RuntimeStrings.TITLE,
-		state = rememberWindowState(width = 900.dp, height = 780.dp),
+		state = rememberWindowState(
+		width = StudioDimens.runtimeInspectorWindowWidth,
+		height = StudioDimens.runtimeInspectorWindowHeight,
+	),
 	) {
 		StudioTheme(themeMode = themeMode) {
 			Column(

@@ -20,7 +20,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.rememberVectorPainter
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.dp
 import com.moqserver.studio.projectformat.ValidationDiagnostic
 import io.github.maniramezan.kmpcomponents.StatusTone
 import io.github.maniramezan.kmpcomponents.ThemeIconButton
@@ -88,7 +87,7 @@ fun ValidationPanel(
 
         if (diagnostics.isNotEmpty()) {
             LazyColumn(
-                modifier = Modifier.fillMaxWidth().height(200.dp),
+                modifier = Modifier.fillMaxWidth().height(StudioDimens.validationListHeight),
             ) {
                 items(diagnostics) { diagnostic ->
                     DiagnosticRow(
