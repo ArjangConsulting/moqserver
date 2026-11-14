@@ -76,9 +76,14 @@ kotlin {
     }
 }
 
+val desktopJavaLauncher = extensions.getByType<org.gradle.jvm.toolchain.JavaToolchainService>().launcherFor {
+    languageVersion.set(JavaLanguageVersion.of(libs.versions.jdk.get()))
+}
+
 compose.desktop {
     application {
         mainClass = "com.moqserver.studio.MainKt"
+        javaHome = desktopJavaLauncher.get().metadata.installationPath.asFile.absolutePath
         jvmArgs += listOf(
             "-Dapple.awt.application.name=moqserver Studio",
             "-Dmoqserver.studio.version=${project.version}",
@@ -338,6 +343,16 @@ tasks.register("packageReleaseForCurrentOS") {
             System.getenv("MOQSERVER_STUDIO_SIGNING_IDENTITY").isNullOrBlank()
         ) {
             error("MOQSERVER_STUDIO_SIGNING_IDENTITY must be set for macOS release packaging.")
+        }
+    }
+}
+
+tasks.matching { it.name == "createDistributable" || it.name == "createReleaseDistributable" }.configureEach {
+    doLast {
+        outputs.files.asFileTree.matching { include("**/resources/moq-format") }.forEach { bundledBinary ->
+            check(bundledBinary.setExecutable(true, false) && bundledBinary.canExecute()) {
+                "Could not make the bundled format service executable: $bundledBinary"
+            }
         }
     }
 }
