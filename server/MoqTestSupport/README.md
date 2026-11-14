@@ -78,6 +78,26 @@ matched endpoint, variant, selection reason, and add-on annotations such as the 
 history. When the server runs with `--capture-request-bodies`, `requestBody` holds what the app sent;
 `requestBody?.jsonObject` parses a complete JSON body.
 
+Inspect and drive server state without hand-written HTTP:
+
+```swift
+let endpoints = try client.endpoints()             // keys, variants, active overrides, call counts
+let calls = try client.callCount(for: "POST", path: "/checkout")
+try client.defineScenario("checkout-down", overrides: ["POST /checkout": "error"])
+try client.activateScenario("checkout-down")
+try client.selectVariant("error", for: "POST", path: "/graphql", operation: "GetUser")
+try client.reload()                                // re-read the bundle from disk
+```
+
+`async` tests use `client.asyncClient`, which offers every call without blocking a thread;
+cancelling the calling task cancels the request:
+
+```swift
+let isolated = try await client.asyncClient.createSession()
+try await isolated.asyncClient.activateScenario("checkout-down")
+#expect(try await isolated.asyncClient.callCount(for: "POST", path: "/checkout") == 0)
+```
+
 Use a separate server per suite if the app cannot attach the session header. `activateScenario`
 selects a previously defined scenario. The static `MoqControl` facade remains source-compatible
 for existing serial XCTest suites and records an assertion before propagating a failed call.

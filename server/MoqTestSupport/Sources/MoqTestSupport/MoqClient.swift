@@ -36,7 +36,11 @@ public final class MoqClient: Sendable {
         let data = try send("POST", url: baseURL.appendingPathComponent("_admin/sessions"))
         let result = try JSONDecoder().decode([String: String].self, from: data)
         guard let id = result["id"] else { throw MoqControlError.transport("Missing session ID") }
-        return MoqClient(baseURL: baseURL, auth: auth, session: session, timeout: timeout, sessionID: id)
+        return scoped(to: id)
+    }
+
+    func scoped(to sessionID: String) -> MoqClient {
+        MoqClient(baseURL: baseURL, auth: auth, session: session, timeout: timeout, sessionID: sessionID)
     }
 
     public func closeSession() throws {
@@ -45,27 +49,31 @@ public final class MoqClient: Sendable {
     }
 
     public func activateScenario(_ name: String) throws {
-        try send("PUT", url: baseURL.appendingPathComponent("_admin/scenario"), body: ["name": name])
+        try send("PUT", url: baseURL.appendingPathComponent("_admin/scenario"), json: Self.scenarioName(name))
     }
 
     public func resetAll() throws {
         try send("DELETE", url: baseURL.appendingPathComponent("_admin/state"))
     }
 
-    public func selectVariant(_ variant: String, for method: String, path: String) throws {
-        try send("PUT", url: adminURL(method: method, path: path, subresource: "variant"), body: ["variant": variant])
+    /// Makes `variant` the active response. For a GraphQL operation on a shared route, pass its
+    /// `operation` (the name, or the selector listed by ``endpoints()``).
+    public func selectVariant(_ variant: String, for method: String, path: String, operation: String? = nil) throws {
+        try send(
+            "PUT", url: adminURL(method: method, path: path, subresource: "variant", operation: operation),
+            json: Self.json(["variant": variant]))
     }
 
-    public func resetVariant(for method: String, path: String) throws {
-        try send("DELETE", url: adminURL(method: method, path: path, subresource: "variant"))
+    public func resetVariant(for method: String, path: String, operation: String? = nil) throws {
+        try send("DELETE", url: adminURL(method: method, path: path, subresource: "variant", operation: operation))
     }
 
-    public func resetCallCount(for method: String, path: String) throws {
-        try send("DELETE", url: adminURL(method: method, path: path, subresource: "call-count"))
+    public func resetCallCount(for method: String, path: String, operation: String? = nil) throws {
+        try send("DELETE", url: adminURL(method: method, path: path, subresource: "call-count", operation: operation))
     }
 
-    public func resetAll(for method: String, path: String) throws {
-        try send("DELETE", url: adminURL(method: method, path: path, subresource: "state"))
+    public func resetAll(for method: String, path: String, operation: String? = nil) throws {
+        try send("DELETE", url: adminURL(method: method, path: path, subresource: "state", operation: operation))
     }
 
     public func waitUntilReady(timeout: TimeInterval = 10) -> Bool {
@@ -83,17 +91,25 @@ public final class MoqClient: Sendable {
         return false
     }
 
-    func adminURL(method: String, path: String, subresource: String) -> URL {
+    /// `subresource` is empty for the endpoint itself (`GET` its detail).
+    func adminURL(method: String, path: String, subresource: String, operation: String? = nil) -> URL {
         let normalized = path.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
-        return baseURL.appendingPathComponent("_admin/endpoints")
+        var url = baseURL.appendingPathComponent("_admin/endpoints")
             .appendingPathComponent(method.uppercased()).appendingPathComponent(normalized)
-            .appendingPathComponent(subresource)
+        if !subresource.isEmpty { url.appendPathComponent(subresource) }
+        guard let operation,
+            var components = URLComponents(url: url, resolvingAgainstBaseURL: false)
+        else { return url }
+        components.queryItems = [URLQueryItem(name: "operation", value: operation)]
+        return components.url ?? url
     }
 
-    @discardableResult
-    func send(_ method: String, url: URL, body: [String: String]? = nil, timeout: TimeInterval? = nil) throws -> Data {
-        let duration = timeout ?? self.timeout
-        var request = URLRequest(url: url, timeoutInterval: duration)
+    static func json(_ value: some Encodable) throws -> Data {
+        try JSONEncoder().encode(value)
+    }
+
+    func makeRequest(_ method: String, url: URL, json: Data?, timeout: TimeInterval) -> URLRequest {
+        var request = URLRequest(url: url, timeoutInterval: timeout)
         request.httpMethod = method
         if let sessionID { request.setValue(sessionID, forHTTPHeaderField: "X-Mock-Session") }
         switch auth {
@@ -101,10 +117,31 @@ public final class MoqClient: Sendable {
         case .apiKey(let header, let value): request.setValue(value, forHTTPHeaderField: header)
         case .none: break
         }
-        if let body {
+        if let json {
             request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-            request.httpBody = try JSONSerialization.data(withJSONObject: body)
+            request.httpBody = json
         }
+        return request
+    }
+
+    /// Maps a finished `URLSession` task to its body, or a typed `MoqControlError`.
+    static func validate(data: Data?, response: URLResponse?, error: Error?) throws -> Data {
+        if let error {
+            if (error as? URLError)?.code == .timedOut { throw MoqControlError.timedOut }
+            throw MoqControlError.transport(error.localizedDescription)
+        }
+        let status = (response as? HTTPURLResponse)?.statusCode ?? 0
+        guard (200..<300).contains(status) else {
+            throw MoqControlError.rejected(status: status, body: String(decoding: data ?? Data(), as: UTF8.self))
+        }
+        return data ?? Data()
+    }
+
+    /// Blocking transport: waits at most `timeout` in total, then cancels the task.
+    @discardableResult
+    func send(_ method: String, url: URL, json: Data? = nil, timeout: TimeInterval? = nil) throws -> Data {
+        let duration = timeout ?? self.timeout
+        let request = makeRequest(method, url: url, json: json, timeout: duration)
         let completion = RequestCompletion()
         let task = session.dataTask(with: request) { data, response, error in
             completion.finish(data: data, response: response, error: error)
@@ -114,15 +151,25 @@ public final class MoqClient: Sendable {
             task.cancel()
             throw MoqControlError.timedOut
         }
-        if let error = result.error {
-            if (error as? URLError)?.code == .timedOut { throw MoqControlError.timedOut }
-            throw MoqControlError.transport(error.localizedDescription)
+        return try Self.validate(data: result.data, response: result.response, error: result.error)
+    }
+
+    /// Non-blocking transport for `MoqAsyncClient`. Cancelling the calling task cancels the request;
+    /// `timeout` bounds idle time between bytes (URLSession's request timeout).
+    func sendAsync(_ method: String, url: URL, json: Data? = nil) async throws -> Data {
+        let request = makeRequest(method, url: url, json: json, timeout: timeout)
+        let handle = TaskHandle()
+        return try await withTaskCancellationHandler {
+            try await withCheckedThrowingContinuation { continuation in
+                let task = session.dataTask(with: request) { data, response, error in
+                    continuation.resume(
+                        with: Result { try Self.validate(data: data, response: response, error: error) })
+                }
+                handle.start(task)
+            }
+        } onCancel: {
+            handle.cancel()
         }
-        let status = (result.response as? HTTPURLResponse)?.statusCode ?? 0
-        guard (200..<300).contains(status) else {
-            throw MoqControlError.rejected(status: status, body: String(decoding: result.data ?? Data(), as: UTF8.self))
-        }
-        return result.data ?? Data()
     }
 }
 
@@ -151,5 +198,28 @@ private final class RequestCompletion: @unchecked Sendable {
             if !condition.wait(until: deadline) { return result }
         }
         return result
+    }
+}
+
+/// Lets a cancellation that races task creation still cancel the task.
+private final class TaskHandle: @unchecked Sendable {
+    private let lock = NSLock()
+    private var task: URLSessionTask?
+    private var cancelled = false
+
+    func start(_ task: URLSessionTask) {
+        lock.lock()
+        self.task = task
+        let cancelled = self.cancelled
+        lock.unlock()
+        if cancelled { task.cancel() } else { task.resume() }
+    }
+
+    func cancel() {
+        lock.lock()
+        cancelled = true
+        let task = self.task
+        lock.unlock()
+        task?.cancel()
     }
 }

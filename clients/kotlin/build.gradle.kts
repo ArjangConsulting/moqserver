@@ -1,6 +1,6 @@
 // Kotlin/JVM test-support client for moqserver — the Android/JVM counterpart of the Swift
 // `server/MoqTestSupport` package. A standalone build (not part of studio/) so consumers depend on
-// nothing but this library and kotlinx-serialization. Distributed through JitPack by commit SHA;
+// nothing but this library, kotlinx-serialization and kotlinx-coroutines (for the suspend API). Distributed through JitPack by commit SHA;
 // see README.md and ../../jitpack.yml.
 plugins {
     kotlin("jvm") version "2.4.21"
@@ -20,6 +20,7 @@ repositories {
 
 dependencies {
     api("org.jetbrains.kotlinx:kotlinx-serialization-json:1.12.0")
+    api("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.11.0")
     testImplementation(kotlin("test"))
 }
 

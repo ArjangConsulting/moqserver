@@ -11,6 +11,7 @@ import kotlin.test.assertFailsWith
 import kotlin.test.assertFalse
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
+import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.jsonPrimitive
 
 class MoqClientTest {
@@ -18,6 +19,8 @@ class MoqClientTest {
 
     private lateinit var server: HttpServer
     private val recorded = CopyOnWriteArrayList<Recorded>()
+
+    @Volatile private var lastQuery: String? = null
     private val baseUrl get() = "http://127.0.0.1:${server.address.port}"
 
     private val history =
@@ -38,6 +41,7 @@ class MoqClientTest {
         server.createContext("/") { exchange ->
             val body = exchange.requestBody.readBytes().decodeToString()
             val path = exchange.requestURI.rawPath
+            lastQuery = exchange.requestURI.rawQuery
             recorded +=
                 Recorded(
                     exchange.requestMethod, path, exchange.requestHeaders.getFirst("X-Mock-Session"),
@@ -47,6 +51,15 @@ class MoqClientTest {
                 when {
                     path == "/_admin/sessions" && exchange.requestMethod == "POST" -> 200 to """{"id":"s-1"}"""
                     path == "/_admin/requests" && exchange.requestMethod == "GET" -> 200 to history
+                    path == "/_admin/sessions" -> 200 to """[{"id":"s-1","createdAt":0,"lastUsedAt":0,"expiresAt":1800}]"""
+                    path == "/_admin/endpoints" ->
+                        200 to
+                            """[{"method":"POST","path":"/graphql","key":"POST /graphql#GetUser","operation":"GetUser",""" +
+                            """"variants":["ok"],"currentCallCount":2,"extra":1}]"""
+                    path == "/_admin/endpoints/POST/graphql" -> 200 to """{"currentCallCount":2}"""
+                    path == "/_admin/scenarios" && exchange.requestMethod == "GET" ->
+                        200 to """[{"name":"empty","overrides":{"GET /users":"empty"}}]"""
+                    path == "/_admin/reload" -> 200 to """{"endpoints":4,"scenarios":1,"sessions":0,"warnings":["w"]}"""
                     path.contains("rejected") -> 401 to "unauthorized"
                     else -> 200 to "{}"
                 }
@@ -124,4 +137,39 @@ class MoqClientTest {
         assertTrue((System.nanoTime() - start) / 1_000_000 < 1_000)
         server = HttpServer.create(InetSocketAddress("127.0.0.1", 0), 0).also { it.start() }
     }
+
+    @Test
+    fun `GraphQL operations are addressed with an operation query`() {
+        val client = MoqClient(baseUrl)
+        client.selectVariant("error", "POST", "/graphql", operation = "GetUser")
+        assertEquals("/_admin/endpoints/POST/graphql/variant", recorded.last().path)
+        assertEquals("operation=GetUser", lastQuery)
+        assertEquals(2, client.callCount("POST", "/graphql", "GetUser"))
+        assertEquals("/_admin/endpoints/POST/graphql", recorded.last().path)
+    }
+
+    @Test
+    fun `inspection calls decode endpoints, scenarios, sessions and reload`() {
+        val client = MoqClient(baseUrl)
+        assertEquals(listOf("POST /graphql#GetUser"), client.endpoints().map { it.key })
+        assertEquals(listOf(MoqScenario("empty", mapOf("GET /users" to "empty"))), client.scenarios())
+        assertEquals(1800.0, client.sessions().single().expiresAt)
+        assertEquals(listOf("w"), client.reload().warnings)
+        client.defineScenario("down", mapOf("GET /users" to "error"))
+        assertEquals("""{"name":"down","overrides":{"GET /users":"error"}}""", recorded.last().body)
+        client.removeScenario("down")
+        assertEquals(Recorded("DELETE", "/_admin/scenarios", null, null, """{"name":"down"}"""), recorded.last())
+    }
+
+    @Test
+    fun `suspending client mirrors the blocking calls`() =
+        runBlocking {
+            val suspending = MoqClient(baseUrl).suspending
+            val session = suspending.createSession()
+            assertEquals("s-1", session.sessionId)
+            assertEquals(2, suspending.callCount("POST", "/graphql", "GetUser"))
+            session.suspending.resetAll()
+            assertEquals("s-1", recorded.last().session)
+            assertTrue(suspending.waitUntilReady(1_000))
+        }
 }
