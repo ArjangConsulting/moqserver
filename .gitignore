@@ -25,6 +25,8 @@ build/
 */build/
 out/
 local.properties
+# kmp-code-editor source fetched by studio/scripts/fetch-code-editor.sh until it is published.
+studio/.code-editor/
 
 # IntelliJ / Android Studio's own Kotlin/JVM compiler output (distinct from Gradle's build/).
 # Unanchored (no leading/middle slash) so it matches at any depth, e.g. studio/<module>/bin/.

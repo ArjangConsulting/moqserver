@@ -37,6 +37,9 @@ if (codeEditorCompositeBuild != null) {
 	includeBuild(codeEditorCompositeBuild)
 } else if (providers.gradleProperty("useLocalCompositeBuilds").orNull != "false" && file("../../kmp-code-editor/settings.gradle.kts").isFile) {
 	includeBuild("../../kmp-code-editor")
+} else if (providers.gradleProperty("useLocalCompositeBuilds").orNull != "false" && file(".code-editor/settings.gradle.kts").isFile) {
+	// Fetched by scripts/fetch-code-editor.sh (`make studio-bootstrap`) on a fresh clone.
+	includeBuild(".code-editor")
 }
 
 include(":composeApp")
