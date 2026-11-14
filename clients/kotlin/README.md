@@ -29,8 +29,8 @@ It depends only on `kotlinx-serialization-json` and targets Java 17 bytecode. HT
 
 ## Usage
 
-Calls block the calling thread, so never make them from Android's main thread. Instrumentation
-tests already run on a background thread.
+Calls on `MoqClient` block the calling thread, so never make them from Android's main thread
+(instrumentation tests already run on a background thread); use `client.suspending` from coroutines.
 
 ```kotlin
 // From an Android emulator the host's loopback is 10.0.2.2.
@@ -47,6 +47,27 @@ session.selectVariant("error", "GET", "/users/{id}")
 session.assertNoUnmatchedRequests()                  // fails on any path the bundle doesn't mock
 val sent = session.requests().first { it.path == "/ai" }.requestBody?.jsonObject()  // needs --capture-request-bodies
 session.closeSession()
+```
+
+Inspect and drive server state without hand-written HTTP:
+
+```kotlin
+val endpoints = admin.endpoints()                    // keys, variants, active overrides, call counts
+val calls = admin.callCount("POST", "/checkout")
+admin.defineScenario("checkout-down", mapOf("POST /checkout" to "error"))
+admin.selectVariant("error", "POST", "/graphql", operation = "GetUser")
+admin.reload()                                       // re-read the bundle from disk
+```
+
+Coroutine tests use `client.suspending`, which offers every call as a `suspend` function run on
+`Dispatchers.IO` (this adds `kotlinx-coroutines-core` to the dependency):
+
+```kotlin
+runTest {
+    val session = admin.suspending.createSession()
+    session.suspending.activateScenario("out-of-credits")
+    assertEquals(0, session.suspending.callCount("POST", "/checkout"))
+}
 ```
 
 Failures throw `MoqControlException` (`TimedOut`, `Transport`, or `Rejected` with the status and

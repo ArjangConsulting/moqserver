@@ -14,9 +14,10 @@ import kotlinx.serialization.json.Json
  * variant selection, scenarios, and request history. Mirrors the Swift `MoqClient` in
  * `server/MoqTestSupport`.
  *
- * Calls block the calling thread (never call from Android's main thread). One immutable client per
- * suite; [createSession] returns a client scoped to a new isolated session, whose id the app under
- * test must send as `X-Mock-Session` on its mock requests.
+ * Calls block the calling thread (never call from Android's main thread); [suspending] offers the
+ * same calls as `suspend` functions for coroutine tests. One immutable client per suite;
+ * [createSession] returns a client scoped to a new isolated session, whose id the app under test must
+ * send as `X-Mock-Session` on its mock requests.
  */
 public class MoqClient(
     baseUrl: String,
@@ -33,6 +34,9 @@ public class MoqClient(
     }
 
     public val baseUrl: String = baseUrl.trimEnd('/')
+
+    /** The same calls as `suspend` functions, run on [kotlinx.coroutines.Dispatchers.IO]. */
+    public val suspending: SuspendingMoqClient get() = SuspendingMoqClient(this)
 
     // MARK: Sessions
 
@@ -54,7 +58,20 @@ public class MoqClient(
 
     /** Activates a scenario declared in the bundle (`scenarios:`) or defined at runtime. */
     public fun activateScenario(name: String) {
-        send("PUT", "/_admin/scenario", mapOf("name" to name))
+        send("PUT", "/_admin/scenario", encode(mapOf("name" to name)))
+    }
+
+    /** Scenarios defined in the bundle or at runtime. */
+    public fun scenarios(): List<MoqScenario> =
+        json.decodeFromString(ListSerializer(MoqScenario.serializer()), send("GET", "/_admin/scenarios"))
+
+    /** Defines (or replaces) a runtime scenario; keys are endpoint keys as listed by [endpoints]. */
+    public fun defineScenario(name: String, overrides: Map<String, String>) {
+        send("PUT", "/_admin/scenarios", json.encodeToString(MoqScenario.serializer(), MoqScenario(name, overrides)))
+    }
+
+    public fun removeScenario(name: String) {
+        send("DELETE", "/_admin/scenarios", encode(mapOf("name" to name)))
     }
 
     /** Clears runtime overrides and call counters. */
@@ -62,21 +79,48 @@ public class MoqClient(
         send("DELETE", "/_admin/state")
     }
 
-    public fun selectVariant(variant: String, method: String, path: String) {
-        send("PUT", endpointPath(method, path, "variant"), mapOf("variant" to variant))
+    /**
+     * Makes [variant] the active response. For a GraphQL operation on a shared route, pass its
+     * [operation] (the name, or the selector listed by [endpoints]).
+     */
+    @JvmOverloads
+    public fun selectVariant(variant: String, method: String, path: String, operation: String? = null) {
+        send("PUT", endpointPath(method, path, "variant", operation), encode(mapOf("variant" to variant)))
     }
 
-    public fun resetVariant(method: String, path: String) {
-        send("DELETE", endpointPath(method, path, "variant"))
+    @JvmOverloads
+    public fun resetVariant(method: String, path: String, operation: String? = null) {
+        send("DELETE", endpointPath(method, path, "variant", operation))
     }
 
-    public fun resetCallCount(method: String, path: String) {
-        send("DELETE", endpointPath(method, path, "call-count"))
+    @JvmOverloads
+    public fun resetCallCount(method: String, path: String, operation: String? = null) {
+        send("DELETE", endpointPath(method, path, "call-count", operation))
     }
 
-    public fun resetAll(method: String, path: String) {
-        send("DELETE", endpointPath(method, path, "state"))
+    @JvmOverloads
+    public fun resetAll(method: String, path: String, operation: String? = null) {
+        send("DELETE", endpointPath(method, path, "state", operation))
     }
+
+    // MARK: Inspection
+
+    /** Every endpoint the server serves (this session's view when the client has one). */
+    public fun endpoints(): List<MoqEndpoint> =
+        json.decodeFromString(ListSerializer(MoqEndpoint.serializer()), send("GET", "/_admin/endpoints"))
+
+    /** How many times `method path` (or one GraphQL [operation]) has been called since the last reset. */
+    @JvmOverloads
+    public fun callCount(method: String, path: String, operation: String? = null): Int =
+        json.decodeFromString(EndpointCallCount.serializer(), send("GET", endpointPath(method, path, "", operation)))
+            .currentCallCount
+
+    /** Live sessions on the server, oldest first. */
+    public fun sessions(): List<MoqSession> =
+        json.decodeFromString(ListSerializer(MoqSession.serializer()), send("GET", "/_admin/sessions"))
+
+    /** Re-reads the bundle from disk; the server keeps the previous version if the new one is invalid. */
+    public fun reload(): MoqReloadSummary = json.decodeFromString(MoqReloadSummary.serializer(), send("POST", "/_admin/reload"))
 
     // MARK: Request history
 
@@ -120,13 +164,19 @@ public class MoqClient(
 
     // MARK: Transport
 
-    internal fun endpointPath(method: String, path: String, subresource: String): String {
+    /** [subresource] is empty for the endpoint itself (its detail). */
+    internal fun endpointPath(method: String, path: String, subresource: String, operation: String? = null): String {
         val segments = path.trim('/').split('/').filter { it.isNotEmpty() }.joinToString("/") { encodeSegment(it) }
         val templated = if (segments.isEmpty()) "" else "/$segments"
-        return "/_admin/endpoints/${method.uppercase()}$templated/$subresource"
+        val suffix = if (subresource.isEmpty()) "" else "/$subresource"
+        val query = operation?.let { "?operation=${encodeSegment(it)}" }.orEmpty()
+        return "/_admin/endpoints/${method.uppercase()}$templated$suffix$query"
     }
 
-    private fun send(method: String, path: String, body: Map<String, String>? = null, timeout: Int = timeoutMillis): String {
+    private fun encode(body: Map<String, String>): String =
+        json.encodeToString(MapSerializer(String.serializer(), String.serializer()), body)
+
+    private fun send(method: String, path: String, body: String? = null, timeout: Int = timeoutMillis): String {
         val connection =
             try {
                 URI.create(baseUrl + path).toURL().openConnection() as HttpURLConnection
@@ -146,8 +196,7 @@ public class MoqClient(
             if (body != null) {
                 connection.doOutput = true
                 connection.setRequestProperty("Content-Type", "application/json")
-                val payload = json.encodeToString(MapSerializer(String.serializer(), String.serializer()), body)
-                connection.outputStream.use { it.write(payload.toByteArray()) }
+                connection.outputStream.use { it.write(body.toByteArray()) }
             }
             val status = connection.responseCode
             val stream = if (status in 200..299) connection.inputStream else connection.errorStream

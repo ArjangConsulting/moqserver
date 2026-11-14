@@ -148,7 +148,7 @@ public enum MoqControl {
         file: StaticString = #filePath, line: UInt = #line
     ) throws {
         do {
-            try client.send(method.rawValue, url: url, body: body)
+            try client.send(method.rawValue, url: url, json: body.map(MoqClient.json))
         } catch {
             XCTFail("moqserver admin call failed: \(error)", file: file, line: line)
             throw error
