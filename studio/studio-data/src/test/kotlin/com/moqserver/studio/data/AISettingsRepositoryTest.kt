@@ -52,6 +52,33 @@ class AISettingsRepositoryTest {
     }
 
     @Test
+    fun `loadWithoutCredentials reads the file without touching the keychain`() {
+        val settingsFile = temporaryDirectory.write(
+            """{"themeMode": "DARK", "openai": {"apiKey": "legacy-secret"}}""",
+            "settings.json",
+        )
+        val repository = AISettingsRepository(settingsFile = settingsFile, credentialStore = UntouchableKeychain())
+
+        val settings = repository.loadWithoutCredentials()
+
+        assertEquals(ThemePreference.DARK, settings.themeMode)
+        assertEquals("", settings.openai.apiKey)
+        assertTrue(settingsFile.readText().contains("legacy-secret"))
+    }
+
+    @Test
+    fun `loadCredentials fills the keys loadWithoutCredentials left blank`() {
+        val settingsFile = temporaryDirectory.write("""{"themeMode": "LIGHT"}""", "settings.json")
+        val credentialStore = FakeCredentialKeychain().apply { write("anthropic.api-key", "anthropic-secret") }
+        val repository = AISettingsRepository(settingsFile = settingsFile, credentialStore = credentialStore)
+
+        val settings = repository.loadCredentials(repository.loadWithoutCredentials())
+
+        assertEquals(ThemePreference.LIGHT, settings.themeMode)
+        assertEquals("anthropic-secret", settings.anthropic.apiKey)
+    }
+
+    @Test
     fun `load merges credentials from secure storage`() {
         val settingsFile = temporaryDirectory.write("", "settings.json")
         val credentialStore = FakeCredentialKeychain().apply {
@@ -170,6 +197,17 @@ private class UnavailableCredentialStore : CredentialKeychain {
     override fun clear() = Unit
 
     override fun delete(key: String) = Unit
+}
+
+/** Fails the test on any keychain access. */
+private class UntouchableKeychain : CredentialKeychain {
+    override fun clear() = error("keychain accessed")
+
+    override fun read(key: String): String? = error("keychain accessed: read $key")
+
+    override fun write(key: String, value: String) = error("keychain accessed: write $key")
+
+    override fun delete(key: String) = error("keychain accessed: delete $key")
 }
 
 private class FakeCredentialKeychain : CredentialKeychain {

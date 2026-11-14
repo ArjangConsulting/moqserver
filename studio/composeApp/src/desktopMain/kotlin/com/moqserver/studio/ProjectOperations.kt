@@ -7,7 +7,6 @@ import com.moqserver.studio.domain.StudioState
 import com.moqserver.studio.logging.loggerFor
 import com.moqserver.studio.projectformat.ProjectRepository
 import kotlinx.coroutines.CoroutineDispatcher
-import kotlinx.coroutines.withContext
 import java.awt.Desktop
 import java.awt.Image
 import java.awt.Taskbar
@@ -222,13 +221,4 @@ private fun isProjectDirectory(file: File): Boolean {
         file.name.endsWith(".$MOQ_PROJECT_EXTENSION", ignoreCase = true) ||
             File(file, "project.yml").isFile
         )
-}
-
-private suspend fun <T> runOnIo(
-    ioDispatcher: CoroutineDispatcher,
-    block: suspend () -> T,
-): T {
-    return withContext(ioDispatcher) {
-        block()
-    }
 }

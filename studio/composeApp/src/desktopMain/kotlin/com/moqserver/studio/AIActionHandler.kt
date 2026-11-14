@@ -28,7 +28,6 @@ import com.moqserver.studio.projectformat.MoqProject
 import com.moqserver.studio.projectformat.ProjectVariant
 import com.moqserver.studio.projectformat.YamlValue
 import kotlinx.coroutines.CoroutineDispatcher
-import kotlinx.coroutines.withContext
 
 private val logger = loggerFor<AIProviderRegistry>()
 
@@ -628,15 +627,6 @@ private fun com.moqserver.studio.domain.CompanionResponse<com.moqserver.studio.d
 			},
 		),
 	)
-}
-
-private suspend fun <T> runOnIo(
-	ioDispatcher: CoroutineDispatcher,
-	block: suspend () -> T,
-): T {
-	return withContext(ioDispatcher) {
-		block()
-	}
 }
 
 internal fun buildProjectContext(project: MoqProject): ProjectContext {

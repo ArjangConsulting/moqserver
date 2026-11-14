@@ -23,17 +23,17 @@ class AISettingsRepository(
         prettyPrint = true
     }
 
-    fun load(): AISettings {
-        val fileSettings = if (!settingsFile.exists()) {
-            AISettings()
-        } else {
-            try {
-                json.decodeFromString<AISettings>(settingsFile.readText())
-            } catch (e: Exception) {
-                logger.warn("Failed to load AI settings from ${settingsFile.path}: ${e.message}. Using defaults.")
-                AISettings()
-            }
-        }
+    fun load(): AISettings = loadCredentials(loadFileSettings())
+
+    /**
+     * Settings stored in the settings file only, with every API key blank: no keychain access, so
+     * it is cheap enough to call before the first frame. Pass the result to [loadCredentials] off
+     * the main thread to fill the keys in. Never [save] this result, which would erase the keys.
+     */
+    fun loadWithoutCredentials(): AISettings = loadFileSettings().withoutApiKeys()
+
+    /** Fills [fileSettings]' API keys from the keychain, migrating legacy keys from the file. */
+    fun loadCredentials(fileSettings: AISettings = loadFileSettings()): AISettings {
         val openAI = loadCredential(OPENAI_API_KEY_CREDENTIAL, fileSettings.openai.apiKey)
         val anthropic = loadCredential(ANTHROPIC_API_KEY_CREDENTIAL, fileSettings.anthropic.apiKey)
         val gemini = loadCredential(GEMINI_API_KEY_CREDENTIAL, fileSettings.gemini.apiKey)
@@ -84,6 +84,23 @@ class AISettingsRepository(
             throw error
         }
     }
+
+    private fun loadFileSettings(): AISettings = if (!settingsFile.exists()) {
+        AISettings()
+    } else {
+        try {
+            json.decodeFromString<AISettings>(settingsFile.readText())
+        } catch (e: Exception) {
+            logger.warn("Failed to load AI settings from ${settingsFile.path}: ${e.message}. Using defaults.")
+            AISettings()
+        }
+    }
+
+    private fun AISettings.withoutApiKeys(): AISettings = copy(
+        openai = openai.copy(apiKey = ""),
+        anthropic = anthropic.copy(apiKey = ""),
+        gemini = gemini.copy(apiKey = ""),
+    )
 
     private fun loadCredential(
         credentialKey: String,
