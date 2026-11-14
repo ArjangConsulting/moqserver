@@ -37,7 +37,6 @@ import androidx.compose.ui.graphics.vector.rememberVectorPainter
 import androidx.compose.ui.state.ToggleableState
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.dp
 import com.moqserver.studio.domain.AIProviderInfo
 import com.moqserver.studio.domain.EndpointUpdateStatus
 import com.moqserver.studio.domain.ImportEndpointEntry
@@ -405,7 +404,7 @@ fun ImportReviewScreen(
 							},
 							onToggleGeneratedResponse = { responseIndex -> onToggleGeneratedResponse(index, responseIndex) },
 							onAIClick = { singleEndpointDialogIndex = index },
-							modifier = Modifier.padding(start = 28.dp),
+							modifier = Modifier.padding(start = StudioDimens.importResponseIndent),
 						)
 					}
 				}
@@ -616,7 +615,7 @@ private fun ImportEndpointRow(
 					text = ImportReviewStrings.TAGS_PREFIX + endpoint.tags.joinToString(" / "),
 					style = MaterialTheme.typography.labelSmall,
 					color = MaterialTheme.colorScheme.onSurfaceVariant,
-					modifier = Modifier.padding(start = 48.dp),
+					modifier = Modifier.padding(start = StudioDimens.importDetailIndent),
 				)
 			}
 
@@ -626,7 +625,7 @@ private fun ImportEndpointRow(
 					text = ImportReviewStrings.CHANGED_DIFF_PREFIX + diff.summary(),
 					style = MaterialTheme.typography.labelSmall,
 					color = MaterialTheme.colorScheme.primary,
-					modifier = Modifier.padding(start = 48.dp),
+					modifier = Modifier.padding(start = StudioDimens.importDetailIndent),
 				)
 			}
 
@@ -637,7 +636,7 @@ private fun ImportEndpointRow(
 
 			if (expanded) {
 				Column(
-					modifier = Modifier.padding(start = 48.dp, top = StudioDimens.xs),
+					modifier = Modifier.padding(start = StudioDimens.importDetailIndent, top = StudioDimens.xs),
 					verticalArrangement = Arrangement.spacedBy(StudioDimens.xxs),
 				) {
 					if (endpoint.authType != AuthType.NONE) {
@@ -890,7 +889,7 @@ private fun BulkAIDialog(
 					color = MaterialTheme.colorScheme.onSurfaceVariant,
 				)
 				LazyColumn(
-					modifier = Modifier.heightIn(max = 400.dp).fillMaxWidth(),
+					modifier = Modifier.heightIn(max = StudioDimens.dialogListMaxHeight).fillMaxWidth(),
 					verticalArrangement = Arrangement.spacedBy(StudioDimens.m),
 				) {
 					for (index in acceptedIndices) {

@@ -10,7 +10,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.Dp
-import androidx.compose.ui.unit.dp
 import com.moqserver.studio.designsystem.StudioDimens
 import com.moqserver.studio.projectformat.MatchType
 import com.moqserver.studio.projectformat.RuleMatcher
@@ -66,8 +65,8 @@ fun MatchConditionEditor(
 	availableMatchTypes: List<MatchType> = MatchType.entries,
 	fallbackMatchType: MatchType = MatchType.EQUAL_TO,
 	enabled: Boolean = true,
-	dropdownWidth: Dp = 140.dp,
-	valueWidth: Dp? = 160.dp,
+	dropdownWidth: Dp = StudioDimens.matchConditionDropdownWidth,
+	valueWidth: Dp? = StudioDimens.matchConditionValueWidth,
 	showValuePlaceholder: Boolean = false,
 	modifier: Modifier = Modifier,
 ) {

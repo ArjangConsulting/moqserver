@@ -7,7 +7,6 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.unit.dp
 import com.moqserver.studio.domain.AIProviderInfo
 import com.moqserver.studio.domain.VariantReferenceSyncPreference
 import com.moqserver.studio.endpointdetail.*
@@ -213,7 +212,7 @@ private fun MethodAndPathRow(
             onSelect = { onUpdateEndpoint(endpoint.copy(method = it)) },
             label = EndpointDetailStrings.METHOD_LABEL,
             itemLabel = { it },
-            modifier = Modifier.width(140.dp),
+            modifier = Modifier.width(StudioDimens.methodSelectorWidth),
         )
 
         FormTextField(
@@ -433,7 +432,7 @@ private fun VariantDetailCard(
     onGenerateBody: (String) -> Unit,
     onRequestRemove: () -> Unit,
 ) {
-    ThemeCard(modifier = Modifier.fillMaxWidth(), contentPadding = PaddingValues(0.dp)) {
+    ThemeCard(modifier = Modifier.fillMaxWidth(), contentPadding = PaddingValues(StudioDimens.none)) {
         Column(
             modifier = Modifier.padding(StudioDimens.xl),
             verticalArrangement = Arrangement.spacedBy(StudioDimens.xl),

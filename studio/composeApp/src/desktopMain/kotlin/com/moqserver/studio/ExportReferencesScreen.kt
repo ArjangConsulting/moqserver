@@ -22,7 +22,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.dp
 import com.moqserver.composeapp.generated.resources.Res
 import com.moqserver.composeapp.generated.resources.logo_java
 import com.moqserver.composeapp.generated.resources.logo_javascript
@@ -263,7 +262,11 @@ private fun LanguageCard(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(StudioDimens.s),
         ) {
-            Image(painter = languagePainter(language), contentDescription = null, modifier = Modifier.size(24.dp))
+            Image(
+                painter = languagePainter(language),
+                contentDescription = null,
+                modifier = Modifier.size(StudioDimens.mediumIconSize),
+            )
             Text(language.displayName, style = MaterialTheme.typography.labelLarge)
         }
     }

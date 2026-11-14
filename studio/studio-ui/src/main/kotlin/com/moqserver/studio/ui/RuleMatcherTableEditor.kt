@@ -19,7 +19,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.unit.dp
 import com.moqserver.studio.designsystem.StudioDimens
 import com.moqserver.studio.projectformat.MatchType
 import com.moqserver.studio.projectformat.RuleMatcher
@@ -86,7 +85,7 @@ fun RuleMatcherTableEditor(
 			val minimumWidth = (
 				StudioDimens.tableNameColumnWidth + StudioDimens.tableConditionColumnWidth +
 					StudioDimens.tableMatchValueColumnWidth + StudioDimens.tableDeleteButtonSize + StudioDimens.xl +
-					(if (showRequiredColumn) StudioDimens.tableActionColumnWidth else 0.dp)
+					(if (showRequiredColumn) StudioDimens.tableActionColumnWidth else StudioDimens.none)
 			) * tableScale
 			Column(Modifier.horizontalScroll(rememberScrollState()).width(maxWidth.coerceAtLeast(minimumWidth))) {
 				Row(
