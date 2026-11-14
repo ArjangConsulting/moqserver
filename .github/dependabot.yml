@@ -15,6 +15,16 @@ updates:
     patterns:
       - '*'
     multi-ecosystem-group: dependencies
+  - package-ecosystem: swift
+    directory: /server/MoqTestSupport
+    patterns:
+      - '*'
+    multi-ecosystem-group: dependencies
+  - package-ecosystem: docker
+    directory: /server
+    patterns:
+      - '*'
+    multi-ecosystem-group: dependencies
   - package-ecosystem: gradle
     directory: /studio
     patterns:

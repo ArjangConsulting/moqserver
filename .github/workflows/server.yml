@@ -14,9 +14,13 @@ on:
       - "scripts/test_author_cli.py"
       - "scripts/test_support_consumer.py"
 
+permissions:
+  contents: read
+
 jobs:
   lint:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
 
     defaults:
       run:
@@ -24,10 +28,10 @@ jobs:
 
     steps:
       - name: Check out repository
-        uses: actions/checkout@v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
 
       - name: Set up Swift
-        uses: swift-actions/setup-swift@v3
+        uses: swift-actions/setup-swift@364295d9c23900ce04d4e5cc708387921b4e50f9
         with:
           swift-version: "6.2.4"
           skip-verify-signature: true
@@ -44,6 +48,7 @@ jobs:
         os: [ubuntu-latest, macos-latest]
 
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
 
     defaults:
       run:
@@ -51,13 +56,21 @@ jobs:
 
     steps:
       - name: Check out repository
-        uses: actions/checkout@v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
 
       - name: Set up Swift
-        uses: swift-actions/setup-swift@v3
+        uses: swift-actions/setup-swift@364295d9c23900ce04d4e5cc708387921b4e50f9
         with:
           swift-version: "6.2.4"
           skip-verify-signature: true
+
+      - name: Cache SwiftPM build
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+        with:
+          path: server/.build
+          key: swiftpm-${{ runner.os }}-6.2.4-${{ hashFiles('server/Package.resolved', 'server/Package.swift') }}
+          restore-keys: |
+            swiftpm-${{ runner.os }}-6.2.4-
 
       - name: Build server
         run: swift build
@@ -74,9 +87,13 @@ jobs:
           swift test --package-path MoqTestSupport
           python3 ../scripts/test_support_consumer.py
 
+      - name: Enforce Server coverage floor
+        if: ${{ matrix.os == 'ubuntu-latest' }}
+        run: python3 ../scripts/check_coverage.py "$(swift test --show-codecov-path)" --minimum 84
+
       - name: Upload Server coverage
         if: ${{ matrix.os == 'ubuntu-latest' }}
-        uses: actions/upload-artifact@v7.0.2
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         with:
           name: server-coverage
           path: server/.build/debug/codecov/moqserver.json
