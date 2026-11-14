@@ -32,6 +32,13 @@ class BodyEditorSupportTest {
         assertTrue(error.contains(",,"))
     }
 
+	@Test
+	fun `unquoted values and invalid number literals cannot be saved as JSON`() {
+		for (literal in listOf("broken", "01", "NaN", "Infinity")) {
+			assertTrue(parseJsonBodyText("{\"value\":$literal}").isFailure)
+		}
+	}
+
     @Test
     fun `formatJsonBodyText pretty prints valid JSON`() {
         val formatted = formatJsonBodyText("""{"ok":true,"nested":{"count":2}}""").getOrThrow()

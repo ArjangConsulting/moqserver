@@ -116,3 +116,33 @@ The repository root contains other products and tooling, so Studio-specific Inte
 This keeps domain logic portable, isolates JVM-only dependencies, and avoids mixing editor interop code into the main app shell.
 
 See `docs/STUDIO_ARCHITECTURE.md` for the rationale and dependency choices.
+
+### Response body editor and dependency publication
+
+Response bodies use the Compose CodeEditor with soft wrapping and Tab/Shift+Tab focus traversal.
+JSON editing uses local syntax diagnostics. Format JSON runs asynchronously on explicit request
+and is one editor undo step. Save still parses through Studio and updates the project; Cancel
+and document switching discard the draft and undo history. External body replacements, including
+AI results, start a fresh session. Fixture bodies remain file-backed until a changed draft is saved.
+Project parsing, validation, fixture IO, dirty state, and persistence remain Studio responsibilities.
+
+The catalog targets `com.arjangconsulting.codeeditor:code-editor:0.1.0`. Until publication, Studio
+and security CI use editor commit `28790a500c93efc717acf03ab475f988e236087d`. After publication,
+run `bash studio/scripts/verify-published-editor.sh` from the repository root, then set the repository
+variable `CODE_EDITOR_PUBLISHED=true`. Studio, security, and release workflows then omit the editor checkout, disable local
+composites, check the root and JVM POMs, and compile against Maven Central. Keep the source fallback
+until those workflows pass. An unavailable release fails the explicit published mode.
+
+On a fresh clone without a sibling `kmp-code-editor` checkout, run `make studio-bootstrap` (every
+`make studio-*` target runs it first). It clones the public editor repository at the pinned commit
+into the git-ignored `studio/.code-editor`, which `settings.gradle.kts` includes automatically.
+Keep the commit in `studio/scripts/fetch-code-editor.sh` in sync with the workflows' checkout `ref:`.
+
+For local development, sibling composites remain enabled by default. Use
+`-PcodeEditorCompositeBuild=/path/to/kmp-code-editor` for an explicit checkout. To verify published
+consumption locally, unset `ORG_GRADLE_PROJECT_codeEditorCompositeBuild`, omit that property, and run
+`./gradlew -PuseLocalCompositeBuilds=false :composeApp:desktopTest :composeApp:compileKotlinDesktop`.
+The repository availability probe alone does not establish Gradle artifact consumption.
+
+Reviewed captures and detailed check coverage are in the
+[Studio editor verification report](../docs/STUDIO_EDITOR_VERIFICATION.md).

@@ -16,13 +16,20 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.rememberVectorPainter
-import androidx.compose.ui.unit.dp
 import com.arjangconsulting.codeeditor.CodeEditor
 import com.arjangconsulting.codeeditor.CodeEditorDefaults
 import com.arjangconsulting.codeeditor.CodeEditorLabels
+import com.arjangconsulting.codeeditor.CodeEditorOptions
+import com.arjangconsulting.codeeditor.CodeEditorState
+import com.arjangconsulting.codeeditor.JsonLanguageService
 import com.arjangconsulting.codeeditor.JsonRules
+import com.arjangconsulting.codeeditor.LanguageService
+import com.arjangconsulting.codeeditor.PlainText
+import com.arjangconsulting.codeeditor.TabBehavior
 import com.moqserver.studio.designsystem.StudioColors
 import com.moqserver.studio.designsystem.StudioDimens
+import com.moqserver.studio.designsystem.StudioTheme
+import com.moqserver.studio.designsystem.StudioThemeMode
 import com.moqserver.studio.designsystem.studioDarkColors
 import com.moqserver.studio.projectformat.ProjectVariant
 import com.moqserver.studio.ui.*
@@ -37,8 +44,10 @@ import io.github.maniramezan.kmpcomponents.StatusMessage
 import io.github.maniramezan.kmpcomponents.StatusTone
 import io.github.maniramezan.kmpcomponents.ThemeIconButton
 import io.github.maniramezan.kmpcomponents.ThemeTextButton
+import kotlinx.coroutines.launch
 
 private object BodyTabStrings {
+	const val RESPONSE_BODY = "Response body"
     const val FILE_NOT_FOUND = "File not found."
     const val NO_BODY = "This variant has no response body yet."
     const val VALIDATE_JSON = "Validate JSON"
@@ -74,7 +83,6 @@ internal val bodyEditorColors = CodeEditorDefaults.colorsFrom(studioDarkColors()
 	gutterBackground = StudioColors.editorPanelBackground,
 )
 private val bodyPanelBorderColor = StudioColors.editorPanelBorder
-private val bodyPanelContentColor = StudioColors.editorPanelContent
 
 @Composable
 internal fun BodyTab(
@@ -87,182 +95,148 @@ internal fun BodyTab(
 	generationError: String?,
 	onGenerateBody: (String) -> Unit,
 	projectPath: String = "",
+	endpointId: String = "$endpointMethod $endpointPath",
 	readFixture: (String, String) -> String? = { _, _ -> null },
 	onUpdate: (ProjectVariant) -> Unit,
 ) {
-	val bodyFile = variant.bodyFile
-	val body = variant.body
-	var showAiPrompt by remember(variant.referenceName) { mutableStateOf(false) }
-	var aiPrompt by remember(variant.referenceName) { mutableStateOf("") }
+	key(projectPath, endpointId, variant.name, variant.referenceName) {
+		val bodyFile = variant.bodyFile
+		val body = variant.body
+		var showAiPrompt by remember(variant.referenceName) { mutableStateOf(false) }
+		var aiPrompt by remember(variant.referenceName) { mutableStateOf("") }
 
-	val fileContent = if (bodyFile != null) {
-		remember(projectPath, bodyFile, readFixture) {
-			runCatching { readFixture(projectPath, bodyFile) }.getOrNull()
-		}
-	} else {
-		null
-	}
-	var selectedFormat by remember(variant.name) {
-		mutableStateOf(if (body != null && variant.isJsonBody()) BodyFormat.JSON else BodyFormat.RAW)
-	}
-	val currentText = when {
-		fileContent != null -> fileContent
-		body != null -> when (selectedFormat) {
-			BodyFormat.JSON -> yamlValueToJsonString(body)
-			BodyFormat.RAW -> yamlValueToDisplayString(body)
-		}
-		else -> null
-	}
-	val editableText = when {
-		fileContent != null -> fileContent
-		body != null -> editableBodyText(variant, body)
-		else -> null
-	}
-	val isJsonBody = variant.isJsonBody(editableText)
-	var isEditing by remember(variant.name, bodyFile, body) { mutableStateOf(false) }
-	var draftText by remember(variant.name, bodyFile, body) { mutableStateOf(editableText.orEmpty()) }
-	var formatBeforeEdit by remember(variant.name) {
-		mutableStateOf(if (body != null && variant.isJsonBody()) BodyFormat.JSON else BodyFormat.RAW)
-	}
-	var validationError by remember(variant.name, selectedFormat, bodyFile, body) { mutableStateOf<String?>(null) }
-	val validationErrorRequester = remember { BringIntoViewRequester() }
-
-	if (showAiPrompt) {
-		AIBodyPromptDialog(
-			endpointMethod = endpointMethod,
-			endpointPath = endpointPath,
-			variant = variant,
-			providerLabel = aiProviderLabel,
-			prompt = aiPrompt,
-			onPromptChange = { aiPrompt = it },
-			onDismiss = { showAiPrompt = false },
-			onConfirm = {
-				onGenerateBody(aiPrompt.trim())
-				aiPrompt = ""
-				showAiPrompt = false
-			},
-		)
-	}
-
-	fun setValidationError(message: String?) {
-		validationError = message
-	}
-
-	LaunchedEffect(validationError) {
-		if (validationError != null) {
-			withFrameNanos { }
-			validationErrorRequester.bringIntoView()
-		}
-	}
-
-	fun startEditing() {
-		formatBeforeEdit = selectedFormat
-		selectedFormat = BodyFormat.RAW
-		draftText = editableText.orEmpty()
-		validationError = null
-		isEditing = true
-	}
-
-	fun cancelEditing() {
-		selectedFormat = formatBeforeEdit
-		draftText = editableText.orEmpty()
-		validationError = null
-		isEditing = false
-	}
-
-	fun validateJson() {
-		setValidationError(validateJsonBodyText(draftText))
-	}
-
-	fun formatJson() {
-		formatJsonBodyText(draftText)
-			.onSuccess { formatted ->
-				draftText = formatted
-				setValidationError(null)
+		val fileContent = if (bodyFile != null) {
+			remember(projectPath, bodyFile, readFixture) {
+				runCatching { readFixture(projectPath, bodyFile) }.getOrNull()
 			}
-			.onFailure { error ->
-				setValidationError(invalidJsonMessage(error))
+		} else {
+			null
+		}
+		var selectedFormat by remember(variant.name) {
+			mutableStateOf(if (body != null && variant.isJsonBody()) BodyFormat.JSON else BodyFormat.RAW)
+		}
+		val currentText = when {
+			fileContent != null -> fileContent
+			body != null -> when (selectedFormat) {
+				BodyFormat.JSON -> yamlValueToJsonString(body)
+				BodyFormat.RAW -> yamlValueToDisplayString(body)
 			}
-	}
+			else -> null
+		}
+		val editableText = when {
+			fileContent != null -> fileContent
+			body != null -> editableBodyText(variant, body)
+			else -> null
+		}
+		val isJsonBody = variant.isJsonBody(editableText)
+		val editorSession = remember(variant.name, bodyFile, body, editableText) { BodyEditorSession(editableText.orEmpty()) }
+		DisposableEffect(editorSession) { onDispose { editorSession.dispose() } }
+		val isEditing = editorSession.isEditing
+		val formatScope = rememberCoroutineScope()
+		val jsonService = remember { JsonLanguageService() }
+		var formatBeforeEdit by remember(variant.name) {
+			mutableStateOf(if (body != null && variant.isJsonBody()) BodyFormat.JSON else BodyFormat.RAW)
+		}
+		val validationError = editorSession.validationError
+		val validationErrorRequester = remember { BringIntoViewRequester() }
 
-	fun saveEdits() {
-		when {
-			isJsonBody -> {
-				parseJsonBodyText(draftText)
-					.onSuccess { parsedBody ->
-						selectedFormat = formatBeforeEdit
-						onUpdate(variant.copy(body = parsedBody, bodyFile = null))
-						setValidationError(null)
-						isEditing = false
-					}
-					.onFailure { error ->
-						setValidationError(invalidJsonMessage(error))
-					}
+		if (showAiPrompt) {
+			AIBodyPromptDialog(
+				endpointMethod = endpointMethod,
+				endpointPath = endpointPath,
+				variant = variant,
+				providerLabel = aiProviderLabel,
+				prompt = aiPrompt,
+				onPromptChange = { aiPrompt = it },
+				onDismiss = { showAiPrompt = false },
+				onConfirm = {
+					onGenerateBody(aiPrompt.trim())
+					aiPrompt = ""
+					showAiPrompt = false
+				},
+			)
+		}
+
+		LaunchedEffect(editorSession, editorSession.state.version) { editorSession.clearValidationError() }
+
+		LaunchedEffect(validationError) {
+			if (validationError != null) {
+				withFrameNanos { }
+				validationErrorRequester.bringIntoView()
 			}
-			else -> {
+		}
+
+		fun startEditing() {
+			formatBeforeEdit = selectedFormat
+			selectedFormat = BodyFormat.RAW
+			editorSession.start()
+		}
+
+		fun cancelEditing() {
+			selectedFormat = formatBeforeEdit
+			editorSession.cancel()
+		}
+
+		fun formatJson() {
+			formatScope.launch { editorSession.format(jsonService) }
+		}
+
+		fun saveEdits() {
+			editorSession.save(variant, isJsonBody)?.let { updated ->
 				selectedFormat = formatBeforeEdit
-				val updatedBody = parseEditableText(draftText, body)
-				onUpdate(variant.copy(body = updatedBody, bodyFile = null))
-				setValidationError(null)
-				isEditing = false
+				if (updated != variant) onUpdate(updated)
 			}
 		}
-	}
 
-	Column(verticalArrangement = Arrangement.spacedBy(StudioDimens.l)) {
-		when {
-			bodyFile != null && fileContent == null -> {
-				Text(
-					text = BodyTabStrings.FILE_NOT_FOUND,
-					style = MaterialTheme.typography.bodyMedium,
-					color = MaterialTheme.colorScheme.error,
-				)
-			}
-			currentText != null -> {
-				BodyFormatTabs(selectedFormat = selectedFormat, enabled = !isEditing, onSelect = { selectedFormat = it })
-				if (isGeneratingWithAi) InlineProgressIndicator(label = BodyTabStrings.AI_GENERATING)
-				generationError?.let { error ->
-					StatusMessage(message = BodyTabStrings.AI_ERROR_PREFIX + error, tone = StatusTone.ERROR)
-				}
-				BodyEditorPanel(
-					currentText = currentText,
-					isEditing = isEditing,
-					isJsonBody = isJsonBody,
-					draftText = draftText,
-					canGenerateWithAi = canGenerateWithAi,
-					isGeneratingWithAi = isGeneratingWithAi,
-					onDraftTextChange = { updated ->
-						draftText = updated
-						if (validationError != null && isJsonBody) {
-							validationError = validateJsonBodyText(updated)
-						}
-					},
-					selectedFormat = selectedFormat,
-					onEdit = ::startEditing,
-					onGenerateBody = {
-						validationError = null
-						showAiPrompt = true
-					},
-					onCancel = ::cancelEditing,
-					onSave = ::saveEdits,
-					onValidateJson = ::validateJson,
-					onFormatJson = ::formatJson,
-				)
-				validationError?.let { error ->
+		Column(verticalArrangement = Arrangement.spacedBy(StudioDimens.l)) {
+			when {
+				bodyFile != null && fileContent == null -> {
 					Text(
-						text = error,
-						style = MaterialTheme.typography.bodySmall,
+						text = BodyTabStrings.FILE_NOT_FOUND,
+						style = MaterialTheme.typography.bodyMedium,
 						color = MaterialTheme.colorScheme.error,
-						modifier = Modifier.bringIntoViewRequester(validationErrorRequester),
 					)
 				}
-			}
-			else -> {
-			Text(
-				BodyTabStrings.NO_BODY,
-					style = MaterialTheme.typography.bodyMedium,
-					color = MaterialTheme.colorScheme.onSurfaceVariant,
-				)
+				currentText != null -> {
+					BodyFormatTabs(selectedFormat = selectedFormat, enabled = !isEditing, onSelect = { selectedFormat = it })
+					if (isGeneratingWithAi) InlineProgressIndicator(label = BodyTabStrings.AI_GENERATING)
+					generationError?.let { error ->
+						StatusMessage(message = BodyTabStrings.AI_ERROR_PREFIX + error, tone = StatusTone.ERROR)
+					}
+					BodyEditorPanel(
+						currentText = currentText,
+						isEditing = isEditing,
+						isJsonBody = isJsonBody,
+						editorState = editorSession.state,
+						jsonService = jsonService,
+						canGenerateWithAi = canGenerateWithAi,
+						isGeneratingWithAi = isGeneratingWithAi,
+						selectedFormat = selectedFormat,
+						onEdit = ::startEditing,
+						onGenerateBody = {
+							showAiPrompt = true
+						},
+						onCancel = ::cancelEditing,
+						onSave = ::saveEdits,
+						onValidateJson = editorSession::validate,
+						onFormatJson = ::formatJson,
+					)
+					validationError?.let { error ->
+						Text(
+							text = error,
+							style = MaterialTheme.typography.bodySmall,
+							color = MaterialTheme.colorScheme.error,
+							modifier = Modifier.bringIntoViewRequester(validationErrorRequester),
+						)
+					}
+				}
+				else -> {
+				Text(
+					BodyTabStrings.NO_BODY,
+						style = MaterialTheme.typography.bodyMedium,
+						color = MaterialTheme.colorScheme.onSurfaceVariant,
+					)
+				}
 			}
 		}
 	}
@@ -287,10 +261,10 @@ private fun BodyEditorPanel(
 	currentText: String,
 	isEditing: Boolean,
 	isJsonBody: Boolean,
-	draftText: String,
+	editorState: CodeEditorState,
+	jsonService: JsonLanguageService,
 	canGenerateWithAi: Boolean,
 	isGeneratingWithAi: Boolean,
-	onDraftTextChange: (String) -> Unit,
 	selectedFormat: BodyFormat,
 	onEdit: () -> Unit,
 	onGenerateBody: () -> Unit,
@@ -299,105 +273,68 @@ private fun BodyEditorPanel(
 	onValidateJson: () -> Unit,
 	onFormatJson: () -> Unit,
 ) {
-	Box(
-		modifier = Modifier
-			.fillMaxWidth()
-			.clip(RoundedCornerShape(StudioDimens.xl))
-			.background(bodyPanelColor)
-			.padding(start = StudioDimens.l, top = StudioDimens.m, end = StudioDimens.m, bottom = StudioDimens.l),
-	) {
-		Surface(
-			modifier = Modifier.matchParentSize(),
-			shape = RoundedCornerShape(StudioDimens.xl),
-			color = Color.Transparent,
-			border = androidx.compose.foundation.BorderStroke(1.dp, bodyPanelBorderColor),
-		) {}
-		Column(
-			modifier = Modifier.fillMaxWidth(),
-			verticalArrangement = Arrangement.spacedBy(StudioDimens.xs),
-		) {
-			Row(
+	StudioTheme(themeMode = StudioThemeMode.DARK) {
+		CompositionLocalProvider(LocalContentColor provides MaterialTheme.colorScheme.onSurface) {
+			Box(
 				modifier = Modifier
 					.fillMaxWidth()
-					.padding(top = StudioDimens.xxs, end = StudioDimens.xxs),
-				horizontalArrangement = Arrangement.End,
+					.clip(RoundedCornerShape(StudioDimens.xl))
+					.background(bodyPanelColor)
+					.padding(start = StudioDimens.l, top = StudioDimens.m, end = StudioDimens.m, bottom = StudioDimens.l),
 			) {
-				BodyTabActions(
-					copyText = if (isEditing) draftText else currentText,
-					isEditing = isEditing,
-					canEdit = true,
-					canGenerateWithAi = canGenerateWithAi,
-					isGeneratingWithAi = isGeneratingWithAi,
-					isJsonBody = isJsonBody,
-					onEdit = onEdit,
-					onGenerateBody = onGenerateBody,
-					onCancel = onCancel,
-					onSave = onSave,
-					onValidateJson = onValidateJson,
-					onFormatJson = onFormatJson,
-				)
-			}
+				Surface(
+					modifier = Modifier.matchParentSize(),
+					shape = RoundedCornerShape(StudioDimens.xl),
+					color = Color.Transparent,
+					border = androidx.compose.foundation.BorderStroke(StudioDimens.borderWidth, bodyPanelBorderColor),
+				) {}
+				Column(
+					modifier = Modifier.fillMaxWidth(),
+					verticalArrangement = Arrangement.spacedBy(StudioDimens.xs),
+				) {
+					Row(
+						modifier = Modifier
+							.fillMaxWidth()
+							.padding(top = StudioDimens.xxs, end = StudioDimens.xxs),
+						horizontalArrangement = Arrangement.End,
+					) {
+						BodyTabActions(
+							copyText = if (isEditing) editorState.text else currentText,
+							isEditing = isEditing,
+							canEdit = true,
+							canGenerateWithAi = canGenerateWithAi,
+							isGeneratingWithAi = isGeneratingWithAi,
+							isJsonBody = isJsonBody,
+							onEdit = onEdit,
+							onGenerateBody = onGenerateBody,
+							onCancel = onCancel,
+							onSave = onSave,
+							onValidateJson = onValidateJson,
+							onFormatJson = onFormatJson,
+						)
+					}
 
-			if (isEditing) {
-				OutlinedTextField(
-					value = draftText,
-					onValueChange = onDraftTextChange,
-					readOnly = false,
-					minLines = 8,
-					maxLines = 18,
-					colors = bodyEditorFieldColors(),
-					modifier = Modifier
-						.fillMaxWidth()
-						.padding(top = StudioDimens.xxs, start = StudioDimens.s, end = StudioDimens.xs, bottom = StudioDimens.xs),
-				)
-			} else {
-				when (selectedFormat) {
-					BodyFormat.JSON -> {
-						CodeEditor(
-							value = currentText,
-							onValueChange = {},
-							readOnly = true,
-							language = JsonRules,
-							modifier = Modifier
-								.fillMaxWidth()
-								.height(280.dp)
-								.padding(top = StudioDimens.xxs, start = StudioDimens.s, end = StudioDimens.xs, bottom = StudioDimens.xs),
-							colors = bodyEditorColors,
-							labels = CodeEditorLabels(editorDescription = "Response body"),
-						)
-					}
-					BodyFormat.RAW -> {
-						OutlinedTextField(
-							value = currentText,
-							onValueChange = {},
-							readOnly = true,
-							minLines = 8,
-							maxLines = 18,
-							colors = bodyEditorFieldColors(),
-							modifier = Modifier
-								.fillMaxWidth()
-								.padding(top = StudioDimens.xxs, start = StudioDimens.s, end = StudioDimens.xs, bottom = StudioDimens.xs),
-						)
-					}
+					val displayState = remember(currentText) { CodeEditorState(currentText) }
+					val showJson = if (isEditing) isJsonBody else selectedFormat == BodyFormat.JSON
+					CodeEditor(
+						state = if (isEditing) editorState else displayState,
+						readOnly = !isEditing,
+						language = if (showJson) JsonRules else PlainText,
+						languageService = if (showJson) jsonService else LanguageService.None,
+						tabBehavior = TabBehavior.MOVE_FOCUS,
+						options = CodeEditorOptions(softWrap = true),
+						modifier = Modifier
+							.fillMaxWidth()
+							.height(StudioDimens.bodyEditorHeight)
+							.padding(top = StudioDimens.xxs, start = StudioDimens.s, end = StudioDimens.xs, bottom = StudioDimens.xs),
+						colors = bodyEditorColors,
+						labels = CodeEditorLabels(editorDescription = BodyTabStrings.RESPONSE_BODY),
+					)
 				}
 			}
 		}
 	}
 }
-
-@Composable
-private fun bodyEditorFieldColors() = OutlinedTextFieldDefaults.colors(
-	focusedContainerColor = Color.Transparent,
-	unfocusedContainerColor = Color.Transparent,
-	disabledContainerColor = Color.Transparent,
-	focusedTextColor = bodyPanelContentColor,
-	unfocusedTextColor = bodyPanelContentColor,
-	disabledTextColor = bodyPanelContentColor,
-	cursorColor = bodyPanelContentColor,
-	focusedBorderColor = Color.Transparent,
-	unfocusedBorderColor = Color.Transparent,
-	disabledBorderColor = Color.Transparent,
-)
 
 @Composable
 private fun BodyTabActions(
@@ -414,9 +351,10 @@ private fun BodyTabActions(
 	onValidateJson: () -> Unit,
 	onFormatJson: () -> Unit,
 ) {
-	Row(
-		horizontalArrangement = Arrangement.spacedBy(StudioDimens.m),
-		verticalAlignment = Alignment.CenterVertically,
+	FlowRow(
+		horizontalArrangement = Arrangement.spacedBy(StudioDimens.m, Alignment.End),
+		verticalArrangement = Arrangement.spacedBy(StudioDimens.xs),
+		itemVerticalAlignment = Alignment.CenterVertically,
 	) {
 		if (isEditing && isJsonBody) {
 			SecondaryButton(

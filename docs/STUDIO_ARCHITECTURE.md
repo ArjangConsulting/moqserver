@@ -299,3 +299,15 @@ Official sources used for this decision:
 - SnakeYAML Engine project: https://github.com/snakeyaml/snakeyaml-engine
 - SnakeYAML Engine Maven coordinates: https://central.sonatype.com/artifact/org.snakeyaml/snakeyaml-engine
 - Gradle multi-project builds: https://docs.gradle.org/current/userguide/multi_project_builds.html
+
+### Response body editor integration
+
+The response-body pane consumes `com.arjangconsulting.codeeditor:code-editor` directly in
+`composeApp`; the earlier `studio-code-editor` module proposal above is not the current build.
+A `BodyEditorSession` holds only the temporary editor document and its undo history. Its identity
+includes the project, endpoint, and variant UI session; an external body or fixture-content change
+replaces it. JSON uses `JsonRules` and `JsonLanguageService`; raw display uses `PlainText` without
+a language service. Explicit formatting uses the editor's asynchronous version-checked format
+operation. Save and Cancel remain host actions, and Studio's existing parser converts saved text
+to project values. Inline diagnostics do not replace project validation. Fixture reads and
+materialization stay in Studio's existing adapters, and unchanged saves preserve body-file references.
