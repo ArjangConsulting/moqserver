@@ -112,4 +112,5 @@ public enum DiagnosticCode: String, Sendable, Equatable {
     case invalidScenario = "E_INVALID_SCENARIO"
     case scenarioUnknownEndpoint = "E_SCENARIO_UNKNOWN_ENDPOINT"
     case scenarioUnknownVariant = "E_SCENARIO_UNKNOWN_VARIANT"
+    case invalidRegex = "E_INVALID_REGEX"
 }

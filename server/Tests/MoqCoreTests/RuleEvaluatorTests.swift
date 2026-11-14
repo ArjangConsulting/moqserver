@@ -40,4 +40,28 @@ struct RuleEvaluatorTests {
             Issue.record("Expected mismatch failure")
         }
     }
+
+    @Test("Negated rules pass when the value is absent unless required")
+    func negatedRulesAllowAbsence() {
+        #expect(RuleEvaluator.evaluate(.init(name: "a", match: "x", matchType: .notEqualTo), actualValue: nil) == nil)
+        #expect(RuleEvaluator.evaluate(.init(name: "a", match: "x", matchType: .notContains), actualValue: nil) == nil)
+        let required = RuleEvaluator.evaluate(
+            .init(name: "a", match: "x", required: true, matchType: .notEqualTo), actualValue: nil)
+        #expect(required == .missing(name: ""))
+    }
+
+    @Test("required: false makes a comparison optional but still enforced when present")
+    func optionalRulesEnforcedWhenPresent() {
+        let rule = RuleMatcher(name: "a", match: "^v[0-9]+$", required: false, matchType: .matchesRegex)
+        #expect(RuleEvaluator.evaluate(rule, actualValue: nil) == nil)
+        #expect(RuleEvaluator.evaluate(rule, actualValue: "v2") == nil)
+        #expect(RuleEvaluator.evaluate(rule, actualValue: "beta") != nil)
+    }
+
+    @Test("Comparisons without required still treat an absent value as missing")
+    func defaultComparisonRequiresValue() {
+        #expect(
+            RuleEvaluator.evaluate(.init(name: "a", match: "x", matchType: .equalTo), actualValue: nil)
+                == .missing(name: ""))
+    }
 }

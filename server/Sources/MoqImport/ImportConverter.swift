@@ -129,6 +129,8 @@ public enum ImportConverter {
         let requestRulesChanged =
             parsedRequiredHeaders != existingRequiredHeaders || parsedQueryParams != existingQueryParams
             || parsedCookies != existingCookies
+            || parsed.requiresBody != (existing.requestRules?.requiresBody ?? false)
+            || Set(parsed.acceptedContentTypes) != Set(existing.requestRules?.acceptedContentTypes ?? [])
 
         let tagsChanged = Set(parsed.tags) != Set(existing.tags ?? [])
 
@@ -319,11 +321,18 @@ public enum ImportConverter {
             ? parsed.queryParameters : parsed.requiredQueryParameters.map { RuleMatcher(name: $0, required: true) }
         let cookies = parsed.cookies
 
-        guard !headers.isEmpty || !queryParams.isEmpty || !cookies.isEmpty else { return nil }
+        let contentTypes = parsed.acceptedContentTypes
+
+        guard
+            !headers.isEmpty || !queryParams.isEmpty || !cookies.isEmpty || parsed.requiresBody
+                || !contentTypes.isEmpty
+        else { return nil }
         return RequestRules(
             headers: headers.isEmpty ? nil : headers,
             queryParams: queryParams.isEmpty ? nil : queryParams,
-            cookies: cookies.isEmpty ? nil : cookies
+            cookies: cookies.isEmpty ? nil : cookies,
+            requiresBody: parsed.requiresBody ? true : nil,
+            acceptedContentTypes: contentTypes.isEmpty ? nil : contentTypes
         )
     }
 

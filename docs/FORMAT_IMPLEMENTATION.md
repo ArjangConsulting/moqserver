@@ -43,7 +43,8 @@ Required top-level types (Swift names in `MoqCore/Project/`):
 - `ProjectDefaults` — default auth, delay, network config applied to all endpoints
 - `EndpointDocument` — a single endpoint file with method, path, variants, etc.
 - `EndpointOperation` — GraphQL operation matching config (type, name, document)
-- `RequestRules` — required headers, query params, cookie verification config
+- `RequestRules` — required headers, query params, cookie verification config, `requires_body`,
+  and `accepted_content_types`
 - `ProjectVariant` — a response variant (name, optional description/reference_name, status, string headers, request_match, body/body_file, delay_ms)
 - `ProjectAuthConfig` — per-endpoint auth config (type, verify, header_name)
 - `NetworkBehavior` — network simulation settings (latency_ms, jitter_ms, packet_loss_percent)

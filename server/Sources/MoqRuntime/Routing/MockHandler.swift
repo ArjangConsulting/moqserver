@@ -40,25 +40,47 @@ public struct MockHandler: Sendable {
     /// Called by the catch-all fallback route for paths not matched by any registered endpoint.
     public func handleNotFound(req: Request) async throws -> Response {
         if let rejection = await missingSessionResponse(req: req) { return rejection }
-        if let root = store as? InMemoryMockStore {
-            let runtime: InMemoryMockStore
-            if let id = req.headers.first(name: "X-Mock-Session") {
-                guard let session = await root.runtimeSession(id) else {
-                    throw Abort(.notFound, reason: "Unknown mock session")
-                }
-                runtime = session
-            } else {
-                runtime = root
-            }
-            let facts = await addonFacts(for: req)
-            await runtime.recordRequest(
-                RequestTrace(
-                    id: UUID().uuidString, timestamp: Date().timeIntervalSince1970,
-                    method: req.method.rawValue, path: req.url.path, endpoint: nil, status: 404,
-                    variant: nil, reason: "endpoint not found", callNumber: nil,
-                    addons: traceAnnotations(facts), requestBody: capturedBody(req)))
-        }
+        try await recordUnmatched(req: req, status: 404, reason: "endpoint not found")
         return notFoundResponse(req: req)
+    }
+
+    /// Called for a method the bundle doesn't declare on a path it does serve.
+    public func handleMethodNotAllowed(req: Request, allow: String) async throws -> Response {
+        if let rejection = await missingSessionResponse(req: req) { return rejection }
+        try await recordUnmatched(req: req, status: 405, reason: "method not allowed")
+        logger.warning("Method \(req.method) not allowed for \(req.url.path); allowed: \(allow)")
+        let errorResponse = ErrorResponse(
+            error: "Method \(req.method.rawValue) is not allowed for \(req.url.path)",
+            code: "method_not_allowed",
+            detail: "Allowed methods: \(allow)",
+            hint: "Check available endpoints via GET /_admin/endpoints"
+        )
+        return Response(
+            status: .methodNotAllowed,
+            headers: ["Content-Type": "application/json", "Allow": allow],
+            body: .init(data: errorResponse.jsonData())
+        )
+    }
+
+    /// Records a request that matched no endpoint in the history of its session (or the global one).
+    private func recordUnmatched(req: Request, status: Int, reason: String) async throws {
+        guard let root = store as? InMemoryMockStore else { return }
+        let runtime: InMemoryMockStore
+        if let id = req.headers.first(name: "X-Mock-Session") {
+            guard let session = await root.runtimeSession(id) else {
+                throw Abort(.notFound, reason: "Unknown mock session")
+            }
+            runtime = session
+        } else {
+            runtime = root
+        }
+        let facts = await addonFacts(for: req)
+        await runtime.recordRequest(
+            RequestTrace(
+                id: UUID().uuidString, timestamp: Date().timeIntervalSince1970,
+                method: req.method.rawValue, path: req.url.path, endpoint: nil, status: status,
+                variant: nil, reason: reason, callNumber: nil,
+                addons: traceAnnotations(facts), requestBody: capturedBody(req)))
     }
 
     /// With `requireSession`, a request that forgot `X-Mock-Session` would otherwise silently read
@@ -152,13 +174,11 @@ public struct MockHandler: Sendable {
         // request_match.addons (H5) and the history row (H7) read the same values.
         _ = await addonFacts(for: req)
 
-        // Auth validation — for API key auth read the custom header, not Authorization
-        let authContext: AuthContext
-        if case .apiKey(let headerName) = endpoint.authRequirement {
-            authContext = AuthContext(authorizationHeader: req.headers.first(name: headerName))
-        } else {
-            authContext = AuthContext(authorizationHeader: req.headers.first(name: .authorization))
-        }
+        // Auth validation. The context carries every header so API-key requirements read their own
+        // header at any nesting depth inside allOf/anyOf.
+        let requestHeaders = extractHeaders(from: req)
+        let authContext = AuthContext(
+            authorizationHeader: req.headers.first(name: .authorization), headers: requestHeaders)
         let authOutcome = authValidator.evaluate(endpoint.authRequirement, context: authContext)
         if let authError = authResponseFromOutcome(authOutcome) {
             req.storage[SelectionKey.self] = SelectionDetail(
@@ -169,8 +189,8 @@ public struct MockHandler: Sendable {
 
         // Request validation
         let requestContext = RequestContext(
-            queryParameters: extractQueryParameters(from: req),
-            headers: extractHeaders(from: req),
+            queryParameters: queryParameters(for: req),
+            headers: requestHeaders,
             cookies: extractCookies(from: req),
             hasBody: (req.body.data?.readableBytes ?? 0) > 0,
             contentType: req.headers.first(name: .contentType)
@@ -191,7 +211,7 @@ public struct MockHandler: Sendable {
         }
 
         // Variant selection
-        let endpointKeyString = "\(endpoint.key.method.rawValue) \(endpoint.key.path)"
+        let endpointKeyString = endpoint.stateKey
         let callNumber: Int
         let adminOverride: String?
         if let runtime = store as? InMemoryMockStore {
@@ -298,7 +318,9 @@ public struct MockHandler: Sendable {
             headers.add(name: name, value: value)
         }
 
-        let responseData = variant.body.map { Self.substituteBaseURL(in: $0, baseURL: Self.baseURL(for: req)) }
+        let responseData =
+            variant.containsBaseURLToken
+            ? variant.body.map { Self.substituteBaseURL(in: $0, baseURL: Self.baseURL(for: req)) } : variant.body
         let body: Response.Body
         if let stream = variant.stream {
             try stream.validate()
@@ -436,8 +458,12 @@ public struct MockHandler: Sendable {
     private func bestVariantForAccept(candidates: [ResponseVariant], acceptTypes: [AcceptEntry]) -> ResponseVariant? {
         var bestMatch: (variant: ResponseVariant, quality: Double)?
         for variant in candidates {
-            let variantType = variantContentType(variant)?.lowercased() ?? ""
+            // A variant with no body, or no declared Content-Type, has no representation to
+            // negotiate: it is acceptable under any media range the client didn't exclude (q=0).
+            // Without this a 204 answers `Accept: text/html` with a spurious 406.
+            let variantType = variant.contentType?.lowercased()
             let matches = acceptTypes.compactMap { accept -> (specificity: Int, quality: Double)? in
+                guard let variantType, variant.body != nil else { return (0, accept.quality) }
                 guard mediaTypeMatches(variantType, accept: accept.mediaType) else { return nil }
                 return (mediaTypeSpecificity(accept.mediaType), accept.quality)
             }
@@ -468,12 +494,6 @@ public struct MockHandler: Sendable {
         return mediaType.hasSuffix("/*") ? 1 : 2
     }
 
-    private func variantContentType(_ variant: ResponseVariant) -> String? {
-        variant.headers.first(where: {
-            $0.0.caseInsensitiveCompare("Content-Type") == .orderedSame
-        })?.1
-    }
-
     /// Checks if a variant's content type matches an Accept entry (supports wildcards).
     private func mediaTypeMatches(_ variantType: String, accept: String) -> Bool {
         if accept == "*/*" { return true }
@@ -497,8 +517,11 @@ public struct MockHandler: Sendable {
     private func variantMatches(_ variant: ResponseVariant, req: Request) -> Bool {
         guard let match = variant.requestMatch else { return true }
 
-        for (name, expected) in match.query {
-            guard extractQueryParameters(from: req)[name] == expected else { return false }
+        if !match.query.isEmpty {
+            let query = queryParameters(for: req)
+            for (name, expected) in match.query {
+                guard query[name] == expected else { return false }
+            }
         }
 
         for (name, expected) in match.headers {
@@ -529,7 +552,7 @@ public struct MockHandler: Sendable {
 
     // MARK: - Response templating
 
-    private static let baseURLToken = Data("{{baseURL}}".utf8)
+    private static let baseURLToken = ResponseVariant.baseURLToken
 
     /// The URL the client used to reach this server — scheme and host as the client sees them,
     /// so an Android emulator calling `10.0.2.2:8080` gets `http://10.0.2.2:8080` back. Honors
@@ -566,7 +589,7 @@ public struct MockHandler: Sendable {
         if let cached = req.storage[AddonFactsKey.self] { return cached }
         let facts = await addons.facts(
             for: AddonRequest(
-                method: req.method.rawValue, path: req.url.path, query: extractQueryParameters(from: req),
+                method: req.method.rawValue, path: req.url.path, query: queryParameters(for: req),
                 headers: extractHeaders(from: req), sessionID: req.headers.first(name: "X-Mock-Session")))
         req.storage[AddonFactsKey.self] = facts
         logger.debug("Add-on facts for \(req.method) \(req.url.path): \(facts.values.keys.sorted())")
@@ -583,8 +606,17 @@ public struct MockHandler: Sendable {
         return bodyData.getString(at: bodyData.readerIndex, length: bodyData.readableBytes)
     }
 
-    private func extractQueryParameters(from req: Request) -> [String: String] {
-        guard let queryString = req.url.query else { return [:] }
+    /// The request's query parameters, parsed once and cached on the request — variant matching
+    /// reads them once per rule per variant.
+    private func queryParameters(for req: Request) -> [String: String] {
+        if let cached = req.storage[QueryParametersKey.self] { return cached }
+        let parsed = Self.parseQueryParameters(req.url.query)
+        req.storage[QueryParametersKey.self] = parsed
+        return parsed
+    }
+
+    static func parseQueryParameters(_ query: String?) -> [String: String] {
+        guard let queryString = query else { return [:] }
         var params: [String: String] = [:]
         for pair in queryString.split(separator: "&") {
             let parts = pair.split(separator: "=", maxSplits: 1, omittingEmptySubsequences: false)
@@ -600,7 +632,7 @@ public struct MockHandler: Sendable {
         return params
     }
 
-    private func decodeQueryComponent(_ component: Substring) -> String {
+    private static func decodeQueryComponent(_ component: Substring) -> String {
         let formEncoded = String(component).replacingOccurrences(of: "+", with: " ")
         return formEncoded.removingPercentEncoding ?? formEncoded
     }
@@ -721,6 +753,10 @@ private struct SelectionDetail: Sendable {
 
 private struct SelectionKey: StorageKey {
     typealias Value = SelectionDetail
+}
+
+private struct QueryParametersKey: StorageKey {
+    typealias Value = [String: String]
 }
 
 private struct AddonFactsKey: StorageKey {

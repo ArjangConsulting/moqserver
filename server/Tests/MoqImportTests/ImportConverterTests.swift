@@ -21,6 +21,17 @@ struct ImportConverterTests {
 
     // MARK: - convert
 
+    @Test("convert keeps an OpenAPI request body's required flag and media types as request_rules")
+    func convertKeepsBodyRules() {
+        let endpoint = ParsedEndpoint(
+            method: "POST", path: "/orders", tags: [], responses: [ParsedResponse(name: "ok", statusCode: 201)],
+            authType: .none, requiresBody: true, acceptedContentTypes: ["application/json"])
+        let spec = ParsedSpec(title: "API", version: "1.0", endpoints: [endpoint])
+        let project = ImportConverter.convert(spec, selection: .all, name: "Test", path: "/tmp/test.moqproj")
+        #expect(project.endpoints.first?.requestRules?.requiresBody == true)
+        #expect(project.endpoints.first?.requestRules?.acceptedContentTypes == ["application/json"])
+    }
+
     @Test("convert derives a deterministic endpoint id from method and path")
     func convertDerivesEndpointID() {
         let spec = ParsedSpec(

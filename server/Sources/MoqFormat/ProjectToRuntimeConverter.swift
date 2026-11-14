@@ -53,17 +53,23 @@ public enum ProjectToRuntimeConverter {
             headerRules: headerRules,
             cookieRules: cookieRules,
             verifyCookies: verifyCookies,
+            requiresBody: doc.requestRules?.requiresBody ?? false,
+            acceptedContentTypes: doc.requestRules?.acceptedContentTypes ?? [],
             operation: doc.operation,
             network: network,
             strictCallCount: doc.strictCallCount ?? false
         )
     }
 
-    /// Bundle scenarios as runtime overrides: scenario name → (`"METHOD /path"` → variant).
+    /// Bundle scenarios as runtime overrides: scenario name → (`Endpoint.stateKey` → variant).
     /// Endpoint ids the project doesn't contain are skipped; `ProjectValidator` reports them.
     public static func scenarioOverrides(_ project: MoqProject) -> [String: [String: String]] {
         let keysByID = Dictionary(
-            project.endpoints.map { ($0.id, "\(HTTPMethodValue(rawValue: $0.method).rawValue) \($0.path)") },
+            project.endpoints.map {
+                let key = Endpoint.stateKey(
+                    method: HTTPMethodValue(rawValue: $0.method), path: $0.path, operation: $0.operation)
+                return ($0.id, key)
+            },
             uniquingKeysWith: { first, _ in first })
         var result: [String: [String: String]] = [:]
         for (name, scenario) in project.manifest.scenarios ?? [:] {

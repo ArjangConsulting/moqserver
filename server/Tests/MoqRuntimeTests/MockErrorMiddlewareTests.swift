@@ -1,6 +1,7 @@
 import Foundation
 import Testing
 import Vapor
+import VaporTesting
 
 @testable import MoqCore
 @testable import MoqRuntime
@@ -71,6 +72,41 @@ struct MockErrorMiddlewareCancellationTests {
 
         await #expect(throws: CancellationError.self) {
             try await MockErrorMiddleware().respond(to: request, chainingTo: CancellingResponder())
+        }
+        try await app.asyncShutdown()
+    }
+}
+
+@Suite("MockErrorMiddleware error codes")
+struct MockErrorMiddlewareCodeTests {
+    @Test(
+        "Every abort status maps to a specific code",
+        arguments: [
+            (HTTPResponseStatus.conflict, "conflict"),
+            (.payloadTooLarge, "payload_too_large"),
+            (.notImplemented, "not_implemented"),
+            (.methodNotAllowed, "method_not_allowed"),
+            (.notAcceptable, "not_acceptable"),
+            (.gone, "gone"),
+            (.internalServerError, "internal_error"),
+            (.unsupportedMediaType, "unsupported_media_type"),
+        ])
+    func statusCodes(status: HTTPResponseStatus, code: String) {
+        #expect(MockErrorMiddleware.statusToCode(status) == code)
+    }
+
+    @Test("A 409 abort reports conflict, not internal_error")
+    func conflictAbortEncodesCode() async throws {
+        let app = try await Application.make(.testing)
+        app.middleware = Middlewares()
+        app.middleware.use(MockErrorMiddleware())
+        app.get("full") { _ async throws -> String in
+            throw Abort(.conflict, reason: "Scenario or session capacity reached")
+        }
+        try await app.testing().test(.GET, "/full") { res async in
+            #expect(res.status == .conflict)
+            let body = try? JSONDecoder().decode(ErrorResponse.self, from: Data(buffer: res.body))
+            #expect(body?.code == "conflict")
         }
         try await app.asyncShutdown()
     }

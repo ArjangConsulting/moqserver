@@ -75,9 +75,15 @@ Do not duplicate those product guides in new files unless the repo structure cha
 ## Server Test Targets
 - `MoqCoreTests`
 - `MoqFormatTests`
+- `MoqImportTests`
+- `MoqServiceTests`
 - `MoqRuntimeTests`
+- `MoqAddonsTests`
 - `MoqIntegrationTests`
 - `MoqCLITests`
+- `MoqAuthorCLITests`
+- `MoqMCPTests`
+- `server/MoqTestSupport` is a separate package: `cd server/MoqTestSupport && swift test`
 
 ## Server Testing Notes
 - `swift test --filter` accepts a target name or a test name substring.

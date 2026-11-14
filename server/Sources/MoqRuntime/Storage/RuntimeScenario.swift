@@ -69,6 +69,22 @@ public struct CapturedBody: Codable, Sendable, Equatable {
     }
 }
 
+/// A runtime session as listed by `GET /_admin/sessions`. Times are Unix seconds.
+public struct RuntimeSessionInfo: Codable, Sendable, Equatable {
+    public let id: String
+    public let createdAt: Double
+    public var lastUsedAt: Double
+    /// When the session expires if left unused; `nil` when expiry is disabled.
+    public var expiresAt: Double?
+
+    public init(id: String, createdAt: Double, lastUsedAt: Double, expiresAt: Double? = nil) {
+        self.id = id
+        self.createdAt = createdAt
+        self.lastUsedAt = lastUsedAt
+        self.expiresAt = expiresAt
+    }
+}
+
 public enum RuntimeScenarioError: Error, Sendable {
     case invalidName
     case invalidOverride(String)
@@ -124,22 +140,77 @@ extension InMemoryMockStore {
     public func recentRequests() -> [RequestTrace] { requestHistory.reversed() }
     public func clearRequestHistory() { requestHistory.removeAll() }
 
+    /// Default idle timeout for runtime sessions: 30 minutes without a request or admin call.
+    public static let defaultSessionIdleTimeout: TimeInterval = 30 * 60
+    /// Upper bound on live runtime sessions.
+    public static let maxRuntimeSessions = 64
+
+    /// Sets how long an unused session lives; `nil` (or a non-positive value) disables expiry.
+    public func configureSessionExpiry(idleTimeout: TimeInterval?) {
+        sessionIdleTimeout = idleTimeout.flatMap { $0 > 0 ? $0 : nil }
+    }
+
+    /// Replaces the clock used for session expiry (tests only).
+    func setClock(_ clock: @escaping @Sendable () -> Date) { now = clock }
+
     public func createRuntimeSession() throws -> String {
-        guard runtimeSessions.count < 64 else { throw RuntimeScenarioError.capacityExceeded }
+        pruneExpiredRuntimeSessions()
+        guard runtimeSessions.count < Self.maxRuntimeSessions else { throw RuntimeScenarioError.capacityExceeded }
         let id = UUID().uuidString
         runtimeSessions[id] = InMemoryMockStore(
             endpoints: endpoints, graphqlEndpoints: graphqlEndpoints, scenarios: scenarios)
+        let created = now().timeIntervalSince1970
+        runtimeSessionActivity[id] = RuntimeSessionInfo(id: id, createdAt: created, lastUsedAt: created)
         return id
     }
 
-    public func runtimeSession(_ id: String) -> InMemoryMockStore? { runtimeSessions[id] }
-    public func removeRuntimeSession(_ id: String) { runtimeSessions.removeValue(forKey: id) }
+    /// Returns a live session and marks it used. An expired session is removed and reported missing.
+    public func runtimeSession(_ id: String) -> InMemoryMockStore? {
+        guard let session = runtimeSessions[id], var activity = runtimeSessionActivity[id] else { return nil }
+        let current = now().timeIntervalSince1970
+        if isExpired(activity, at: current) {
+            removeRuntimeSession(id)
+            return nil
+        }
+        activity.lastUsedAt = current
+        runtimeSessionActivity[id] = activity
+        return session
+    }
+
+    public func removeRuntimeSession(_ id: String) {
+        runtimeSessions.removeValue(forKey: id)
+        runtimeSessionActivity.removeValue(forKey: id)
+    }
+
+    /// Live sessions, oldest first, with their expiry under the current idle timeout.
+    public func listRuntimeSessions() -> [RuntimeSessionInfo] {
+        pruneExpiredRuntimeSessions()
+        return runtimeSessionActivity.values
+            .map { info in
+                var info = info
+                info.expiresAt = sessionIdleTimeout.map { info.lastUsedAt + $0 }
+                return info
+            }
+            .sorted { ($0.createdAt, $0.id) < ($1.createdAt, $1.id) }
+    }
+
+    private func pruneExpiredRuntimeSessions() {
+        let current = now().timeIntervalSince1970
+        for (id, activity) in runtimeSessionActivity where isExpired(activity, at: current) {
+            removeRuntimeSession(id)
+        }
+    }
+
+    private func isExpired(_ activity: RuntimeSessionInfo, at time: TimeInterval) -> Bool {
+        guard let sessionIdleTimeout else { return false }
+        return time - activity.lastUsedAt >= sessionIdleTimeout
+    }
 
     private func validatedOverrides(_ overrides: [String: String]) throws -> [String: String] {
         var result: [String: String] = [:]
         for (key, name) in overrides {
-            // GraphQL operations sharing a route are not independently addressable by this key.
-            guard let endpoint = endpoints.values.first(where: { "\($0.key.method.rawValue) \($0.key.path)" == key }),
+            // GraphQL operations sharing a route are addressed as `POST /graphql#<operation>`.
+            guard let endpoint = endpoint(forStateKey: key),
                 let variant = endpoint.variants.first(where: { $0.matchesIdentifier(name) })
             else { throw RuntimeScenarioError.invalidOverride(key) }
             result[key] = variant.name

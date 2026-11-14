@@ -105,13 +105,7 @@ public struct AuthValidator: AuthValidating {
             return .allowed
 
         case .apiKey(let headerName):
-            // API key validation requires the header value from the request.
-            // For now, the AuthContext only carries the Authorization header.
-            // The runtime layer should extract the specific header and pass it via a richer context,
-            // or this case should be handled at the runtime level.
-            // We keep the protocol-level contract: if authorizationHeader is set for api-key,
-            // treat it as the api-key header value.
-            guard let value = context.authorizationHeader, !value.isEmpty else {
+            guard let value = context.header(named: headerName), !value.isEmpty else {
                 logger.debug("API key missing for header '\(headerName)'")
                 return .unauthorized(
                     message: "API key required in header '\(headerName)'",

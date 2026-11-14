@@ -55,6 +55,20 @@ public struct Endpoint: Sendable {
         headerRules.filter { Self.isRequiredRule($0) }.map(\.name)
     }
 
+    /// Identifies this endpoint's runtime state: call counts, variant overrides, scenarios, and
+    /// config overrides are all keyed by it. A REST endpoint's key is `METHOD /path`; a GraphQL
+    /// operation sharing that route appends `#<operation selector>` so each operation counts and
+    /// overrides independently.
+    public var stateKey: String {
+        Self.stateKey(method: key.method, path: key.path, operation: operation)
+    }
+
+    public static func stateKey(method: HTTPMethodValue, path: String, operation: EndpointOperation?) -> String {
+        let routeKey = "\(method.rawValue) \(path.hasPrefix("/") ? path : "/\(path)")"
+        guard let selector = operation?.stateSelector else { return routeKey }
+        return "\(routeKey)#\(selector)"
+    }
+
     /// Returns the explicit default variant, or the first variant if none is marked.
     public var defaultVariant: ResponseVariant? {
         variants.first(where: \.isDefault) ?? variants.first

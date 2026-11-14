@@ -112,7 +112,8 @@ struct AuthValidatorTests {
     func apiKeyRejectsInvalidValue() {
         let validator = AuthValidator(config: config)
         let result = validator.evaluate(
-            .apiKey(headerName: "X-API-Key"), context: AuthContext(authorizationHeader: "wrong-key"))
+            .apiKey(headerName: "X-API-Key"),
+            context: AuthContext(authorizationHeader: nil, headers: ["X-API-Key": "wrong-key"]))
 
         if case .unauthorized(let msg, let challenge) = result {
             #expect(msg.contains("Invalid API key"))
@@ -126,7 +127,43 @@ struct AuthValidatorTests {
     func apiKeyAcceptsMatchingValue() {
         let validator = AuthValidator(config: config)
         let result = validator.evaluate(
+            .apiKey(headerName: "X-API-Key"),
+            context: AuthContext(authorizationHeader: nil, headers: ["x-api-key": "valid-key"]))
+        #expect(result == .allowed)
+    }
+
+    @Test("API key ignores the Authorization header")
+    func apiKeyIgnoresAuthorizationHeader() {
+        let validator = AuthValidator(config: config)
+        let result = validator.evaluate(
             .apiKey(headerName: "X-API-Key"), context: AuthContext(authorizationHeader: "valid-key"))
+        #expect(result != .allowed)
+    }
+
+    @Test("API key nested in allOf reads its own header alongside bearer")
+    func apiKeyNestedInAllOf() {
+        let validator = AuthValidator(config: config)
+        let requirement = AuthRequirement.allOf([.bearer, .apiKey(headerName: "X-API-Key")])
+        let allowed = validator.evaluate(
+            requirement,
+            context: AuthContext(
+                authorizationHeader: "Bearer valid-bearer",
+                headers: ["Authorization": "Bearer valid-bearer", "X-API-Key": "valid-key"]))
+        #expect(allowed == .allowed)
+
+        let missingKey = validator.evaluate(
+            requirement,
+            context: AuthContext(
+                authorizationHeader: "Bearer valid-bearer", headers: ["Authorization": "Bearer valid-bearer"]))
+        #expect(missingKey != .allowed)
+    }
+
+    @Test("API key nested in anyOf is accepted without a bearer token")
+    func apiKeyNestedInAnyOf() {
+        let validator = AuthValidator(config: config)
+        let requirement = AuthRequirement.anyOf([.bearer, .apiKey(headerName: "X-API-Key")])
+        let result = validator.evaluate(
+            requirement, context: AuthContext(authorizationHeader: nil, headers: ["X-API-Key": "valid-key"]))
         #expect(result == .allowed)
     }
 

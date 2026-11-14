@@ -137,16 +137,23 @@ They encode traps that have cost real debugging time in downstream consumers:
 
 ```
 Incoming request
-  → MockRouter (per-endpoint Vapor routes + catch-all 404 fallback)
+  → MockCORSMiddleware (only with --cors) → MockErrorMiddleware
+  → health / add-on / admin routes, else MockRouter's catch-alls
+  → MockRouteTable (swappable TrieRouter: endpoint, OPTIONS 204, 405, or nil → 404)
   → MockHandler
       → InMemoryMockStore.lookup(method, templatePath)   // actor; GraphQL uses operation-level lookup
       → Variant selection (priority order below)
   → HTTP response
 ```
 
+Runtime state (call counts, overrides, scenarios, config overrides) is keyed by `Endpoint.stateKey`:
+`METHOD /path`, plus `#<operation>` for GraphQL operations sharing a route. `POST /_admin/reload`
+and `serve --watch` go through `MockReloader`, which swaps the store's endpoints and the route
+table together.
+
 **Variant selection**: call-count eligibility, then named selection (`X-Mock-Variant` → runtime override → config override), request matching, Accept negotiation, declared default, declaration order. See `../ARCHITECTURE.md` for fallback details.
 
-**Path parameter matching**: OpenAPI-style templates like `/users/{id}` are registered as Vapor `:id` route parameters, so Vapor's router handles matching natively.
+**Path parameter matching**: OpenAPI-style templates like `/users/{id}` become `:id` parameters in RoutingKit's `TrieRouter` (the router Vapor itself uses), held by `MockRouteTable` so reload can replace it without re-registering Vapor routes. HEAD falls back to the GET route.
 
 ### Key Design Decisions
 
@@ -159,12 +166,15 @@ Incoming request
 
 | Target | Coverage |
 |--------|---------|
-| `MoqCoreTests` | AuthValidator, RequestValidator, EndpointConverter |
+| `MoqCoreTests` | AuthValidator, RequestValidator, RuleEvaluator, EndpointConverter |
 | `MoqFormatTests` | ProjectLoader, ProjectValidator, ProjectWriter, ProjectStore |
 | `MoqImportTests` | HARImporter, OpenAPIImporter, ImportConverter, SpecFetcher |
-| `MoqRuntimeTests` | Admin API, auth integration, content negotiation |
+| `MoqServiceTests` | Authoring sessions, parse-only import, write/save semantics |
+| `MoqRuntimeTests` | Admin API, auth integration, content negotiation, routing, sessions, reload |
+| `MoqAddonsTests` | Built-in add-ons (`jwt-claims`) and the add-on catalog |
 | `MoqIntegrationTests` | End-to-end: project → serve → request → verify |
-| `MoqCLITests` | CLI command wiring |
+| `MoqCLITests` | CLI command wiring, serve options, reload snapshot loading |
+| `MoqAuthorCLITests` | `moq-author` one-shot authoring commands |
 | `MoqMCPTests` | ProjectSession, and full tool/resource calls via an in-memory MCP client/server pair |
 
 ## Code Style

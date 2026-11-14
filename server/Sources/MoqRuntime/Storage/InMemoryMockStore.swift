@@ -9,10 +9,17 @@ public actor InMemoryMockStore: MockStoring {
     /// GraphQL endpoints stored separately: multiple endpoints can share the same key (POST /graphql).
     var graphqlEndpoints: [EndpointKey: [Endpoint]] = [:]
     private var overridesPersistencePath: String?
+    /// The latest pending disk write. Each write awaits the previous one, so files land in order
+    /// while the file I/O itself runs off this actor.
+    private var persistTask: Task<Void, Never>?
 
     var scenarios: [String: RuntimeScenario] = [:]
     var activeScenario: String?
     var runtimeSessions: [String: InMemoryMockStore] = [:]
+    var runtimeSessionActivity: [String: RuntimeSessionInfo] = [:]
+    /// Idle time after which a session is dropped; `nil` keeps sessions until deleted.
+    var sessionIdleTimeout: TimeInterval? = InMemoryMockStore.defaultSessionIdleTimeout
+    var now: @Sendable () -> Date = { Date() }
     var requestHistory: [RequestTrace] = []
 
     public init() {}
@@ -100,6 +107,12 @@ public actor InMemoryMockStore: MockStoring {
         return list.first
     }
 
+    /// Finds an endpoint by its `Endpoint.stateKey`, including GraphQL operations on a shared route.
+    public func endpoint(forStateKey stateKey: String) -> Endpoint? {
+        if let rest = endpoints.values.first(where: { $0.stateKey == stateKey }) { return rest }
+        return graphqlEndpoints.values.lazy.flatMap { $0 }.first { $0.stateKey == stateKey }
+    }
+
     public func allEndpoints() -> [Endpoint] {
         Array(endpoints.values) + graphqlEndpoints.values.flatMap { $0 }
     }
@@ -182,6 +195,7 @@ public actor InMemoryMockStore: MockStoring {
         logger.info("Clearing all endpoints and overrides")
         scenarios.removeAll()
         runtimeSessions.removeAll()
+        runtimeSessionActivity.removeAll()
         requestHistory.removeAll()
         activeScenario = nil
         endpoints.removeAll()
@@ -219,15 +233,29 @@ public actor InMemoryMockStore: MockStoring {
 
     func persistVariantOverridesIfNeeded() {
         guard let path = overridesPersistencePath else { return }
+        let snapshot = variantOverrides
+        let previous = persistTask
+        persistTask = Task.detached(priority: .utility) {
+            await previous?.value
+            Self.writeOverrides(snapshot, to: path)
+        }
+    }
+
+    /// Waits until every variant-override change made so far is on disk.
+    public func flushVariantOverridePersistence() async {
+        await persistTask?.value
+    }
+
+    private static func writeOverrides(_ overrides: [String: String], to path: String) {
         let fileURL = URL(fileURLWithPath: path)
         let directoryURL = fileURL.deletingLastPathComponent()
         do {
             try FileManager.default.createDirectory(
                 at: directoryURL, withIntermediateDirectories: true, attributes: nil)
-            let data = try JSONEncoder().encode(variantOverrides)
+            let data = try JSONEncoder().encode(overrides)
             try data.write(to: fileURL, options: .atomic)
         } catch {
-            logger.warning(
+            Logger(label: "moqserver.runtime.InMemoryMockStore").warning(
                 "Failed to persist variant overrides to \(path): \(error). Overrides will not survive a restart.")
         }
     }

@@ -170,6 +170,17 @@ public struct ProjectWriter: ProjectWriting {
             } else if rules.cookies != nil {
                 lines.append("  cookies: []")
             }
+            if let requiresBody = rules.requiresBody {
+                lines.append("  requires_body: \(requiresBody)")
+            }
+            if let contentTypes = rules.acceptedContentTypes, !contentTypes.isEmpty {
+                lines.append("  accepted_content_types:")
+                for contentType in contentTypes {
+                    lines.append("    - \(yamlQuote(contentType))")
+                }
+            } else if rules.acceptedContentTypes != nil {
+                lines.append("  accepted_content_types: []")
+            }
         }
 
         lines.append("")

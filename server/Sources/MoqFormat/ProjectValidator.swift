@@ -529,6 +529,13 @@ public struct ProjectValidator: ProjectValidating {
                 contentsOf: validateNetwork(
                     endpoint.network, file: fileName, field: "network", endpointID: endpoint.id))
 
+            if let rules = endpoint.requestRules {
+                diagnostics.append(
+                    contentsOf: validateRulePatterns(
+                        [("headers", rules.headers), ("query_params", rules.queryParams), ("cookies", rules.cookies)],
+                        file: fileName, fieldPrefix: "request_rules", endpointID: endpoint.id))
+            }
+
             // Rule 12: verify_cookies must be boolean (enforced by Codable, but check presence)
             // (Handled automatically by Codable decoding)
 
@@ -566,6 +573,10 @@ public struct ProjectValidator: ProjectValidating {
 
         diagnostics.append(contentsOf: validateAddons(project))
         diagnostics.append(contentsOf: validateScenarios(project))
+        diagnostics.append(
+            contentsOf: validateRulePatterns(
+                [("required_headers", project.manifest.globalRules?.requiredHeaders)],
+                file: "project.yml", fieldPrefix: "global_rules", endpointID: nil))
 
         // Validate project-level auth
         diagnostics.append(
@@ -595,6 +606,39 @@ public struct ProjectValidator: ProjectValidating {
         let warnings = diagnostics.filter { $0.severity == .warning }
         logger.info("Validation complete: \(errors.count) error(s), \(warnings.count) warning(s)")
 
+        return diagnostics
+    }
+
+    // MARK: - Rule Validation
+
+    /// A `matches_regex` pattern that doesn't compile would reject every request with a 400, so
+    /// it is a load-time error instead.
+    private func validateRulePatterns(
+        _ groups: [(field: String, rules: [RuleMatcher]?)], file: String, fieldPrefix: String, endpointID: String?
+    ) -> [ValidationDiagnostic] {
+        var diagnostics: [ValidationDiagnostic] = []
+        for group in groups {
+            for (index, rule) in (group.rules ?? []).enumerated() where rule.matchType == .matchesRegex {
+                let field = "\(fieldPrefix).\(group.field)[\(index)].match"
+                guard let pattern = rule.match else {
+                    diagnostics.append(
+                        .init(
+                            severity: .error,
+                            message: "Rule \"\(rule.name)\" uses match_type matches_regex but has no match pattern.",
+                            file: file, field: field, code: .invalidRegex, endpointID: endpointID))
+                    continue
+                }
+                do {
+                    _ = try NSRegularExpression(pattern: pattern)
+                } catch {
+                    diagnostics.append(
+                        .init(
+                            severity: .error,
+                            message: "Rule \"\(rule.name)\" has an invalid regular expression: \(pattern)",
+                            file: file, field: field, code: .invalidRegex, endpointID: endpointID))
+                }
+            }
+        }
         return diagnostics
     }
 
@@ -635,16 +679,9 @@ public struct ProjectValidator: ProjectValidating {
                             file: "project.yml", field: variantField, code: .scenarioUnknownEndpoint))
                     continue
                 }
-                if endpoint.operation != nil {
-                    diagnostics.append(
-                        .init(
-                            severity: .error,
-                            message:
-                                "Scenario \"\(name)\" selects a variant on GraphQL operation \"\(endpointID)\"; "
-                                + "scenarios address routes, and operations sharing a route are not addressable.",
-                            file: "project.yml", field: variantField, code: .invalidScenario,
-                            endpointID: endpointID))
-                } else if !endpoint.variants.contains(where: {
+                // GraphQL operations are addressable too: each has its own state key
+                // (`POST /graphql#<operation>`), so a scenario can select per operation.
+                if !endpoint.variants.contains(where: {
                     $0.name == variantName || $0.referenceName == variantName
                 }) {
                     let available = endpoint.variants.map(\.name).joined(separator: ", ")
