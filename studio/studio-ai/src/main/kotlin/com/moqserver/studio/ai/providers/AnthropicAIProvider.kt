@@ -183,7 +183,7 @@ class AnthropicAIProvider(
         const val PROVIDER_ID = "anthropic"
         const val DISPLAY_NAME = "Anthropic"
         const val DEFAULT_BASE_URL = "https://api.anthropic.com"
-        const val DEFAULT_MODEL = "claude-sonnet-4-6"
+        const val DEFAULT_MODEL = "claude-sonnet-5-5"
         const val DEFAULT_MAX_TOKENS = 4096
         const val API_KEY_HEADER = "x-api-key"
         const val VERSION_HEADER = "anthropic-version"

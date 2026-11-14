@@ -182,7 +182,7 @@ class OpenAIAIProvider(
         const val PROVIDER_ID = "openai"
         const val DISPLAY_NAME = "OpenAI"
         const val DEFAULT_BASE_URL = "https://api.openai.com/v1"
-        const val DEFAULT_MODEL = "gpt-4o"
+        const val DEFAULT_MODEL = "gpt-6.1-sol"
         private const val MODELS_PATH = "/models"
         private const val CHAT_COMPLETIONS_PATH = "/chat/completions"
     }
