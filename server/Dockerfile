@@ -2,7 +2,7 @@
 # The Swift version matches CI and release builds (swift-actions/setup-swift 6.2.4).
 
 # Build stage
-FROM swift:6.2.4-jammy@sha256:aa6e815df6d63c995a8e434fa81921295ec7b9dbdf2e5c8d4568935f312c2549 AS builder
+FROM swift:6.4.1-jammy@sha256:64945e64b1e9d16eaf23414f8bcb9b880d12705bb34ad5d23180b04ad6d28e10 AS builder
 WORKDIR /app
 COPY Package.swift Package.resolved ./
 RUN swift package resolve
