@@ -6,6 +6,7 @@ import com.moqserver.studio.projectformat.VariantRequestMatch
 import com.moqserver.studio.projectformat.YamlValue
 import kotlinx.serialization.json.*
 
+private val jsonNumberPattern = Regex("""-?(0|[1-9]\d*)(\.\d+)?([eE][+-]?\d+)?""")
 private val bodyEditorJson = Json { ignoreUnknownKeys = true }
 private val bodyEditorPrettyJson = Json {
 	ignoreUnknownKeys = true
@@ -138,7 +139,16 @@ internal fun invalidJsonMessage(error: Throwable): String {
 
 private fun jsonElementToYamlValue(element: JsonElement): YamlValue = when (element) {
 	is JsonNull -> YamlValue.Null
-	is JsonPrimitive -> when {
+	is JsonPrimitive -> validatedJsonPrimitive(element)
+	is JsonArray -> YamlValue.Array(element.map(::jsonElementToYamlValue))
+	is JsonObject -> YamlValue.Obj(element.mapValues { (_, value) -> jsonElementToYamlValue(value) })
+}
+
+private fun validatedJsonPrimitive(element: JsonPrimitive): YamlValue {
+	require(element.isString || element.booleanOrNull != null || jsonNumberPattern.matches(element.content)) {
+		"Invalid JSON literal: ${element.content}"
+	}
+	return when {
 		element.isString -> YamlValue.Str(element.content)
 		element.booleanOrNull != null -> YamlValue.Bool(element.booleanOrNull!!)
 		element.intOrNull != null -> YamlValue.Int(element.intOrNull!!)
@@ -146,8 +156,6 @@ private fun jsonElementToYamlValue(element: JsonElement): YamlValue = when (elem
 		element.doubleOrNull != null -> YamlValue.Double(element.doubleOrNull!!)
 		else -> YamlValue.Str(element.content)
 	}
-	is JsonArray -> YamlValue.Array(element.map(::jsonElementToYamlValue))
-	is JsonObject -> YamlValue.Obj(element.mapValues { (_, value) -> jsonElementToYamlValue(value) })
 }
 
 internal fun ProjectVariant.isJsonBody(text: String? = null): Boolean {

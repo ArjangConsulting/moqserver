@@ -479,6 +479,7 @@ private fun VariantDetailCard(
                 )
 
                 VariantDetailTab.BODY -> BodyTab(
+					endpointId = endpoint.id,
 					endpointMethod = endpoint.method,
 					endpointPath = endpoint.path,
 					variant = variant,

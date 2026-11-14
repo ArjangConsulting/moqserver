@@ -8,6 +8,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.test.assertIsNotEnabled
@@ -17,8 +18,11 @@ import androidx.compose.ui.test.isRoot
 import androidx.compose.ui.test.isToggleable
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performKeyInput
 import androidx.compose.ui.test.performScrollTo
-import androidx.compose.ui.test.performTextReplacement
+import androidx.compose.ui.test.performTextInput
+import androidx.compose.ui.test.pressKey
+import androidx.compose.ui.test.withKeyDown
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.LayoutDirection
 import com.moqserver.studio.endpointdetail.BodyTab
@@ -129,15 +133,22 @@ class EditorControlsIntegrationTest {
 			}
 		}
 		compose.waitForContentDescription("Edit body").performClick()
-		compose.onNode(hasSetTextAction()).performTextReplacement("""{"count":2}""")
+		replaceBody("""{"count":2}""")
 		compose.runOnIdle { assertEquals(YamlValue.Obj(mapOf("count" to YamlValue.Int(1))), variant.body) }
 		compose.waitForContentDescription("Save body edit").performClick()
 		compose.runOnIdle { assertEquals(YamlValue.Obj(mapOf("count" to YamlValue.Int(2))), variant.body) }
 		compose.waitForContentDescription("Edit body").performClick()
-		compose.onNode(hasSetTextAction()).performTextReplacement("""{"count":3}""")
+		replaceBody("""{"count":3}""")
 		compose.waitForContentDescription("Cancel body edit").performClick()
 		compose.runOnIdle { assertEquals(YamlValue.Obj(mapOf("count" to YamlValue.Int(2))), variant.body) }
 		captureEvidence("body-shared-actions-light")
+	}
+
+	private fun replaceBody(text: String) {
+		compose.onNode(hasSetTextAction()).performClick().performKeyInput {
+			withKeyDown(if (System.getProperty("os.name").contains("Mac")) Key.MetaLeft else Key.CtrlLeft) { pressKey(Key.A) }
+		}
+		compose.onNode(hasSetTextAction()).performTextInput(text)
 	}
 
 	private fun field(label: String) = compose.onNode(hasSetTextAction() and hasText(label))
