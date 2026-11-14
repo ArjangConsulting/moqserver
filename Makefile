@@ -1,4 +1,4 @@
-.PHONY: build test smoke e2e run clean release lint-server format-server docker-build docker-run studio-build studio-package studio-run studio-test studio-lint studio-dmg studio-deb studio-msi studio-uber-jar install-hooks
+.PHONY: build test smoke e2e run clean release lint-server format-server docker-build docker-run studio-build studio-package studio-run studio-test studio-lint studio-dmg studio-deb studio-msi studio-uber-jar studio-bootstrap install-hooks
 
 # ── Server (Swift) ──────────────────────────────────────────────
 
@@ -43,31 +43,35 @@ override JAVA_HOME := $(shell /usr/libexec/java_home -v 21 2>/dev/null)
 export JAVA_HOME
 endif
 
-studio-build:
+# Fetches the unpublished kmp-code-editor source on a fresh clone; a no-op with a sibling checkout.
+studio-bootstrap:
+	bash studio/scripts/fetch-code-editor.sh
+
+studio-build: studio-bootstrap
 	cd studio && ./gradlew :composeApp:compileKotlinDesktop
 
-studio-run:
+studio-run: studio-bootstrap
 	cd studio && ./gradlew :composeApp:run
 
-studio-package:
+studio-package: studio-bootstrap
 	cd studio && ./gradlew :composeApp:packageDistributionForCurrentOS
 
-studio-dmg:
+studio-dmg: studio-bootstrap
 	cd studio && ./gradlew :composeApp:packageDmg
 
-studio-deb:
+studio-deb: studio-bootstrap
 	cd studio && ./gradlew :composeApp:packageDeb
 
-studio-msi:
+studio-msi: studio-bootstrap
 	cd studio && ./gradlew :composeApp:packageMsi
 
-studio-uber-jar:
+studio-uber-jar: studio-bootstrap
 	cd studio && ./gradlew :composeApp:packageUberJarForCurrentOS
 
-studio-test:
+studio-test: studio-bootstrap
 	cd studio && ./gradlew test
 
-studio-lint:
+studio-lint: studio-bootstrap
 	cd studio && ./gradlew detektAll
 
 # ── Dev Setup ───────────────────────────────────────────────────
