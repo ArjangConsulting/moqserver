@@ -11,12 +11,16 @@ on:
       - "format/**"
       - "server/**"
 
+permissions:
+  contents: read
+
 env:
-  ORG_GRADLE_PROJECT_codeEditorCompositeBuild: ${{ github.workspace }}/.ci/kmp-code-editor
+  ORG_GRADLE_PROJECT_useLocalCompositeBuilds: "false"
 
 jobs:
   lint:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
 
     defaults:
       run:
@@ -24,24 +28,36 @@ jobs:
 
     steps:
       - name: Check out repository
-        uses: actions/checkout@v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
 
       - name: Check out code editor
-        uses: actions/checkout@v7.0.1
+        if: ${{ vars.CODE_EDITOR_PUBLISHED != 'true' }}
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           repository: ArjangConsulting/kmp-code-editor
-          ref: 098d2bec8a4b7997a42a6785fb3f149cae1d759a
+          ref: 28790a500c93efc717acf03ab475f988e236087d
           path: .ci/kmp-code-editor
           persist-credentials: false
 
+      - name: Select editor dependency
+        working-directory: ${{ github.workspace }}
+        env:
+          CODE_EDITOR_PUBLISHED: ${{ vars.CODE_EDITOR_PUBLISHED }}
+        run: |
+          if [ "$CODE_EDITOR_PUBLISHED" = "true" ]; then
+            bash studio/scripts/verify-published-editor.sh
+          else
+            echo "ORG_GRADLE_PROJECT_codeEditorCompositeBuild=$GITHUB_WORKSPACE/.ci/kmp-code-editor" >> "$GITHUB_ENV"
+          fi
+
       - name: Set up Temurin 21
-        uses: actions/setup-java@v6.1.0
+        uses: actions/setup-java@d1374f8ac74474200d16ef8ecee22c7ae7a51880
         with:
           distribution: temurin
           java-version: "21"
 
       - name: Set up Gradle
-        uses: gradle/actions/setup-gradle@v6.4.1
+        uses: gradle/actions/setup-gradle@8da46b539cd8fe6ab27ca75128919a18d757604c
         with:
           cache-provider: basic
 
@@ -52,6 +68,7 @@ jobs:
     needs: lint
 
     runs-on: ubuntu-latest
+    timeout-minutes: 45
 
     defaults:
       run:
@@ -59,18 +76,30 @@ jobs:
 
     steps:
       - name: Check out repository
-        uses: actions/checkout@v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
 
       - name: Check out code editor
-        uses: actions/checkout@v7.0.1
+        if: ${{ vars.CODE_EDITOR_PUBLISHED != 'true' }}
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           repository: ArjangConsulting/kmp-code-editor
-          ref: 098d2bec8a4b7997a42a6785fb3f149cae1d759a
+          ref: 28790a500c93efc717acf03ab475f988e236087d
           path: .ci/kmp-code-editor
           persist-credentials: false
 
+      - name: Select editor dependency
+        working-directory: ${{ github.workspace }}
+        env:
+          CODE_EDITOR_PUBLISHED: ${{ vars.CODE_EDITOR_PUBLISHED }}
+        run: |
+          if [ "$CODE_EDITOR_PUBLISHED" = "true" ]; then
+            bash studio/scripts/verify-published-editor.sh
+          else
+            echo "ORG_GRADLE_PROJECT_codeEditorCompositeBuild=$GITHUB_WORKSPACE/.ci/kmp-code-editor" >> "$GITHUB_ENV"
+          fi
+
       - name: Set up Swift
-        uses: swift-actions/setup-swift@v3
+        uses: swift-actions/setup-swift@364295d9c23900ce04d4e5cc708387921b4e50f9
         with:
           swift-version: "6.2.4"
           skip-verify-signature: true
@@ -87,13 +116,13 @@ jobs:
           echo "MOQSERVER_FORMAT_BINARY=$(swift build -c release --show-bin-path)/moq-format" >> "$GITHUB_ENV"
 
       - name: Set up Temurin 21
-        uses: actions/setup-java@v6.1.0
+        uses: actions/setup-java@d1374f8ac74474200d16ef8ecee22c7ae7a51880
         with:
           distribution: temurin
           java-version: "21"
 
       - name: Set up Gradle
-        uses: gradle/actions/setup-gradle@v6.4.1
+        uses: gradle/actions/setup-gradle@8da46b539cd8fe6ab27ca75128919a18d757604c
         with:
           cache-provider: basic
 
@@ -107,7 +136,7 @@ jobs:
         run: xvfb-run --auto-servernum ./gradlew test allTests desktopTest koverXmlReport koverVerify
 
       - name: Upload Studio coverage
-        uses: actions/upload-artifact@v7.0.2
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         with:
           name: studio-coverage
           path: studio/build/reports/kover/report.xml
@@ -117,6 +146,7 @@ jobs:
     needs: lint
 
     runs-on: macos-latest
+    timeout-minutes: 60
 
     defaults:
       run:
@@ -124,24 +154,36 @@ jobs:
 
     steps:
       - name: Check out repository
-        uses: actions/checkout@v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
 
       - name: Check out code editor
-        uses: actions/checkout@v7.0.1
+        if: ${{ vars.CODE_EDITOR_PUBLISHED != 'true' }}
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           repository: ArjangConsulting/kmp-code-editor
-          ref: 098d2bec8a4b7997a42a6785fb3f149cae1d759a
+          ref: 28790a500c93efc717acf03ab475f988e236087d
           path: .ci/kmp-code-editor
           persist-credentials: false
 
+      - name: Select editor dependency
+        working-directory: ${{ github.workspace }}
+        env:
+          CODE_EDITOR_PUBLISHED: ${{ vars.CODE_EDITOR_PUBLISHED }}
+        run: |
+          if [ "$CODE_EDITOR_PUBLISHED" = "true" ]; then
+            bash studio/scripts/verify-published-editor.sh
+          else
+            echo "ORG_GRADLE_PROJECT_codeEditorCompositeBuild=$GITHUB_WORKSPACE/.ci/kmp-code-editor" >> "$GITHUB_ENV"
+          fi
+
       - name: Set up Temurin 21
-        uses: actions/setup-java@v6.1.0
+        uses: actions/setup-java@d1374f8ac74474200d16ef8ecee22c7ae7a51880
         with:
           distribution: temurin
           java-version: "21"
 
       - name: Set up Gradle
-        uses: gradle/actions/setup-gradle@v6.4.1
+        uses: gradle/actions/setup-gradle@8da46b539cd8fe6ab27ca75128919a18d757604c
         with:
           cache-provider: basic
 

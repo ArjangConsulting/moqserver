@@ -17,8 +17,9 @@ permissions:
 jobs:
   schema:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v7.0.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
       - name: Install schema validator
         run: pipx install check-jsonschema==0.37.4
       - name: Validate schema and canonical YAML documents
@@ -32,9 +33,10 @@ jobs:
 
   server-compatibility:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v7.0.1
-      - uses: swift-actions/setup-swift@v3
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - uses: swift-actions/setup-swift@364295d9c23900ce04d4e5cc708387921b4e50f9
         with:
           swift-version: "6.2.4"
           skip-verify-signature: true
@@ -46,13 +48,14 @@ jobs:
 
   studio-compatibility:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v7.0.1
-      - uses: actions/setup-java@v6.1.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - uses: actions/setup-java@d1374f8ac74474200d16ef8ecee22c7ae7a51880
         with:
           distribution: temurin
           java-version: "21"
-      - uses: gradle/actions/setup-gradle@v6.4.1
+      - uses: gradle/actions/setup-gradle@8da46b539cd8fe6ab27ca75128919a18d757604c
         with:
           cache-provider: basic
       - name: Load canonical project with Studio
