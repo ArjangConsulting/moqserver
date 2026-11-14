@@ -7,7 +7,11 @@ Canonical note: This is the single source of truth for AI agent guidance for **S
 - Optimize for fast local workflows: domain logic is intentionally isolated from desktop/UI code.
 
 ## Architecture Map (Read This First)
-- Entry point: `composeApp/src/desktopMain/kotlin/com/moqserver/studio/Main.kt` wires repositories/parsers/viewmodel and desktop callbacks.
+- Entry point: `composeApp/src/desktopMain/kotlin/com/moqserver/studio/Main.kt` is the composition root: it builds `StudioServices` and `StudioAppState` and lays out the windows. Keep logic out of it.
+  - Commands live in focused classes beside it: `ProjectActions` (open/close/save/export), `ImportActions` (file, URL and review), `SettingsActions` (preferences and keychain load), `AIActions`.
+  - Menu bar and auxiliary windows: `StudioMenuBar.kt`, `StudioWindows.kt`. Shortcuts: `StudioShortcuts.kt`.
+  - Recoverable failures go through `launchReporting`/`runReporting` in `CoroutineHelpers.kt`, not new try/catch blocks; blocking IO goes through `runOnIo` with the injected `StudioServices.ioDispatcher`.
+  - Only the settings file is read before the first frame; API keys load from the keychain afterwards (`SettingsActions.loadCredentials`), and settings writes wait for that.
 - UI routing: `composeApp/src/commonMain/kotlin/com/moqserver/studio/App.kt` switches `ImportReviewScreen` vs landing vs workspace from `StudioState`.
 - State owner: `studio-domain/src/commonMain/kotlin/com/moqserver/studio/domain/StudioRootViewModel.kt` is the single source of truth (`StateFlow<StudioState>`).
 - Project format boundary: `studio-project-format/` owns schema-generated models and the `moq-format` RPC/repository adapters. Swift `MoqFormat` owns YAML, validation, and persistence.
