@@ -42,7 +42,7 @@ data class OpenAISettings(
     companion object {
         /** Keep in sync with OpenAIAIProvider defaults in studio-ai. */
         const val DEFAULT_BASE_URL = "https://api.openai.com/v1"
-        const val DEFAULT_MODEL = "gpt-4o"
+        const val DEFAULT_MODEL = "gpt-6.1-sol"
     }
 }
 
@@ -55,7 +55,7 @@ data class AnthropicSettings(
     companion object {
         /** Keep in sync with AnthropicAIProvider defaults in studio-ai. */
         const val DEFAULT_BASE_URL = "https://api.anthropic.com"
-        const val DEFAULT_MODEL = "claude-sonnet-4-6"
+        const val DEFAULT_MODEL = "claude-sonnet-5-5"
     }
 }
 
@@ -68,6 +68,6 @@ data class GeminiSettings(
     companion object {
         /** Keep in sync with GeminiAIProvider defaults in studio-ai. */
         const val DEFAULT_BASE_URL = "https://generativelanguage.googleapis.com"
-        const val DEFAULT_MODEL = "gemini-3.5-flash"
+        const val DEFAULT_MODEL = "gemini-3.8-flash"
     }
 }

@@ -195,7 +195,7 @@ class GeminiAIProvider(
         const val PROVIDER_ID = "gemini"
         const val DISPLAY_NAME = "Google Gemini"
         const val DEFAULT_BASE_URL = "https://generativelanguage.googleapis.com"
-        const val DEFAULT_MODEL = "gemini-3.5-flash"
+        const val DEFAULT_MODEL = "gemini-3.8-flash"
         const val API_KEY_HEADER = "x-goog-api-key"
     }
 }
