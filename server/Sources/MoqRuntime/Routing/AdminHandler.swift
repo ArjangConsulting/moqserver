@@ -8,10 +8,12 @@ private let logger = Logger(label: "moqserver.runtime.AdminHandler")
 public struct AdminHandler: Sendable {
     let store: any MockStoring
     let config: ServerConfig?
+    let reloader: MockReloader?
 
-    public init(store: any MockStoring, config: ServerConfig? = nil) {
+    public init(store: any MockStoring, config: ServerConfig? = nil, reloader: MockReloader? = nil) {
         self.store = store
         self.config = config
+        self.reloader = reloader
     }
 
     /// GET /_admin/endpoints — list all endpoints with variants and active variant.
@@ -21,15 +23,21 @@ public struct AdminHandler: Sendable {
         let endpoints = await store.allEndpoints()
         let overrides = await store.allVariantOverrides()
 
-        return endpoints.map { endpoint in
-            let key = "\(endpoint.key.method.rawValue) \(endpoint.key.path)"
-            return EndpointListItem(
-                method: endpoint.key.method.rawValue,
-                path: endpoint.key.path,
-                variants: endpoint.variants.map(\.name),
-                activeVariant: overrides[key]
-            )
-        }.sorted { ($0.method + $0.path) < ($1.method + $1.path) }
+        var items: [EndpointListItem] = []
+        for endpoint in endpoints {
+            let key = endpoint.stateKey
+            items.append(
+                EndpointListItem(
+                    method: endpoint.key.method.rawValue,
+                    path: endpoint.key.path,
+                    key: key,
+                    operation: endpoint.operation?.stateSelector,
+                    variants: endpoint.variants.map(\.name),
+                    activeVariant: overrides[key],
+                    currentCallCount: await store.currentCallCount(for: key)
+                ))
+        }
+        return items.sorted { ($0.method, $0.path, $0.key) < ($1.method, $1.path, $1.key) }
     }
 
     /// GET /_admin/endpoints/:method/** — get endpoint details.
@@ -43,6 +51,8 @@ public struct AdminHandler: Sendable {
         return EndpointDetail(
             method: endpoint.key.method.rawValue,
             path: endpoint.key.path,
+            key: keyString,
+            operation: endpoint.operation?.stateSelector,
             authRequirement: authRequirementString(endpoint.authRequirement),
             variants: endpoint.variants.map { v in
                 VariantDetail(
@@ -134,27 +144,40 @@ public struct AdminHandler: Sendable {
 
         let apiPath = "/" + pathSegments
         let httpMethod = HTTPMethodValue(rawValue: method.uppercased())
-        let keyString = "\(httpMethod.rawValue) \(apiPath)"
+        let operation = req.query[String.self, at: "operation"].flatMap { $0.isEmpty ? nil : $0 }
+        let keyString =
+            operation.map { "\(httpMethod.rawValue) \(apiPath)#\($0)" } ?? "\(httpMethod.rawValue) \(apiPath)"
 
         // Vapor's catchall drops the trailing empty segment, so `/v1/foo/` arrives as `/v1/foo`
         // and would never match a stored path that keeps its trailing slash. Try the literal
         // path first, then the trailing-slash variant, so both spellings address one endpoint.
         let candidatePaths = apiPath.hasSuffix("/") ? [apiPath, String(apiPath.dropLast())] : [apiPath, apiPath + "/"]
+        let allEndpoints = await store.allEndpoints()
         var resolved: Endpoint?
         for candidate in candidatePaths {
-            if let found = await store.lookup(method: httpMethod, path: candidate) {
-                resolved = found
-                break
+            let candidateKey = operation.map { "\(httpMethod.rawValue) \(candidate)#\($0)" }
+            if let candidateKey {
+                resolved = allEndpoints.first { $0.stateKey == candidateKey }
+            } else {
+                resolved = await store.lookup(method: httpMethod, path: candidate)
             }
+            if resolved != nil { break }
         }
         guard let endpoint = resolved else {
-            let allEndpoints = await store.allEndpoints()
+            let operations =
+                allEndpoints
+                .filter { $0.key.method == httpMethod && candidatePaths.contains($0.key.path) }
+                .compactMap { $0.operation?.stateSelector }
             let matchingPaths =
                 allEndpoints
                 .filter { $0.key.path == apiPath }
                 .map { $0.key.method.rawValue }
             let hint: String
-            if matchingPaths.isEmpty {
+            if !operations.isEmpty {
+                hint =
+                    "This route serves GraphQL operations; add ?operation=<name> with one of: "
+                    + operations.sorted().joined(separator: ", ")
+            } else if matchingPaths.isEmpty {
                 hint = "Use GET /_admin/endpoints to list all available endpoints."
             } else {
                 hint =
@@ -165,8 +188,7 @@ public struct AdminHandler: Sendable {
 
         // Derive the key from the endpoint we actually resolved, not the requested spelling —
         // the call-count store is keyed on the endpoint's own path.
-        let resolvedKey = "\(endpoint.key.method.rawValue) \(endpoint.key.path)"
-        return (endpoint, resolvedKey, subresource)
+        return (endpoint, endpoint.stateKey, subresource)
     }
 
     private func authRequirementString(_ auth: AuthRequirement) -> String {

@@ -22,7 +22,7 @@ struct MockErrorMiddleware: AsyncMiddleware {
                 headers = abortError.headers
                 body = ErrorResponse(
                     error: abortError.reason,
-                    code: statusToCode(abortError.status)
+                    code: Self.statusToCode(abortError.status)
                 )
                 logger.warning(
                     "Request error \(status.code): \(abortError.reason)",
@@ -46,14 +46,30 @@ struct MockErrorMiddleware: AsyncMiddleware {
         }
     }
 
-    private func statusToCode(_ status: HTTPResponseStatus) -> String {
+    /// Stable `code` for an aborted request. Known statuses get their documented code; any other
+    /// status gets its reason phrase in snake_case (e.g. `410` → `gone`), so a client can
+    /// always tell errors apart without parsing the message. Only a real 500 is `internal_error`.
+    static func statusToCode(_ status: HTTPResponseStatus) -> String {
         switch status {
         case .badRequest: return "bad_request"
         case .unauthorized: return "unauthorized"
         case .forbidden: return "forbidden"
         case .notFound: return "not_found"
+        case .methodNotAllowed: return "method_not_allowed"
+        case .notAcceptable: return "not_acceptable"
+        case .conflict: return "conflict"
+        case .payloadTooLarge: return "payload_too_large"
         case .unsupportedMediaType: return "unsupported_media_type"
-        default: return "internal_error"
+        case .unprocessableEntity: return "unprocessable_entity"
+        case .preconditionRequired: return "precondition_required"
+        case .tooManyRequests: return "too_many_requests"
+        case .internalServerError: return "internal_error"
+        case .notImplemented: return "not_implemented"
+        case .serviceUnavailable: return "service_unavailable"
+        default:
+            let words = status.reasonPhrase.lowercased().split(whereSeparator: { !$0.isLetter && !$0.isNumber })
+            guard !words.isEmpty else { return status.code >= 500 ? "internal_error" : "http_\(status.code)" }
+            return words.joined(separator: "_")
         }
     }
 }

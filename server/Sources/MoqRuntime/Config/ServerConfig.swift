@@ -120,6 +120,44 @@ public struct ServerConfig: Codable, Sendable, ServerConfiguring {
         return errors
     }
 
+    /// `variantOverrides`/`delayOverrides` entries that name no served endpoint (typically a typo in
+    /// the `METHOD /path` key), or a variant the endpoint doesn't have. These would otherwise be
+    /// silently ignored.
+    public func unknownOverrideWarnings(endpoints: [Endpoint]) -> [String] {
+        let byKey = Dictionary(endpoints.map { ($0.stateKey, $0) }, uniquingKeysWith: { first, _ in first })
+        var warnings: [String] = []
+        for (key, variant) in (variantOverrides ?? [:]).sorted(by: { $0.key < $1.key }) {
+            guard let endpoint = byKey[key] else {
+                let hint = Self.suggestion(for: key, in: byKey.keys)
+                warnings.append("variantOverrides[\(key)] names no endpoint\(hint).")
+                continue
+            }
+            if !endpoint.variants.contains(where: { $0.matchesIdentifier(variant) }) {
+                let names = endpoint.variants.map(\.name).joined(separator: ", ")
+                warnings.append(
+                    "variantOverrides[\(key)] = \(variant) names no variant of that endpoint (have: \(names)).")
+            }
+        }
+        for key in (delayOverrides ?? [:]).keys.sorted() where byKey[key] == nil {
+            warnings.append("delayOverrides[\(key)] names no endpoint\(Self.suggestion(for: key, in: byKey.keys)).")
+        }
+        return warnings
+    }
+
+    /// `; did you mean …?` for the known key that differs only in case or a trailing slash.
+    private static func suggestion(for key: String, in known: Dictionary<String, Endpoint>.Keys) -> String {
+        func normalized(_ value: String) -> String {
+            var lowered = value.lowercased()
+            while lowered.hasSuffix("/") { lowered.removeLast() }
+            return lowered
+        }
+        let target = normalized(key)
+        guard let match = known.first(where: { normalized($0) == target }) else {
+            return "; keys are `METHOD /path` as listed by GET /_admin/endpoints"
+        }
+        return "; did you mean `\(match)`?"
+    }
+
     static func validRedirectURI(_ value: String) -> URLComponents? {
         OAuthMockConfig.validRedirectURI(value)
     }

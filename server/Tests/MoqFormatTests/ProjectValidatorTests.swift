@@ -588,4 +588,24 @@ struct ProjectValidatorTests {
         #expect(codes.contains(.scenarioUnknownVariant))
         #expect(codes.contains(.invalidScenario))
     }
+
+    @Test("Scenarios may select a GraphQL operation's variant, keyed by its operation")
+    func acceptsGraphQLScenario() {
+        let base = sampleManifest()
+        let operation = EndpointDocument(
+            id: "get-user", method: "POST", path: "/graphql",
+            operation: EndpointOperation(type: .query, name: "GetUser"),
+            variants: [
+                ProjectVariant(name: "ok", isDefault: true, status: 200),
+                ProjectVariant(name: "error", status: 500),
+            ])
+        let project = MoqProject(
+            manifest: ProjectManifest(
+                name: base.name, defaults: base.defaults,
+                scenarios: ["user-down": ProjectScenario(variants: ["get-user": "error"])]),
+            endpoints: [operation], projectPath: "/tmp/test.moqproj")
+        #expect(validator.validate(project).filter { $0.severity == .error }.isEmpty)
+        #expect(
+            ProjectToRuntimeConverter.scenarioOverrides(project) == ["user-down": ["POST /graphql#GetUser": "error"]])
+    }
 }

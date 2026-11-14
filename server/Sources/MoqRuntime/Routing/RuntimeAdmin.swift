@@ -3,6 +3,7 @@ import Vapor
 
 extension RuntimeScenario: Content {}
 extension RequestTrace: Content {}
+extension RuntimeSessionInfo: Content {}
 
 extension AdminHandler {
     func scoped(req: Request) async throws -> AdminHandler {
@@ -60,6 +61,22 @@ extension AdminRouter {
             guard let root = handler.store as? InMemoryMockStore else { throw Abort(.notImplemented) }
             do { return ["id": try await root.createRuntimeSession()] } catch { throw scenarioAbort(error) }
         }
+        admin.post("reload") { req async throws -> ReloadSummary in
+            try handler.requireAdminAuth(req: req)
+            guard let reloader = handler.reloader else {
+                throw Abort(.notImplemented, reason: ProjectReloadError.notConfigured.description)
+            }
+            do {
+                return try await reloader.reload()
+            } catch let error as ProjectReloadError {
+                throw Abort(.unprocessableEntity, reason: error.description)
+            }
+        }
+        admin.get("sessions") { req async throws -> [RuntimeSessionInfo] in
+            try handler.requireAdminAuth(req: req)
+            guard let root = handler.store as? InMemoryMockStore else { throw Abort(.notImplemented) }
+            return await root.listRuntimeSessions()
+        }
         admin.delete("sessions", ":id") { req async throws -> HTTPStatus in
             try handler.requireAdminAuth(req: req)
             guard let root = handler.store as? InMemoryMockStore, let id = req.parameters.get("id") else {
@@ -81,7 +98,10 @@ private func scenarioAbort(_ error: Error) -> Abort {
         return Abort(.badRequest, reason: "Scenario name must contain 1–100 characters.")
     case RuntimeScenarioError.notFound: return Abort(.notFound, reason: "Scenario not found.")
     case RuntimeScenarioError.capacityExceeded:
-        return Abort(.conflict, reason: "Scenario or session capacity reached; remove unused sessions.")
+        return Abort(
+            .conflict,
+            reason:
+                "Scenario or session capacity reached; list sessions with GET /_admin/sessions and delete unused ones.")
     default: return Abort(.internalServerError, reason: "Could not update scenario.")
     }
 }

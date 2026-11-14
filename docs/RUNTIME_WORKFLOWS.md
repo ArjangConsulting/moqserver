@@ -8,17 +8,20 @@ may still contain user identifiers. Clear history when it is no longer needed.
 
 ## Named scenarios
 
-A scenario maps REST method/template-path keys to variant names:
+A scenario maps endpoint keys to variant names. A REST endpoint's key is its method and template
+path; a GraphQL operation sharing a route adds `#<operation>` (its name, or the `query:<hash>`
+selector of an anonymous operation). `GET /_admin/endpoints` lists every key:
 
 ```json
-{"name":"checkout-failure","overrides":{"GET /cart":"success","POST /checkout":"error"}}
+{"name":"checkout-failure","overrides":{"GET /cart":"success","POST /checkout":"error","POST /graphql#GetUser":"error"}}
 ```
 
 Create it with `PUT /_admin/scenarios`, or enter its name and overrides in the inspector.
 Activate with `PUT /_admin/scenario` and `{"name":"checkout-failure"}`. Activation validates every
 entry before changing anything, replaces all runtime overrides, and resets call counters together.
-Requests already in flight keep their captured selection. GraphQL operation-specific scenarios
-are not supported by these REST keys; ambiguous entries are rejected.
+Requests already in flight keep their captured selection. Each GraphQL operation also counts calls
+and holds overrides on its own key, so `call_count` and admin overrides on one operation never
+affect another; address one through the per-endpoint admin routes with `?operation=GetUser`.
 
 ### Scenarios in the bundle
 
@@ -35,8 +38,8 @@ scenarios:
 ```
 
 `moqserver validate` rejects unknown endpoint ids (`E_SCENARIO_UNKNOWN_ENDPOINT`), unknown variants
-(`E_SCENARIO_UNKNOWN_VARIANT`), GraphQL operations, and scenarios with no selections
-(`E_INVALID_SCENARIO`). Activate them with `PUT /_admin/scenario` or `MoqClient.activateScenario`,
+(`E_SCENARIO_UNKNOWN_VARIANT`), and scenarios with no selections (`E_INVALID_SCENARIO`). A
+scenario may select a GraphQL operation's variant by that operation's endpoint id. Activate them with `PUT /_admin/scenario` or `MoqClient.activateScenario`,
 exactly like scenarios defined at runtime.
 
 `GET /_admin/scenarios` exports definitions as JSON. Definitions added through the admin API are in
@@ -52,6 +55,11 @@ overrides and request matching still apply. It does not delete scenario definiti
 4. `DELETE /_admin/sessions/<id>` releases it in teardown.
 
 There are at most 64 live sessions. Overrides and counters in one session cannot affect another.
+A session expires after 30 minutes without a request or admin call that names it, so crashed test
+runs no longer fill the server until restart; change the idle time with
+`serve --session-idle-timeout <seconds>` (`0` keeps sessions until deleted). `GET /_admin/sessions`
+lists live sessions with `createdAt`, `lastUsedAt` and `expiresAt` (Unix seconds). When all 64 are
+in use, `POST /_admin/sessions` answers `409` (code `conflict`).
 A request with no session header uses global state; an unknown session returns 404 instead of
 silently falling back. Start the server with `serve --require-session` to reject mock requests that
 have no session header instead (`428`, code `session_required`). This catches an app code path that
@@ -65,12 +73,28 @@ data. From Swift, use `MoqRequestRecord.requestBody?.jsonObject`. Session IDs se
 credentials remain required when configured. If the app cannot attach a session header, use a
 separate server process/port for each parallel suite.
 
+Both test clients also list endpoints (`endpoints()`), read call counts (`callCount(for:path:)`),
+define, list and remove scenarios, list sessions, and reload the bundle. Every call takes an
+optional `operation` for GraphQL routes. Async tests use `client.asyncClient` (Swift) or
+`client.suspending` (Kotlin) for the same calls without blocking a thread.
+
 For Apple tests, `MoqClient.createSession()` returns a configured client with `sessionID`; pass
 that ID to the app under test through its test configuration. Use `closeSession()` in teardown.
 Call `assertNoUnmatchedRequests()` before closing, so a request the bundle doesn't mock fails the test
 instead of the app silently tolerating a 404. `requests()` returns the session's full history.
 The static `MoqControl` API remains available for existing serial suites. Android and JVM tests use
 the equivalent Kotlin client in [`clients/kotlin`](../clients/kotlin/README.md).
+
+## Reloading the bundle
+
+`POST /_admin/reload` re-reads, validates and converts the bundle the server was started with, then
+swaps it in for the global state and every live session. New and removed endpoints take effect
+immediately. Overrides, call counts and the active scenario survive for endpoints and variants that
+still exist; anything the new bundle can't keep is dropped and listed in the response's `warnings`.
+Bundle scenarios replace the previous definitions in every session. If the bundle no longer
+validates, the server answers `422` and keeps serving the previous version.
+
+`serve --watch` does the same whenever a file in the bundle changes (polled once a second).
 
 ## Recovery in Studio
 

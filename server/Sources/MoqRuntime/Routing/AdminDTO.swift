@@ -4,13 +4,21 @@ import Vapor
 public struct EndpointListItem: Content {
     public let method: String
     public let path: String
+    /// The key call counts, overrides, scenarios and config overrides use (`Endpoint.stateKey`).
+    public let key: String
+    /// GraphQL operation selector; pass it as `?operation=` to address this operation via the
+    /// per-endpoint admin routes. `nil` for REST endpoints.
+    public let operation: String?
     public let variants: [String]
     public let activeVariant: String?
+    public let currentCallCount: Int
 }
 
 public struct EndpointDetail: Content {
     public let method: String
     public let path: String
+    public let key: String
+    public let operation: String?
     public let authRequirement: String
     public let variants: [VariantDetail]
     public let activeVariant: String?

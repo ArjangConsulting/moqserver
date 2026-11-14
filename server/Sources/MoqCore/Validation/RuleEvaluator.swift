@@ -15,6 +15,13 @@ public enum RuleEvaluator {
         logger.trace(
             "Evaluating rule '\(rule.name)' with matchType=\(matchType) against value=\(actualValue ?? "<nil>")")
 
+        // "Optional, but if present it must match": an absent value passes any comparison when the
+        // rule says `required: false`, and a negated comparison (`not_equal_to`, `not_contains`)
+        // is trivially satisfied by absence unless the rule says `required: true`.
+        if actualValue == nil, absenceSatisfies(rule, matchType: matchType) {
+            return nil
+        }
+
         switch matchType {
         case .require:
             return isPresent(actualValue) ? nil : .missing(name: rule.name)
@@ -59,6 +66,17 @@ public enum RuleEvaluator {
             return .require
         }
         return .equalTo
+    }
+
+    private static func absenceSatisfies(_ rule: RuleMatcher, matchType: MatchType) -> Bool {
+        switch matchType {
+        case .require, .isEmpty, .notEmpty:
+            return false
+        case .notEqualTo, .notContains:
+            return rule.required != true
+        case .equalTo, .contains, .beginsWith, .endsWith, .matchesRegex, .gt, .gte, .lt, .lte:
+            return rule.required == false
+        }
     }
 
     private static func isPresent(_ value: String?) -> Bool {

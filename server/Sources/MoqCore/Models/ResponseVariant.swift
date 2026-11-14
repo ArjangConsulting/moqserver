@@ -26,10 +26,19 @@ public struct ResponseVariant: Sendable {
     /// Optional request matching used to pick this variant.
     public let requestMatch: RequestMatch?
 
+    /// Chunked delivery settings, when the body is streamed.
+    public let stream: ResponseStream?
+
     /// 1-indexed call number this variant is scoped to. When set, this variant is only
     /// eligible on the Nth call to its endpoint. `nil` matches every call.
-    public let stream: ResponseStream?
     public let callCount: Int?
+
+    /// Whether `body` contains the `{{baseURL}}` template token, computed once at load time so
+    /// the request path only scans bodies that need substitution.
+    public let containsBaseURLToken: Bool
+
+    /// The response-body template token replaced with the URL the client used to reach the server.
+    public static let baseURLToken = Data("{{baseURL}}".utf8)
 
     public init(
         name: String,
@@ -53,6 +62,12 @@ public struct ResponseVariant: Sendable {
         self.requestMatch = requestMatch
         self.stream = stream
         self.callCount = callCount
+        self.containsBaseURLToken = body.map { $0.range(of: Self.baseURLToken) != nil } ?? false
+    }
+
+    /// The declared `Content-Type`, if any (case-insensitive header name).
+    public var contentType: String? {
+        headers.first(where: { $0.0.caseInsensitiveCompare("Content-Type") == .orderedSame })?.1
     }
 
     public func matchesIdentifier(_ identifier: String) -> Bool {

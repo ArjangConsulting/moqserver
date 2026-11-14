@@ -41,6 +41,19 @@ Supported `serve` flags:
 | `--require-session` | No | off | Reject mock requests without `X-Mock-Session` (`428`); see [runtime workflows](RUNTIME_WORKFLOWS.md#parallel-tests) |
 | `--capture-request-bodies` | No | `0` | Record up to N bytes of each mock request body in request history |
 | `--allow-unverified-jwt` | No | off | Let the [`jwt-claims` add-on](ADDONS.md#jwt-claims) run on a non-loopback `--hostname` |
+| `--max-body-size` | No | `10485760` | Largest mock request body in bytes; larger bodies get `413` (`payload_too_large`) |
+| `--cors` | No | off | Allow every origin and answer CORS preflights, so browser clients can call the server. This also exposes `/_admin` to any page the browser opens; pair it with admin credentials off loopback |
+| `--tls-cert`, `--tls-key` | No | — | Serve HTTPS with this PEM certificate chain and private key (both required together), for apps that enforce HTTPS |
+| `--session-idle-timeout` | No | `1800` | Seconds an unused runtime session lives; `0` keeps sessions until deleted |
+| `--watch` | No | off | Reload the bundle when any of its files change; `POST /_admin/reload` reloads on demand either way |
+
+For local HTTPS, a self-signed certificate is enough when the test device trusts it:
+
+```bash
+openssl req -x509 -newkey rsa:2048 -nodes -days 30 -subj "/CN=localhost" \
+  -addext "subjectAltName=DNS:localhost,IP:127.0.0.1,IP:10.0.2.2" -keyout key.pem -out cert.pem
+moqserver serve --project my-api.moqproj --tls-cert cert.pem --tls-key key.pem
+```
 
 The server validates the project before binding the port. If there are validation errors it prints them and exits without starting. It then starts the add-ons the bundle enables (see [ADDONS.md](ADDONS.md)); an add-on that refuses its config or bind address also stops startup.
 
@@ -150,7 +163,15 @@ Supported HTTP methods for mock endpoints:
 
 `GET`, `POST`, `PUT`, `PATCH`, `DELETE`, `HEAD`, `OPTIONS`, `TRACE`, `CONNECT`
 
-Path templates like `/users/{id}` are registered as native Vapor path parameters and matched by Vapor's router.
+Path templates like `/users/{id}` match one path segment per parameter. Beyond the declared
+methods, every mocked path also answers:
+
+- `HEAD` through its `GET` endpoint (same status and headers, no body)
+- `OPTIONS` with `204` and an `Allow` header, unless the bundle declares `OPTIONS` itself
+- any other method with `405` (`method_not_allowed`) and an `Allow` header; only paths no endpoint
+  serves get `404`
+
+Mock request bodies up to `--max-body-size` (10 MiB by default) are accepted.
 
 ## 5. Response Variant Selection
 
@@ -176,10 +197,23 @@ For each matched endpoint, `moqserver` enforces the `request_rules` defined in t
 - Required headers and optional value matching
 - Required query parameters
 - Cookie verification (`verify_cookies: true`)
+- `requires_body: true` — the request must have a body
+- `accepted_content_types: [application/json, image/*]` — a body must use one of these media types
+
+A rule with `required: false` and a `match` is optional but enforced when present. `not_equal_to`
+and `not_contains` pass when the value is absent unless `required: true`. A `matches_regex` pattern
+that doesn't compile fails validation (`E_INVALID_REGEX`) instead of rejecting every request.
+
+OpenAPI import fills `requires_body` and `accepted_content_types` from the `requestBody` of each
+`POST`, `PUT` and `PATCH` operation. A `requestBody` on `GET`, `HEAD` or `DELETE` is ignored, as
+OpenAPI 3.0 requires. Before re-importing a spec into a bundle apps already use, check that they send
+the body and `Content-Type` the spec declares; a body with no `Content-Type` gets `415`. Delete
+either key from an endpoint to keep it lenient.
 
 Error behavior:
 
 - Missing required header/query param: `400 Bad Request`
+- Missing body with `requires_body: true`: `400` (`missing_request_body`)
 - Unsupported `Content-Type` for requests with bodies: `415 Unsupported Media Type`
 
 ## 7. Auth Simulation
@@ -359,12 +393,18 @@ Matching logic:
 - If `operation.document` is set, the `query` field in the JSON request body is compared for content equality.
 - Endpoints without an `operation` block serve as catch-all for unmatched GraphQL requests.
 
+Each operation keeps its own runtime state under the key `POST /graphql#<operation>` (the name,
+or `query:<hash>` for an anonymous operation; `GET /_admin/endpoints` lists them). Call counts,
+admin overrides, scenarios and config overrides on one operation never affect another. Address an
+operation through the per-endpoint admin routes with `?operation=<selector>`.
+
 ## 11. Config File Reference
 
 `--config` accepts YAML or JSON. All fields are optional.
 
 ```yaml
-# Per-endpoint variant to use (key format: "METHOD /path")
+# Per-endpoint variant to use (key format: "METHOD /path", or "POST /graphql#Operation").
+# At startup, a key that names no endpoint, or a variant the endpoint lacks, is printed as a warning.
 variantOverrides:
   "GET /api/v1/users": "server-error"
 

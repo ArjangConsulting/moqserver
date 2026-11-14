@@ -97,6 +97,10 @@ public enum OpenAPIImporter {
         let responses = buildResponses(operation)
         let auth = resolveAuth(operation.security ?? documentSecurity)
         let requestRules = extractRequestRules(pathParameters + operation.parameters)
+        // OpenAPI 3.0 supports `requestBody` only where HTTP defines body semantics (consumers
+        // must ignore it elsewhere); 3.1 permits but discourages it on GET, HEAD and DELETE. So
+        // body rules are enforced only for methods that carry a body.
+        let requestBody = bodyMethods.contains(method.uppercased()) ? operation.requestBody : nil
 
         return ParsedEndpoint(
             method: method,
@@ -112,10 +116,13 @@ public enum OpenAPIImporter {
             requiredQueryParameters: requestRules.requiredQueryParameters,
             requiredHeaders: requestRules.requiredHeaders,
             cookies: requestRules.cookies,
-            requiresBody: operation.requestBody?.required == true,
-            acceptedContentTypes: operation.requestBody.map { Array($0.content.keys).map(\.rawValue).sorted() } ?? []
+            requiresBody: requestBody?.required == true,
+            acceptedContentTypes: requestBody.map { Array($0.content.keys).map(\.rawValue).sorted() } ?? []
         )
     }
+
+    /// Methods whose request body has defined HTTP semantics (RFC 9110).
+    private static let bodyMethods: Set<String> = ["POST", "PUT", "PATCH"]
 
     private static func resolveAlias(_ operation: DereferencedOperation, method: String, path: String) -> String {
         if let summary = operation.summary?.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty {

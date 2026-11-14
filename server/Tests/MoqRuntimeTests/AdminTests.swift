@@ -121,6 +121,7 @@ struct AdminTests {
         let store1 = InMemoryMockStore()
         await store1.configureVariantOverridePersistence(path: tempFile)
         await store1.setVariantOverride(for: "GET /pets", variant: "error-500")
+        await store1.flushVariantOverridePersistence()
 
         let store2 = InMemoryMockStore()
         await store2.configureVariantOverridePersistence(path: tempFile)

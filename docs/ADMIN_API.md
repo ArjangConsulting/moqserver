@@ -60,14 +60,19 @@ curl -H "X-Admin-Key: admin-key-value" http://127.0.0.1:8080/_admin/endpoints
   {
     "method": "GET",
     "path": "/api/v1/users",
+    "key": "GET /api/v1/users",
     "variants": ["success", "empty", "unauthorized", "server-error"],
-    "activeVariant": null
+    "activeVariant": null,
+    "currentCallCount": 2
   },
   {
-    "method": "GET",
-    "path": "/api/v1/users/{id}",
+    "method": "POST",
+    "path": "/graphql",
+    "key": "POST /graphql#GetUser",
+    "operation": "GetUser",
     "variants": ["success", "not-found"],
-    "activeVariant": "not-found"
+    "activeVariant": "not-found",
+    "currentCallCount": 0
   }
 ]
 ```
@@ -78,8 +83,16 @@ curl -H "X-Admin-Key: admin-key-value" http://127.0.0.1:8080/_admin/endpoints
 |-------|------|-------------|
 | `method` | `string` | HTTP method in uppercase (`GET`, `POST`, etc.) |
 | `path` | `string` | API path as defined in the endpoint file, including `{param}` templates |
+| `key` | `string` | The key overrides, call counts, scenarios and config `variantOverrides`/`delayOverrides` use |
+| `operation` | `string \| null` | GraphQL operation selector (its name, or `query:<hash>` for an anonymous one); `null` for REST |
 | `variants` | `string[]` | All variant names available for this endpoint |
 | `activeVariant` | `string \| null` | Currently active runtime override, or `null` if none is set |
+| `currentCallCount` | `integer` | Calls since the last reset |
+
+GraphQL operations that share a route are addressed by every per-endpoint route below with an
+`operation` query parameter, for example
+`PUT /_admin/endpoints/POST/graphql/variant?operation=GetUser`. Without it, a GraphQL route answers
+`404` and the hint lists the selectors.
 
 ---
 
@@ -146,8 +159,12 @@ curl http://127.0.0.1:8080/_admin/endpoints/POST/api/v1/items
 | `method` | `string` | HTTP method in uppercase |
 | `path` | `string` | API path including `{param}` templates |
 | `authRequirement` | `string` | Auth requirement string (see below) |
+| `key` | `string` | Runtime state key (see `EndpointListItem.key`) |
+| `operation` | `string \| null` | GraphQL operation selector, or `null` for REST |
 | `variants` | `VariantDetail[]` | Full detail for each variant |
 | `activeVariant` | `string \| null` | Currently active runtime override, or `null` |
+| `currentCallCount` | `integer` | Calls since the last reset |
+| `strictCallCount` | `boolean` | Whether an uncovered call number is rejected with `409` |
 
 **`authRequirement` values**
 
@@ -291,11 +308,31 @@ curl -X DELETE http://127.0.0.1:8080/_admin/endpoints/GET/api/v1/users/call-coun
 
 ---
 
+### Runtime routes
+
+| Route | Purpose |
+|-------|---------|
+| `GET /_admin/requests`, `DELETE /_admin/requests` | Request history (newest first, at most 500) |
+| `GET /_admin/scenarios`, `PUT /_admin/scenarios`, `DELETE /_admin/scenarios` | List, define (`{"name","overrides"}`) or remove (`{"name"}`) scenarios |
+| `PUT /_admin/scenario` | Activate a scenario: `{"name": "..."}` |
+| `DELETE /_admin/state` | Clear runtime overrides and call counts |
+| `POST /_admin/sessions` | Create an isolated session; returns `{"id": "..."}` |
+| `GET /_admin/sessions` | Live sessions: `[{"id","createdAt","lastUsedAt","expiresAt"}]` (Unix seconds; `expiresAt` is `null` when expiry is off) |
+| `DELETE /_admin/sessions/:id` | Release a session |
+| `POST /_admin/reload` | Reload the bundle from disk; returns `{"endpoints","scenarios","sessions","warnings"}`, `422` if the bundle is invalid |
+
+Sessions expire after `serve --session-idle-timeout` seconds (default 1800) without a request or
+admin call that names them. See [RUNTIME_WORKFLOWS.md](RUNTIME_WORKFLOWS.md) for scenarios,
+sessions and reload semantics.
+
+---
+
 ## Test-Support Package
 
-For an iOS/macOS app, `server/MoqTestSupport` wraps the variant-override and call-count endpoints
-above as `MoqControl` (select/reset variant, reset call count, reset-all) for use directly from a
-UI test target — see its README rather than hand-rolling these HTTP calls per app.
+For an iOS/macOS app, `server/MoqTestSupport` wraps these routes as `MoqClient` (sessions, variants,
+call counts, scenarios, request history, reload; blocking or `asyncClient`) and the older static
+`MoqControl`. Android and JVM tests use the Kotlin `MoqClient` in `clients/kotlin` (blocking or
+`suspending`). See their READMEs rather than hand-rolling these HTTP calls per app.
 
 ---
 

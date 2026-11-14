@@ -4,10 +4,15 @@
 
 ## Features
 
-- Typed `.moqproj` projects with inline responses or fixture files
-- Multiple response variants selected by `X-Mock-Variant`, request matching, admin override, or content negotiation
-- Request rules, auth simulation, latency, jitter, and packet-loss simulation
-- Runtime Admin API and GraphQL operation matching
+- Typed `.moqproj` projects with inline responses, fixture files, or streamed bodies
+- Multiple response variants selected by `X-Mock-Variant`, request matching, call count, admin override, or content negotiation
+- Request rules (headers, query, cookies, required body, accepted content types), auth simulation, latency, jitter, and packet-loss simulation
+- Scenarios that switch many endpoints at once, declared in the bundle or defined at runtime
+- Isolated runtime sessions (`X-Mock-Session`) so parallel test suites never share state
+- Runtime Admin API, request history, GraphQL per-operation matching, and live reload (`--watch`, `POST /_admin/reload`)
+- Built-in add-ons such as `jwt-claims` and `oauth-mock` ([`docs/ADDONS.md`](docs/ADDONS.md))
+- Browser and HTTPS clients: opt-in CORS (`--cors`), TLS (`--tls-cert`/`--tls-key`), automatic `HEAD`, `OPTIONS` and `405`
+- Test-support clients for Apple (`server/MoqTestSupport`) and Kotlin/Android (`clients/kotlin`), blocking or async
 - Studio import from OpenAPI and HAR, editing, validation, and export
 - Local server binaries, desktop packages, and a GHCR container image
 
@@ -47,6 +52,15 @@ my-api.moqproj/
 
 Start with the canonical project in [`format/examples/sample-app.moqproj`](format/examples/sample-app.moqproj). The machine-readable contract is [`format/schema.json`](format/schema.json), with cross-file rules documented in [`docs/FORMAT_IMPLEMENTATION.md`](docs/FORMAT_IMPLEMENTATION.md).
 
+### Streaming response fixtures
+
+A variant can add `stream: {chunk_bytes: 8, interval_ms: 25}` to deliver its
+existing `body` or `body_file` in timed byte chunks. Byte boundaries may split UTF-8
+scalars, exercising incremental decoders. Set `disconnect_after_bytes` to end the
+stream with a transport error after that many bytes. `delay_ms` still controls the
+initial response delay; `interval_ms` is the delay between writes (0–60000).
+Fixtures remain unchanged on disk.
+
 ## Install And Update
 
 | Product | Supported hosts | Install |
@@ -65,6 +79,12 @@ Stable Studio releases are signed: macOS DMGs are Developer ID signed and notari
 
 - [`docs/API_GUIDE.md`](docs/API_GUIDE.md): server CLI, format, variants, auth, Admin API, and Docker
 - [`docs/ADMIN_API.md`](docs/ADMIN_API.md): Admin API reference
+- [`docs/ERROR_CATALOG.md`](docs/ERROR_CATALOG.md): every structured error code the server returns
+- [`docs/ADDONS.md`](docs/ADDONS.md): built-in add-ons and their configuration
+- [`docs/RUNTIME_WORKFLOWS.md`](docs/RUNTIME_WORKFLOWS.md): scenarios, isolated test sessions, and the Studio Runtime Inspector
+- [`docs/AUTHORING_CLI.md`](docs/AUTHORING_CLI.md): script and CI authoring with `moq-author`
+- [`server/MoqTestSupport/README.md`](server/MoqTestSupport/README.md) and [`clients/kotlin/README.md`](clients/kotlin/README.md): test-support clients
+- [`ARCHITECTURE.md`](ARCHITECTURE.md): current architecture and recovery model
 - [`docs/RELEASE_CHECKLIST.md`](docs/RELEASE_CHECKLIST.md): maintainer release process
 - [`samples/README.md`](samples/README.md): iOS and Android showcase
 - [`CONTRIBUTING.md`](CONTRIBUTING.md), [`SUPPORT.md`](SUPPORT.md), [`SECURITY.md`](SECURITY.md), and [`CODE_OF_CONDUCT.md`](CODE_OF_CONDUCT.md): community policies
@@ -82,19 +102,3 @@ See [`AGENTS.md`](AGENTS.md) for repository commands and product boundaries.
 ## License
 
 MIT
-
-## Authoring and test workflows
-
-- [Script and CI authoring with moq-author](docs/AUTHORING_CLI.md)
-- [Scenarios, isolated test sessions, and Studio Runtime Inspector](docs/RUNTIME_WORKFLOWS.md)
-- [Apple test-support client](server/MoqTestSupport/README.md)
-- [Current architecture and recovery model](ARCHITECTURE.md)
-
-### Streaming response fixtures
-
-A variant can add `stream: {chunk_bytes: 8, interval_ms: 25}` to deliver its
-existing `body` or `body_file` in timed byte chunks. Byte boundaries may split UTF-8
-scalars, exercising incremental decoders. Set `disconnect_after_bytes` to end the
-stream with a transport error after that many bytes. `delay_ms` still controls the
-initial response delay; `interval_ms` is the delay between writes (0–60000).
-Fixtures remain unchanged on disk.

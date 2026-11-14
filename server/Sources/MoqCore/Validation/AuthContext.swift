@@ -4,9 +4,22 @@ import Foundation
 /// Extracted from the HTTP request so auth validation can run without Vapor.
 public struct AuthContext: Sendable {
     public let authorizationHeader: String?
+    /// Every request header, keyed by lowercased name. API-key requirements read their own
+    /// header from here, so they work at any depth inside `allOf`/`anyOf`.
+    public let headers: [String: String]
 
-    public init(authorizationHeader: String?) {
+    public init(authorizationHeader: String?, headers: [String: String] = [:]) {
         self.authorizationHeader = authorizationHeader
+        var normalized: [String: String] = [:]
+        for (name, value) in headers {
+            normalized[name.lowercased()] = value
+        }
+        self.headers = normalized
+    }
+
+    /// Case-insensitive header lookup.
+    public func header(named name: String) -> String? {
+        headers[name.lowercased()]
     }
 }
 

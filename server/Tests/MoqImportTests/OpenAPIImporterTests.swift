@@ -345,4 +345,42 @@ struct OpenAPIImporterTests {
         #expect(!endpoint.requiresBody)
         #expect(endpoint.acceptedContentTypes.isEmpty)
     }
+
+    @Test("A requestBody on GET or DELETE is ignored, as OpenAPI 3.0 requires")
+    func requestBodyIgnoredWithoutBodySemantics() throws {
+        let spec = """
+            openapi: 3.1.0
+            info:
+              title: API
+              version: "1.0"
+            paths:
+              /search:
+                get:
+                  requestBody:
+                    required: true
+                    content:
+                      application/json:
+                        schema:
+                          type: object
+                  responses:
+                    "200":
+                      description: OK
+                delete:
+                  requestBody:
+                    required: true
+                    content:
+                      application/json:
+                        schema:
+                          type: object
+                  responses:
+                    "204":
+                      description: Deleted
+            """
+        let parsed = try OpenAPIImporter.parse(spec)
+        #expect(parsed.endpoints.count == 2)
+        for endpoint in parsed.endpoints {
+            #expect(!endpoint.requiresBody)
+            #expect(endpoint.acceptedContentTypes.isEmpty)
+        }
+    }
 }

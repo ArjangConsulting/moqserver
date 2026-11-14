@@ -240,6 +240,7 @@ struct InMemoryMockStoreTests {
         let firstStore = InMemoryMockStore()
         await firstStore.configureVariantOverridePersistence(path: persistencePath)
         await firstStore.setVariantOverride(for: "GET /pets", variant: "error-500")
+        await firstStore.flushVariantOverridePersistence()
 
         let secondStore = InMemoryMockStore()
         await secondStore.configureVariantOverridePersistence(path: persistencePath)

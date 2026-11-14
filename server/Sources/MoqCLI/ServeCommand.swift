@@ -63,7 +63,53 @@ public struct ServeCommand: AsyncParsableCommand {
     )
     var captureRequestBodies: Int = 0
 
+    @ArgumentParser.Option(
+        name: .long,
+        help: ArgumentHelp("Largest mock request body to accept, in bytes; larger bodies get 413. Default 10 MiB.")
+    )
+    var maxBodySize: Int = MockRouter.defaultMaxBodySize
+
+    @ArgumentParser.Flag(
+        name: .long,
+        help: ArgumentHelp(
+            "Answer CORS preflights and allow every origin, so browser clients can call the server. This also "
+                + "lets any web page you open reach /_admin; pair it with admin credentials off loopback.")
+    )
+    var cors = false
+
+    @ArgumentParser.Option(name: .long, help: "PEM certificate chain to serve HTTPS with (requires --tls-key)")
+    var tlsCert: String?
+
+    @ArgumentParser.Option(name: .long, help: "PEM private key for --tls-cert")
+    var tlsKey: String?
+
+    @ArgumentParser.Option(
+        name: .long,
+        help: ArgumentHelp(
+            "Drop a runtime session after this many seconds without a request or admin call. 0 disables expiry.")
+    )
+    var sessionIdleTimeout: Int = Int(InMemoryMockStore.defaultSessionIdleTimeout)
+
+    @ArgumentParser.Flag(
+        name: .long,
+        help: ArgumentHelp(
+            "Reload the project when files in the bundle change. POST /_admin/reload reloads on demand either way.")
+    )
+    var watch = false
+
     public init() {}
+
+    public mutating func validate() throws {
+        guard maxBodySize > 0 else {
+            throw ValidationError("--max-body-size must be a positive byte count.")
+        }
+        guard sessionIdleTimeout >= 0 else {
+            throw ValidationError("--session-idle-timeout must be 0 (no expiry) or a positive number of seconds.")
+        }
+        guard (tlsCert == nil) == (tlsKey == nil) else {
+            throw ValidationError("--tls-cert and --tls-key must be given together.")
+        }
+    }
 
     public mutating func run() async throws {
         // Must happen before any `Logger` is constructed anywhere in the process — Logging's
@@ -107,28 +153,57 @@ public struct ServeCommand: AsyncParsableCommand {
         warnIfExposedWithoutAdminAuth(config: serverConfig)
 
         await store.configureVariantOverridePersistence(path: serverConfig?.overridesPersistencePath)
+        await store.configureSessionExpiry(idleTimeout: TimeInterval(sessionIdleTimeout))
 
         logger.info("Loading project from \(project)")
         let loadedProject = try await loadProject(from: project, into: store)
         let addons = try activateAddons(for: loadedProject)
 
-        let endpointCount = await store.allEndpoints().count
-        logger.info("Loaded \(endpointCount) endpoint(s) from project")
-        print("Loaded \(endpointCount) endpoint(s) from project")
-        print("Starting mock server on \(hostname):\(port)")
-        logger.info("Starting mock server", metadata: ["hostname": "\(hostname)", "port": "\(port)"])
+        let endpoints = await store.allEndpoints()
+        logger.info("Loaded \(endpoints.count) endpoint(s) from project")
+        print("Loaded \(endpoints.count) endpoint(s) from project")
+        for warning in serverConfig?.unknownOverrideWarnings(endpoints: endpoints) ?? [] {
+            logger.warning("Config: \(warning)")
+            print("WARNING: config \(warning)")
+        }
 
+        let tls = tlsCert.flatMap { cert in tlsKey.map { TLSFiles(certificatePath: cert, privateKeyPath: $0) } }
+        let scheme = tls == nil ? "http" : "https"
+        print("Starting mock server on \(scheme)://\(hostname):\(port)")
+        logger.info(
+            "Starting mock server", metadata: ["hostname": "\(hostname)", "port": "\(port)", "scheme": "\(scheme)"])
+
+        let projectPath = project
         let app = try await buildApp(
             store: store, config: serverConfig, addons: addons, requireSession: requireSession,
-            requestBodyCaptureLimit: captureRequestBodies, hostname: hostname, port: port)
+            requestBodyCaptureLimit: captureRequestBodies, maxRequestBodySize: maxBodySize, cors: cors, tls: tls,
+            reloadSource: { try Self.loadSnapshot(from: projectPath) }, hostname: hostname, port: port)
+
+        let watcher = watch ? app.mockReloader.map { ProjectWatcher(path: projectPath, reloader: $0).start() } : nil
+        defer { watcher?.cancel() }
 
         do {
             try await app.execute()
         } catch {
+            await store.flushVariantOverridePersistence()
             try? await app.asyncShutdown()
             throw error
         }
+        await store.flushVariantOverridePersistence()
         try await app.asyncShutdown()
+    }
+
+    /// Loads, validates and converts the bundle for `POST /_admin/reload` and `--watch`. Errors
+    /// leave the previous version serving.
+    static func loadSnapshot(from path: String) throws -> RuntimeProjectSnapshot {
+        let project = try ProjectLoader().load(from: path)
+        let errors = ProjectValidator().validate(project).filter { $0.severity == .error }
+        guard errors.isEmpty else {
+            throw ProjectSnapshotError.invalid(errors.map(\.description))
+        }
+        return RuntimeProjectSnapshot(
+            endpoints: try ProjectToRuntimeConverter.convert(project),
+            scenarios: ProjectToRuntimeConverter.scenarioOverrides(project))
     }
 
     /// Warns when the server is reachable from other machines but the admin API has no credentials.
@@ -206,5 +281,16 @@ public struct ServeCommand: AsyncParsableCommand {
             metadata: ["name": "\(project.manifest.name)", "path": "\(path)", "endpoints": "\(endpoints.count)"])
         print("Loaded project \"\(project.manifest.name)\" from \(path)")
         return project
+    }
+}
+
+enum ProjectSnapshotError: Error, CustomStringConvertible {
+    case invalid([String])
+
+    var description: String {
+        switch self {
+        case .invalid(let errors):
+            return "Project has \(errors.count) validation error(s): " + errors.joined(separator: "; ")
+        }
     }
 }

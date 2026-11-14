@@ -15,6 +15,10 @@ public func buildApp(
     addons: ActiveAddons = .none,
     requireSession: Bool = false,
     requestBodyCaptureLimit: Int = 0,
+    maxRequestBodySize: Int = MockRouter.defaultMaxBodySize,
+    cors: Bool = false,
+    tls: TLSFiles? = nil,
+    reloadSource: RuntimeProjectSource? = nil,
     hostname: String = "127.0.0.1",
     port: Int = 8080
 ) async throws -> Application {
@@ -25,8 +29,18 @@ public func buildApp(
     app.http.server.configuration.hostname = hostname
     app.http.server.configuration.port = port
 
-    // Use structured error responses for all unhandled errors
+    if let tls {
+        app.http.server.configuration.tlsConfiguration = try tls.serverConfiguration()
+        bootstrapLogger.info("TLS enabled", metadata: ["certificate": "\(tls.certificatePath)"])
+    }
+
+    // CORS runs outermost so error responses carry the CORS headers too; structured error
+    // responses for all unhandled errors come next.
     app.middleware = Middlewares()
+    if cors {
+        app.middleware.use(MockCORSMiddleware())
+        bootstrapLogger.info("CORS enabled for all origins")
+    }
     app.middleware.use(MockErrorMiddleware())
     bootstrapLogger.debug("Registered MockErrorMiddleware")
 
@@ -53,14 +67,31 @@ public func buildApp(
 
     AddonRouter(addons: addons).registerRoutes(on: app)
 
-    let adminHandler = AdminHandler(store: store, config: config)
+    let table = MockRouteTable(endpoints: await store.allEndpoints())
+    var reloader: MockReloader?
+    if let reloadSource, let root = store as? InMemoryMockStore {
+        reloader = MockReloader(store: root, table: table, source: reloadSource)
+        app.storage[MockReloaderKey.self] = reloader
+    }
+
+    let adminHandler = AdminHandler(store: store, config: config, reloader: reloader)
     let adminRouter = AdminRouter(handler: adminHandler)
     adminRouter.registerRoutes(on: app)
 
-    let endpoints = await store.allEndpoints()
-    let router = MockRouter(handler: handler, endpoints: endpoints)
+    let router = MockRouter(handler: handler, table: table, maxBodySize: maxRequestBodySize)
     router.registerRoutes(on: app)
 
     bootstrapLogger.info("App configured: auth, add-on, admin, and mock routes registered")
     return app
+}
+
+private struct MockReloaderKey: StorageKey {
+    typealias Value = MockReloader
+}
+
+extension Application {
+    /// Reloads the served project; set when `buildApp` was given a `reloadSource`.
+    public var mockReloader: MockReloader? {
+        storage[MockReloaderKey.self]
+    }
 }

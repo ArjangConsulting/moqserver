@@ -205,6 +205,18 @@
           "items": {
             "$ref": "#/$defs/ruleMatcher"
           }
+        },
+        "requires_body": {
+          "type": "boolean",
+          "description": "Reject requests without a body (400 missing_request_body)."
+        },
+        "accepted_content_types": {
+          "type": "array",
+          "description": "Media types a request body may use, e.g. application/json or image/*. Other types get 415 unsupported_content_type.",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
         }
       }
     },
