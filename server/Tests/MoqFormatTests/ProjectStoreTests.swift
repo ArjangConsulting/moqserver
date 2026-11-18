@@ -620,4 +620,58 @@ struct ProjectStoreTests {
         try await store.delete()
         #expect(!FileManager.default.fileExists(atPath: path))
     }
+
+    @Test("saving one changed endpoint leaves every other document byte-identical")
+    func saveKeepsUnchangedDocuments() async throws {
+        let path = tempPath("keep-unchanged")
+        defer { try? FileManager.default.removeItem(atPath: path) }
+        let created = try ProjectStore.create(manifest: manifest(), at: path)
+        try await created.addEndpoint(endpoint(id: "get-users", path: "/users"))
+        try await created.addEndpoint(endpoint(id: "get-orders", path: "/orders"))
+        try await created.save()
+
+        // Hand-written comments are exactly what regenerating a document from the model loses.
+        let manifestPath = (path as NSString).appendingPathComponent("project.yml")
+        let ordersPath = (path as NSString).appendingPathComponent("endpoints/get-orders.yml")
+        let usersPath = (path as NSString).appendingPathComponent("endpoints/get-users.yml")
+        for file in [manifestPath, ordersPath, usersPath] {
+            let content = try String(contentsOfFile: file, encoding: .utf8)
+            try ("# kept by hand\n" + content).write(toFile: file, atomically: true, encoding: .utf8)
+        }
+        let manifestBefore = try Data(contentsOf: URL(fileURLWithPath: manifestPath))
+        let ordersBefore = try Data(contentsOf: URL(fileURLWithPath: ordersPath))
+
+        let store = try ProjectStore(path: path)
+        _ = try await store.upsertVariant(endpointID: "get-users", ProjectVariant(name: "empty", status: 204))
+        try await store.save()
+
+        #expect(try Data(contentsOf: URL(fileURLWithPath: manifestPath)) == manifestBefore)
+        #expect(try Data(contentsOf: URL(fileURLWithPath: ordersPath)) == ordersBefore)
+        let users = try String(contentsOfFile: usersPath, encoding: .utf8)
+        #expect(users.contains(#"- name: "empty""#))
+        #expect(!users.contains("# kept by hand"))
+        let reopened = try await ProjectStore(path: path).currentProject
+        let saved = await store.currentProject
+        #expect(reopened == saved)
+    }
+
+    @Test("a bundle opened by a relative path saves next to itself")
+    func relativePathSaves() async throws {
+        let path = tempPath("relative")
+        defer { try? FileManager.default.removeItem(atPath: path) }
+        let created = try ProjectStore.create(manifest: manifest(), at: path)
+        try await created.addEndpoint(endpoint())
+        try await created.save()
+
+        let files = FileManager.default
+        let previous = files.currentDirectoryPath
+        #expect(files.changeCurrentDirectoryPath(path))
+        defer { _ = files.changeCurrentDirectoryPath(previous) }
+        let store = try ProjectStore(path: ".")
+        _ = try await store.upsertVariant(endpointID: "get-users", ProjectVariant(name: "empty", status: 204))
+        try await store.save()
+
+        let reopened = try await ProjectStore(path: path).currentProject
+        #expect(reopened.endpoints.first?.variants.count == 2)
+    }
 }
