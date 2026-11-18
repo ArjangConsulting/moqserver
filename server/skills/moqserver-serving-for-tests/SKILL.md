@@ -47,16 +47,16 @@ dependency of your test target instead of hand-rolling these HTTP calls — `Moq
 the likely cause (wrong port, server not started, no such endpoint) rather than raw HTTP failures.
 See `moqserver-scenario-design` for when to reach for this versus `call_count`.
 
-## Scripted authoring in CI
+## Authoring from a script or CI
 
 `moqserver` itself only `serve`s and `validate`s — it has no authoring subcommands, by design (see
-`server/AGENTS.md`'s note on `MoqCLI`'s dependency graph). For a script or CI step that needs to
-create or edit a bundle without an MCP client, use the separate `moq-author` binary instead: each
-subcommand (`project create`, `endpoint upsert`, `variant upsert`, `import har`, ...) is one atomic
-open-mutate-save-exit operation, taking structured arguments as a JSON file (or stdin), and
-printing `{"code", "message"}` on stderr with a non-zero exit on failure. See `server/AGENTS.md`'s
-"Scripted / CI Authoring" section. Prefer a bundle that's already committed and validated for most
-CI runs — reach for `moq-author` when a pipeline genuinely needs to generate or adjust one.
+`server/AGENTS.md`'s note on `MoqCLI`'s dependency graph). To create, inspect or edit a bundle, use
+the separate `moq-author` binary: each subcommand (`project create`, `project validate`,
+`endpoint list`, `endpoint upsert`, `variant upsert`, `import har`, ...) is one atomic operation,
+taking structured arguments as a JSON file (or stdin), and printing `{"code", "message"}` on
+stderr with a non-zero exit on failure. See the `moqserver-authoring` skill. Prefer a bundle
+that's already committed and validated for most CI runs — reach for `moq-author` when a pipeline
+genuinely needs to generate or adjust one.
 
 ## See also
 

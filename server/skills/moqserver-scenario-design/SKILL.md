@@ -45,5 +45,5 @@ sent by the **app under test**, which the test code doesn't control. See
 
 ## See also
 
-- `moqserver-authoring` — setting `call_count`/`strict_call_count` via `moq_upsert_variant`.
+- `moqserver-authoring` — setting `call_count` with `moq-author variant upsert` and `strict_call_count` with `moq-author endpoint upsert`.
 - `moqserver-serving-for-tests` — driving the admin API from a UI test.

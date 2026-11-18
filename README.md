@@ -67,7 +67,8 @@ Fixtures remain unchanged on disk.
 |---------|-----------------|---------|
 | Server binary | Linux x86_64, macOS arm64 | Download the matching release archive, verify its `.sha256`, extract, and place `moqserver` on `PATH` |
 | Server container | Any Docker/OCI host supported by the image | `docker pull ghcr.io/arjangconsulting/moqserver/server:<version>` |
-| MCP server (`moq-mcp`) | Linux x86_64, macOS arm64 | Download the matching release archive, verify its `.sha256`, extract, and register it with an MCP client (Claude Code, Claude Desktop, etc.) as a stdio server; see [`server/AGENTS.md`](server/AGENTS.md) |
+| Authoring CLI (`moq-author`) | Linux x86_64, macOS arm64 | Download the matching release archive, verify its `.sha256`, extract, and place `moq-author` on `PATH`; see [`docs/AUTHORING_CLI.md`](docs/AUTHORING_CLI.md). This is the recommended way to author bundles, for scripts and AI agents alike |
+| MCP server (`moq-mcp`), maintenance only | Linux x86_64, macOS arm64 | For MCP clients that cannot run a command. Download the matching release archive, verify its `.sha256`, extract, and register it as a stdio server; see [`server/AGENTS.md`](server/AGENTS.md) |
 | Studio | macOS, Linux; Windows prereleases only until MSI signing is configured | Download the platform package from GitHub Releases |
 | Source | macOS and Linux server; desktop hosts supported by Compose | Build with `make build` or `make studio-build` |
 
@@ -82,7 +83,7 @@ Stable Studio releases are signed: macOS DMGs are Developer ID signed and notari
 - [`docs/ERROR_CATALOG.md`](docs/ERROR_CATALOG.md): every structured error code the server returns
 - [`docs/ADDONS.md`](docs/ADDONS.md): built-in add-ons and their configuration
 - [`docs/RUNTIME_WORKFLOWS.md`](docs/RUNTIME_WORKFLOWS.md): scenarios, isolated test sessions, and the Studio Runtime Inspector
-- [`docs/AUTHORING_CLI.md`](docs/AUTHORING_CLI.md): script and CI authoring with `moq-author`
+- [`docs/AUTHORING_CLI.md`](docs/AUTHORING_CLI.md): authoring bundles with `moq-author`, for scripts, CI and AI agents
 - [`server/MoqTestSupport/README.md`](server/MoqTestSupport/README.md) and [`clients/kotlin/README.md`](clients/kotlin/README.md): test-support clients
 - [`ARCHITECTURE.md`](ARCHITECTURE.md): current architecture and recovery model
 - [`docs/RELEASE_CHECKLIST.md`](docs/RELEASE_CHECKLIST.md): maintainer release process

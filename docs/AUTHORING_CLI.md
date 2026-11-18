@@ -1,4 +1,7 @@
-# Scripted authoring with moq-author
+# Authoring with moq-author
+
+`moq-author` is the primary way to create, inspect, edit and validate a `.moqproj` bundle, from a
+script, a CI step or an AI agent. Every command is one atomic operation with JSON on stdout.
 
 Download the platform's `moq-author` archive from the release assets, or build locally:
 
@@ -10,8 +13,26 @@ printf '%s' '{"id":"get-users","method":"GET","path":"/users"}' |
   .build/debug/moq-author endpoint upsert --project /tmp/api.moqproj --json -
 printf '%s' '{"endpoint_id":"get-users","name":"success","status":200,"default":true,"body":[]}' |
   .build/debug/moq-author variant upsert --project /tmp/api.moqproj --json -
-.build/debug/moqserver validate --project /tmp/api.moqproj
+.build/debug/moq-author project validate --project /tmp/api.moqproj --strict
 ```
+
+## Reading a bundle
+
+```sh
+moq-author project describe --project ./api.moqproj
+moq-author endpoint list --project ./api.moqproj --method GET --path /users --tag users
+moq-author endpoint get --project ./api.moqproj --id get-users
+moq-author endpoint suggest-id --method GET --path '/users/{id}'
+moq-author schema
+moq-author rules
+```
+
+None of these saves. `schema` prints the JSON Schema for every document and `rules` prints the
+constraints the schema cannot express; both come from the running binary, so they match what it
+enforces. `project validate` prints `{"error_count","warning_count","diagnostics"}` and exits 1
+when there are errors; `--strict` also exits 1 on warnings such as `W_NO_DEFAULT_VARIANT`.
+
+## Output and errors
 
 Every successful operation emits one JSON document on stdout. Operational errors emit one
 `{"code","message"}` JSON document on stderr and exit 1; invalid command arguments use
