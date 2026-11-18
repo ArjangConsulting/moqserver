@@ -6,6 +6,7 @@ on:
     branches: [main]
   schedule:
     - cron: "23 4 * * 1"
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -33,10 +34,48 @@ jobs:
         with:
           fail-on-severity: high
 
-  codeql:
+  # Swift and Kotlin are analyzed in separate jobs. Together on one macOS runner the traced
+  # builds ran past an hour and the analysis never finished.
+  codeql-swift:
     if: ${{ github.event_name != 'pull_request' }}
-    runs-on: macos-latest
-    timeout-minutes: 60
+    # Swift analysis requires macOS. Pinned to macOS 26 because CodeQL cannot trace builds
+    # with Xcode 27, which a future macos-latest will ship.
+    runs-on: macos-26
+    timeout-minutes: 90
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      # Caches dependency sources only. Build products must not be cached: CodeQL analyzes
+      # only what it sees compiled, so a cached build would produce an empty database.
+      - name: Cache SwiftPM dependency sources
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+        with:
+          path: |
+            ~/Library/Caches/org.swift.swiftpm
+            server/.build/repositories
+            server/.build/checkouts
+          key: codeql-swiftpm-${{ hashFiles('server/Package.resolved') }}
+          restore-keys: |
+            codeql-swiftpm-
+      # Resolved before CodeQL starts tracing, so fetching dependencies is not traced.
+      - name: Resolve Swift dependencies
+        run: swift package --package-path server resolve
+      - uses: github/codeql-action/init@33d7b85da1a04171e211befe2c739303b9a4c066
+        with:
+          languages: swift
+          build-mode: manual
+      - name: Build server
+        run: swift build --package-path server
+      - uses: github/codeql-action/analyze@33d7b85da1a04171e211befe2c739303b9a4c066
+        with:
+          category: /language:swift
+
+  codeql-kotlin:
+    if: ${{ github.event_name != 'pull_request' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
     permissions:
       contents: read
       security-events: write
@@ -63,22 +102,21 @@ jobs:
           else
             echo "ORG_GRADLE_PROJECT_codeEditorCompositeBuild=$GITHUB_WORKSPACE/.ci/kmp-code-editor" >> "$GITHUB_ENV"
           fi
-      - uses: github/codeql-action/init@33d7b85da1a04171e211befe2c739303b9a4c066
-        with:
-          languages: java-kotlin,swift
       - uses: actions/setup-java@d1374f8ac74474200d16ef8ecee22c7ae7a51880
         with:
           distribution: temurin
           java-version: "21"
-      - uses: swift-actions/setup-swift@364295d9c23900ce04d4e5cc708387921b4e50f9
-        with:
-          swift-version: "6.2.4"
-          skip-verify-signature: true
       - uses: gradle/actions/setup-gradle@8da46b539cd8fe6ab27ca75128919a18d757604c
         with:
           cache-provider: basic
-      - name: Build analyzed products
-        run: |
-          swift build --package-path server
-          studio/gradlew -p studio :composeApp:compileKotlinDesktop
+      - uses: github/codeql-action/init@33d7b85da1a04171e211befe2c739303b9a4c066
+        with:
+          languages: java-kotlin
+          build-mode: manual
+      # The Kotlin sources must actually compile while CodeQL traces the build, so no
+      # daemon started earlier and no build-cache hits that would skip compilation.
+      - name: Build Studio
+        run: studio/gradlew -p studio :composeApp:compileKotlinDesktop --no-daemon --no-build-cache --rerun-tasks
       - uses: github/codeql-action/analyze@33d7b85da1a04171e211befe2c739303b9a4c066
+        with:
+          category: /language:java-kotlin
