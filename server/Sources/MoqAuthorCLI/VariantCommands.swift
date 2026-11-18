@@ -31,7 +31,7 @@ public struct VariantUpsertCommand: AsyncParsableCommand {
             let data = try readJSONInput(json)
             let ref = try JSONDecoder().decode(VariantEndpointRef.self, from: data)
             let variant = try JSONDecoder().decode(ProjectVariant.self, from: data)
-            let (service, handle) = try await openExistingProject(project, allowNetworkImport: false)
+            let (service, handle) = try await openProjectForEditing(project, allowNetworkImport: false)
             let outcome = try await service.upsertVariant(
                 handle: handle, endpointID: ref.endpointId, variant: variant, autosave: true)
             try printJSON(VariantUpsertResult(outcome: outcome, variant: variant))
@@ -61,7 +61,7 @@ public struct VariantRemoveCommand: AsyncParsableCommand {
 
     public mutating func run() async throws {
         do {
-            let (service, handle) = try await openExistingProject(project, allowNetworkImport: false)
+            let (service, handle) = try await openProjectForEditing(project, allowNetworkImport: false)
             let removedName = try await service.removeVariant(
                 handle: handle, input: RemoveVariantInput(endpointId: endpointId, name: name), autosave: true)
             try printJSON(["removed": removedName])

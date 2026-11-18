@@ -29,8 +29,14 @@ moq-author rules
 
 None of these saves. `schema` prints the JSON Schema for every document and `rules` prints the
 constraints the schema cannot express; both come from the running binary, so they match what it
-enforces. `project validate` prints `{"error_count","warning_count","diagnostics"}` and exits 1
-when there are errors; `--strict` also exits 1 on warnings such as `W_NO_DEFAULT_VARIANT`.
+enforces. `project validate` prints `{"error_count","warning_count","diagnostics"}` and exits 2
+when there are errors; `--strict` also exits 2 on warnings such as `W_NO_DEFAULT_VARIANT`. A bundle
+that cannot be opened at all is an operational error and exits 1.
+
+A command that saves refuses with `E_PROJECT_IS_WORKING_DIRECTORY` when the working directory is
+the bundle or anything under it: a save replaces the bundle directory, which would leave the
+calling shell in a directory that no longer exists. Run from outside and pass the path. Read
+commands are allowed from anywhere.
 
 ## Output and errors
 

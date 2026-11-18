@@ -174,7 +174,7 @@ struct MoqAuthorCLITests {
         var validate = try ProjectValidateCommand.parse(["--project", path])
         try await validate.run()
         var strict = try ProjectValidateCommand.parse(["--project", path, "--strict"])
-        await #expect(throws: ExitCode.failure) {
+        await #expect(throws: ProjectValidateCommand.diagnosticsExitCode) {
             try await strict.run()
         }
     }
@@ -232,5 +232,22 @@ struct MoqAuthorCLITests {
         let rules = AuthoringReference.rulesMarkdown()
         #expect(rules.contains("# moqproj authoring rules"))
         #expect(!rules.contains("moq_upsert_variant"))
+    }
+
+    @Test("a command that saves refuses a working directory inside the bundle")
+    func editingFromInsideBundleIsRefused() async throws {
+        let path = try await makeProject("inside", defaultVariant: true)
+        defer { try? FileManager.default.removeItem(atPath: path) }
+        let endpoints = (path as NSString).appendingPathComponent("endpoints")
+        let parent = (path as NSString).deletingLastPathComponent
+        let name = (path as NSString).lastPathComponent
+
+        #expect(throws: AuthorCLIError.self) { try refuseEditing(bundleAt: ".", from: path) }
+        #expect(throws: AuthorCLIError.self) { try refuseEditing(bundleAt: "..", from: endpoints) }
+        #expect(throws: AuthorCLIError.self) { try refuseEditing(bundleAt: path, from: endpoints) }
+        try refuseEditing(bundleAt: "./" + name, from: parent)
+        try refuseEditing(bundleAt: path, from: parent)
+        // A sibling whose name merely starts with the bundle's name is not inside it.
+        try refuseEditing(bundleAt: path, from: path + "-copy")
     }
 }

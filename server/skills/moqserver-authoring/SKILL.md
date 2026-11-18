@@ -45,7 +45,7 @@ what is enforced. Read them when unsure of a field's shape instead of guessing.
 3. `moq-author variant upsert --project api.moqproj --json variant.json` per response shape. Pass
    an inline `body`, never `body_file`; the store externalizes it to a fixture on save.
 4. `moq-author project validate --project api.moqproj --strict`. It prints every diagnostic as
-   JSON and exits 1 on errors; `--strict` also fails on warnings. Run it after every batch of
+   JSON and exits 2 on errors; `--strict` also fails on warnings. Run it after every batch of
    edits, since authoring deliberately allows an incomplete bundle while you assemble it.
 
 Structured input is a JSON file, or stdin with `--json -`:
@@ -93,8 +93,9 @@ turn those flags on. Importing a URL needs `MOQ_AUTHOR_ALLOW_NETWORK=1`; a local
   `W_NO_DEFAULT_VARIANT`.
 
 - **Run `moq-author` from outside the bundle directory.** A save replaces the bundle directory
-  as a whole, so a shell sitting inside it is left in a directory that no longer exists and the
-  next command fails with `E_LOAD_FAILED`. Pass the bundle's path instead of `cd`-ing into it.
+  as a whole, which would leave a shell sitting inside it in a directory that no longer exists,
+  so every command that saves refuses with `E_PROJECT_IS_WORKING_DIRECTORY`. Pass the bundle's
+  path instead of `cd`-ing into it. Read commands work from anywhere.
 
 - **A save rewrites only the documents that changed.** `project.yml` and untouched endpoint files
   keep their bytes, comments included. The endpoint you edit is regenerated, so comments inside

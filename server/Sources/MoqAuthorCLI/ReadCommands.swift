@@ -1,18 +1,21 @@
 import ArgumentParser
 import MoqService
 
-// Read-only commands. None of them saves, so running one never changes a bundle on disk.
+// Read-only commands. None of them writes a bundle's documents. Opening a bundle may still
+// finish recovering a save that an earlier process was interrupted in.
 
 public struct ProjectValidateCommand: AsyncParsableCommand {
     public static let configuration = CommandConfiguration(
         commandName: "validate",
-        abstract: "Validate a bundle and print every diagnostic as JSON; exits 1 when it has errors"
+        abstract: "Validate a bundle and print every diagnostic as JSON; exits 2 when it has errors"
     )
 
     @Option(name: .long, help: "Path to a .moqproj bundle")
     var project: String
 
-    @Flag(name: .long, help: "Also exit 1 when the bundle has warnings (e.g. W_NO_DEFAULT_VARIANT)")
+    static let diagnosticsExitCode = ExitCode(2)
+
+    @Flag(name: .long, help: "Also exit 2 when the bundle has warnings (e.g. W_NO_DEFAULT_VARIANT)")
     var strict = false
 
     public init() {}
@@ -28,8 +31,9 @@ public struct ProjectValidateCommand: AsyncParsableCommand {
             throw ExitCode.failure
         }
         // The diagnostics are already on stdout; the exit status is what a script branches on.
+        // It differs from the 1 of a bundle that could not be opened at all.
         if result.errorCount > 0 || (strict && result.warningCount > 0) {
-            throw ExitCode.failure
+            throw ProjectValidateCommand.diagnosticsExitCode
         }
     }
 }

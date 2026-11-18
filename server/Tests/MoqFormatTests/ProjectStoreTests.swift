@@ -665,9 +665,9 @@ struct ProjectStoreTests {
 
         let files = FileManager.default
         let previous = files.currentDirectoryPath
-        #expect(files.changeCurrentDirectoryPath(path))
+        #expect(files.changeCurrentDirectoryPath((path as NSString).deletingLastPathComponent))
         defer { _ = files.changeCurrentDirectoryPath(previous) }
-        let store = try ProjectStore(path: ".")
+        let store = try ProjectStore(path: "./" + (path as NSString).lastPathComponent)
         _ = try await store.upsertVariant(endpointID: "get-users", ProjectVariant(name: "empty", status: 204))
         try await store.save()
 

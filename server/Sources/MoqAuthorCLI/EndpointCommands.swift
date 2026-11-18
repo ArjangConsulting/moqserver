@@ -25,7 +25,7 @@ public struct EndpointUpsertCommand: AsyncParsableCommand {
     public mutating func run() async throws {
         do {
             let input = try decodeJSON(EndpointUpsertInput.self, from: json)
-            let (service, handle) = try await openExistingProject(project, allowNetworkImport: false)
+            let (service, handle) = try await openProjectForEditing(project, allowNetworkImport: false)
             let document = try await service.upsertEndpoint(handle: handle, input: input, autosave: true)
             try printJSON(document)
         } catch {
@@ -51,7 +51,7 @@ public struct EndpointRemoveCommand: AsyncParsableCommand {
 
     public mutating func run() async throws {
         do {
-            let (service, handle) = try await openExistingProject(project, allowNetworkImport: false)
+            let (service, handle) = try await openProjectForEditing(project, allowNetworkImport: false)
             try await service.removeEndpoint(handle: handle, id: id, autosave: true)
             try printJSON(["removed": id])
         } catch {
