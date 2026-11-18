@@ -28,7 +28,7 @@ public struct ImportHARCommand: AsyncParsableCommand {
     public mutating func run() async throws {
         do {
             let common = try authorImportOptions(options)
-            let (service, handle) = try await openExistingProject(project, allowNetworkImport: false)
+            let (service, handle) = try await openProjectForEditing(project, allowNetworkImport: false)
             let summary = try await service.importHAR(
                 handle: handle, input: ImportHARInput(path: harPath), common: common, autosave: true)
             try printJSON(summary)
@@ -73,7 +73,7 @@ public struct ImportOpenAPICommand: AsyncParsableCommand {
         do {
             let auth = try authJson.map { try decodeJSON(ImportAuthInput.self, from: $0) }
             let common = try authorImportOptions(options)
-            let (service, handle) = try await openExistingProject(
+            let (service, handle) = try await openProjectForEditing(
                 project, allowNetworkImport: allowNetworkImportFromEnvironment)
             let summary = try await service.importOpenAPI(
                 handle: handle, input: ImportOpenAPIInput(source: source, auth: auth), common: common, autosave: true)

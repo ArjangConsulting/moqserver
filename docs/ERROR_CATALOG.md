@@ -88,6 +88,7 @@ Any other status a request is aborted with reports its reason phrase in snake_ca
 
 | Code | Recovery |
 |---|---|
+| `E_PROJECT_IS_WORKING_DIRECTORY` | `moq-author` only: a command that saves was run from inside the bundle directory, which a save replaces. Run it from outside and pass the bundle path. |
 | `E_PROJECT_BUSY` | Another cooperating process holds the bundle lock; retry after it finishes. |
 | `E_PROJECT_CHANGED` | Disk content changed or the loaded bundle was deleted; reload or preserve edits with Save As. |
 | `E_INVALID_ARGUMENTS` | Correct CLI flags; moq-author exits 64 with a JSON error on stderr. |
