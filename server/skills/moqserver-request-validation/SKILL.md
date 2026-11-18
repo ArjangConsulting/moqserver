@@ -38,5 +38,5 @@ are a separate, additive check. Use `auth.type` for "does the server accept this
 
 ## See also
 
-- `moqserver-authoring` — where `request_rules`/`auth` live in `moq_upsert_endpoint`'s input.
+- `moqserver-authoring` — where `request_rules`/`auth` live in the `moq-author endpoint upsert` input.
 - `moqserver-scenario-design` — this is about validating input, not about response selection.

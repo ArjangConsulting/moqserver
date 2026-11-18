@@ -27,6 +27,9 @@ public actor ProjectStore {
     /// Opens an existing `.moqproj` bundle, first recovering any interrupted transaction left
     /// behind by a previous crash (see `recoverIfNeeded`).
     public init(path: String) throws {
+        // Saving stages the bundle beside itself, so the path needs a real parent: a relative
+        // path such as `.` has none until it is resolved against the working directory.
+        let path = Self.absolutePath(path)
         let lock = try BundleLock(path: path)
         defer { withExtendedLifetime(lock) {} }
         let recovered = try Self.recoverIfNeeded(at: path)
@@ -39,7 +42,7 @@ public actor ProjectStore {
     /// The manifest and directory structure are written immediately (not staged), so a crash
     /// right after creation still leaves a reopenable, if empty, project.
     public static func create(manifest: ProjectManifest, at path: String) throws -> ProjectStore {
-        let destination = (path as NSString).standardizingPath
+        let destination = Self.absolutePath(path)
         try FileManager.default.createDirectory(
             atPath: (destination as NSString).deletingLastPathComponent, withIntermediateDirectories: true)
         let lock = try BundleLock(path: destination)
@@ -72,7 +75,7 @@ public actor ProjectStore {
     /// "save to a new path" are the same operation here.
     public func rename(to newPath: String) throws {
         let oldPath = project.projectPath
-        let newDestination = (newPath as NSString).standardizingPath
+        let newDestination = Self.absolutePath(newPath)
         guard newDestination != oldPath else {
             try save()
             return
@@ -150,7 +153,7 @@ public actor ProjectStore {
                 project, into: stagingDir, sourceRoot: sourceRoot ?? project.projectPath)
 
             // The staged bundle must be structurally reloadable before we touch the destination.
-            _ = try ProjectLoader().load(from: stagingDir)
+            let reloaded = try ProjectLoader().load(from: stagingDir)
 
             let destinationExists = FileManager.default.fileExists(atPath: destination)
             if !destinationExists, fingerprint != nil { throw ProjectStoreError.projectChangedOnDisk }
@@ -159,6 +162,10 @@ public actor ProjectStore {
                 if let expected = fingerprint, onDisk != expected {
                     throw ProjectStoreError.projectChangedOnDisk
                 }
+            }
+
+            if destinationExists {
+                Self.keepUnchangedDocuments(staged: reloaded, stagingDir: stagingDir, destination: destination)
             }
 
             var backupCreated = false
@@ -197,6 +204,54 @@ public actor ProjectStore {
             }
             throw error
         }
+    }
+
+    private static func absolutePath(_ path: String) -> String {
+        URL(fileURLWithPath: path).standardizedFileURL.path
+    }
+
+    /// Puts the on-disk bytes back for every staged document whose content did not change.
+    ///
+    /// The writer regenerates each YAML document from the model, which discards comments, key
+    /// order and quoting. Without this, changing one variant rewrites `project.yml` and every
+    /// endpoint file, burying the real change in a diff and deleting hand-written comments.
+    /// A document that did change is still regenerated in full.
+    private static func keepUnchangedDocuments(staged: MoqProject, stagingDir: String, destination: String) {
+        guard let existing = try? ProjectLoader().load(from: destination) else { return }
+
+        var unchanged: [String] = []
+        if existing.manifest == staged.manifest { unchanged.append("project.yml") }
+        let existingByID = Dictionary(existing.endpoints.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+        for endpoint in staged.endpoints where existingByID[endpoint.id] == endpoint {
+            unchanged.append("endpoints/\(endpoint.id).yml")
+        }
+
+        let files = FileManager.default
+        var generated: [(path: String, data: Data)] = []
+        for relativePath in unchanged {
+            let originalPath = (destination as NSString).appendingPathComponent(relativePath)
+            let stagedPath = (stagingDir as NSString).appendingPathComponent(relativePath)
+            guard let original = files.contents(atPath: originalPath),
+                let regenerated = files.contents(atPath: stagedPath),
+                original != regenerated,
+                (try? original.write(to: URL(fileURLWithPath: stagedPath))) != nil
+            else { continue }
+            generated.append((stagedPath, regenerated))
+        }
+        guard !generated.isEmpty else { return }
+
+        // An endpoint file may be named after an id other than the one it holds, in which case
+        // the bytes just copied describe a different endpoint. Keep them only if the staged
+        // bundle still loads to exactly what was about to be saved.
+        if let kept = try? ProjectLoader().load(from: stagingDir), sameDocuments(kept, staged) { return }
+        for file in generated {
+            try? file.data.write(to: URL(fileURLWithPath: file.path))
+        }
+    }
+
+    private static func sameDocuments(_ first: MoqProject, _ second: MoqProject) -> Bool {
+        first.manifest == second.manifest
+            && first.endpoints.sorted { $0.id < $1.id } == second.endpoints.sorted { $0.id < $1.id }
     }
 
     /// Replaces the entire in-memory manifest and endpoint set in one step, keeping

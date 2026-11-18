@@ -15,7 +15,7 @@ public struct EndpointUpsertCommand: AsyncParsableCommand {
         help: ArgumentHelp(
             "Path to a JSON file matching the endpoint upsert schema (id, method, path, alias, "
                 + "description, reference_name, tags, auth, request_rules, operation, network, "
-                + "strict_call_count) — see moq://schema/moqproj.json or docs/FORMAT_IMPLEMENTATION.md. "
+                + "strict_call_count) — see `moq-author schema` or docs/FORMAT_IMPLEMENTATION.md. "
                 + "Pass - to read from stdin. Variants are managed separately via `variant upsert`/`remove`.")
     )
     var json: String
@@ -25,7 +25,7 @@ public struct EndpointUpsertCommand: AsyncParsableCommand {
     public mutating func run() async throws {
         do {
             let input = try decodeJSON(EndpointUpsertInput.self, from: json)
-            let (service, handle) = try await openExistingProject(project, allowNetworkImport: false)
+            let (service, handle) = try await openProjectForEditing(project, allowNetworkImport: false)
             let document = try await service.upsertEndpoint(handle: handle, input: input, autosave: true)
             try printJSON(document)
         } catch {
@@ -51,7 +51,7 @@ public struct EndpointRemoveCommand: AsyncParsableCommand {
 
     public mutating func run() async throws {
         do {
-            let (service, handle) = try await openExistingProject(project, allowNetworkImport: false)
+            let (service, handle) = try await openProjectForEditing(project, allowNetworkImport: false)
             try await service.removeEndpoint(handle: handle, id: id, autosave: true)
             try printJSON(["removed": id])
         } catch {

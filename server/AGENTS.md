@@ -62,7 +62,13 @@ binary's dependency graph.
 > serve deterministically. `moq-mcp` makes no LLM calls either — its tools are deterministic;
 > the calling agent (Claude Code, etc.) generates bodies/headers/cookies itself.
 
-## MCP Server
+## MCP Server (maintenance only)
+
+`moq-author` (next section) is the primary authoring surface for scripts, CI and AI agents.
+`moq-mcp` stays for MCP clients that cannot run a command, but it is frozen: fix bugs, add no
+tools, and land new authoring capability in `MoqService` plus `moq-author`. The reasons are
+practical. It needs a built binary registered per client and machine, and its long-lived
+in-memory session is the source of the stale-state bugs the one-shot CLI cannot have.
 
 `moq-mcp` is a standalone binary (built from `MoqMCPRun`/`MoqMCP`) that lets an AI agent author
 `.moqproj` bundles directly over the [Model Context Protocol](https://modelcontextprotocol.io),
@@ -83,20 +89,28 @@ Tools cover project lifecycle (`moq_create_project`, `moq_open_project`, `moq_de
 URL-based OpenAPI import is disabled unless the server process has `MOQ_MCP_ALLOW_NETWORK=1` set
 — `moq_import_openapi` with a local file path always works.
 
-## Scripted / CI Authoring
+## Authoring CLI
 
-`moq-author` is a standalone binary (built from `MoqAuthorRun`/`MoqAuthorCLI`) for authoring a
-bundle from a shell script or CI step, with no MCP client and no agent in the loop. `moq-mcp` and
-`moq-format` both assume a long-lived client speaking a stateful protocol — exactly what a one-shot
-script doesn't have — so `moq-author` instead runs one atomic operation per invocation: open (or
-create) the project, apply exactly one mutation, save, exit. Build and run it with:
+`moq-author` is a standalone binary (built from `MoqAuthorRun`/`MoqAuthorCLI`) and the primary way
+to author a bundle, for a shell script, a CI step or an AI agent alike. `moq-mcp` and `moq-format`
+both assume a long-lived client speaking a stateful protocol; `moq-author` instead runs one atomic
+operation per invocation: open (or create) the project, read or apply exactly one mutation, save,
+exit. Build and run it with:
 
 ```bash
 swift build --product moq-author
 .build/debug/moq-author project create --path ./my-api.moqproj --name "My API"
 .build/debug/moq-author endpoint upsert --project ./my-api.moqproj --json endpoint.json
 .build/debug/moq-author variant upsert --project ./my-api.moqproj --json variant.json
+.build/debug/moq-author endpoint list --project ./my-api.moqproj
+.build/debug/moq-author project validate --project ./my-api.moqproj --strict
 ```
+
+Read commands (`project describe`/`validate`, `endpoint list`/`get`/`suggest-id`) never save.
+`schema` and `rules` print the format contract from `MoqService.AuthoringReference`, the same
+source the `moq-mcp` resources read. `format/schema.json` is compiled into `MoqService` with
+`.embedInCode` (as `Sources/MoqService/Resources/schema.json`, kept byte-identical by test), so
+no binary needs a resource bundle beside it.
 
 Structured arguments (an endpoint, a variant, an import request) are passed as a JSON file or via
 stdin (`--json -`) rather than as a bespoke flag per nested field — the same `Decodable` payload
@@ -119,12 +133,13 @@ adds it as a dependency.
 
 ## AI Skills for `.moqproj` authors
 
-`server/skills/` ships repo-local skills for any agent authoring or driving a bundle via
-`moq-mcp` — not for working on moqserver's own source (that's this file and the sections below).
+`server/skills/` ships repo-local skills for any agent authoring a bundle with `moq-author` or
+driving a served one — not for working on moqserver's own source (that's this file and the
+sections below).
 They encode traps that have cost real debugging time in downstream consumers:
 
-- `moqserver-authoring` — bundle layout, the tool sequence, HAR/OpenAPI import curation, the
-  case-insensitive-variant-name and hand-edit-while-open traps.
+- `moqserver-authoring` — bundle layout, the `moq-author` command sequence, HAR/OpenAPI import
+  curation, the case-insensitive-variant-name and missing-default traps.
 - `moqserver-scenario-design` — `call_count` (bundle-wide, not test-scoped) vs runtime variant
   selection via the admin API (test-scoped).
 - `moqserver-request-validation` — `request_rules`/`global_rules`, and why a bundle-wide auth rule
