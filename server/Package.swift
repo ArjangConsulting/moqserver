@@ -105,7 +105,12 @@ let package = Package(
                 .target(name: "MoqFormat"),
                 .target(name: "MoqImport"),
             ],
-            path: "Sources/MoqService"
+            path: "Sources/MoqService",
+            // Compiled into the binary rather than copied as a bundle, so moq-author, moq-format
+            // and moq-mcp each stay a single relocatable file.
+            resources: [
+                .embedInCode("Resources/schema.json")
+            ]
         ),
 
         // MARK: - MoqMCP
@@ -120,10 +125,7 @@ let package = Package(
                 .target(name: "MoqService"),
                 .product(name: "MCP", package: "swift-sdk"),
             ],
-            path: "Sources/MoqMCP",
-            resources: [
-                .copy("Resources/schema.json")
-            ]
+            path: "Sources/MoqMCP"
         ),
 
         // MARK: - MoqMCPRun
@@ -323,6 +325,8 @@ let package = Package(
                 .target(name: "MoqAuthorCLI"),
                 .target(name: "MoqCore"),
                 .target(name: "MoqFormat"),
+                .target(name: "MoqService"),
+                .product(name: "ArgumentParser", package: "swift-argument-parser"),
             ],
             path: "Tests/MoqAuthorCLITests"
         ),

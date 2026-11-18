@@ -1,73 +1,121 @@
 ---
 name: moqserver-authoring
-description: Author and edit .moqproj mock bundles with the moq-mcp tools — project/endpoint/variant lifecycle, HAR/OpenAPI import, and the traps that have caused real data loss.
+description: Author and edit .moqproj mock bundles with the moq-author CLI — project/endpoint/variant lifecycle, HAR/OpenAPI import, validation, and the traps that have caused real data loss.
 ---
 
 # Authoring a `.moqproj` bundle
 
-Use this when creating or editing a moqserver mock bundle through the `moq-mcp` tools
-(`moq_create_project`, `moq_open_project`, `moq_upsert_endpoint`, `moq_upsert_variant`, ...).
+Use this when creating or editing a moqserver mock bundle. The tool is the `moq-author` CLI: every
+command opens the bundle, does one thing, saves, and exits, so there is no session to keep in
+sync and nothing to register with your client.
+
+```sh
+swift build --package-path <moqserver>/server --product moq-author
+<moqserver>/server/.build/debug/moq-author --help
+```
+
+Release archives also ship a prebuilt `moq-author`.
 
 ## The bundle shape
 
 A `.moqproj` is a directory: `project.yml` (manifest + `global_rules` + auth/network defaults),
 one `endpoints/<id>.yml` per endpoint, and `fixtures/` holding externalized response bodies
-(`body_file`). You almost never write these files directly — the MCP tools own them.
+(`body_file`). Let `moq-author` write these files; hand-edit only what it has no command for.
 
-## The normal tool sequence
+## Look before you write
 
-1. `moq_create_project` (new bundle) or `moq_open_project` (existing one).
-2. `moq_upsert_endpoint` per route — creates or replaces one endpoint's metadata (method, path,
-   auth, request_rules). Reserved paths (`/health`, `/_admin*`, `/_auth*`) are rejected.
-3. `moq_upsert_variant` per response shape on that endpoint — inline `body`, never `body_file`;
-   the store externalizes it to a fixture at save time.
-4. `moq_validate_project` — check **both** `errorCount` and `warningCount`. Errors block save;
-   warnings (e.g. no default variant) don't, but they're telling you something real.
-5. `moq_save_project`.
+```sh
+moq-author schema                      # the JSON Schema for every document
+moq-author rules                       # rules the schema cannot express
+moq-author project describe --project api.moqproj
+moq-author endpoint list --project api.moqproj [--method GET] [--path /users] [--tag users]
+moq-author endpoint get --project api.moqproj --id get-users
+```
 
-Read `moq://schema/moqproj.json` and `moq://docs/authoring-rules` when unsure of a field's shape
-or a validation rule's exact wording — they're generated from the real schema/validator, not
-hand-copied, so they can't drift from what actually gets enforced.
+`schema` and `rules` are generated from the real schema and validator, so they cannot drift from
+what is enforced. Read them when unsure of a field's shape instead of guessing.
+
+## The normal sequence
+
+1. `moq-author project create --path api.moqproj --name "My API"` for a new bundle.
+2. `moq-author endpoint upsert --project api.moqproj --json endpoint.json` per route. It creates
+   or replaces one endpoint's metadata (method, path, auth, `request_rules`). Reserved paths
+   (`/health`, `/_admin*`, `/_auth*`) are rejected. `moq-author endpoint suggest-id --method GET
+   --path /users/{id}` prints the id the importers would use.
+3. `moq-author variant upsert --project api.moqproj --json variant.json` per response shape. Pass
+   an inline `body`, never `body_file`; the store externalizes it to a fixture on save.
+4. `moq-author project validate --project api.moqproj --strict`. It prints every diagnostic as
+   JSON and exits 2 on errors; `--strict` also fails on warnings. Run it after every batch of
+   edits, since authoring deliberately allows an incomplete bundle while you assemble it.
+
+Structured input is a JSON file, or stdin with `--json -`:
+
+```sh
+printf '%s' '{"endpoint_id":"get-users","name":"empty","status":200,"body":[]}' |
+  moq-author variant upsert --project api.moqproj --json -
+```
+
+Success prints one JSON document on stdout. Failure prints `{"code","message"}` on stderr and
+exits non-zero; branch on `code` (`E_...`), not on the message text.
+
+## Importing a capture or a spec
+
+```sh
+moq-author import har --project api.moqproj --har-path capture.har --options options.json
+moq-author import openapi --project api.moqproj --source openapi.yaml
+```
+
+`options.json` is `{"accept_paths": ["/v1/users"], "update_details": false,
+"replace_existing_bodies": false}`. Imports keep existing endpoint details and bodies unless you
+turn those flags on. Importing a URL needs `MOQ_AUTHOR_ALLOW_NETWORK=1`; a local file never does.
 
 ## Traps — each of these has caused real data loss or real confusion
 
-- **Filter the capture before importing.** `moq_import_har` imports every request in the file.
-  A raw device/browser capture is full of analytics pings, ad requests, and traffic to domains
-  you don't own. Trim the HAR (or use the importer's selection/filter input) to the endpoints you
-  actually want mocked *before* importing — cleaning up a bundle after the fact is much more work
-  than not importing the noise in the first place.
+- **Filter the capture before importing.** A raw device or browser HAR is full of analytics
+  pings, ad requests, and traffic to domains you don't own. Name the endpoints you want first and
+  pass them as `accept_paths`. Cleaning a bundle afterwards is far more work.
 
-- **Never hand-edit a bundle's YAML while an MCP session holds it open.** Every mutation tool
-  (`moq_upsert_endpoint`, `moq_remove_endpoint`, `moq_upsert_variant`, `moq_remove_variant`) fails
-  fast with `E_PROJECT_CHANGED` if the bundle changed on disk since it was opened — that's
-  intentional, not a bug to work around. If you need to hand-edit, close the session's hold on the
-  file first (or reopen with `moq_open_project` afterward) rather than fighting the error.
+- **Check a capture for secrets before it touches the bundle.** Search the HAR for `Bearer `,
+  `eyJ`, `token`, `password` and email addresses. Anything not already redacted becomes a
+  committed fixture.
 
 - **Variant names are case-insensitive.** `Success` and `success` are the *same* variant.
-  `moq_upsert_variant` with a name that matches an existing one in any casing **replaces it in
-  place** — the response text says `Replaced variant ...`, not `Created`. Read that response
-  before issuing a follow-up `moq_remove_variant`; removing "the old spelling" after a case-only
-  upsert deletes the variant you just wrote, not a leftover duplicate.
+  Upserting a name that matches an existing one in any casing **replaces it in place**: the
+  result says `"outcome": "replaced"` with `previous_name`. Read that before removing "the old
+  spelling", or you delete the variant you just wrote.
 
-- **Generated variant names are lowercase by convention** (`success`, `error` from HAR/OpenAPI
-  import). Keep hand-authored variant names lowercase too, so a later import into the same bundle
-  can't silently collide with — or shadow — one you wrote by hand.
+- **Keep variant names lowercase.** The importers generate `success`, `error`. A hand-authored
+  `Success` will collide with a later import into the same bundle.
 
-- **A missing default variant is a warning, not an error.** `moq_validate_project` passes clean on
-  an endpoint that has variants but none marked `default: true` — selection then falls back to
-  declaration order, so a variant declared first (often an error response, if that's how the
-  import happened to order things) silently wins under normal content negotiation. Treat
-  `W_NO_DEFAULT_VARIANT` as something to fix, not ignore.
+- **A missing default variant is a warning, not an error.** An endpoint with variants but none
+  marked `default: true` falls back to declaration order, so whichever variant was declared first
+  (often an error response) silently wins. `project validate --strict` catches it as
+  `W_NO_DEFAULT_VARIANT`.
 
-## No agent in the loop?
+- **Run `moq-author` from outside the bundle directory.** A save replaces the bundle directory
+  as a whole, which would leave a shell sitting inside it in a directory that no longer exists,
+  so every command that saves refuses with `E_PROJECT_IS_WORKING_DIRECTORY`. Pass the bundle's
+  path instead of `cd`-ing into it. Read commands work from anywhere.
 
-This skill assumes `moq-mcp` (an agent session). A shell script or CI step with no MCP client
-should use `moq-author` instead — see `moqserver-serving-for-tests`'s "Scripted authoring in CI"
-and `server/AGENTS.md`'s "Scripted / CI Authoring". It wraps the same `MoqService`, so every trap
-above (case-insensitive names, the staleness guard, lowercase generated names) applies there too.
+- **A save rewrites only the documents that changed.** `project.yml` and untouched endpoint files
+  keep their bytes, comments included. The endpoint you edit is regenerated, so comments inside
+  that one file are lost; put lasting notes in `description` fields.
+
+- **A sequence of commands is not a transaction.** Each command saves on its own. If two run
+  against the same bundle at once, one fails with `E_PROJECT_BUSY` or `E_PROJECT_CHANGED`; rerun
+  it against the new state.
+
+## Using an MCP client instead
+
+`moq-mcp` exposes the same operations as MCP tools (`moq_upsert_variant`, ...) for clients with
+no shell. It is in maintenance and gets no new capability. It also holds the bundle open in
+memory, which adds one trap the CLI does not have: hand-editing the YAML while a session is open
+makes every later mutation fail with `E_PROJECT_CHANGED` until you reopen the project. Prefer the
+CLI whenever you can run a command.
 
 ## See also
 
 - `moqserver-request-validation` — `request_rules`/`global_rules`, and the bundle-wide-auth trap.
 - `moqserver-scenario-design` — choosing `call_count` vs runtime variant selection.
 - `moqserver-serving-for-tests` — running the bundle you just authored.
+- `docs/AUTHORING_CLI.md` — the full command reference.
