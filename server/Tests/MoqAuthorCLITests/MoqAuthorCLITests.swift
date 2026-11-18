@@ -1,4 +1,6 @@
+import ArgumentParser
 import Foundation
+import MoqService
 import Testing
 
 @testable import MoqAuthorCLI
@@ -129,5 +131,106 @@ struct MoqAuthorCLITests {
         let manifest = try String(
             contentsOfFile: (path as NSString).appendingPathComponent("project.yml"), encoding: .utf8)
         #expect(manifest.contains("First"))
+    }
+
+    /// A bundle with one endpoint; `defaultVariant` controls whether its only variant is the default.
+    func makeProject(_ label: String, defaultVariant: Bool) async throws -> String {
+        let path = tempPath(label)
+        var create = try ProjectCreateCommand.parse(["--path", path, "--name", "CI Project"])
+        try await create.run()
+        var upsertEndpoint = try EndpointUpsertCommand.parse([
+            "--project", path, "--json",
+            try writeJSON(
+                "endpoint-\(label)",
+                #"{"id": "get-users", "method": "GET", "path": "/users", "tags": ["users"]}"#),
+        ])
+        try await upsertEndpoint.run()
+        var upsertVariant = try VariantUpsertCommand.parse([
+            "--project", path, "--json",
+            try writeJSON(
+                "variant-\(label)",
+                #"{"endpoint_id": "get-users", "name": "success", "status": 200, "default": \#(defaultVariant)}"#),
+        ])
+        try await upsertVariant.run()
+        return path
+    }
+
+    @Test("project validate passes a clean bundle, with and without --strict")
+    func validatePassesCleanBundle() async throws {
+        let path = try await makeProject("validate-clean", defaultVariant: true)
+        defer { try? FileManager.default.removeItem(atPath: path) }
+
+        var validate = try ProjectValidateCommand.parse(["--project", path])
+        try await validate.run()
+        var strict = try ProjectValidateCommand.parse(["--project", path, "--strict"])
+        try await strict.run()
+    }
+
+    @Test("project validate fails on a warning only under --strict")
+    func validateStrictFailsOnWarning() async throws {
+        let path = try await makeProject("validate-warning", defaultVariant: false)
+        defer { try? FileManager.default.removeItem(atPath: path) }
+
+        var validate = try ProjectValidateCommand.parse(["--project", path])
+        try await validate.run()
+        var strict = try ProjectValidateCommand.parse(["--project", path, "--strict"])
+        await #expect(throws: ExitCode.failure) {
+            try await strict.run()
+        }
+    }
+
+    @Test("project validate fails on a missing bundle")
+    func validateFailsOnMissingBundle() async throws {
+        var validate = try ProjectValidateCommand.parse(["--project", tempPath("missing")])
+        await #expect(throws: ExitCode.failure) {
+            try await validate.run()
+        }
+    }
+
+    @Test("endpoint list, get and suggest-id read without changing the bundle")
+    func readCommandsLeaveBundleUntouched() async throws {
+        let path = try await makeProject("read", defaultVariant: true)
+        defer { try? FileManager.default.removeItem(atPath: path) }
+        let endpointFile = (path as NSString).appendingPathComponent("endpoints/get-users.yml")
+        let before = try String(contentsOfFile: endpointFile, encoding: .utf8)
+
+        var list = try EndpointListCommand.parse(["--project", path, "--method", "GET", "--tag", "users"])
+        try await list.run()
+        var get = try EndpointGetCommand.parse(["--project", path, "--id", "get-users"])
+        try await get.run()
+        var suggest = try EndpointSuggestIDCommand.parse(["--method", "GET", "--path", "/users/{id}"])
+        try await suggest.run()
+
+        #expect(try String(contentsOfFile: endpointFile, encoding: .utf8) == before)
+    }
+
+    @Test("endpoint get fails on an unknown id")
+    func endpointGetUnknownFails() async throws {
+        let path = try await makeProject("get-unknown", defaultVariant: true)
+        defer { try? FileManager.default.removeItem(atPath: path) }
+
+        var get = try EndpointGetCommand.parse(["--project", path, "--id", "nope"])
+        await #expect(throws: ExitCode.failure) {
+            try await get.run()
+        }
+    }
+
+    @Test("the embedded schema is format/schema.json, byte-for-byte")
+    func embeddedSchemaMatchesSource() throws {
+        // #filePath: <repoRoot>/server/Tests/MoqAuthorCLITests/MoqAuthorCLITests.swift
+        let repoRoot = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let source = try String(contentsOf: repoRoot.appendingPathComponent("format/schema.json"), encoding: .utf8)
+        #expect(AuthoringReference.schemaJSON == source)
+    }
+
+    @Test("the authoring rules name no single entry point's tools")
+    func rulesAreEntryPointNeutral() {
+        let rules = AuthoringReference.rulesMarkdown()
+        #expect(rules.contains("# moqproj authoring rules"))
+        #expect(!rules.contains("moq_upsert_variant"))
     }
 }

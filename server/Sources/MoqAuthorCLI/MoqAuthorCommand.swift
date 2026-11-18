@@ -1,24 +1,25 @@
 import ArgumentParser
 
-/// `moq-author` — scriptable, non-agent `.moqproj` authoring. Each subcommand is one atomic
-/// operation: open (or create) the project, apply exactly one mutation, save, exit — there is no
-/// interactive session to keep open between invocations, so a shell script or CI step composes
-/// several calls the same way it would any other CLI tool.
+/// `moq-author` — the primary `.moqproj` authoring surface for scripts, CI and AI agents alike.
+/// Each subcommand is one atomic operation: open (or create) the project, read or apply exactly
+/// one mutation, save, exit — there is no session to keep open between invocations, so a caller
+/// composes several calls the same way it would any other CLI tool, and can never act on a stale
+/// in-memory copy of the bundle.
 ///
-/// This exists alongside `moq-mcp` (agent-driven, over MCP) and `moq-format` (Studio-driven, over
-/// JSON-RPC on stdio) rather than folding into either: both of those speak a protocol meant for a
-/// long-lived client, which is exactly what a one-shot script doesn't have. All three wrap the
-/// same `MoqService`, so behavior (including error codes) is identical across every entry point —
-/// only the framing differs.
+/// `moq-mcp` (over MCP) and `moq-format` (Studio, over JSON-RPC on stdio) wrap the same
+/// `MoqService`, so behavior (including error codes) is identical across every entry point — only
+/// the framing differs. `moq-mcp` is in maintenance: new authoring capability lands here.
 public struct MoqAuthorCommand: AsyncParsableCommand {
     public static let configuration = CommandConfiguration(
         commandName: "moq-author",
-        abstract: "Script- and CI-friendly .moqproj authoring (create/edit a bundle without an MCP client)",
+        abstract: "Create, inspect, edit and validate .moqproj bundles, one atomic command at a time",
         subcommands: [
             ProjectCommand.self,
             EndpointCommand.self,
             VariantCommand.self,
             ImportCommand.self,
+            SchemaCommand.self,
+            RulesCommand.self,
         ]
     )
 
@@ -28,8 +29,8 @@ public struct MoqAuthorCommand: AsyncParsableCommand {
 public struct ProjectCommand: AsyncParsableCommand {
     public static let configuration = CommandConfiguration(
         commandName: "project",
-        abstract: "Create or inspect a .moqproj bundle",
-        subcommands: [ProjectCreateCommand.self, ProjectDescribeCommand.self]
+        abstract: "Create, inspect, or validate a .moqproj bundle",
+        subcommands: [ProjectCreateCommand.self, ProjectDescribeCommand.self, ProjectValidateCommand.self]
     )
     public init() {}
 }
@@ -37,8 +38,11 @@ public struct ProjectCommand: AsyncParsableCommand {
 public struct EndpointCommand: AsyncParsableCommand {
     public static let configuration = CommandConfiguration(
         commandName: "endpoint",
-        abstract: "Create, update, or remove an endpoint's metadata",
-        subcommands: [EndpointUpsertCommand.self, EndpointRemoveCommand.self]
+        abstract: "List, read, create, update, or remove endpoints",
+        subcommands: [
+            EndpointListCommand.self, EndpointGetCommand.self, EndpointSuggestIDCommand.self,
+            EndpointUpsertCommand.self, EndpointRemoveCommand.self,
+        ]
     )
     public init() {}
 }

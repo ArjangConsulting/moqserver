@@ -15,7 +15,7 @@ public struct EndpointUpsertCommand: AsyncParsableCommand {
         help: ArgumentHelp(
             "Path to a JSON file matching the endpoint upsert schema (id, method, path, alias, "
                 + "description, reference_name, tags, auth, request_rules, operation, network, "
-                + "strict_call_count) — see moq://schema/moqproj.json or docs/FORMAT_IMPLEMENTATION.md. "
+                + "strict_call_count) — see `moq-author schema` or docs/FORMAT_IMPLEMENTATION.md. "
                 + "Pass - to read from stdin. Variants are managed separately via `variant upsert`/`remove`.")
     )
     var json: String
