@@ -21,7 +21,7 @@ defaults:
 
 jobs:
   preflight:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     outputs:
       prerelease: ${{ steps.version.outputs.prerelease }}
@@ -83,7 +83,7 @@ jobs:
 
   verify:
     needs: preflight
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
@@ -153,7 +153,7 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - os: ubuntu-latest
+          - os: ubuntu-24.04
             suffix: linux-x86_64
           - os: macos-latest
             suffix: macos-arm64
@@ -200,7 +200,7 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - os: ubuntu-latest
+          - os: ubuntu-24.04
             suffix: linux-x86_64
           - os: macos-latest
             suffix: macos-arm64
@@ -263,7 +263,7 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - os: ubuntu-latest
+          - os: ubuntu-24.04
             suffix: linux-x86_64
           - os: macos-latest
             suffix: macos-arm64
@@ -405,7 +405,7 @@ jobs:
 
   studio-linux:
     needs: [preflight, verify, format-binary]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 60
     permissions:
       contents: read
@@ -489,7 +489,7 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - os: ubuntu-latest
+          - os: ubuntu-24.04
             suffix: linux-x86_64
           - os: macos-latest
             suffix: macos-arm64
@@ -545,7 +545,7 @@ jobs:
 
   sbom:
     needs: [preflight, verify]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
@@ -563,7 +563,7 @@ jobs:
 
   docker:
     needs: [preflight, verify]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 60
     permissions:
       contents: read
@@ -608,7 +608,7 @@ jobs:
   publish:
     if: ${{ always() && needs.preflight.result == 'success' && needs.verify.result == 'success' && needs.server-binary.result == 'success' && needs.mcp-binary.result == 'success' && needs.author-binary.result == 'success' && needs.format-binary.result == 'success' && needs.studio-macos.result == 'success' && needs.studio-linux.result == 'success' && needs.sbom.result == 'success' && needs.docker.result == 'success' }}
     needs: [preflight, verify, server-binary, mcp-binary, author-binary, format-binary, studio-macos, studio-linux, sbom, docker]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 20
     permissions:
       contents: write
