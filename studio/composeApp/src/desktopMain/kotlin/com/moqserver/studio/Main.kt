@@ -241,4 +241,12 @@ private fun FrameWindowScope.StudioMainWindow(
 	if (appState.showExport) {
 		ExportWindow(appState, projectActions)
 	}
+	// Closing the project closes its settings, so reopening a project does not reopen them.
+	val hasProject = state.project != null
+	LaunchedEffect(hasProject) {
+		if (!hasProject) appState.showProjectSettings = false
+	}
+	if (appState.showProjectSettings) {
+		state.project?.let { ProjectSettingsWindow(it, appState, viewModel) }
+	}
 }

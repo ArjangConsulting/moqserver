@@ -1,8 +1,10 @@
 package com.moqserver.studio
 
 import com.moqserver.studio.endpointdetail.NumericInputUpdate
+import com.moqserver.studio.endpointdetail.acceptedBoundedIntInput
 import com.moqserver.studio.endpointdetail.acceptedDoubleInput
 import com.moqserver.studio.endpointdetail.acceptedIntInput
+import com.moqserver.studio.endpointdetail.acceptedOptionalNonNegativeIntInput
 import com.moqserver.studio.endpointdetail.acceptedPositiveIntOrNullInput
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -48,4 +50,23 @@ class NumericInputHelpersTest {
     fun `acceptedPositiveIntOrNullInput ignores unchanged normalized null values`() {
         assertEquals(NumericInputUpdate.Ignored, acceptedPositiveIntOrNullInput("0", currentValue = null))
     }
+}
+
+class OptionalAndBoundedNumericInputTest {
+	@Test
+	fun `an optional count can be cleared and can be zero`() {
+		assertEquals(NumericInputUpdate.Accepted(null), acceptedOptionalNonNegativeIntInput("", currentValue = 4))
+		assertEquals(NumericInputUpdate.Accepted(0), acceptedOptionalNonNegativeIntInput("0", currentValue = null))
+		assertEquals(NumericInputUpdate.Ignored, acceptedOptionalNonNegativeIntInput("-1", currentValue = null))
+		assertEquals(NumericInputUpdate.Ignored, acceptedOptionalNonNegativeIntInput("", currentValue = null))
+	}
+
+	@Test
+	fun `a bounded count ignores values outside its range`() {
+		assertEquals(NumericInputUpdate.Ignored, acceptedBoundedIntInput("0", currentValue = 5, minimum = 1))
+		val maximum = 60_000
+		assertEquals(NumericInputUpdate.Ignored, acceptedBoundedIntInput("60001", 5, minimum = 0, maximum = maximum))
+		val accepted = acceptedBoundedIntInput("60000", 5, minimum = 0, maximum = maximum)
+		assertEquals(NumericInputUpdate.Accepted(maximum), accepted)
+	}
 }

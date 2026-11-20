@@ -534,6 +534,15 @@ public struct ProjectValidator: ProjectValidating {
                     contentsOf: validateRulePatterns(
                         [("headers", rules.headers), ("query_params", rules.queryParams), ("cookies", rules.cookies)],
                         file: fileName, fieldPrefix: "request_rules", endpointID: endpoint.id))
+                // A blank entry matches no Content-Type, so every request with a body would get 415.
+                for (index, contentType) in (rules.acceptedContentTypes ?? []).enumerated()
+                where contentType.trimmingCharacters(in: .whitespaces).isEmpty {
+                    diagnostics.append(
+                        .init(
+                            severity: .error, message: "Accepted content types must not be blank.", file: fileName,
+                            field: "request_rules.accepted_content_types[\(index)]", code: .blankAcceptedContentType,
+                            endpointID: endpoint.id))
+                }
             }
 
             // Rule 12: verify_cookies must be boolean (enforced by Codable, but check presence)
@@ -611,13 +620,43 @@ public struct ProjectValidator: ProjectValidating {
 
     // MARK: - Rule Validation
 
+    /// Match types that compare the request's value with `match`. Without a `match` there is
+    /// nothing to compare, so `RuleEvaluator` only checks presence, and only for a required rule.
+    private static let valueComparisonMatchTypes: Set<MatchType> = [
+        .equalTo, .notEqualTo, .contains, .notContains, .beginsWith, .endsWith, .gt, .gte, .lt, .lte,
+    ]
+
     /// A `matches_regex` pattern that doesn't compile would reject every request with a 400, so
-    /// it is a load-time error instead.
+    /// it is a load-time error instead. A comparison that is not required and has no value to
+    /// compare against enforces nothing, which is almost never what the author meant, so it is a
+    /// warning.
     private func validateRulePatterns(
         _ groups: [(field: String, rules: [RuleMatcher]?)], file: String, fieldPrefix: String, endpointID: String?
     ) -> [ValidationDiagnostic] {
         var diagnostics: [ValidationDiagnostic] = []
         for group in groups {
+            // A blank name matches no request value, so a required blank rule rejects every request.
+            for (index, rule) in (group.rules ?? []).enumerated()
+            where rule.name.trimmingCharacters(in: .whitespaces).isEmpty {
+                diagnostics.append(
+                    .init(
+                        severity: .error, message: "Rule names in \(fieldPrefix).\(group.field) must not be blank.",
+                        file: file, field: "\(fieldPrefix).\(group.field)[\(index)].name", code: .blankRuleName,
+                        endpointID: endpointID))
+            }
+            for (index, rule) in (group.rules ?? []).enumerated() {
+                guard let matchType = rule.matchType, rule.match == nil, rule.required != true,
+                    Self.valueComparisonMatchTypes.contains(matchType)
+                else { continue }
+                diagnostics.append(
+                    .init(
+                        severity: .warning,
+                        message:
+                            "Rule \"\(rule.name)\" uses match_type \(matchType.rawValue) with no match value and is not "
+                            + "required, so it accepts any request. Set match, or set required: true to require the value.",
+                        file: file, field: "\(fieldPrefix).\(group.field)[\(index)].match",
+                        code: .ruleWithoutMatchValue, endpointID: endpointID))
+            }
             for (index, rule) in (group.rules ?? []).enumerated() where rule.matchType == .matchesRegex {
                 let field = "\(fieldPrefix).\(group.field)[\(index)].match"
                 guard let pattern = rule.match else {

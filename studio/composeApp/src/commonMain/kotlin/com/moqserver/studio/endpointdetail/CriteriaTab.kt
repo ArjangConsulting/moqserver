@@ -3,6 +3,7 @@ package com.moqserver.studio.endpointdetail
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import com.moqserver.studio.designsystem.StudioDimens
 import com.moqserver.studio.projectformat.*
@@ -32,6 +33,14 @@ private object CriteriaTabStrings {
     const val JITTER_TOOLTIP = "Random variation in milliseconds added to the latency to simulate an unstable connection."
     const val PACKET_LOSS_LABEL = "Packet Loss %"
     const val PACKET_LOSS_TOOLTIP = "Percentage of requests that will be dropped to simulate packet loss (0-100)."
+    const val REQUEST_VALIDATION = "Request Validation"
+    const val REQUEST_VALIDATION_TOOLTIP =
+        "Checked on every request to this endpoint before a variant is chosen. A failing request gets a 4xx error."
+    const val VARIANT_MATCHING = "Variant Matching"
+    const val VARIANT_MATCHING_TOOLTIP = "Request values that make this variant the one served."
+    const val REQUEST_HEADERS = "Request Headers"
+    const val NO_REQUEST_HEADERS = "No header rules. Project-wide required headers still apply."
+    const val DELETE_REQUEST_HEADER = "Delete header rule"
     const val QUERY_PARAMETERS = "Query Parameters"
     const val PARAMETER_NAME = "Parameter Name"
     const val NO_QUERY_PARAMS = "No query parameters configured."
@@ -91,13 +100,28 @@ internal fun CriteriaTab(
 		NetworkSection(network = network, onUpdate = onUpdateNetwork)
 		StrictCallCountSection(strictCallCount = strictCallCount, onUpdate = onUpdateStrictCallCount)
 		HorizontalDivider()
+		SectionTitle(CriteriaTabStrings.REQUEST_VALIDATION, CriteriaTabStrings.REQUEST_VALIDATION_TOOLTIP)
+		RuleMatcherTableEditor(
+			title = CriteriaTabStrings.REQUEST_HEADERS,
+			nameColumnLabel = CriteriaTabStrings.HEADER_NAME,
+			emptyText = CriteriaTabStrings.NO_REQUEST_HEADERS,
+			items = requestRules.headers.orEmpty(),
+			onUpdate = { onUpdate(requestRules.copy(headers = it.ifEmpty { null })) },
+			onAdd = { onUpdate(requestRules.copy(headers = requestRules.headers.orEmpty() + newRequiredRule())) },
+			onClear = { onUpdate(requestRules.copy(headers = null)) },
+			deleteContentDescription = CriteriaTabStrings.DELETE_REQUEST_HEADER,
+			availableMatchTypes = requestRuleMatchTypes,
+			showRequiredColumn = true,
+		)
 		QueryParamsEditor(
 			items = requestRules.queryParams ?: emptyList(),
 			onUpdate = { queryParams ->
 				onUpdate(requestRules.copy(queryParams = queryParams.ifEmpty { null }))
 			},
 		)
+		RequestBodyRulesSection(requestRules = requestRules, onUpdate = onUpdate)
 		HorizontalDivider()
+		SectionTitle(CriteriaTabStrings.VARIANT_MATCHING, CriteriaTabStrings.VARIANT_MATCHING_TOOLTIP)
 		RuleMatcherTableEditor(
 			title = CriteriaTabStrings.VARIANT_MATCH_QUERY,
 			nameColumnLabel = CriteriaTabStrings.PARAMETER_NAME,
@@ -166,25 +190,34 @@ private fun AuthConfigSection(
 	)
 
 	if (auth != null) {
-		Row(horizontalArrangement = Arrangement.spacedBy(StudioDimens.l)) {
-			MenuPicker(
-				items = AuthType.entries,
-				selected = auth.type,
-				onSelect = { onUpdate(auth.copy(type = it, headerName = it.defaultHeaderName())) },
-				label = CriteriaTabStrings.TYPE_LABEL,
-				itemLabel = { it.displayLabel() },
-				modifier = Modifier.width(StudioDimens.tableNameColumnWidth),
-			)
+		AuthFields(auth = auth, onUpdate = onUpdate)
+	}
+}
 
-			if (auth.type == AuthType.API_KEY || auth.type == AuthType.HEADER) {
-				FormTextField(
-					value = auth.headerName ?: auth.type.defaultHeaderName() ?: "",
-					onValueChange = { onUpdate(auth.copy(headerName = it.ifBlank { null })) },
-					label = CriteriaTabStrings.HEADER_NAME_LABEL,
-					singleLine = true,
-					modifier = Modifier.weight(1f),
-				)
-			}
+/** Auth type and, for header-based types, the header name. */
+@Composable
+internal fun AuthFields(
+	auth: ProjectAuthConfig,
+	onUpdate: (ProjectAuthConfig) -> Unit,
+) {
+	Row(horizontalArrangement = Arrangement.spacedBy(StudioDimens.l)) {
+		MenuPicker(
+			items = AuthType.entries,
+			selected = auth.type,
+			onSelect = { onUpdate(auth.copy(type = it, headerName = it.defaultHeaderName())) },
+			label = CriteriaTabStrings.TYPE_LABEL,
+			itemLabel = { it.displayLabel() },
+			modifier = Modifier.width(StudioDimens.tableConditionColumnWidth),
+		)
+
+		if (auth.type == AuthType.API_KEY || auth.type == AuthType.HEADER) {
+			FormTextField(
+				value = auth.headerName ?: auth.type.defaultHeaderName() ?: "",
+				onValueChange = { onUpdate(auth.copy(headerName = it.ifBlank { null })) },
+				label = CriteriaTabStrings.HEADER_NAME_LABEL,
+				singleLine = true,
+				modifier = Modifier.weight(1f),
+			)
 		}
 	}
 }
@@ -218,47 +251,56 @@ private fun NetworkSection(
 	)
 
 	if (network != null) {
-		Row(horizontalArrangement = Arrangement.spacedBy(StudioDimens.l)) {
-            FormTextField(
-                value = (network.latencyMs ?: 0).toString(),
-                onValueChange = {
-                    when (val update = acceptedIntInput(it, network.latencyMs ?: 0)) {
-                        is NumericInputUpdate.Accepted -> onUpdate(network.copy(latencyMs = update.value))
-                        NumericInputUpdate.Ignored -> Unit
-                    }
-                },
-                label = CriteriaTabStrings.LATENCY_LABEL,
-                singleLine = true,
-                modifier = Modifier.weight(1f),
-                trailingContent = { InfoTooltip(CriteriaTabStrings.LATENCY_TOOLTIP) },
-            )
-            FormTextField(
-                value = (network.jitterMs ?: 0).toString(),
-                onValueChange = {
-                    when (val update = acceptedIntInput(it, network.jitterMs ?: 0)) {
-                        is NumericInputUpdate.Accepted -> onUpdate(network.copy(jitterMs = update.value))
-                        NumericInputUpdate.Ignored -> Unit
-                    }
-                },
-                label = CriteriaTabStrings.JITTER_LABEL,
-                singleLine = true,
-                modifier = Modifier.weight(1f),
-                trailingContent = { InfoTooltip(CriteriaTabStrings.JITTER_TOOLTIP) },
-            )
-            FormTextField(
-                value = (network.packetLossPercent ?: 0.0).toString(),
-                onValueChange = {
-                    when (val update = acceptedDoubleInput(it, network.packetLossPercent ?: 0.0)) {
-                        is NumericInputUpdate.Accepted -> onUpdate(network.copy(packetLossPercent = update.value))
-                        NumericInputUpdate.Ignored -> Unit
-                    }
-                },
-                label = CriteriaTabStrings.PACKET_LOSS_LABEL,
-                singleLine = true,
-                modifier = Modifier.weight(1f),
-                trailingContent = { InfoTooltip(CriteriaTabStrings.PACKET_LOSS_TOOLTIP) },
-            )
-		}
+		NetworkFields(network = network, onUpdate = onUpdate)
+	}
+}
+
+/** Latency, jitter and packet loss fields. */
+@Composable
+internal fun NetworkFields(
+	network: NetworkBehavior,
+	onUpdate: (NetworkBehavior) -> Unit,
+) {
+	Row(horizontalArrangement = Arrangement.spacedBy(StudioDimens.l)) {
+        FormTextField(
+            value = (network.latencyMs ?: 0).toString(),
+            onValueChange = {
+                when (val update = acceptedIntInput(it, network.latencyMs ?: 0)) {
+                    is NumericInputUpdate.Accepted -> onUpdate(network.copy(latencyMs = update.value))
+                    NumericInputUpdate.Ignored -> Unit
+                }
+            },
+            label = CriteriaTabStrings.LATENCY_LABEL,
+            singleLine = true,
+            modifier = Modifier.weight(1f),
+            trailingContent = { InfoTooltip(CriteriaTabStrings.LATENCY_TOOLTIP) },
+        )
+        FormTextField(
+            value = (network.jitterMs ?: 0).toString(),
+            onValueChange = {
+                when (val update = acceptedIntInput(it, network.jitterMs ?: 0)) {
+                    is NumericInputUpdate.Accepted -> onUpdate(network.copy(jitterMs = update.value))
+                    NumericInputUpdate.Ignored -> Unit
+                }
+            },
+            label = CriteriaTabStrings.JITTER_LABEL,
+            singleLine = true,
+            modifier = Modifier.weight(1f),
+            trailingContent = { InfoTooltip(CriteriaTabStrings.JITTER_TOOLTIP) },
+        )
+        FormTextField(
+            value = (network.packetLossPercent ?: 0.0).toString(),
+            onValueChange = {
+                when (val update = acceptedDoubleInput(it, network.packetLossPercent ?: 0.0)) {
+                    is NumericInputUpdate.Accepted -> onUpdate(network.copy(packetLossPercent = update.value))
+                    NumericInputUpdate.Ignored -> Unit
+                }
+            },
+            label = CriteriaTabStrings.PACKET_LOSS_LABEL,
+            singleLine = true,
+            modifier = Modifier.weight(1f),
+            trailingContent = { InfoTooltip(CriteriaTabStrings.PACKET_LOSS_TOOLTIP) },
+        )
 	}
 }
 
@@ -274,13 +316,22 @@ private fun QueryParamsEditor(
 		items = items,
 		onUpdate = onUpdate,
 		onAdd = {
-			onUpdate(items + RuleMatcher(name = "", required = true))
+			onUpdate(items + newRequiredRule())
 		},
 		onClear = {
 			onUpdate(emptyList())
 		},
 		deleteContentDescription = CriteriaTabStrings.DELETE_QUERY_PARAM,
-		availableMatchTypes = headerMatchTypes,
+		availableMatchTypes = requestRuleMatchTypes,
 		fallbackMatchType = MatchType.EQUAL_TO,
+		showRequiredColumn = true,
 	)
+}
+
+@Composable
+private fun SectionTitle(title: String, tooltip: String) {
+	Row(horizontalArrangement = Arrangement.spacedBy(StudioDimens.xs), verticalAlignment = Alignment.CenterVertically) {
+		Text(title, style = MaterialTheme.typography.titleMedium)
+		InfoTooltip(tooltip)
+	}
 }

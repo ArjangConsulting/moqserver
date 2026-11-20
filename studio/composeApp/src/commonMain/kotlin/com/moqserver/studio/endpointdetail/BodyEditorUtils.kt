@@ -1,5 +1,6 @@
 package com.moqserver.studio.endpointdetail
 
+import com.moqserver.studio.projectformat.BodyEncoding
 import com.moqserver.studio.projectformat.EndpointDocument
 import com.moqserver.studio.projectformat.ProjectVariant
 import com.moqserver.studio.projectformat.VariantRequestMatch
@@ -159,6 +160,9 @@ private fun validatedJsonPrimitive(element: JsonPrimitive): YamlValue {
 }
 
 internal fun ProjectVariant.isJsonBody(text: String? = null): Boolean {
+	// A base64 body is the encoded bytes, never JSON text, whatever its Content-Type says.
+	if (bodyEncoding == BodyEncoding.BASE64) return false
+
 	val contentType = headers
 		?.entries
 		?.firstOrNull { it.key.equals("Content-Type", ignoreCase = true) }

@@ -71,6 +71,7 @@ fun EndpointDetailPane(
     onGenerateBody: (ProjectVariant, String) -> Unit = { _, _ -> },
     readFixture: (String, String) -> String? = { _, _ -> null },
     initialVariantName: String? = null,
+    globalRules: GlobalRules? = null,
 ) {
     var showDeleteConfirm by remember { mutableStateOf(false) }
 
@@ -114,6 +115,7 @@ fun EndpointDetailPane(
             onVariantReferenceSyncPreferenceChange = onVariantReferenceSyncPreferenceChange,
             onGenerateBody = onGenerateBody,
             initialVariantName = initialVariantName,
+            globalRules = globalRules,
         )
     }
 }
@@ -241,6 +243,7 @@ private fun VariantSection(
     onVariantReferenceSyncPreferenceChange: (String, VariantReferenceSyncPreference?) -> Unit = { _, _ -> },
     onGenerateBody: (ProjectVariant, String) -> Unit = { _, _ -> },
     initialVariantName: String? = null,
+    globalRules: GlobalRules? = null,
 ) {
     var selectedVariantIndex by remember(endpoint.id, initialVariantName) {
         val index = if (initialVariantName != null) {
@@ -333,6 +336,7 @@ private fun VariantSection(
             onVariantReferenceSyncPreferenceChange = onVariantReferenceSyncPreferenceChange,
             onGenerateBody = { prompt -> onGenerateBody(variant, prompt) },
             onRequestRemove = { requestRemove(activeVariantIndex) },
+            inheritedVerifyCookies = globalRules?.verifyCookies == true,
         )
     }
 }
@@ -431,6 +435,7 @@ private fun VariantDetailCard(
     onVariantReferenceSyncPreferenceChange: (String, VariantReferenceSyncPreference?) -> Unit,
     onGenerateBody: (String) -> Unit,
     onRequestRemove: () -> Unit,
+    inheritedVerifyCookies: Boolean = false,
 ) {
     ThemeCard(modifier = Modifier.fillMaxWidth(), contentPadding = PaddingValues(StudioDimens.none)) {
         Column(
@@ -473,6 +478,7 @@ private fun VariantDetailCard(
 
                 VariantDetailTab.COOKIES -> CookiesTab(
                     requestRules = requestRules,
+                    inheritedVerifyCookies = inheritedVerifyCookies,
                     onUpdate = { updatedRules ->
                         onUpdateEndpoint(endpoint.copy(requestRules = updatedRules.normalize()))
                     },

@@ -116,32 +116,7 @@ object ImportConverter {
         val existingAuth = existing.auth?.let { it.type to it.headerName }
         val authChanged = parsedAuth != existingAuth
 
-        val parsedRequiredHeaders = parsed.requiredHeaders.toSet()
-        val existingRequiredHeaders = existing.requestRules?.headers
-            ?.filter { it.required == true }
-            ?.map { it.name }
-            ?.toSet()
-            ?: emptySet()
-
-        val parsedQueryParams = if (parsed.queryParameters.isNotEmpty()) {
-            parsed.queryParameters.map { it.name }.toSet()
-        } else {
-            parsed.requiredQueryParameters.toSet()
-        }
-        val existingQueryParams = existing.requestRules?.queryParams
-            ?.map { it.name }
-            ?.toSet()
-            ?: emptySet()
-
-        val parsedCookies = parsed.cookies.map { it.name }.toSet()
-        val existingCookies = existing.requestRules?.cookies
-            ?.map { it.name }
-            ?.toSet()
-            ?: emptySet()
-
-        val requestRulesChanged = parsedRequiredHeaders != existingRequiredHeaders ||
-            parsedQueryParams != existingQueryParams ||
-            parsedCookies != existingCookies
+        val requestRulesChanged = requestRulesChanged(parsed, existing.requestRules)
 
         val parsedTags = parsed.tags.toSet()
         val existingTags = existing.tags?.toSet() ?: emptySet()
@@ -454,6 +429,27 @@ object ImportConverter {
         }
     }
 
+    /** Whether the spec's request requirements differ from the rules the endpoint has now. */
+    private fun requestRulesChanged(parsed: ParsedEndpoint, existing: RequestRules?): Boolean {
+        val parsedRequiredHeaders = parsed.requiredHeaders.toSet()
+        val existingRequiredHeaders = existing?.headers.orEmpty().filter { it.required == true }.map { it.name }.toSet()
+        val parsedQueryParams = if (parsed.queryParameters.isNotEmpty()) {
+            parsed.queryParameters.map { it.name }.toSet()
+        } else {
+            parsed.requiredQueryParameters.toSet()
+        }
+        val existingQueryParams = existing?.queryParams.orEmpty().map { it.name }.toSet()
+        val parsedCookies = parsed.cookies.map { it.name }.toSet()
+        val existingCookies = existing?.cookies.orEmpty().map { it.name }.toSet()
+        val bodyRulesChanged = parsed.requiresBody != (existing?.requiresBody ?: false) ||
+            parsed.acceptedContentTypes.toSet() != existing?.acceptedContentTypes.orEmpty().toSet()
+
+        return parsedRequiredHeaders != existingRequiredHeaders ||
+            parsedQueryParams != existingQueryParams ||
+            parsedCookies != existingCookies ||
+            bodyRulesChanged
+    }
+
     private fun buildRequestRules(parsed: ParsedEndpoint): RequestRules? {
         val headers = parsed.requiredHeaders.map { RuleMatcher(name = it, required = true) }
             .ifEmpty { null }
@@ -463,9 +459,20 @@ object ImportConverter {
             }
             .ifEmpty { null }
         val cookies = parsed.cookies.ifEmpty { null }
+        val requiresBody = parsed.requiresBody.takeIf { it }
+        val acceptedContentTypes = parsed.acceptedContentTypes.ifEmpty { null }
 
-        return if (headers != null || queryParams != null || cookies != null) {
-            RequestRules(headers = headers, queryParams = queryParams, cookies = cookies)
+        // Same shape as Swift's ImportConverter.buildRequestRules, so a spec imported through
+        // Studio and through moq-author produces the same bundle.
+        val hasAnyRule = listOf(headers, queryParams, cookies, requiresBody, acceptedContentTypes).any { it != null }
+        return if (hasAnyRule) {
+            RequestRules(
+                headers = headers,
+                queryParams = queryParams,
+                cookies = cookies,
+                requiresBody = requiresBody,
+                acceptedContentTypes = acceptedContentTypes,
+            )
         } else {
             null
         }

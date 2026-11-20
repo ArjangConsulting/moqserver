@@ -11,6 +11,8 @@ import androidx.compose.ui.window.rememberWindowState
 import com.moqserver.studio.domain.ImportState
 import com.moqserver.studio.domain.StudioRootViewModel
 import com.moqserver.studio.domain.StudioState
+import com.moqserver.studio.projectformat.MoqProject
+import com.moqserver.studio.projectsettings.ProjectSettingsScreen
 
 /** Modal review of an import or update-from-spec before it touches the project. */
 @Composable
@@ -65,6 +67,36 @@ internal fun ImportReviewWindow(
 					onConfirm = importActions::confirmImport,
 					onCancel = viewModel::cancelImport,
 					modifier = Modifier.fillMaxSize(),
+				)
+			}
+		}
+	}
+}
+
+/**
+ * Non-modal editor for `project.yml`. Edits go through the view model like endpoint edits, so they
+ * mark the project dirty and take part in undo and redo.
+ */
+@Composable
+internal fun ProjectSettingsWindow(
+	project: MoqProject,
+	appState: StudioAppState,
+	viewModel: StudioRootViewModel,
+) {
+	Window(
+		onCloseRequest = { appState.showProjectSettings = false },
+		title = "Project Settings — ${project.manifest.name}",
+		state = rememberWindowState(
+			width = StudioDimens.projectSettingsWindowWidth,
+			height = StudioDimens.projectSettingsWindowHeight,
+		),
+	) {
+		StudioTheme(themeMode = appState.themeMode) {
+			Surface(modifier = Modifier.fillMaxSize()) {
+				ProjectSettingsScreen(
+					manifest = project.manifest,
+					endpoints = project.endpoints,
+					onUpdateManifest = viewModel::updateManifest,
 				)
 			}
 		}

@@ -291,6 +291,18 @@ public struct ProjectWriter: ProjectWriting {
             lines.append("\(pad)  call_count: \(callCount)")
         }
 
+        if let stream = variant.stream {
+            lines.append("\(pad)  stream:")
+            lines.append("\(pad)    chunk_bytes: \(stream.chunkBytes)")
+            // 0 is the decoder's default, so it is left out like `body_encoding: utf8`.
+            if stream.intervalMs != 0 {
+                lines.append("\(pad)    interval_ms: \(stream.intervalMs)")
+            }
+            if let disconnectAfterBytes = stream.disconnectAfterBytes {
+                lines.append("\(pad)    disconnect_after_bytes: \(disconnectAfterBytes)")
+            }
+        }
+
         return lines
     }
 

@@ -6,17 +6,8 @@ import com.moqserver.studio.projectformat.RequestRules
 import com.moqserver.studio.projectformat.VariantRequestMatch
 import kotlinx.serialization.json.*
 
-/** Column widths shared across headers and cookies tables. */
-internal val headerMatchTypes = listOf(
-	MatchType.CONTAINS,
-	MatchType.NOT_CONTAINS,
-	MatchType.BEGINS_WITH,
-	MatchType.ENDS_WITH,
-	MatchType.MATCHES_REGEX,
-	MatchType.IS_EMPTY,
-	MatchType.NOT_EMPTY,
-	MatchType.EQUAL_TO,
-)
+/** Every comparison the server evaluates for header, query and cookie rules. */
+internal val requestRuleMatchTypes: List<MatchType> = MatchType.entries
 
 internal enum class VariantDetailTab(val title: String) {
 	SUMMARY("Summary"),
@@ -73,12 +64,19 @@ internal fun <T> List<T>.updated(index: Int, value: T): List<T> {
 	return toMutableList().also { it[index] = value }
 }
 
+/**
+ * Drops empty rule lists, and the whole block when nothing is left. Every field counts: an
+ * endpoint whose only rules are `requires_body` or `accepted_content_types` keeps them, and an
+ * explicit `verify_cookies: false` stays because it overrides a project-wide `true`.
+ */
 internal fun RequestRules.normalize(): RequestRules? {
-	return takeIf {
-		!it.headers.isNullOrEmpty() ||
-			!it.queryParams.isNullOrEmpty() ||
-			!it.cookies.isNullOrEmpty()
-	}
+	val normalized = copy(
+		headers = headers?.ifEmpty { null },
+		queryParams = queryParams?.ifEmpty { null },
+		cookies = cookies?.ifEmpty { null },
+		acceptedContentTypes = acceptedContentTypes?.ifEmpty { null },
+	)
+	return normalized.takeIf { it != RequestRules() }
 }
 
 internal fun VariantRequestMatch.normalize(): VariantRequestMatch? {

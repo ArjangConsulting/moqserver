@@ -126,8 +126,6 @@ fun RuleMatcherTableEditor(
 				HorizontalDivider()
 
 				items.forEachIndexed { index, item ->
-					val conditionEnabled = !showRequiredColumn || item.required == true
-
 					Row(
 						modifier = Modifier.fillMaxWidth().padding(horizontal = StudioDimens.xs, vertical = StudioDimens.m),
 						horizontalArrangement = Arrangement.spacedBy(StudioDimens.xs),
@@ -151,12 +149,7 @@ fun RuleMatcherTableEditor(
 								ThemeCheckbox(
 									checked = item.required == true,
 									onCheckedChange = { checked ->
-										val updated = if (checked) {
-											item.copy(required = true, matchType = item.matchType ?: fallbackMatchType)
-										} else {
-											item.copy(required = null, matchType = null)
-										}
-										onUpdate(items.updated(index, normalizeItem(updated)))
+										onUpdate(items.updated(index, normalizeItem(item.withRequired(checked))))
 									},
 									label = MatcherTableStrings.REQUIRED,
 								)
@@ -164,18 +157,9 @@ fun RuleMatcherTableEditor(
 						}
 						MatchConditionEditor(
 							ruleMatcher = item,
-							onUpdate = { updated ->
-								if (!conditionEnabled) return@MatchConditionEditor
-								val normalized = if (showRequiredColumn) {
-									normalizeItem(updated.copy(required = true))
-								} else {
-									normalizeItem(updated)
-								}
-								onUpdate(items.updated(index, normalized))
-							},
+							onUpdate = { updated -> onUpdate(items.updated(index, normalizeItem(updated))) },
 							availableMatchTypes = availableMatchTypes,
 							fallbackMatchType = fallbackMatchType,
-							enabled = conditionEnabled,
 							dropdownWidth = StudioDimens.tableConditionColumnWidth * tableScale,
 							valueWidth = StudioDimens.tableMatchValueColumnWidth * tableScale,
 							showValuePlaceholder = true,

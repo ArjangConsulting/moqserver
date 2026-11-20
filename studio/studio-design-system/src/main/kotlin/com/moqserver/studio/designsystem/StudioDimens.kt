@@ -110,4 +110,6 @@ object StudioDimens {
 	val preferencesWindowHeight = 680.dp
 	val exportWindowWidth = 640.dp
 	val exportWindowHeight = 720.dp
+	val projectSettingsWindowWidth = 960.dp
+	val projectSettingsWindowHeight = 820.dp
 }

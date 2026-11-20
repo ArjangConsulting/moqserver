@@ -55,6 +55,11 @@ internal fun FrameWindowScope.StudioMenuBar(
 			}
 			Separator()
 			Item(
+				"Project Settings...",
+				enabled = hasProject,
+				onClick = { commands.appState.showProjectSettings = true },
+			)
+			Item(
 				"Generate Client Code...",
 				enabled = hasProject,
 				onClick = {
