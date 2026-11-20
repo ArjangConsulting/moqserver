@@ -314,6 +314,8 @@ private fun VariantEditingControls(
 
 	DefaultAndDelayRow(variant = variant, onUpdate = onUpdate, canRemove = canRemove)
 
+	StreamSettingsSection(variant = variant, onUpdate = onUpdate)
+
 	if (canRemove) {
 		Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
 			ThemeTextButton(

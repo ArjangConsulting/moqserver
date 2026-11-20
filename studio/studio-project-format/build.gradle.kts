@@ -123,6 +123,9 @@ class ProjectModelsGenerator(schemaFile: File) {
         "variant.default" to Override(type = "Boolean?", propertyName = "isDefault"),
         "variant.body" to Override(type = "YamlValue?"),
         "variant.body_encoding" to Override(type = "BodyEncoding?"),
+        // An inline object with integer fields; the generic "object" mapping would make it a
+        // string map, which cannot decode `chunk_bytes: 5`.
+        "variant.stream" to Override(type = "ResponseStream?"),
         "ruleMatcher.match_type" to Override(type = "MatchType?"),
     )
 
@@ -177,6 +180,7 @@ class ProjectModelsGenerator(schemaFile: File) {
         val manifestProps = properties(defs.getValue("projectManifest"))
         emitClass("projectManifest.defaults", "ProjectDefaults", objectAt(manifestProps, "defaults"))
         emitClass("projectManifest.global_rules", "GlobalRules", objectAt(manifestProps, "global_rules"))
+        emitClass("variant.stream", "ResponseStream", objectAt(properties(defs.getValue("variant")), "stream"))
 
         emitFormatRules()
         return out.toString()

@@ -48,6 +48,38 @@ struct RequestRulesFormatTests {
         #expect(fields.contains("global_rules.required_headers[0].match"))
     }
 
+    @Test("A comparison with no match value warns only when it is not required")
+    func comparisonWithoutValueWarns() {
+        let rules = RequestRules(
+            headers: [
+                RuleMatcher(name: "X-Api-Version", required: true, matchType: .equalTo),
+                RuleMatcher(name: "X-Trace", required: true, matchType: .require),
+                RuleMatcher(name: "X-Empty", match: "", matchType: .equalTo),
+            ],
+            cookies: [RuleMatcher(name: "sid", matchType: .gte)])
+        let diagnostics = ProjectValidator().validate(project(endpoint(rules: rules)))
+        let warnings = diagnostics.filter { $0.code == .ruleWithoutMatchValue }
+        #expect(warnings.map(\.field) == ["request_rules.cookies[0].match"])
+        #expect(warnings.allSatisfy { $0.severity == .warning && $0.endpointID == "create-order" })
+    }
+
+    @Test("Blank rule names and blank accepted content types are errors naming the field")
+    func blankEntriesRejected() {
+        let rules = RequestRules(
+            headers: [RuleMatcher(name: " ", required: true, matchType: .require)],
+            acceptedContentTypes: ["application/json", ""])
+        let global = GlobalRules(requiredHeaders: [RuleMatcher(name: "", required: true)])
+        let diagnostics = ProjectValidator().validate(project(endpoint(rules: rules), globalRules: global))
+        #expect(
+            diagnostics.filter { $0.code == .blankRuleName }.compactMap(\.field).sorted() == [
+                "global_rules.required_headers[0].name", "request_rules.headers[0].name",
+            ])
+        #expect(
+            diagnostics.filter { $0.code == .blankAcceptedContentType }.map(\.field)
+                == ["request_rules.accepted_content_types[1]"])
+        #expect(diagnostics.filter { $0.code == .blankRuleName }.allSatisfy { $0.severity == .error })
+    }
+
     @Test("requires_body and accepted_content_types reach the runtime endpoint")
     func converterCarriesBodyRules() throws {
         let rules = RequestRules(requiresBody: true, acceptedContentTypes: ["application/json"])

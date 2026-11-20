@@ -348,6 +348,7 @@ internal fun StudioWorkspaceScreen(
 						},
                                     readFixture = readFixture,
                                     initialVariantName = state.pendingVariantName,
+                                    globalRules = state.project?.manifest?.globalRules,
                                 )
                             }
                         },

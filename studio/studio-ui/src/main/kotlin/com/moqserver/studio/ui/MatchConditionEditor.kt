@@ -42,8 +42,24 @@ internal val MatchType.displayName: String
 internal val MatchType.needsValue: Boolean
 	get() = this !in setOf(MatchType.REQUIRE, MatchType.IS_EMPTY, MatchType.NOT_EMPTY)
 
-internal val RuleMatcher.effectiveMatchType: MatchType
-	get() = matchType ?: if (match != null) MatchType.EQUAL_TO else MatchType.REQUIRE
+/**
+ * The comparison the server applies to this rule, mirroring `RuleEvaluator.resolvedMatchType` in
+ * Swift: with no `match_type`, a required rule without a value checks presence, anything else is
+ * an equality check.
+ */
+val RuleMatcher.effectiveMatchType: MatchType
+	get() = matchType ?: if (required == true && match == null) MatchType.REQUIRE else MatchType.EQUAL_TO
+
+/** A new, empty rule that requires the named value to be present. */
+fun newRequiredRule(): RuleMatcher = RuleMatcher(name = "", required = true, matchType = MatchType.REQUIRE)
+
+/**
+ * Sets whether the rule is required. A rule that is not required is written as
+ * `required: false`, which the server reads as "optional, but if present it must match"; leaving
+ * `required` out instead would make equality checks reject a missing value.
+ */
+fun RuleMatcher.withRequired(required: Boolean): RuleMatcher =
+	copy(required = required, matchType = effectiveMatchType)
 
 /**
  * A self-contained condition editor showing a match-type dropdown followed by an optional
@@ -70,10 +86,11 @@ fun MatchConditionEditor(
 	showValuePlaceholder: Boolean = false,
 	modifier: Modifier = Modifier,
 ) {
+	val effective = ruleMatcher.effectiveMatchType
 	val matchType = when {
-		ruleMatcher.matchType in availableMatchTypes -> ruleMatcher.matchType!!
+		effective in availableMatchTypes -> effective
 		fallbackMatchType in availableMatchTypes -> fallbackMatchType
-		else -> availableMatchTypes.firstOrNull() ?: ruleMatcher.effectiveMatchType
+		else -> availableMatchTypes.firstOrNull() ?: effective
 	}
 
 	Row(

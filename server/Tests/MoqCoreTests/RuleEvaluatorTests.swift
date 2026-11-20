@@ -58,6 +58,28 @@ struct RuleEvaluatorTests {
         #expect(RuleEvaluator.evaluate(rule, actualValue: "beta") != nil)
     }
 
+    @Test(
+        "A required comparison with no value still requires the value to be sent",
+        arguments: [
+            MatchType.equalTo, .notEqualTo, .contains, .notContains, .beginsWith, .endsWith, .matchesRegex, .gt,
+            .gte, .lt, .lte,
+        ])
+    func requiredRuleWithoutValueChecksPresence(matchType: MatchType) {
+        let required = RuleMatcher(name: "X-Api-Version", required: true, matchType: matchType)
+        #expect(RuleEvaluator.evaluate(required, actualValue: nil) == .missing(name: "X-Api-Version"))
+        #expect(RuleEvaluator.evaluate(required, actualValue: "") == .missing(name: "X-Api-Version"))
+        #expect(RuleEvaluator.evaluate(required, actualValue: "2") == nil)
+    }
+
+    @Test("A comparison with no value that is not required accepts any request")
+    func optionalRuleWithoutValueAcceptsAnything() {
+        for required in [false, nil] as [Bool?] {
+            let rule = RuleMatcher(name: "a", required: required, matchType: .equalTo)
+            #expect(RuleEvaluator.evaluate(rule, actualValue: nil) == nil)
+            #expect(RuleEvaluator.evaluate(rule, actualValue: "x") == nil)
+        }
+    }
+
     @Test("Comparisons without required still treat an absent value as missing")
     func defaultComparisonRequiresValue() {
         #expect(

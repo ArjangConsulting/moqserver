@@ -201,7 +201,9 @@ For each matched endpoint, `moqserver` enforces the `request_rules` defined in t
 - `accepted_content_types: [application/json, image/*]` — a body must use one of these media types
 
 A rule with `required: false` and a `match` is optional but enforced when present. `not_equal_to`
-and `not_contains` pass when the value is absent unless `required: true`. A `matches_regex` pattern
+and `not_contains` pass when the value is absent unless `required: true`. A rule with
+`required: true` and no `match` only requires the value to be sent, whatever its `match_type`; one
+that is not required and has no `match` checks nothing (`W_RULE_WITHOUT_MATCH_VALUE`). A `matches_regex` pattern
 that doesn't compile fails validation (`E_INVALID_REGEX`) instead of rejecting every request.
 
 OpenAPI import fills `requires_body` and `accepted_content_types` from the `requestBody` of each

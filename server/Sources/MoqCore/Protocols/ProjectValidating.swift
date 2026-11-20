@@ -113,4 +113,7 @@ public enum DiagnosticCode: String, Sendable, Equatable {
     case scenarioUnknownEndpoint = "E_SCENARIO_UNKNOWN_ENDPOINT"
     case scenarioUnknownVariant = "E_SCENARIO_UNKNOWN_VARIANT"
     case invalidRegex = "E_INVALID_REGEX"
+    case ruleWithoutMatchValue = "W_RULE_WITHOUT_MATCH_VALUE"
+    case blankRuleName = "E_BLANK_RULE_NAME"
+    case blankAcceptedContentType = "E_BLANK_ACCEPTED_CONTENT_TYPE"
 }

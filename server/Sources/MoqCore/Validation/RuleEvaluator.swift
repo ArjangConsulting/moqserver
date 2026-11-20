@@ -22,6 +22,13 @@ public enum RuleEvaluator {
             return nil
         }
 
+        // A comparison with nothing to compare against still honours `required: true`: the value
+        // has to be sent. Without this a rule marked required but left without a value (as
+        // Studio's Required checkbox used to write) accepted every request.
+        if rule.match == nil, comparesValue(matchType) {
+            return rule.required == true && !isPresent(actualValue) ? .missing(name: rule.name) : nil
+        }
+
         switch matchType {
         case .require:
             return isPresent(actualValue) ? nil : .missing(name: rule.name)
@@ -76,6 +83,17 @@ public enum RuleEvaluator {
             return rule.required != true
         case .equalTo, .contains, .beginsWith, .endsWith, .matchesRegex, .gt, .gte, .lt, .lte:
             return rule.required == false
+        }
+    }
+
+    /// Match types that compare the request's value with `match`.
+    private static func comparesValue(_ matchType: MatchType) -> Bool {
+        switch matchType {
+        case .require, .isEmpty, .notEmpty:
+            return false
+        case .equalTo, .notEqualTo, .contains, .notContains, .beginsWith, .endsWith, .matchesRegex, .gt, .gte, .lt,
+            .lte:
+            return true
         }
     }
 

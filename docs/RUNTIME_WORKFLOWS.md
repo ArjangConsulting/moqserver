@@ -26,7 +26,9 @@ affect another; address one through the per-endpoint admin routes with `?operati
 ### Scenarios in the bundle
 
 Prefer declaring scenarios in `project.yml`. They load at startup, before any session exists, so
-every session starts with them and there is nothing to load during test setup:
+every session starts with them and there is nothing to load during test setup. In Studio, edit
+them under File > Project Settings, which also holds the project defaults and project-wide
+request rules:
 
 ```yaml
 scenarios:

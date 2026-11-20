@@ -4,6 +4,7 @@ import com.moqserver.studio.projectformat.format.FormatBinaryLocator
 import com.moqserver.studio.projectformat.format.FormatClient
 import com.moqserver.studio.projectformat.format.FormatProcess
 import com.moqserver.studio.projectformat.format.FormatServiceException
+import com.moqserver.studio.projectformat.format.RemoteProjectValidator
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
 import java.io.File
@@ -310,6 +311,98 @@ class ProjectRepositoryTest {
             secret.delete()
         }
     }
+
+    @Test
+    fun `every field Studio edits survives save and load through moq-format`() = test { repo ->
+        val path = tempProjectPath("parity")
+        try {
+            val project = MoqProject(parityManifest(), listOf(parityEndpoint()), path)
+
+            repo.save(project, path)
+            val reloaded = repo.load(path)
+
+            assertEquals(project.manifest, reloaded.manifest)
+            assertEquals(project.endpoints.single(), reloaded.endpoints.single())
+        } finally {
+            File(path).deleteRecursively()
+        }
+    }
+
+    @Test
+    fun `the fields Studio edits validate cleanly, and blank rows are errors`() {
+        val process = process ?: return
+        runBlocking {
+            withTimeout(15_000) {
+                val validator = RemoteProjectValidator(FormatClient(process))
+                val clean = MoqProject(parityManifest(), listOf(parityEndpoint()), tempProjectPath("valid"))
+                assertEquals(emptyList<ValidationDiagnostic>(), validator.validate(clean))
+
+                val blankRows = clean.copy(
+                    endpoints = listOf(
+                        parityEndpoint().copy(
+                            requestRules = RequestRules(
+                                headers = listOf(
+                                    RuleMatcher(name = "", required = true, matchType = MatchType.REQUIRE),
+                                ),
+                                acceptedContentTypes = listOf(""),
+                            ),
+                        ),
+                    ),
+                )
+                val codes = validator.validate(blankRows).map { it.code }
+                assertTrue("E_BLANK_RULE_NAME" in codes, "codes: $codes")
+                assertTrue("E_BLANK_ACCEPTED_CONTENT_TYPE" in codes, "codes: $codes")
+            }
+        }
+    }
+
+    /** A manifest using every project-level field Studio's Project Settings window edits. */
+    private fun parityManifest() = ProjectManifest(
+        name = "Parity",
+        description = "Every editable field",
+        defaults = ProjectDefaults(
+            delayMs = 25,
+            auth = ProjectAuthConfig(type = AuthType.API_KEY, verify = true, headerName = "X-Key"),
+            network = NetworkBehavior(latencyMs = 10, jitterMs = 5, packetLossPercent = 1.5),
+        ),
+        globalRules = GlobalRules(
+            requiredHeaders = listOf(RuleMatcher(name = "X-App", required = true, matchType = MatchType.REQUIRE)),
+            verifyCookies = true,
+        ),
+        scenarios = mapOf(
+            "logged-out" to ProjectScenario(description = "No session", variants = mapOf("post-orders" to "slow")),
+        ),
+    )
+
+    /**
+     * An endpoint using every request-rule and variant field the endpoint editors write. No inline
+     * body: save moves those into fixture files, which the base64 round-trip test above covers.
+     */
+    private fun parityEndpoint() = EndpointDocument(
+        id = "post-orders",
+        alias = "Create order",
+        method = "POST",
+        path = "/orders",
+        requestRules = RequestRules(
+            headers = listOf(RuleMatcher(name = "X-Version", match = "2", required = false, matchType = MatchType.GTE)),
+            verifyCookies = false,
+            queryParams = listOf(RuleMatcher(name = "page", required = true, matchType = MatchType.REQUIRE)),
+            cookies = listOf(
+                RuleMatcher(name = "sid", match = "abc", required = false, matchType = MatchType.EQUAL_TO),
+            ),
+            requiresBody = true,
+            acceptedContentTypes = listOf("application/json", "image/*"),
+        ),
+        variants = listOf(
+            ProjectVariant(
+                name = "slow",
+                isDefault = true,
+                status = 200,
+                headers = mapOf("Content-Type" to "text/plain"),
+                stream = ResponseStream(chunkBytes = 2, intervalMs = 50, disconnectAfterBytes = 4),
+            ),
+        ),
+    )
 
     /** A repository whose client is never invoked — valid only for the readFixture tests above. */
     private fun localRepo(): ProjectRepository =

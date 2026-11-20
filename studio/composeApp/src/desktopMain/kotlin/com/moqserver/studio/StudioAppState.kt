@@ -44,6 +44,7 @@ internal class StudioAppState(initialSettings: AISettings, initialProjectPath: S
 	var themeMode by mutableStateOf(initialSettings.themeMode.toStudioThemeMode())
 	var showSettings by mutableStateOf(false)
 	var showRuntimeInspector by mutableStateOf(false)
+	var showProjectSettings by mutableStateOf(false)
 	var showExport by mutableStateOf(false)
 	var exportState by mutableStateOf(ExportReferencesState())
 	var showImportURLDialog by mutableStateOf(false)

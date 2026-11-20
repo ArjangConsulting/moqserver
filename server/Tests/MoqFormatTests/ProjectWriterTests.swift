@@ -220,6 +220,35 @@ struct ProjectWriterTests {
         #expect(variant.referenceName == "successResponse")
     }
 
+    @Test(
+        "Preserves variant stream settings when writing",
+        arguments: [
+            ResponseStream(chunkBytes: 4, intervalMs: 50, disconnectAfterBytes: 0),
+            ResponseStream(chunkBytes: 1),
+        ])
+    func preservesVariantStream(stream: ResponseStream) throws {
+        let project = makeProject(
+            name: "Stream Test",
+            endpoints: [
+                EndpointDocument(
+                    id: "get-events", method: "GET", path: "/events",
+                    variants: [ProjectVariant(name: "slow", status: 200, body: .string("abcdefgh"), stream: stream)])
+            ])
+        let outputPath = (NSTemporaryDirectory() as NSString).appendingPathComponent(
+            "stream-save-\(UUID().uuidString).moqproj")
+        defer { try? FileManager.default.removeItem(atPath: outputPath) }
+
+        try ProjectWriter().write(project, to: outputPath)
+        let yaml = try String(
+            contentsOfFile: (outputPath as NSString).appendingPathComponent("endpoints/get-events.yml"), encoding: .utf8
+        )
+        #expect(yaml.contains("stream:"))
+        #expect(yaml.contains("interval_ms") == (stream.intervalMs != 0))
+
+        let reloaded = try ProjectLoader().load(from: outputPath)
+        #expect(reloaded.endpoints.first?.variants.first?.stream == stream)
+    }
+
     @Test("Preserves variant request_match when writing")
     func preservesVariantRequestMatch() throws {
         let writer = ProjectWriter()

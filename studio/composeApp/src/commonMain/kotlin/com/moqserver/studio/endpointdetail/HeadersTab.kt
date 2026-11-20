@@ -263,10 +263,12 @@ private fun HeaderRow(
 				onCheckedChange = { checked ->
 					val updatedRules = if (checked) {
 						requestRules.copy(
+							// Presence, not equality: an equality check without a value accepts
+							// every request, so the header would not actually be required.
 							headers = headerCriteria + RuleMatcher(
 								name = key,
 								required = true,
-								matchType = MatchType.EQUAL_TO,
+								matchType = MatchType.REQUIRE,
 							),
 						)
 					} else {
@@ -284,8 +286,8 @@ private fun HeaderRow(
 		MatchConditionEditor(
 			ruleMatcher = ruleMatcher ?: RuleMatcher(
 				name = key,
-				required = false,
-				matchType = MatchType.EQUAL_TO,
+				required = true,
+				matchType = MatchType.REQUIRE,
 			),
 			onUpdate = { updated ->
 				if (!isRequired) return@MatchConditionEditor
@@ -298,7 +300,7 @@ private fun HeaderRow(
 					),
 				)
 			},
-			availableMatchTypes = headerMatchTypes,
+			availableMatchTypes = requestRuleMatchTypes,
 			fallbackMatchType = MatchType.EQUAL_TO,
 			enabled = isRequired,
 			dropdownWidth = headerConditionColumnWidth * tableScale,

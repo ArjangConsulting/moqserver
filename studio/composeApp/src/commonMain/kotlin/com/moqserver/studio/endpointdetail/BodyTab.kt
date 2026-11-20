@@ -31,14 +31,17 @@ import com.moqserver.studio.designsystem.StudioDimens
 import com.moqserver.studio.designsystem.StudioTheme
 import com.moqserver.studio.designsystem.StudioThemeMode
 import com.moqserver.studio.designsystem.studioDarkColors
+import com.moqserver.studio.projectformat.BodyEncoding
 import com.moqserver.studio.projectformat.ProjectVariant
 import com.moqserver.studio.ui.*
 import io.github.maniramezan.kmpcomponents.CopyButton
 import io.github.maniramezan.kmpcomponents.CopyButtonLabels
 import io.github.maniramezan.kmpcomponents.FormTextField
+import io.github.maniramezan.kmpcomponents.InfoTooltip
 import io.github.maniramezan.kmpcomponents.InlineProgressIndicator
 import io.github.maniramezan.kmpcomponents.KeyValueRow
 import io.github.maniramezan.kmpcomponents.SecondaryButton
+import io.github.maniramezan.kmpcomponents.SegmentWidthMode
 import io.github.maniramezan.kmpcomponents.SegmentedControl
 import io.github.maniramezan.kmpcomponents.StatusMessage
 import io.github.maniramezan.kmpcomponents.StatusTone
@@ -68,6 +71,14 @@ private object BodyTabStrings {
 	const val AI_CONTEXT_STATUS = "Status"
 	const val AI_CONTEXT_PROVIDER = "AI"
 	const val AI_GENERATE_ACTION = "Generate"
+	const val ENCODING = "Body encoding"
+	const val ENCODING_TEXT = "UTF-8 text"
+	const val ENCODING_BASE64 = "Base64"
+	const val ENCODING_TOOLTIP =
+		"Base64 stores the exact response bytes, for binary bodies such as images. Switching converts the body, " +
+			"so the bytes the server sends stay the same."
+	const val ENCODING_NOT_TEXT = "This body is binary data, not UTF-8 text, so it has to stay base64."
+	const val ENCODING_INVALID = "This body is not valid base64. Fix it before switching to text."
 }
 
 private val bodyPanelColor = StudioColors.editorPanelBackground.copy(alpha = 0.97f)
@@ -198,6 +209,9 @@ internal fun BodyTab(
 					)
 				}
 				currentText != null -> {
+					if (variant.hasInlineStringBody) {
+						BodyEncodingControl(variant = variant, enabled = !isEditing, onUpdate = onUpdate)
+					}
 					BodyFormatTabs(selectedFormat = selectedFormat, enabled = !isEditing, onSelect = { selectedFormat = it })
 					if (isGeneratingWithAi) InlineProgressIndicator(label = BodyTabStrings.AI_GENERATING)
 					generationError?.let { error ->
@@ -239,6 +253,36 @@ internal fun BodyTab(
 				}
 			}
 		}
+	}
+}
+
+@Composable
+private fun BodyEncodingControl(
+	variant: ProjectVariant,
+	enabled: Boolean,
+	onUpdate: (ProjectVariant) -> Unit,
+) {
+	val encodings = listOf(BodyEncoding.UTF8, BodyEncoding.BASE64)
+	var failure by remember(variant.body, variant.bodyEncoding) { mutableStateOf<String?>(null) }
+	Column(verticalArrangement = Arrangement.spacedBy(StudioDimens.xs)) {
+		Row(horizontalArrangement = Arrangement.spacedBy(StudioDimens.m), verticalAlignment = Alignment.CenterVertically) {
+			Text(BodyTabStrings.ENCODING, style = MaterialTheme.typography.labelLarge)
+			InfoTooltip(BodyTabStrings.ENCODING_TOOLTIP)
+			SegmentedControl(
+				options = listOf(BodyTabStrings.ENCODING_TEXT, BodyTabStrings.ENCODING_BASE64),
+				selectedIndex = encodings.indexOf(variant.bodyEncoding ?: BodyEncoding.UTF8),
+				onOptionSelected = { index ->
+					when (val change = variant.convertingBodyEncoding(encodings[index])) {
+						is BodyEncodingChange.Changed -> if (change.variant != variant) onUpdate(change.variant)
+						BodyEncodingChange.NotText -> failure = BodyTabStrings.ENCODING_NOT_TEXT
+						BodyEncodingChange.InvalidBase64 -> failure = BodyTabStrings.ENCODING_INVALID
+					}
+				},
+				enabled = enabled,
+				widthMode = SegmentWidthMode.FIT,
+			)
+		}
+		failure?.let { StatusMessage(message = it, tone = StatusTone.ERROR) }
 	}
 }
 
