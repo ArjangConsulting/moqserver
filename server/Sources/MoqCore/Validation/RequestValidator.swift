@@ -9,12 +9,16 @@ public struct RequestValidator: RequestValidating {
     public init() {}
 
     public func validate(endpoint: Endpoint, context: RequestContext) -> RequestValidationError? {
-        if let error = validateRules(endpoint.queryParamRules, values: context.queryParameters, kind: .queryParam) {
+        if let error = validateRules(
+            endpoint.queryParamRules, values: context.queryParameters, kind: .queryParam, redact: context.redactHeaders)
+        {
             logger.debug("Request validation failed: \(error.message)")
             return error
         }
 
-        if let error = validateRules(endpoint.headerRules, values: context.headers, kind: .header) {
+        if let error = validateRules(
+            endpoint.headerRules, values: context.headers, kind: .header, redact: context.redactHeaders)
+        {
             logger.debug("Request validation failed: \(error.message)")
             return error
         }
@@ -22,7 +26,9 @@ public struct RequestValidator: RequestValidating {
         let cookieValues =
             endpoint.verifyCookies
             ? mergedCookieValues(endpoint.cookieRules, cookies: context.cookies) : context.cookies
-        if let error = validateRules(endpoint.cookieRules, values: cookieValues, kind: .cookie) {
+        if let error = validateRules(
+            endpoint.cookieRules, values: cookieValues, kind: .cookie, redact: context.redactHeaders)
+        {
             logger.debug("Request validation failed: \(error.message)")
             return error
         }
@@ -120,7 +126,8 @@ public struct RequestValidator: RequestValidating {
     private func validateRules(
         _ rules: [RuleMatcher],
         values: [String: String],
-        kind: RuleKind
+        kind: RuleKind,
+        redact: Set<String>
     ) -> RequestValidationError? {
         for rule in rules {
             let actualValue = resolvedValue(for: rule.name, in: values, caseInsensitive: kind == .header)
@@ -133,7 +140,9 @@ public struct RequestValidator: RequestValidating {
                         message: "\(kind.label) '\(rule.name)' is required"
                     )
                 case .mismatch(let expectedDescription, let actualValue):
-                    let hidesValue = kind == .cookie || (kind == .header && SensitiveHeaders.contains(rule.name))
+                    let hidesValue =
+                        kind == .cookie
+                        || SensitiveHeaders.isCredential(name: rule.name, value: actualValue, additionalNames: redact)
                     let actualDescription =
                         actualValue.map { hidesValue ? "got a redacted value" : "got '\($0)'" } ?? "but was missing"
                     return RequestValidationError(

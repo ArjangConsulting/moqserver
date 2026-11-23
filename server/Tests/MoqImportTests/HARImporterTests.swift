@@ -174,7 +174,7 @@ struct HARImporterTests {
                   "request": { "method": "GET", "url": "https://api.test/resource", "headers": [] },
                   "response": {
                     "status": 200,
-                    "headers": [{ "name": "X-Correlation-Token", "value": "\(fullJWT)" }],
+                    "headers": [{ "name": "X-Correlation", "value": "\(fullJWT)" }],
                     "content": { "mimeType": "application/json", "text": "{}" }
                   }
                 }
@@ -183,7 +183,41 @@ struct HARImporterTests {
             """
         let spec = try HARImporter.parse(har)
         let response = try #require(spec.endpoints.first?.responses.first)
-        #expect(response.headers["X-Correlation-Token"] == "\(jwtHeader).\(jwtPayload).redacted")
+        #expect(response.headers["X-Correlation"] == "\(jwtHeader).\(jwtPayload).redacted")
+    }
+
+    @Test("Redacts custom auth headers by name keyword and by --redact-header")
+    func redactsCustomAuthHeaders() throws {
+        let har = """
+            {
+              "log": { "version": "1.2", "entries": [
+                {
+                  "request": { "method": "GET", "url": "https://api.test/secure", "headers": [] },
+                  "response": {
+                    "status": 200,
+                    "headers": [
+                      { "name": "X-Firebase-AppCheck", "value": "appcheck-raw" },
+                      { "name": "X-Refresh-Token", "value": "refresh-raw" },
+                      { "name": "X-App-Device", "value": "device-raw" },
+                      { "name": "Access-Control-Allow-Credentials", "value": "true" },
+                      { "name": "Cache-Control", "value": "no-store" }
+                    ],
+                    "content": { "mimeType": "application/json", "text": "{}" }
+                  }
+                }
+              ] }
+            }
+            """
+        let spec = try HARImporter.parse(har, redactHeaders: ["x-app-device"])
+        let headers = try #require(spec.endpoints.first?.responses.first?.headers)
+        #expect(headers["X-Firebase-AppCheck"] == "[redacted]")
+        #expect(headers["X-Refresh-Token"] == "[redacted]")
+        #expect(headers["X-App-Device"] == "[redacted]")
+        #expect(headers["Access-Control-Allow-Credentials"] == "true")
+        #expect(headers["Cache-Control"] == "no-store")
+
+        let unconfigured = try HARImporter.parse(har)
+        #expect(unconfigured.endpoints.first?.responses.first?.headers["X-App-Device"] == "device-raw")
     }
 
     @Test("Redacts sensitive fields in a JSON response body and warns about the heuristic")

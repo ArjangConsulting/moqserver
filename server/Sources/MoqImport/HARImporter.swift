@@ -4,16 +4,14 @@ import MoqCore
 
 private let logger = Logger(label: "moqserver.import.HARImporter")
 
-/// Parses HAR 1.2 files into a `ParsedSpec`. Ports Kotlin's `HARImportParser`
-/// (`studio/studio-import/src/main/kotlin/com/moqserver/studio/imports/HARImportParser.kt`)
-/// field-for-field, including its redaction behavior.
+/// Parses HAR 1.2 files into a `ParsedSpec`. Studio imports HAR through `moq-format`'s
+/// `import.parseHar`, so this is the only HAR parser.
 ///
 /// Security: all sensitive values (auth headers, cookies, tokens, JWTs) are redacted at parse
 /// time following the same approach as Cloudflare's HAR Sanitizer
 /// (https://github.com/cloudflare/har-sanitizer). Values are replaced with `[redacted]` so they
-/// never reach the parsed spec or a persisted `.moqproj`. **Port any change to this file's
-/// redaction lists and logic to the Kotlin original too, and vice versa** — the two must not
-/// silently diverge on what counts as sensitive.
+/// never reach the parsed spec or a persisted `.moqproj`. Which headers count as credentials is
+/// decided by `SensitiveHeaders`, shared with request-history capture and request validation.
 public enum HARImporter {
     private static let contentTypeHeader = "Content-Type"
     private static let cookieHeader = "Cookie"
@@ -28,11 +26,6 @@ public enum HARImporter {
     private static let encodedRedacted = "%5Bredacted%5D"
     private static let redactionWarning =
         "HAR sensitive fields were redacted heuristically. Review imported response bodies because arbitrary secret names may not be detected."
-
-    /// Header names (case-insensitive) whose values are always redacted. Covers auth
-    /// credentials, session tokens, and CSRF tokens. Mirrors the Cloudflare HAR Sanitizer
-    /// default word list.
-    private static let sensitiveHeaderPatterns: Set<String> = SensitiveHeaders.names
 
     /// Query parameter / post-data parameter names (case-insensitive) whose values are
     /// redacted. Based on the Cloudflare default word list.
@@ -57,11 +50,10 @@ public enum HARImporter {
         "token",
     ]
 
-    /// Matches a full JWT (header.payload.signature). Captures header and payload in groups 1
-    /// and 2 so the signature can be replaced while leaving the decodable parts intact.
-    private static let jwtPattern = #"(ey[A-Za-z0-9\-_=]+)\.(ey[A-Za-z0-9\-_=]+)\.[A-Za-z0-9\-_.+/=]+"#
-
-    public static func parse(_ content: String) throws -> ParsedSpec {
+    /// Parses `content`. Response headers named in `redactHeaders` (any case) are redacted on top of
+    /// the `SensitiveHeaders` names and keywords.
+    public static func parse(_ content: String, redactHeaders: [String] = []) throws -> ParsedSpec {
+        let extraNames = SensitiveHeaders.normalized(redactHeaders)
         logger.info("Parsing HAR file (\(content.utf8.count) bytes)")
         let har: HarFile
         do {
@@ -80,7 +72,10 @@ public enum HARImporter {
         var redactedResponseBody = false
 
         for (index, entry) in entries.enumerated() {
-            guard let parsedEntry = parseEntry(entry, entryNumber: index + 1, warnings: &warnings) else { continue }
+            guard
+                let parsedEntry = parseEntry(
+                    entry, entryNumber: index + 1, redactHeaders: extraNames, warnings: &warnings)
+            else { continue }
             redactedResponseBody = redactedResponseBody || parsedEntry.responseBodyRedacted
             if grouped[parsedEntry.key] == nil {
                 grouped[parsedEntry.key] = []
@@ -133,7 +128,7 @@ public enum HARImporter {
     }
 
     private static func parseEntry(
-        _ entry: HarEntry, entryNumber: Int, warnings: inout [String]
+        _ entry: HarEntry, entryNumber: Int, redactHeaders: Set<String>, warnings: inout [String]
     ) -> ParsedHarEntry? {
         guard let request = entry.request else {
             return warnAndSkip(&warnings, entryNumber, "missing request payload")
@@ -168,7 +163,7 @@ public enum HARImporter {
             key: GroupKey(method: method, path: normalizedPath(components)),
             exchange: CapturedExchange(
                 statusCode: status,
-                headers: responseHeaders(response),
+                headers: responseHeaders(response, redactHeaders: redactHeaders),
                 body: sanitizedBody.value,
                 bodyIsBase64: sanitizedBody.isBase64,
                 cookies: extractRequestCookies(request),
@@ -186,12 +181,12 @@ public enum HARImporter {
 
     /// Extracts response headers, redacting values for any header whose name matches a
     /// known-sensitive pattern. JWT signatures in non-redacted header values are also stripped.
-    private static func responseHeaders(_ response: HarResponse) -> [String: String] {
+    private static func responseHeaders(_ response: HarResponse, redactHeaders: Set<String>) -> [String: String] {
         var headers: [String: String] = [:]
         for header in response.headers {
             let name = header.name ?? ""
             guard !name.isEmpty else { continue }
-            headers[name] = sanitizeHeaderValue(name: name, value: header.value ?? "")
+            headers[name] = sanitizeHeaderValue(name: name, value: header.value ?? "", redactHeaders: redactHeaders)
         }
         let mimeType = response.content.mimeType ?? ""
         if !mimeType.isEmpty
@@ -342,10 +337,10 @@ public enum HARImporter {
 
     // MARK: - Sanitization
 
-    /// Returns `[redacted]` if the header name is sensitive, otherwise strips any JWT
+    /// Returns `[redacted]` if the header name marks a credential, otherwise strips any JWT
     /// signatures from the value and returns the result.
-    private static func sanitizeHeaderValue(name: String, value: String) -> String {
-        if sensitiveHeaderPatterns.contains(name.lowercased()) {
+    private static func sanitizeHeaderValue(name: String, value: String, redactHeaders: Set<String>) -> String {
+        if SensitiveHeaders.isCredentialName(name, additionalNames: redactHeaders) {
             return redacted
         }
         return redactJWT(value)
@@ -365,7 +360,7 @@ public enum HARImporter {
     /// JWT is present.
     private static func redactJWT(_ value: String) -> String {
         value.replacingOccurrences(
-            of: jwtPattern, with: "$1.$2.redacted", options: .regularExpression)
+            of: SensitiveHeaders.jwtPattern, with: "$1.$2.redacted", options: .regularExpression)
     }
 
     private static func sanitizeStructuredBody(_ text: String, mimeType: String?) -> SanitizedBody {

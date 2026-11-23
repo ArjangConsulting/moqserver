@@ -4,7 +4,8 @@ import MoqCore
 
 /// One request header recorded in history by `serve --capture-request-headers`.
 ///
-/// Headers in ``SensitiveHeaders`` never store their value. They keep only what a test needs to
+/// Headers that ``SensitiveHeaders`` marks as credentials (by name, name keyword, `--redact-header`,
+/// or a JWT in the value) never store their value. They keep only what a test needs to
 /// assert on: the auth scheme, a fingerprint of the credential, and, for `Cookie`, the cookie names.
 public struct CapturedHeader: Codable, Sendable, Equatable {
     /// Longest non-sensitive value kept; longer values are cut and marked `truncated`.
@@ -37,10 +38,11 @@ public struct CapturedHeader: Codable, Sendable, Equatable {
         self.cookieNames = cookieNames
     }
 
-    /// Records one header, redacting it when it is a credential.
-    public static func capture(name: String, value: String) -> CapturedHeader {
+    /// Records one header, redacting it when `SensitiveHeaders` says it is a credential.
+    /// `redactHeaders` holds extra lowercased names from `--redact-header`.
+    public static func capture(name: String, value: String, redactHeaders: Set<String> = []) -> CapturedHeader {
         let lowered = name.lowercased()
-        guard SensitiveHeaders.contains(lowered) else {
+        guard SensitiveHeaders.isCredential(name: lowered, value: value, additionalNames: redactHeaders) else {
             let truncated = value.count > valueLimit
             return CapturedHeader(
                 name: lowered, value: truncated ? String(value.prefix(valueLimit)) : value, truncated: truncated)

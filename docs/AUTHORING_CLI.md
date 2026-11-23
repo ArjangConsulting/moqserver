@@ -57,6 +57,11 @@ moq-author import har --project ./api.moqproj --har-path capture.har
 moq-author import openapi --project ./api.moqproj --source specification.yaml
 ```
 
+HAR import redacts credential response headers by the same rules as request-history capture (see
+[runtime workflows](RUNTIME_WORKFLOWS.md#asserting-what-the-app-sent)). Add
+`--redact-header <name>` (repeatable) for a custom auth header those rules miss; `import.parseHar`
+over `moq-format` takes the same list as `redactHeaders`.
+
 Imports preserve existing endpoint details and bodies unless options explicitly enable changes:
 
 ```json

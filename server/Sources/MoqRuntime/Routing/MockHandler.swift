@@ -20,6 +20,8 @@ public struct MockHandler: Sendable {
     let requestBodyCaptureLimit: Int
     /// When true, history records request headers, with credential values redacted.
     let captureRequestHeaders: Bool
+    /// Lowercased header names to treat as credentials on top of `SensitiveHeaders`.
+    let redactHeaders: Set<String>
 
     public init(
         store: any MockStoring,
@@ -29,7 +31,8 @@ public struct MockHandler: Sendable {
         addons: ActiveAddons = .none,
         requireSession: Bool = false,
         requestBodyCaptureLimit: Int = 0,
-        captureRequestHeaders: Bool = false
+        captureRequestHeaders: Bool = false,
+        redactHeaders: Set<String> = []
     ) {
         self.store = store
         self.config = config
@@ -39,6 +42,7 @@ public struct MockHandler: Sendable {
         self.requireSession = requireSession
         self.requestBodyCaptureLimit = max(0, requestBodyCaptureLimit)
         self.captureRequestHeaders = captureRequestHeaders
+        self.redactHeaders = redactHeaders
     }
 
     /// Called by the catch-all fallback route for paths not matched by any registered endpoint.
@@ -146,7 +150,7 @@ public struct MockHandler: Sendable {
             handler = MockHandler(
                 store: session, config: config, authValidator: authValidator, requestValidator: requestValidator,
                 addons: addons, requireSession: requireSession, requestBodyCaptureLimit: requestBodyCaptureLimit,
-                captureRequestHeaders: captureRequestHeaders)
+                captureRequestHeaders: captureRequestHeaders, redactHeaders: redactHeaders)
         }
         let response = try await handler.handleResolved(req: req, matchedKey: matchedKey)
         if let runtime = handler.store as? InMemoryMockStore {
@@ -204,7 +208,8 @@ public struct MockHandler: Sendable {
             headers: requestHeaders,
             cookies: extractCookies(from: req),
             hasBody: (req.body.data?.readableBytes ?? 0) > 0,
-            contentType: req.headers.first(name: .contentType)
+            contentType: req.headers.first(name: .contentType),
+            redactHeaders: redactHeaders
         )
         if let validationError = requestValidator.validate(endpoint: endpoint, context: requestContext) {
             req.storage[SelectionKey.self] = SelectionDetail(
@@ -577,7 +582,7 @@ public struct MockHandler: Sendable {
 
     private func capturedHeaders(_ req: Request) -> [CapturedHeader]? {
         guard captureRequestHeaders else { return nil }
-        return req.headers.map { CapturedHeader.capture(name: $0.name, value: $0.value) }
+        return req.headers.map { CapturedHeader.capture(name: $0.name, value: $0.value, redactHeaders: redactHeaders) }
     }
 
     private func capturedBody(_ req: Request) -> CapturedBody? {

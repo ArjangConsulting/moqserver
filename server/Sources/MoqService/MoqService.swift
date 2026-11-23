@@ -306,7 +306,7 @@ public struct MoqService: Sendable {
         }
         let spec: ParsedSpec
         do {
-            spec = try HARImporter.parse(content)
+            spec = try HARImporter.parse(content, redactHeaders: input.redactHeaders ?? [])
         } catch {
             throw MoqServiceError.importParseFailed("\(error)")
         }
@@ -342,12 +342,12 @@ public struct MoqService: Sendable {
     /// wants to hold the parsed result for interactive review — accept/reject entries, generate
     /// AI content, rename responses — before anything is committed, rather than merge-and-save
     /// in one call the way an agent-driven MCP session does.
-    public func parseHAR(path: String) throws -> ParsedSpec {
+    public func parseHAR(path: String, redactHeaders: [String] = []) throws -> ParsedSpec {
         guard let content = try? String(contentsOfFile: path, encoding: .utf8) else {
             throw MoqServiceError.importReadFailed(path)
         }
         do {
-            return try HARImporter.parse(content)
+            return try HARImporter.parse(content, redactHeaders: redactHeaders)
         } catch {
             throw MoqServiceError.importParseFailed("\(error)")
         }

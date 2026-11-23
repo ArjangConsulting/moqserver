@@ -62,6 +62,52 @@ struct RequestHeaderCaptureTests {
         try await app.asyncShutdown()
     }
 
+    @Test("Custom auth headers are redacted by keyword, JWT value, or --redact-header")
+    func redactsCustomAuthHeaders() async throws {
+        let store = InMemoryMockStore()
+        await store.register(makeTestEndpoint(method: .get, path: "/me"))
+        let app = try await buildApp(store: store, captureRequestHeaders: true, redactHeaders: ["X-App-Device"])
+        let id = try await store.createRuntimeSession()
+        try await app.testing().test(
+            .GET, "/me",
+            headers: [
+                "X-Firebase-AppCheck": "appcheck-raw", "X-Correlation": token, "X-App-Device": "device-raw",
+                "X-Mock-Session": id, "Accept": "application/json",
+            ]
+        ) { _ async in }
+
+        let headers = try #require(await store.runtimeSession(id)?.recentRequests().first?.requestHeaders)
+        let byName = Dictionary(headers.map { ($0.name, $0) }, uniquingKeysWith: { first, _ in first })
+        #expect(byName["x-firebase-appcheck"]?.redacted == true)
+        #expect(byName["x-firebase-appcheck"]?.fingerprint == CapturedHeader.fingerprint(of: "appcheck-raw"))
+        #expect(byName["x-correlation"]?.redacted == true)
+        #expect(byName["x-app-device"]?.redacted == true)
+        #expect(byName["x-mock-session"]?.value == id)
+        #expect(byName["accept"]?.value == "application/json")
+
+        let raw = String(decoding: try JSONEncoder().encode(headers), as: UTF8.self)
+        #expect(!raw.contains("appcheck-raw"))
+        #expect(!raw.contains("device-raw"))
+        #expect(!raw.contains(token))
+        try await app.asyncShutdown()
+    }
+
+    @Test("A mismatched custom credential header is not echoed in the rejection")
+    func mismatchHidesCustomCredential() async throws {
+        let store = InMemoryMockStore()
+        await store.register(
+            makeTestEndpoint(
+                method: .get, path: "/me",
+                headerRules: [RuleMatcher(name: "X-Refresh-Token", match: "expected", matchType: .equalTo)]))
+        let app = try await buildApp(store: store)
+        try await app.testing().test(.GET, "/me", headers: ["X-Refresh-Token": "refresh-raw"]) { res async in
+            #expect(res.status == .badRequest)
+            #expect(!res.body.string.contains("refresh-raw"))
+        }
+        #expect(await store.recentRequests().first?.rejection?.message.contains("got a redacted value") == true)
+        try await app.asyncShutdown()
+    }
+
     @Test("Long non-credential values are cut and marked truncated")
     func truncatesLongValues() {
         let header = CapturedHeader.capture(name: "X-Trace", value: String(repeating: "a", count: 300))

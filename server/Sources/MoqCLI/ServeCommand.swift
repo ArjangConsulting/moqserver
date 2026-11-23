@@ -67,10 +67,19 @@ public struct ServeCommand: AsyncParsableCommand {
         name: .long,
         help: ArgumentHelp(
             "Record each mock request's headers in request history (GET /_admin/requests). Credential "
-                + "headers (Authorization, Cookie, X-Api-Key, ...) keep only their scheme, a SHA-256 "
+                + "headers (see --redact-header) keep only their scheme, a SHA-256 "
                 + "fingerprint and cookie names, never the value.")
     )
     var captureRequestHeaders = false
+
+    @ArgumentParser.Option(
+        name: .customLong("redact-header"),
+        help: ArgumentHelp(
+            "A request header name whose value is a credential, on top of the built-in list, name "
+                + "keywords (auth, token, key, secret, session, ...) and JWT-looking values. Redacted in "
+                + "request history and validation messages. Repeat for several.")
+    )
+    var redactHeaders: [String] = []
 
     @ArgumentParser.Option(
         name: .long,
@@ -186,7 +195,7 @@ public struct ServeCommand: AsyncParsableCommand {
         let app = try await buildApp(
             store: store, config: serverConfig, addons: addons, requireSession: requireSession,
             requestBodyCaptureLimit: captureRequestBodies, captureRequestHeaders: captureRequestHeaders,
-            maxRequestBodySize: maxBodySize, cors: cors, tls: tls,
+            redactHeaders: redactHeaders, maxRequestBodySize: maxBodySize, cors: cors, tls: tls,
             reloadSource: { try Self.loadSnapshot(from: projectPath) }, hostname: hostname, port: port)
 
         let watcher = watch ? app.mockReloader.map { ProjectWatcher(path: projectPath, reloader: $0).start() } : nil

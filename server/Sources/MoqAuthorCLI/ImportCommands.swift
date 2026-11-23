@@ -14,6 +14,14 @@ public struct ImportHARCommand: AsyncParsableCommand {
     var harPath: String
 
     @Option(
+        name: .customLong("redact-header"),
+        help: ArgumentHelp(
+            "A header name whose value is a credential, on top of the built-in list and name keywords "
+                + "(auth, token, key, secret, session, ...). Repeat for several.")
+    )
+    var redactHeaders: [String] = []
+
+    @Option(
         name: .long,
         help: ArgumentHelp(
             "Path to a JSON file of import options (accept_paths, update_details, "
@@ -30,7 +38,8 @@ public struct ImportHARCommand: AsyncParsableCommand {
             let common = try authorImportOptions(options)
             let (service, handle) = try await openProjectForEditing(project, allowNetworkImport: false)
             let summary = try await service.importHAR(
-                handle: handle, input: ImportHARInput(path: harPath), common: common, autosave: true)
+                handle: handle, input: ImportHARInput(path: harPath, redactHeaders: redactHeaders), common: common,
+                autosave: true)
             try printJSON(summary)
         } catch {
             printError(error)

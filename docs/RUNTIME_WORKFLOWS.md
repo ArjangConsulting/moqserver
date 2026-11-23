@@ -80,15 +80,29 @@ variant is a served response, not a rejection. Unmatched paths have `endpoint: n
 
 Start the server with `serve --capture-request-headers` to record request headers as
 `requestHeaders`: `[{name, value, truncated, redacted, scheme, fingerprint, cookieNames}]`. Names are
-lowercased. Ordinary headers keep their value, cut to 256 characters. Credential headers
-(`authorization`, `proxy-authorization`, `cookie`, `set-cookie`, `x-api-key`, `x-auth-token`,
-`x-csrf-token`, `x-forwarded-for`, `www-authenticate`) never store a value:
+lowercased. Ordinary headers keep their value, cut to 256 characters. Credential headers never
+store a value. A header is a credential when any of these holds:
+
+- its name is `authorization`, `proxy-authorization`, `cookie`, `set-cookie`, `x-api-key`,
+  `x-auth-token`, `x-csrf-token`, `x-forwarded-for` or `www-authenticate`;
+- its name contains `auth`, `token`, `secret`, `password`, `passwd`, `credential`, `signature`,
+  `session`, `cookie`, `key` or `appcheck`, so custom headers such as `X-Firebase-AppCheck` or
+  `X-Refresh-Token` are covered without configuration (`x-mock-session`, `x-mock-variant` and
+  `access-control-allow-credentials` are exempt);
+- its value contains a JWT, signed or not (the Firebase Auth emulator issues unsigned ones);
+- you named it with `serve --redact-header <name>` (repeatable), for a custom auth header none of the
+  above catches.
+
+What a credential header keeps:
 
 - `authorization` and `proxy-authorization` keep `scheme` (e.g. `Bearer`) and `fingerprint`, the
   first 16 hex characters of the SHA-256 of the credential after the scheme. A test can compute the
   same fingerprint from the token it expects.
 - `cookie` keeps only `cookieNames`.
 - Other credential headers keep `fingerprint` of the whole value.
+
+The same rules hide credential values in `request_rules` mismatch messages (`got a redacted value`),
+with or without header capture.
 
 Decoded token claims come from the [`jwt-claims` add-on](ADDONS.md#jwt-claims) in `addons`, not from
 header capture. Its `trace_claims` records string, number and boolean claims as strings; array and

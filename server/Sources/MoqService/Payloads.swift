@@ -271,7 +271,13 @@ public struct ImportSummary: Codable, Sendable {
 
 public struct ImportHARInput: Decodable, Sendable {
     public let path: String
-    public init(path: String) { self.path = path }
+    /// Extra response-header names to redact, on top of `SensitiveHeaders`.
+    public let redactHeaders: [String]?
+
+    public init(path: String, redactHeaders: [String]? = nil) {
+        self.path = path
+        self.redactHeaders = redactHeaders
+    }
 }
 
 public struct ImportOpenAPIInput: Decodable, Sendable {
