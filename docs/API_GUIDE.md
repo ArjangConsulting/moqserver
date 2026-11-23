@@ -198,7 +198,7 @@ For each matched endpoint, `moqserver` enforces the `request_rules` defined in t
 
 - Required headers and optional value matching
 - Required query parameters
-- Cookie verification (`verify_cookies: true`)
+- Cookie rules (`cookies:`) and cookie presence (`verify_cookies: true`), see [Cookie rules](#cookie-rules)
 - `requires_body: true` — the request must have a body
 - `accepted_content_types: [application/json, image/*]` — a body must use one of these media types
 
@@ -207,6 +207,43 @@ and `not_contains` pass when the value is absent unless `required: true`. A rule
 `required: true` and no `match` only requires the value to be sent, whatever its `match_type`; one
 that is not required and has no `match` checks nothing (`W_RULE_WITHOUT_MATCH_VALUE`). A `matches_regex` pattern
 that doesn't compile fails validation (`E_INVALID_REGEX`) instead of rejecting every request.
+
+### Cookie rules
+
+Cookies are read from the request's `Cookie` header (`name=value; other=value`). There are two
+independent checks:
+
+- `cookies:` lists rule matchers, the same shape as `headers:` and `query_params:`. Each rule is
+  evaluated on every request, whether or not `verify_cookies` is set. Cookie names are
+  case-sensitive (header names are not).
+- `verify_cookies: true` only demands that the request carries at least one cookie, and only when
+  the endpoint has no `cookies:` rules. With rules, the rules decide. A request with no cookies gets
+  `400 missing_required_cookie` ("At least one cookie is required").
+
+`global_rules.verify_cookies` in `project.yml` is the default for every endpoint; an endpoint's own
+`request_rules.verify_cookies` overrides it, `false` included. There is no global `cookies:` list.
+
+```yaml
+request_rules:
+  verify_cookies: true
+  cookies:
+    - name: session_id
+      required: true
+      match_type: not_empty
+    - name: theme
+      match: dark
+      match_type: equal_to
+```
+
+A missing required cookie gets `400 missing_required_cookie`, and a value that fails its rule gets
+`400 cookie_value_mismatch`. Cookie values are never echoed: the message says
+`Cookie 'theme' must match 'dark', got a redacted value`. To check that the app sends no cookies at
+all, use the request-history check `assertRequest(endpoint:headers: [.absent("Cookie")])` (Kotlin:
+`MoqHeaderExpectation.Absent("Cookie")`) with `serve --capture-request-headers`.
+
+HAR import writes the cookies a capture sent as presence-only `cookies:` rules (`required: true`,
+no `match`), because cookie values are always redacted. Sensitive query parameters (`code`,
+`state`, `access_token`, ...) are imported the same way.
 
 OpenAPI import fills `requires_body` and `accepted_content_types` from the `requestBody` of each
 `POST`, `PUT` and `PATCH` operation. A `requestBody` on `GET`, `HEAD` or `DELETE` is ignored, as
@@ -217,6 +254,7 @@ either key from an endpoint to keep it lenient.
 Error behavior:
 
 - Missing required header/query param: `400 Bad Request`
+- Missing or mismatched cookie: `400` (`missing_required_cookie`, `cookie_value_mismatch`)
 - Missing body with `requires_body: true`: `400` (`missing_request_body`)
 - Unsupported `Content-Type` for requests with bodies: `415 Unsupported Media Type`
 
