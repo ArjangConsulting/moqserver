@@ -151,6 +151,41 @@ struct RequestQueryTests {
         try await app.asyncShutdown()
     }
 
+    @Test("An endpoint that differs from a loaded key by a trailing slash resolves to it")
+    func trailingSlashResolves() async throws {
+        let store = InMemoryMockStore()
+        await store.register(makeTestEndpoint(method: .get, path: "/v1/user/profile/"))
+        let app = try await buildApp(store: store)
+        try await call(app, "/v1/user/profile/")
+
+        let result = try #require(try await query(app, RequestQuery(endpoint: "get /v1/user/profile", times: 1)))
+        #expect(result.ok)
+        #expect(result.message.contains("GET /v1/user/profile/"))
+        try await app.asyncShutdown()
+    }
+
+    @Test("An unknown endpoint, method or relative path fails instead of passing a times: 0 check")
+    func unknownFiltersFail() async throws {
+        let (app, _) = try await makeApp()
+        var reason = ""
+        try await app.testing().test(
+            .POST, "/_admin/requests/query", headers: ["Content-Type": "application/json"],
+            body: ByteBuffer(string: #"{"endpoint":"GET /v1/mee","times":0}"#)
+        ) { res async in
+            #expect(res.status == .badRequest)
+            reason = res.body.string.replacingOccurrences(of: "\\/", with: "/")
+        }
+        #expect(reason.contains("Did you mean 'GET /v1/me'?"))
+
+        _ = try await query(
+            app, RequestQuery(endpoint: "GET /totally/elsewhere/entirely", times: 0), status: .badRequest)
+        _ = try await query(app, RequestQuery(endpoint: "/v1/me", times: 0), status: .badRequest)
+        _ = try await query(app, RequestQuery(endpoint: "POST /graphql#GetUser"), status: .badRequest)
+        _ = try await query(app, RequestQuery(method: "GTE", times: 0), status: .badRequest)
+        _ = try await query(app, RequestQuery(path: "v1/me", times: 0), status: .badRequest)
+        try await app.asyncShutdown()
+    }
+
     @Test("Session-less requests are attributed to a test by its token claims")
     func sessionless() async throws {
         let (app, store) = try await makeApp(requireSession: true)

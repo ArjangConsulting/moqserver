@@ -453,6 +453,13 @@ header was not sent. `scheme` compares case-insensitively. `fingerprint` is the 
 value; `fingerprintOf` is a credential the server fingerprints for you (the token without
 `Bearer `). `equals` is refused (`400`) for credential headers, which store no value.
 
+Filters that could never match are refused (`400`) rather than silently matching nothing, which
+would make a `times: 0` check pass. `endpoint` must name a loaded `METHOD /template` key; one that
+differs only by a trailing slash resolves to that key, and an unknown one names the closest key
+("Did you mean 'GET /v1/user/profile/'?"). GraphQL `#operation` keys are refused because history
+records the route (`POST /graphql`). `method` must be an HTTP method and `path` must start with
+`/`; any concrete path is otherwise accepted, since the app may call paths the bundle doesn't serve.
+
 Rows are first narrowed by `scope`, `since`, `endpoint`, `method` and `path`; candidates that then
 fail `rejected`, `headers` or `claims` are reported as near misses. The response is
 `{ok, count, expected, matched, nearMisses: [{request, failed}], unattributed, message}`:

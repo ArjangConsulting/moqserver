@@ -120,6 +120,11 @@ public enum RequestQueryError: Error, Equatable, CustomStringConvertible {
     case valueOfCredential(String)
     case headerCaptureDisabled
     case sessionlessNeedsSession
+    case malformedEndpoint(String)
+    case operationEndpoint(String)
+    case unknownEndpoint(String, suggestion: String?)
+    case unknownMethod(String)
+    case relativePath(String)
 
     public var description: String {
         switch self {
@@ -132,12 +137,74 @@ public enum RequestQueryError: Error, Equatable, CustomStringConvertible {
             return "Header predicates need the server to run with --capture-request-headers"
         case .sessionlessNeedsSession:
             return "scope sessionless needs X-Mock-Session: it reports global requests made since that session began"
+        case .malformedEndpoint(let endpoint):
+            return "endpoint '\(endpoint)' must be 'METHOD /path', e.g. 'GET /v1/users/{id}'"
+        case .operationEndpoint(let endpoint):
+            return
+                "endpoint '\(endpoint)' names a GraphQL operation; history records the route, so query 'POST /graphql'"
+        case .unknownEndpoint(let endpoint, let suggestion):
+            let hint = suggestion.map { ". Did you mean '\($0)'?" } ?? ". List keys with GET /_admin/endpoints."
+            return "No loaded endpoint is '\(endpoint)', so the query could never match\(hint)"
+        case .unknownMethod(let method):
+            return "'\(method)' is not an HTTP method"
+        case .relativePath(let path):
+            return "path '\(path)' must start with '/'"
         }
     }
 }
 
 extension RequestQuery {
     static let nearMissLimit = 10
+    static let httpMethods: Set<String> = [
+        "GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS", "TRACE", "CONNECT",
+    ]
+
+    /// Checks `endpoint`, `method` and `path` against what can ever be recorded, so a typo fails the
+    /// query instead of making a `times: 0` check pass vacuously. An endpoint that differs from a
+    /// loaded key only by a trailing slash resolves to that key.
+    ///
+    /// `routeKeys` are the loaded `METHOD /template` keys, as history records them.
+    func resolvingFilters(routeKeys: Set<String>) throws -> RequestQuery {
+        if let method, !Self.httpMethods.contains(method.uppercased()) { throw RequestQueryError.unknownMethod(method) }
+        if let path, !path.hasPrefix("/") { throw RequestQueryError.relativePath(path) }
+        guard let endpoint else { return self }
+        let parts = endpoint.trimmingCharacters(in: .whitespaces).split(separator: " ", maxSplits: 1)
+        guard parts.count == 2, parts[1].hasPrefix("/") else { throw RequestQueryError.malformedEndpoint(endpoint) }
+        if parts[1].contains("#") { throw RequestQueryError.operationEndpoint(endpoint) }
+        let method = parts[0].uppercased()
+        let path = String(parts[1])
+        let alternate = path.count > 1 && path.hasSuffix("/") ? String(path.dropLast()) : path + "/"
+        var resolved = self
+        for candidate in ["\(method) \(path)", "\(method) \(alternate)"] where routeKeys.contains(candidate) {
+            resolved.endpoint = candidate
+            return resolved
+        }
+        throw RequestQueryError.unknownEndpoint(
+            endpoint, suggestion: Self.closest(to: "\(method) \(path)", in: routeKeys))
+    }
+
+    /// The loaded key nearest to `key` by edit distance, when it is plausibly a typo of it.
+    static func closest(to key: String, in keys: Set<String>) -> String? {
+        let scored = keys.map { ($0, editDistance(key, $0)) }.min { ($0.1, $0.0) < ($1.1, $1.0) }
+        guard let (best, distance) = scored, distance <= max(3, key.count / 4) else { return nil }
+        return best
+    }
+
+    static func editDistance(_ lhs: String, _ rhs: String) -> Int {
+        let left = Array(lhs)
+        let right = Array(rhs)
+        if left.isEmpty { return right.count }
+        if right.isEmpty { return left.count }
+        var previous = Array(0...right.count)
+        for (i, leftChar) in left.enumerated() {
+            var current = [i + 1] + Array(repeating: 0, count: right.count)
+            for (j, rightChar) in right.enumerated() {
+                current[j + 1] = min(previous[j + 1] + 1, current[j] + 1, previous[j] + (leftChar == rightChar ? 0 : 1))
+            }
+            previous = current
+        }
+        return previous[right.count]
+    }
 
     /// Checks the query before evaluation, so a predicate that cannot be answered fails loudly
     /// instead of silently passing.
