@@ -106,7 +106,9 @@ try isolated.assertAllRequestsCarrySession(claims: ["sub": uid])
 `times: nil` means at least once. `timeout:` re-checks until the app has made the call. Matched
 requests come back oldest first with `claims` and captured headers. `.fingerprint("Authorization",
 of: token)` compares a known token without the server storing it, and `.equals(name, value)` works
-only for headers that aren't credentials.
+only for headers that aren't credentials. The session check ignores calls that carry another,
+already released session's id (a finished run's app still running in the background) unless you pass
+`includeOtherSessions: true`.
 
 To test a retry, fail only the next call in this session:
 

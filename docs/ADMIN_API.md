@@ -447,6 +447,7 @@ and Kotlin test clients and any script evaluate the same predicates the same way
 | `times` | `integer` | Exact number of matches expected; omitted means at least one |
 | `scope` | `"session"` \| `"sessionless"` | `sessionless` (needs `X-Mock-Session`): global rows recorded since that session was created, i.e. requests that reached the server without a valid session while the test ran |
 | `includeUnattributed` | `boolean` | With `sessionless` and `claims`: also count session-less rows that carry no token claims |
+| `includeOtherSessions` | `boolean` | With `sessionless`: also count rows that carried another, already released or expired session's id (`released_session`), e.g. a finished run's app still running in the background. Left out by default and listed in `otherSessions` |
 
 A `HeaderPredicate` is `{name, present?, scheme?, fingerprint?, fingerprintOf?, equals?}`. Every
 field that is set must hold for one occurrence of the header; `present: false` alone means the
@@ -463,7 +464,7 @@ records the route (`POST /graphql`). `method` must be an HTTP method and `path` 
 
 Rows are first narrowed by `scope`, `since`, `endpoint`, `method` and `path`; candidates that then
 fail `rejected`, `headers` or `claims` are reported as near misses. The response is
-`{ok, count, expected, matched, nearMisses: [{request, failed}], unattributed, message}`:
+`{ok, count, expected, matched, nearMisses: [{request, failed}], unattributed, otherSessions, message}`:
 `matched` is oldest first (compare a retry's token with the first call's), `nearMisses` holds up to
 10 rows with the labels of the predicates they failed, and `message` is a readable verdict to use as
 an assertion failure message.

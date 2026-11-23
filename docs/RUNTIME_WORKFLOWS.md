@@ -73,8 +73,10 @@ forgot the header. Rejected requests appear in the global `GET /_admin/requests`
 When the server itself refuses a matched request, the history row carries `rejection`:
 `{kind, code, message}`. `kind` is `auth` (the endpoint's auth requirement failed), `request_rule` (a
 `request_rules` header, query or cookie rule, the required body, or the content type failed),
-`session` (`--require-session` and no session header, code `session_required`; or an
-`X-Mock-Session` that doesn't exist, code `unknown_session`, always on), `call_count` (`strict_call_count` and no
+`session` (`--require-session` and no session header, code `session_required`; an
+`X-Mock-Session` of a session that was released or expired, code `released_session`; or one that
+never existed or ended too long ago to remember, code `unknown_session`; the session rejections carry
+the id as `session`), `call_count` (`strict_call_count` and no
 variant for this call) or `no_variant`. `message` names what failed, e.g.
 `Header 'Authorization' is required`, and never contains a credential or cookie value. A mocked 4xx
 variant is a served response, not a rejection. Unmatched paths have `endpoint: null` instead.

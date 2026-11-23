@@ -50,6 +50,8 @@ public data class MoqRequestQuery(
     val times: Int? = null,
     val scope: Scope? = null,
     val includeUnattributed: Boolean? = null,
+    /** With [Scope.SESSIONLESS]: also count requests that carried another, already released session's id. */
+    val includeOtherSessions: Boolean? = null,
 ) {
     public enum class Scope {
         /** This client's history: its session's, or the global one without a session. */
@@ -69,7 +71,7 @@ public data class MoqRequestQuery(
             endpoint = endpoint, method = method, path = path, since = since, rejected = rejected,
             unmatched = unmatched, headers = headers.takeIf { it.isNotEmpty() }?.map(::wire),
             claims = claims.takeIf { it.isNotEmpty() }, times = times, scope = scope,
-            includeUnattributed = includeUnattributed,
+            includeUnattributed = includeUnattributed, includeOtherSessions = includeOtherSessions,
         )
 
     private fun wire(expectation: MoqHeaderExpectation): HeaderPredicateWire =
@@ -96,6 +98,7 @@ internal data class RequestQueryWire(
     val times: Int? = null,
     val scope: MoqRequestQuery.Scope? = null,
     val includeUnattributed: Boolean? = null,
+    val includeOtherSessions: Boolean? = null,
 )
 
 @Serializable
@@ -128,6 +131,8 @@ public data class MoqRequestQueryResult(
     val nearMisses: List<MoqRequestNearMiss> = emptyList(),
     /** Session-less requests with no token claims, when a session check filtered by claims. */
     val unattributed: List<MoqRequestRecord> = emptyList(),
+    /** Session-less requests that carried another, released session's id; counted only with `includeOtherSessions`. */
+    val otherSessions: List<MoqRequestRecord> = emptyList(),
     /** A readable verdict, used as the assertion failure message. */
     val message: String,
 )

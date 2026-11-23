@@ -69,6 +69,8 @@ public data class MoqRequestRejection(
     val code: String,
     /** What failed, e.g. `Header 'Authorization' is required`. Never contains a credential. */
     val message: String,
+    /** For `session` rejections: the `X-Mock-Session` value the request carried, if any. */
+    val session: String? = null,
 )
 
 /** A request body recorded by `serve --capture-request-bodies <bytes>`. */

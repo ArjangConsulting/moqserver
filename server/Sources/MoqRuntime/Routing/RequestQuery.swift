@@ -39,11 +39,16 @@ public struct RequestQuery: Codable, Sendable, Equatable {
     /// With ``Scope/sessionless`` and ``claims``: also count rows that carry no token claims at all.
     /// They are listed in `unattributed` either way.
     public var includeUnattributed: Bool?
+    /// With ``Scope/sessionless``: also count rows that carried another, already released or
+    /// expired session's id (`released_session`), e.g. a finished run's app still running in the
+    /// background. They are listed in `otherSessions` either way.
+    public var includeOtherSessions: Bool?
 
     public init(
         endpoint: String? = nil, method: String? = nil, path: String? = nil, since: Double? = nil,
         rejected: Bool? = nil, unmatched: Bool? = nil, headers: [HeaderPredicate]? = nil,
-        claims: [String: String]? = nil, times: Int? = nil, scope: Scope? = nil, includeUnattributed: Bool? = nil
+        claims: [String: String]? = nil, times: Int? = nil, scope: Scope? = nil, includeUnattributed: Bool? = nil,
+        includeOtherSessions: Bool? = nil
     ) {
         self.endpoint = endpoint
         self.method = method
@@ -56,6 +61,7 @@ public struct RequestQuery: Codable, Sendable, Equatable {
         self.times = times
         self.scope = scope
         self.includeUnattributed = includeUnattributed
+        self.includeOtherSessions = includeOtherSessions
     }
 }
 
@@ -114,6 +120,9 @@ public struct RequestQueryResult: Codable, Sendable {
     public let nearMisses: [RequestQueryNearMiss]
     /// Session-less rows with no token claims, when the query filtered by claims.
     public let unattributed: [RequestTrace]
+    /// Session-less rows that carried another, released session's id, left out unless
+    /// ``RequestQuery/includeOtherSessions``.
+    public let otherSessions: [RequestTrace]
     /// A readable verdict, suitable as an assertion failure message.
     public let message: String
 }
@@ -224,9 +233,17 @@ extension RequestQuery {
         if !(headers ?? []).isEmpty, !headerCaptureEnabled { throw RequestQueryError.headerCaptureDisabled }
     }
 
-    /// Evaluates the query over `rows`, which must be oldest first.
-    func evaluate(_ rows: [RequestTrace]) -> RequestQueryResult {
-        let candidates = rows.filter(isCandidate)
+    /// Evaluates the query over `rows`, which must be oldest first. `callerSession` is the caller's
+    /// `X-Mock-Session`, used by ``Scope/sessionless`` to recognise other sessions' leftovers.
+    func evaluate(_ rows: [RequestTrace], callerSession: String? = nil) -> RequestQueryResult {
+        var otherSessions: [RequestTrace] = []
+        let candidates = rows.filter(isCandidate).filter { row in
+            guard scope == .sessionless, let rejection = row.rejection, rejection.code == "released_session",
+                rejection.session != callerSession
+            else { return true }
+            otherSessions.append(row)
+            return includeOtherSessions == true
+        }
         let filtersClaims = !(claims ?? [:]).isEmpty
         let countsUnattributed = scope == .sessionless && filtersClaims && includeUnattributed == true
         var matched: [RequestTrace] = []
@@ -250,7 +267,10 @@ extension RequestQuery {
         return RequestQueryResult(
             ok: ok, count: matched.count, expected: times, matched: matched, nearMisses: nearMisses,
             unattributed: filtersClaims && scope == .sessionless ? unattributed : [],
-            message: message(ok: ok, matched: matched, nearMisses: nearMisses, unattributed: unattributed))
+            otherSessions: otherSessions,
+            message: message(
+                ok: ok, matched: matched, nearMisses: nearMisses, unattributed: unattributed,
+                otherSessions: otherSessions))
     }
 
     private func isCandidate(_ row: RequestTrace) -> Bool {
@@ -309,7 +329,8 @@ extension RequestQuery {
     }
 
     private func message(
-        ok: Bool, matched: [RequestTrace], nearMisses: [RequestQueryNearMiss], unattributed: [RequestTrace]
+        ok: Bool, matched: [RequestTrace], nearMisses: [RequestQueryNearMiss], unattributed: [RequestTrace],
+        otherSessions: [RequestTrace]
     ) -> String {
         let count = matched.count
         var subject = "request(s)"
@@ -328,8 +349,14 @@ extension RequestQuery {
         let window = since.map { " since \($0)" } ?? ""
         let expectation = times.map { "exactly \($0)" } ?? "at least 1"
 
-        guard !ok else { return "Found \(count) \(subject)\(matching)\(window), expected \(expectation)." }
-        var lines = ["Expected \(expectation) \(subject)\(matching)\(window), found \(count)."]
+        let othersNote =
+            otherSessions.isEmpty || includeOtherSessions == true
+            ? ""
+            : " \(otherSessions.count) request(s) carrying another released session's id were not counted."
+        guard !ok else {
+            return "Found \(count) \(subject)\(matching)\(window), expected \(expectation).\(othersNote)"
+        }
+        var lines = ["Expected \(expectation) \(subject)\(matching)\(window), found \(count).\(othersNote)"]
         if let times, count > times {
             lines.append("Matched:")
             lines += matched.prefix(Self.nearMissLimit).map { "  \(Self.describe($0))" }

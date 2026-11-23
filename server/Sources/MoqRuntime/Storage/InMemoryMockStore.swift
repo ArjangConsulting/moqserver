@@ -17,6 +17,9 @@ public actor InMemoryMockStore: MockStoring {
     var activeScenario: String?
     var runtimeSessions: [String: InMemoryMockStore] = [:]
     var runtimeSessionActivity: [String: RuntimeSessionInfo] = [:]
+    /// Recently released or expired session ids and when they ended, oldest first, so requests
+    /// that still carry one can be told apart from ids that never existed.
+    var endedSessions: [(id: String, endedAt: Double)] = []
     /// Idle time after which a session is dropped; `nil` keeps sessions until deleted.
     var sessionIdleTimeout: TimeInterval? = InMemoryMockStore.defaultSessionIdleTimeout
     var now: @Sendable () -> Date = { Date() }

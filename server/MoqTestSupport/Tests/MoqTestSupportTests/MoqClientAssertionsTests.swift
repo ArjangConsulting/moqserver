@@ -63,6 +63,13 @@ final class MoqClientAssertionsTests: XCTestCase {
         XCTAssertEqual(sent?["scope"] as? String, "sessionless")
         XCTAssertEqual(sent?["times"] as? Int, 0)
         XCTAssertNil(sent?["includeUnattributed"])
+        XCTAssertNil(sent?["includeOtherSessions"])
+    }
+
+    func testSessionCheckCanCountOtherReleasedSessions() throws {
+        QueryStub.responses = [QueryStub.passing]
+        try client().assertAllRequestsCarrySession(includeOtherSessions: true)
+        XCTAssertEqual(QueryStub.bodies.first?["includeOtherSessions"] as? Bool, true)
     }
 
     func testLimitedVariantSelectionSendsTimes() throws {

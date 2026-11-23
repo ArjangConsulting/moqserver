@@ -68,11 +68,14 @@ public struct MoqRequestQuery: Encodable, Equatable, Sendable {
     public var times: Int?
     public var scope: Scope?
     public var includeUnattributed: Bool?
+    /// With `.sessionless`: also count requests that carried another, already released session's id.
+    public var includeOtherSessions: Bool?
 
     public init(
         endpoint: String? = nil, method: String? = nil, path: String? = nil, since: Double? = nil,
         rejected: Bool? = nil, unmatched: Bool? = nil, headers: [MoqHeaderExpectation]? = nil,
-        claims: [String: String]? = nil, times: Int? = nil, scope: Scope? = nil, includeUnattributed: Bool? = nil
+        claims: [String: String]? = nil, times: Int? = nil, scope: Scope? = nil, includeUnattributed: Bool? = nil,
+        includeOtherSessions: Bool? = nil
     ) {
         self.endpoint = endpoint
         self.method = method
@@ -85,6 +88,7 @@ public struct MoqRequestQuery: Encodable, Equatable, Sendable {
         self.times = times
         self.scope = scope
         self.includeUnattributed = includeUnattributed
+        self.includeOtherSessions = includeOtherSessions
     }
 }
 
@@ -104,8 +108,27 @@ public struct MoqRequestQueryResult: Decodable, Equatable, Sendable {
     public let nearMisses: [MoqRequestNearMiss]
     /// Session-less requests with no token claims, when a session check filtered by claims.
     public let unattributed: [MoqRequestRecord]
+    /// Session-less requests that carried another, released session's id; counted only with
+    /// `includeOtherSessions`.
+    public let otherSessions: [MoqRequestRecord]
     /// A readable verdict, used as the assertion failure message.
     public let message: String
+
+    private enum CodingKeys: String, CodingKey {
+        case ok, count, expected, matched, nearMisses, unattributed, otherSessions, message
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        ok = try container.decode(Bool.self, forKey: .ok)
+        count = try container.decode(Int.self, forKey: .count)
+        expected = try container.decodeIfPresent(Int.self, forKey: .expected)
+        matched = try container.decodeIfPresent([MoqRequestRecord].self, forKey: .matched) ?? []
+        nearMisses = try container.decodeIfPresent([MoqRequestNearMiss].self, forKey: .nearMisses) ?? []
+        unattributed = try container.decodeIfPresent([MoqRequestRecord].self, forKey: .unattributed) ?? []
+        otherSessions = try container.decodeIfPresent([MoqRequestRecord].self, forKey: .otherSessions) ?? []
+        message = try container.decode(String.self, forKey: .message)
+    }
 }
 
 /// Thrown by the `assert…` request checks; `description` is the server's verdict.
@@ -127,10 +150,13 @@ extension MoqClient {
             claims: claims.isEmpty ? nil : claims, times: times)
     }
 
-    static func sessionQuery(claims: [String: String], includeUnattributed: Bool, since: Double?) -> MoqRequestQuery {
+    static func sessionQuery(
+        claims: [String: String], includeUnattributed: Bool, includeOtherSessions: Bool, since: Double?
+    ) -> MoqRequestQuery {
         MoqRequestQuery(
             since: since, claims: claims.isEmpty ? nil : claims, times: 0, scope: .sessionless,
-            includeUnattributed: includeUnattributed ? true : nil)
+            includeUnattributed: includeUnattributed ? true : nil,
+            includeOtherSessions: includeOtherSessions ? true : nil)
     }
 
     /// Asks the server to evaluate `query` over this client's request history.
@@ -194,12 +220,19 @@ extension MoqClient {
     /// With `claims` (e.g. `["sub": uid]`), only session-less requests carrying this test's token
     /// count, so parallel workers sharing one server don't fail each other. Requests with no token
     /// can't be attributed: they count only with `includeUnattributed`, and are returned either way.
+    ///
+    /// Requests that carried another, already released or expired session's id (a finished run's
+    /// app still running in the background) are left out unless `includeOtherSessions` is set.
     @discardableResult
     public func assertAllRequestsCarrySession(
-        claims: [String: String] = [:], includeUnattributed: Bool = false, since: Double? = nil
+        claims: [String: String] = [:], includeUnattributed: Bool = false, includeOtherSessions: Bool = false,
+        since: Double? = nil
     ) throws -> [MoqRequestRecord] {
         try assertQuery(
-            Self.sessionQuery(claims: claims, includeUnattributed: includeUnattributed, since: since), timeout: 0
+            Self.sessionQuery(
+                claims: claims, includeUnattributed: includeUnattributed, includeOtherSessions: includeOtherSessions,
+                since: since),
+            timeout: 0
         ).unattributed
     }
 
@@ -266,10 +299,13 @@ extension MoqAsyncClient {
 
     @discardableResult
     public func assertAllRequestsCarrySession(
-        claims: [String: String] = [:], includeUnattributed: Bool = false, since: Double? = nil
+        claims: [String: String] = [:], includeUnattributed: Bool = false, includeOtherSessions: Bool = false,
+        since: Double? = nil
     ) async throws -> [MoqRequestRecord] {
         try await assertQuery(
-            MoqClient.sessionQuery(claims: claims, includeUnattributed: includeUnattributed, since: since),
+            MoqClient.sessionQuery(
+                claims: claims, includeUnattributed: includeUnattributed, includeOtherSessions: includeOtherSessions,
+                since: since),
             timeout: 0
         ).unattributed
     }

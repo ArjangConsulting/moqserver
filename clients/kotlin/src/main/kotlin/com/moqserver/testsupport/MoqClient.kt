@@ -232,23 +232,29 @@ public class MoqClient(
      * With [claims] (e.g. `mapOf("sub" to uid)`), only session-less requests carrying this test's
      * token count, so parallel workers sharing one server don't fail each other. Requests with no
      * token can't be attributed: they count only with [includeUnattributed], and are returned
-     * either way.
+     * either way. Requests that carried another, already released or expired session's id (a
+     * finished run's app still running in the background) are left out unless
+     * [includeOtherSessions].
      */
     @JvmOverloads
     public fun assertAllRequestsCarrySession(
         claims: Map<String, String> = emptyMap(),
         includeUnattributed: Boolean = false,
+        includeOtherSessions: Boolean = false,
         since: Double? = null,
-    ): List<MoqRequestRecord> = assertQuery(sessionQuery(claims, includeUnattributed, since), 0).unattributed
+    ): List<MoqRequestRecord> =
+        assertQuery(sessionQuery(claims, includeUnattributed, includeOtherSessions, since), 0).unattributed
 
     internal fun sessionQuery(
         claims: Map<String, String>,
         includeUnattributed: Boolean,
+        includeOtherSessions: Boolean,
         since: Double?,
     ): MoqRequestQuery =
         MoqRequestQuery(
             since = since, claims = claims, times = 0, scope = MoqRequestQuery.Scope.SESSIONLESS,
             includeUnattributed = includeUnattributed.takeIf { it },
+            includeOtherSessions = includeOtherSessions.takeIf { it },
         )
 
     // MARK: Readiness
