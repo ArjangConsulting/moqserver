@@ -50,7 +50,8 @@ private object VariantSummaryStrings {
 	const val REMOVE_VARIANT = "Remove Variant"
 	const val CALL_COUNT_LABEL = "Call #"
 	const val CALL_COUNT_TOOLTIP =
-		"1-indexed. When set, this variant is only eligible on the Nth call to its endpoint. Leave blank to match every call."
+		"1-indexed. When set, this variant is only eligible on the Nth call to its endpoint, " +
+			"where it wins over variants without call_count. Leave blank to match every call."
 }
 
 @Composable

@@ -487,6 +487,61 @@ struct MockHandlerTests {
         }
     }
 
+    @Test(
+        "A call_count variant wins its call over an unscoped default, then selection falls back",
+        arguments: [nil, "application/json", "*/*"])
+    func callCountBeatsUnscopedDefault(accept: String?) async throws {
+        let store = InMemoryMockStore()
+        await store.register(
+            makeTestEndpoint(
+                method: .get, path: "/v1/me",
+                variants: [
+                    ResponseVariant(
+                        name: "success", isDefault: true, statusCode: .ok,
+                        headers: [("Content-Type", "application/json")], body: Data(#"{"ok":true}"#.utf8)),
+                    ResponseVariant(
+                        name: "unauthorizedOnce", statusCode: .unauthorized,
+                        headers: [("Content-Type", "application/json")], body: Data(#"{"error":"expired"}"#.utf8),
+                        callCount: 1),
+                ]))
+        let app = try await buildApp(store: store)
+        defer { Task { try? await app.asyncShutdown() } }
+        let headers: HTTPHeaders = accept.map { ["Accept": $0] } ?? [:]
+
+        try await app.testing().test(.GET, "/v1/me", headers: headers) { res async in
+            #expect(res.status == .unauthorized)
+        }
+        for _ in 0..<2 {
+            try await app.testing().test(.GET, "/v1/me", headers: headers) { res async in
+                #expect(res.status == .ok)
+            }
+        }
+        #expect(await store.recentRequests().map(\.variant) == ["success", "success", "unauthorizedOnce"])
+    }
+
+    @Test("Naming a call_count variant applies it on its call only")
+    func namedCallCountVariantFallsBack() async throws {
+        let store = InMemoryMockStore()
+        await store.register(
+            makeTestEndpoint(
+                method: .get, path: "/v1/me",
+                variants: [
+                    ResponseVariant(name: "success", isDefault: true, statusCode: .ok, body: Data("{}".utf8)),
+                    ResponseVariant(
+                        name: "failSecond", statusCode: HTTPStatusCode(code: 503), body: Data("{}".utf8), callCount: 2),
+                ]))
+        let app = try await buildApp(store: store)
+        defer { Task { try? await app.asyncShutdown() } }
+
+        for expected: UInt in [200, 503, 200] {
+            try await app.testing().test(.GET, "/v1/me", headers: ["X-Mock-Variant": "failSecond"]) { res async in
+                #expect(res.status.code == expected)
+            }
+        }
+        let reasons = await store.recentRequests().reversed().map(\.reason)
+        #expect(reasons.first?.hasSuffix("(override is call_count-scoped)") == true)
+    }
+
     @Test("strict_call_count rejects a call with no exact call_count match")
     func strictCallCountRejectsDuplicate() async throws {
         let store = InMemoryMockStore()

@@ -11,7 +11,10 @@ different mechanisms for that, and they are not interchangeable.
 ## `call_count` — baked into the bundle, not test-scoped
 
 A variant with `call_count: N` is only eligible on the Nth call to its endpoint, in the order
-calls actually arrive. This is part of the **bundle**, not of any one test run.
+calls actually arrive, and on that call it takes priority over variants with no `call_count`
+(including the default). Later calls fall back to normal selection, so `call_count: 1` on an error
+variant gives "fail once, then succeed". Naming a `call_count` variant through `X-Mock-Variant` or
+an override applies it on its call only. This is part of the **bundle**, not of any one test run.
 
 The trap: "make the first call fail, then succeed" via `call_count: 1` on an error variant changes
 the happy path for **every test in the run** that hits that endpoint, not just the test that wants

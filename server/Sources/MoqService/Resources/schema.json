@@ -300,7 +300,7 @@
           "minimum": 0
         },
         "call_count": {
-          "$comment": "1-indexed. When set, this variant is only eligible on the Nth call to its endpoint.",
+          "$comment": "1-indexed. When set, this variant is only eligible on the Nth call to its endpoint, where it takes priority over variants without call_count.",
           "type": "integer",
           "minimum": 1
         },

@@ -103,7 +103,8 @@ public struct MockHandler: Sendable {
                 RequestTrace(
                     id: UUID().uuidString, timestamp: Date().timeIntervalSince1970,
                     method: req.method.rawValue, path: req.url.path, endpoint: nil, status: 428,
-                    variant: nil, reason: "missing session", callNumber: nil, requestBody: capturedBody(req),
+                    variant: nil, reason: "missing session", callNumber: nil,
+                    requestBody: capturedBody(req),
                     requestHeaders: capturedHeaders(req),
                     rejection: RequestRejection(
                         kind: .session, code: "session_required", message: "Missing X-Mock-Session header")))
@@ -311,7 +312,8 @@ public struct MockHandler: Sendable {
         let variant = selected.variant
         let source: String
         if let variantName, !variant.matchesIdentifier(variantName) {
-            source = selected.reason + " (unknown override)"
+            let isCallScoped = endpoint.variants.contains { $0.matchesIdentifier(variantName) && $0.callCount != nil }
+            source = selected.reason + (isCallScoped ? " (override is call_count-scoped)" : " (unknown override)")
         } else if req.headers.first(name: "X-Mock-Variant") != nil {
             source = "request header"
         } else if adminOverride != nil {
@@ -421,45 +423,59 @@ public struct MockHandler: Sendable {
     private func selectVariant(
         endpoint: Endpoint, named name: String?, req: Request, callNumber: Int
     ) -> (variant: ResponseVariant, reason: String)? {
-        // Narrow to variants scoped to this call number first. If that narrowing would eliminate
-        // every candidate (call_count exhausted, e.g. call 3 when only call_count 1/2 are
-        // defined), drop the call_count constraint entirely and fall back to today's ordinary
-        // selection over all variants — call_count is a preference, not a hard requirement,
-        // unless strict_call_count already rejected the request before we got here.
-        let eligible = endpoint.variants.filter { $0.callCount == nil || $0.callCount == callNumber }
-        let effectiveVariants = eligible.isEmpty ? endpoint.variants : eligible
+        // Selection runs over tiers, most specific first: variants scoped to this call number, then
+        // unscoped variants. A `call_count: N` variant therefore wins call N over an unscoped
+        // default, and later calls fall back to normal selection. When neither tier exists
+        // (call_count exhausted, e.g. call 3 when only call_count 1/2 are defined), every variant is
+        // one tier. call_count is a preference, not a hard requirement, unless strict_call_count
+        // already rejected the request.
+        let scoped = endpoint.variants.filter { $0.callCount == callNumber }
+        let unscoped = endpoint.variants.filter { $0.callCount == nil }
+        let tiers =
+            scoped.isEmpty && unscoped.isEmpty ? [endpoint.variants] : [scoped, unscoped].filter { !$0.isEmpty }
 
-        let primaryCandidates: [ResponseVariant]
+        // A named variant (header, runtime or configuration override) is looked for in the first
+        // tier that contains it, so naming a call_count variant applies it on its call only.
         if let name {
-            primaryCandidates = effectiveVariants.filter { $0.matchesIdentifier(name) }
-        } else {
-            primaryCandidates = effectiveVariants
+            for tier in tiers where tier.contains(where: { $0.matchesIdentifier(name) }) {
+                if let selected = selectVariant(in: tier, named: name, negotiate: false, req: req) { return selected }
+            }
         }
+        // Without a usable name, fall back to normal selection. An override that names an unknown or
+        // out-of-call variant skips content negotiation, as it always has.
+        for tier in tiers {
+            if let selected = selectVariant(in: tier, named: nil, negotiate: name == nil, req: req) {
+                return selected
+            }
+        }
+        return nil
+    }
 
-        // Try variants with explicit requestMatch constraints first
+    private func selectVariant(
+        in variants: [ResponseVariant], named name: String?, negotiate: Bool, req: Request
+    ) -> (variant: ResponseVariant, reason: String)? {
+        let primaryCandidates = name.map { name in variants.filter { $0.matchesIdentifier(name) } } ?? variants
+
         if let constrained = primaryCandidates.first(where: { $0.requestMatch != nil && variantMatches($0, req: req) }
         ) {
             return (constrained, "request match")
         }
 
-        // Content negotiation: pick variant matching the Accept header
-        let acceptHeader = req.headers.first(name: .accept)
-        if let accept = acceptHeader, name == nil {
-            let acceptTypes = parseAcceptHeader(accept)
+        if negotiate, let accept = req.headers.first(name: .accept) {
             let unconstrained = primaryCandidates.filter { $0.requestMatch == nil }
-            if let negotiated = bestVariantForAccept(candidates: unconstrained, acceptTypes: acceptTypes) {
-                return (negotiated, "content negotiation")
-            }
-            return nil
+            return bestVariantForAccept(candidates: unconstrained, acceptTypes: parseAcceptHeader(accept))
+                .map { ($0, "content negotiation") }
         }
 
-        if let name, let matched = primaryCandidates.first(where: { variantMatches($0, req: req) }) {
-            return (matched, "named variant: \(name)")
+        if let name {
+            return primaryCandidates.first(where: { variantMatches($0, req: req) }).map {
+                ($0, "named variant: \(name)")
+            }
         }
-        if let declared = effectiveVariants.first(where: { $0.isDefault && variantMatches($0, req: req) }) {
+        if let declared = variants.first(where: { $0.isDefault && variantMatches($0, req: req) }) {
             return (declared, "declared default")
         }
-        return effectiveVariants.first(where: { variantMatches($0, req: req) }).map { ($0, "declaration order") }
+        return variants.first(where: { variantMatches($0, req: req) }).map { ($0, "declaration order") }
     }
 
     // MARK: - Content Negotiation
