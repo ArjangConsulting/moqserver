@@ -1,9 +1,13 @@
 import Foundation
+import Logging
 import Vapor
+
+private let logger = Logger(label: "moqserver.runtime.RuntimeAdmin")
 
 extension RuntimeScenario: Content {}
 extension RequestTrace: Content {}
 extension RuntimeSessionInfo: Content {}
+extension RequestQueryResult: Content {}
 
 extension AdminHandler {
     func scoped(req: Request) async throws -> AdminHandler {
@@ -12,7 +16,35 @@ extension AdminHandler {
         guard let root = store as? InMemoryMockStore, let session = await root.runtimeSession(id) else {
             throw Abort(.notFound, reason: "Unknown mock session. Create one with POST /_admin/sessions.")
         }
-        return AdminHandler(store: session, config: config)
+        return AdminHandler(
+            store: session, config: config, captureRequestHeaders: captureRequestHeaders,
+            redactHeaders: redactHeaders)
+    }
+
+    /// POST /_admin/requests/query — evaluates a ``RequestQuery`` over the caller's history.
+    func queryRequests(req: Request) async throws -> RequestQueryResult {
+        try requireAdminAuth(req: req)
+        let query = try req.content.decode(RequestQuery.self)
+        do {
+            try query.validate(headerCaptureEnabled: captureRequestHeaders, redactHeaders: redactHeaders)
+        } catch let error as RequestQueryError {
+            throw Abort(error == .headerCaptureDisabled ? .conflict : .badRequest, reason: error.description)
+        }
+        let rows: [RequestTrace]
+        if query.scope == .sessionless {
+            guard let id = req.headers.first(name: "X-Mock-Session") else {
+                throw Abort(.badRequest, reason: RequestQueryError.sessionlessNeedsSession.description)
+            }
+            guard let root = store as? InMemoryMockStore, let createdAt = await root.runtimeSessionCreatedAt(id) else {
+                throw Abort(.notFound, reason: "Unknown mock session. Create one with POST /_admin/sessions.")
+            }
+            rows = await root.recentRequests().reversed().filter { $0.timestamp >= createdAt }
+        } else {
+            rows = try await runtime(req: req).recentRequests().reversed()
+        }
+        let result = query.evaluate(rows)
+        logger.debug("Request query matched \(result.count) row(s), ok=\(result.ok)")
+        return result
     }
 
     func runtime(req: Request) async throws -> InMemoryMockStore {
@@ -26,6 +58,13 @@ extension AdminRouter {
     func registerRuntimeRoutes(on admin: RoutesBuilder) {
         admin.get("requests") { req async throws -> [RequestTrace] in
             try await handler.runtime(req: req).recentRequests()
+        }
+        admin.post("requests", "query") { req async throws -> RequestQueryResult in
+            try await handler.queryRequests(req: req)
+        }
+        admin.post("requests", "mark") { req async throws -> [String: Double] in
+            try handler.requireAdminAuth(req: req)
+            return ["timestamp": Date().timeIntervalSince1970]
         }
         admin.delete("requests") { req async throws -> HTTPStatus in
             try await handler.runtime(req: req).clearRequestHistory()

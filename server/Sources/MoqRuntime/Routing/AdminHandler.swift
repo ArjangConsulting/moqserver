@@ -9,11 +9,20 @@ public struct AdminHandler: Sendable {
     let store: any MockStoring
     let config: ServerConfig?
     let reloader: MockReloader?
+    /// Whether history rows carry `requestHeaders`, so header predicates can be answered.
+    let captureRequestHeaders: Bool
+    /// Lowercased `--redact-header` names.
+    let redactHeaders: Set<String>
 
-    public init(store: any MockStoring, config: ServerConfig? = nil, reloader: MockReloader? = nil) {
+    public init(
+        store: any MockStoring, config: ServerConfig? = nil, reloader: MockReloader? = nil,
+        captureRequestHeaders: Bool = false, redactHeaders: Set<String> = []
+    ) {
         self.store = store
         self.config = config
         self.reloader = reloader
+        self.captureRequestHeaders = captureRequestHeaders
+        self.redactHeaders = redactHeaders
     }
 
     /// GET /_admin/endpoints — list all endpoints with variants and active variant.
@@ -79,6 +88,14 @@ public struct AdminHandler: Sendable {
             throw Abort(.badRequest, reason: "Variant '\(body.variant)' not found for \(keyString)")
         }
 
+        if let times = body.times {
+            guard times > 0 else { throw Abort(.badRequest, reason: "times must be 1 or more") }
+            guard let runtime = store as? InMemoryMockStore else { throw Abort(.notImplemented) }
+            await runtime.setVariantOverride(for: keyString, variant: variant.name, times: times)
+            logger.info("Active variant set to '\(variant.name)' for \(keyString) for \(times) request(s)")
+            return MessageResponse(
+                message: "Active variant set to '\(variant.name)' for \(keyString) for the next \(times) request(s)")
+        }
         await store.setVariantOverride(for: keyString, variant: variant.name)
         logger.info("Active variant set to '\(variant.name)' for \(keyString)")
         return MessageResponse(message: "Active variant set to '\(variant.name)' for \(keyString)")

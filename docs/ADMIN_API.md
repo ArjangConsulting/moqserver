@@ -225,6 +225,11 @@ curl -X PUT \
 | Field | Type | Description |
 |-------|------|-------------|
 | `variant` | `string` | Name of the variant to activate |
+| `times` | `integer`, optional | Apply the override to only the next `times` requests that reach variant selection, then clear it so normal selection resumes. Requests rejected first (auth, request rules) don't use it up. Must be 1 or more. Omit to keep the override until reset |
+
+`{"variant": "unauthorized", "times": 1}` is how a test makes the next call fail once, for example
+to check that the app refreshes its token and retries. Sent with `X-Mock-Session`, it affects only
+that session. Limited overrides are never persisted.
 
 **Response** — `200 OK` — `MessageResponse`
 
@@ -409,6 +414,8 @@ for session-local operations; omit it for global state.
 | `DELETE /_admin/state` | Reset all overrides and counters |
 | `DELETE /_admin/endpoints/:method/**/state` | Reset one endpoint's override and counter together |
 | `GET /_admin/requests` | Newest-first history, at most 500 records |
+| `POST /_admin/requests/query` | Evaluate a request query (below) and return the verdict |
+| `POST /_admin/requests/mark` | Returns `{timestamp}`, the server's current Unix time, for a later `since` |
 | `DELETE /_admin/requests` | Clear history |
 | `POST /_admin/sessions` | Create isolated state; returns `{id}` |
 | `DELETE /_admin/sessions/:id` | Release session (idempotent) |
@@ -421,3 +428,45 @@ optional `variant`, `reason`, optional `callNumber`, optional `requestBody` (wit
 `session`, `call_count` or `no_variant`), and optional `addons` (add-on annotations
 keyed by add-on id, e.g. `{"jwt-claims": {"sub": "user-1"}}` — see [ADDONS.md](ADDONS.md)). See [runtime workflows](RUNTIME_WORKFLOWS.md)
 for limits, lifecycle, scenario examples and parallel-test setup.
+
+### Request queries
+
+`POST /_admin/requests/query` answers a question about request history on the server, so the Swift
+and Kotlin test clients and any script evaluate the same predicates the same way. Send
+`X-Mock-Session` to query that session's history. Every field is optional.
+
+| Field | Type | Meaning |
+|---|---|---|
+| `endpoint` | `string` | Matched endpoint key, e.g. `GET /v1/users/{id}` (method compares case-insensitively) |
+| `method`, `path` | `string` | Request method and concrete path, e.g. `/v1/users/42` |
+| `since` | `number` | Only rows at or after this Unix time (from `POST /_admin/requests/mark`) |
+| `rejected` | `boolean` | `true`: only rows with a `rejection`; `false`: only served rows |
+| `headers` | `HeaderPredicate[]` | See below; needs `serve --capture-request-headers` (`409` otherwise) |
+| `claims` | `{string: string}` | Each must equal the row's `addons["jwt-claims"]` value |
+| `times` | `integer` | Exact number of matches expected; omitted means at least one |
+| `scope` | `"session"` \| `"sessionless"` | `sessionless` (needs `X-Mock-Session`): global rows recorded since that session was created, i.e. requests that reached the server without a valid session while the test ran |
+| `includeUnattributed` | `boolean` | With `sessionless` and `claims`: also count session-less rows that carry no token claims |
+
+A `HeaderPredicate` is `{name, present?, scheme?, fingerprint?, fingerprintOf?, equals?}`. Every
+field that is set must hold for one occurrence of the header; `present: false` alone means the
+header was not sent. `scheme` compares case-insensitively. `fingerprint` is the recorded 16-hex
+value; `fingerprintOf` is a credential the server fingerprints for you (the token without
+`Bearer `). `equals` is refused (`400`) for credential headers, which store no value.
+
+Rows are first narrowed by `scope`, `since`, `endpoint`, `method` and `path`; candidates that then
+fail `rejected`, `headers` or `claims` are reported as near misses. The response is
+`{ok, count, expected, matched, nearMisses: [{request, failed}], unattributed, message}`:
+`matched` is oldest first (compare a retry's token with the first call's), `nearMisses` holds up to
+10 rows with the labels of the predicates they failed, and `message` is a readable verdict to use as
+an assertion failure message.
+
+```sh
+# GET /v1/me was called exactly once with a Bearer token whose sub is u1
+curl -s -X POST http://127.0.0.1:8080/_admin/requests/query -H "X-Mock-Session: $SESSION" \
+  -H 'Content-Type: application/json' \
+  -d '{"endpoint":"GET /v1/me","times":1,"headers":[{"name":"Authorization","scheme":"Bearer"}],"claims":{"sub":"u1"}}'
+
+# No request was rejected, and none reached the server without this session
+curl -s -X POST .../_admin/requests/query -H "X-Mock-Session: $SESSION" -d '{"rejected":true,"times":0}'
+curl -s -X POST .../_admin/requests/query -H "X-Mock-Session: $SESSION" -d '{"scope":"sessionless","times":0}'
+```

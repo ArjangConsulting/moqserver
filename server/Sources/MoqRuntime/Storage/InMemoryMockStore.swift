@@ -151,11 +151,31 @@ public actor InMemoryMockStore: MockStoring {
     // MARK: - Variant Overrides
 
     var variantOverrides: [String: String] = [:]
+    /// Overrides set with a use count: the variant they were set for and how many requests remain
+    /// before the override clears itself. Never persisted.
+    var limitedOverrideUses: [String: (variant: String, remaining: Int)] = [:]
 
     public func setVariantOverride(for key: String, variant: String) {
         logger.info("Setting variant override '\(variant)' for \(key)")
         variantOverrides[key] = variant
+        limitedOverrideUses.removeValue(forKey: key)
         persistVariantOverridesIfNeeded()
+    }
+
+    /// Sets an override that applies to the next `times` requests that reach variant selection for
+    /// `key`, then clears itself so normal selection resumes. Requests rejected before selection
+    /// (auth, request rules) don't use it up.
+    public func setVariantOverride(for key: String, variant: String, times: Int) {
+        logger.info("Setting variant override '\(variant)' for \(key) for \(times) request(s)")
+        variantOverrides[key] = variant
+        limitedOverrideUses[key] = (variant, times)
+        persistVariantOverridesIfNeeded()
+    }
+
+    /// Remaining uses of a limited override, or `nil` when the override (if any) is permanent.
+    public func remainingOverrideUses(for key: String) -> Int? {
+        guard let use = limitedOverrideUses[key], variantOverrides[key] == use.variant else { return nil }
+        return use.remaining
     }
 
     public func activeVariantOverride(for key: String) -> String? {
@@ -165,6 +185,7 @@ public actor InMemoryMockStore: MockStoring {
     public func resetVariantOverride(for key: String) {
         logger.info("Resetting variant override for \(key)")
         variantOverrides.removeValue(forKey: key)
+        limitedOverrideUses.removeValue(forKey: key)
         persistVariantOverridesIfNeeded()
     }
 
@@ -201,6 +222,7 @@ public actor InMemoryMockStore: MockStoring {
         endpoints.removeAll()
         graphqlEndpoints.removeAll()
         variantOverrides.removeAll()
+        limitedOverrideUses.removeAll()
         callCounts.removeAll()
         persistVariantOverridesIfNeeded()
     }
@@ -233,7 +255,8 @@ public actor InMemoryMockStore: MockStoring {
 
     func persistVariantOverridesIfNeeded() {
         guard let path = overridesPersistencePath else { return }
-        let snapshot = variantOverrides
+        let limitedKeys = Set(limitedOverrideUses.keys)
+        let snapshot = variantOverrides.filter { !limitedKeys.contains($0.key) }
         let previous = persistTask
         persistTask = Task.detached(priority: .utility) {
             await previous?.value

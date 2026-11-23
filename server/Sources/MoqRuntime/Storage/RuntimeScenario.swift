@@ -146,6 +146,7 @@ extension InMemoryMockStore {
         let validated = try validatedOverrides(scenario.overrides)
         // No suspension: requests observe either the old or new overrides and counters together.
         variantOverrides = validated
+        limitedOverrideUses.removeAll()
         callCounts.removeAll()
         activeScenario = name
         persistVariantOverridesIfNeeded()
@@ -154,17 +155,33 @@ extension InMemoryMockStore {
     public func resetRuntimeState(for key: String? = nil) {
         if let key {
             variantOverrides.removeValue(forKey: key)
+            limitedOverrideUses.removeValue(forKey: key)
             callCounts.removeValue(forKey: key)
         } else {
             variantOverrides.removeAll()
+            limitedOverrideUses.removeAll()
             callCounts.removeAll()
         }
         activeScenario = nil
         persistVariantOverridesIfNeeded()
     }
 
+    /// Counts a request that reached variant selection and returns the override it should use,
+    /// spending one use of a limited override.
     public func beginRequest(for key: String) -> (count: Int, override: String?) {
-        (incrementCallCount(for: key), variantOverrides[key])
+        let override = variantOverrides[key]
+        if let use = limitedOverrideUses[key] {
+            if override != use.variant {
+                limitedOverrideUses.removeValue(forKey: key)
+            } else if use.remaining <= 1 {
+                limitedOverrideUses.removeValue(forKey: key)
+                variantOverrides.removeValue(forKey: key)
+                persistVariantOverridesIfNeeded()
+            } else {
+                limitedOverrideUses[key] = (use.variant, use.remaining - 1)
+            }
+        }
+        return (incrementCallCount(for: key), override)
     }
 
     public func recordRequest(_ trace: RequestTrace) {
@@ -210,6 +227,14 @@ extension InMemoryMockStore {
         activity.lastUsedAt = current
         runtimeSessionActivity[id] = activity
         return session
+    }
+
+    /// When a live session was created, without marking it used. `nil` for unknown or expired ids.
+    public func runtimeSessionCreatedAt(_ id: String) -> Double? {
+        guard let activity = runtimeSessionActivity[id], !isExpired(activity, at: now().timeIntervalSince1970) else {
+            return nil
+        }
+        return activity.createdAt
     }
 
     public func removeRuntimeSession(_ id: String) {

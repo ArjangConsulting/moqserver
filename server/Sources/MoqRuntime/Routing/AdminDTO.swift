@@ -38,6 +38,14 @@ public struct VariantDetail: Content {
 
 public struct SetVariantRequest: Content {
     public let variant: String
+    /// Apply the override to only the next `times` requests that reach variant selection, then
+    /// clear it. `nil` keeps it until reset.
+    public let times: Int?
+
+    public init(variant: String, times: Int? = nil) {
+        self.variant = variant
+        self.times = times
+    }
 }
 
 public struct MessageResponse: Content {

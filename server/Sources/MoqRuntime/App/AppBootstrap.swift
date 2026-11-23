@@ -78,7 +78,9 @@ public func buildApp(
         app.storage[MockReloaderKey.self] = reloader
     }
 
-    let adminHandler = AdminHandler(store: store, config: config, reloader: reloader)
+    let adminHandler = AdminHandler(
+        store: store, config: config, reloader: reloader, captureRequestHeaders: captureRequestHeaders,
+        redactHeaders: SensitiveHeaders.normalized(redactHeaders))
     let adminRouter = AdminRouter(handler: adminHandler)
     adminRouter.registerRoutes(on: app)
 
