@@ -35,7 +35,7 @@ struct HARImporterTests {
         #expect(endpoint.responses[0].body?.contains("users") == true)
     }
 
-    @Test("Parses request cookies from HAR cookies and the Cookie header, always redacted")
+    @Test("Parses request cookies from HAR cookies and the Cookie header as presence-only rules")
     func parsesRequestCookies() throws {
         let har = """
             {
@@ -65,11 +65,12 @@ struct HARImporterTests {
         let users = try #require(spec.endpoints.first { $0.path == "/users" })
         #expect(users.cookies.count == 1)
         #expect(users.cookies[0].name == "session_id")
-        #expect(users.cookies[0].match == "[redacted]")
+        #expect(users.cookies[0].match == nil)
+        #expect(users.cookies[0].required == true)
 
         let profile = try #require(spec.endpoints.first { $0.path == "/profile" })
         #expect(profile.cookies.count == 2)
-        #expect(profile.cookies.first { $0.name == "theme" }?.match == "[redacted]")
+        #expect(profile.cookies.first { $0.name == "theme" }?.match == nil)
         #expect(profile.cookies.first { $0.name == "theme" }?.matchType == .equalTo)
     }
 
@@ -131,8 +132,9 @@ struct HARImporterTests {
             """
         let spec = try HARImporter.parse(har)
         let endpoint = try #require(spec.endpoints.first)
-        #expect(endpoint.queryParameters.first { $0.name == "code" }?.match == "[redacted]")
-        #expect(endpoint.queryParameters.first { $0.name == "state" }?.match == "[redacted]")
+        #expect(endpoint.queryParameters.first { $0.name == "code" }?.match == nil)
+        #expect(endpoint.queryParameters.first { $0.name == "state" }?.match == nil)
+        #expect(endpoint.queryParameters.first { $0.name == "code" }?.required == true)
         #expect(endpoint.queryParameters.first { $0.name == "redirect_uri" }?.match == "/home")
     }
 

@@ -359,13 +359,15 @@ public enum HARImporter {
         }
         return order.map { name in
             let values = valuesByName[name] ?? []
-            return RuleMatcher(
-                name: name,
-                match: values.count == 1 ? values.first : nil,
-                required: true,
-                matchType: .equalTo
-            )
+            // A redacted value is a placeholder, not what the app sends: matching it would reject
+            // every real request, so a redacted cookie or parameter only has to be present.
+            let match = values.count == 1 ? values.first.flatMap { isRedactedPlaceholder($0) ? nil : $0 } : nil
+            return RuleMatcher(name: name, match: match, required: true, matchType: .equalTo)
         }
+    }
+
+    private static func isRedactedPlaceholder(_ value: String) -> Bool {
+        value == redacted || value == encodedRedacted || value.hasSuffix(".redacted")
     }
 
     private static func baseVariantName(statusCode: Int, allowDefault: Bool) -> String {
