@@ -203,49 +203,6 @@ struct RequestQueryTests {
         try await app.asyncShutdown()
     }
 
-    @Test("Another released session's leftover calls don't fail a live session's check unless opted in")
-    func releasedSessionsAreSeparated() async throws {
-        let (app, store) = try await makeApp()
-        let finished = try await store.createRuntimeSession()
-        try await app.testing().test(.DELETE, "/_admin/sessions/\(finished)") { res async in
-            #expect(res.status == .noContent)
-        }
-        let mine = try await store.createRuntimeSession()
-        try await call(app, "/v1/me", headers: ["X-Mock-Session": finished])
-        try await call(app, "/v1/me", headers: ["X-Mock-Session": "never-created"])
-
-        let rows = await store.recentRequests()
-        #expect(rows.map { $0.rejection?.code } == ["unknown_session", "released_session"])
-        #expect(rows.last?.rejection?.session == finished)
-
-        let check = try #require(try await query(app, RequestQuery(times: 0, scope: .sessionless), session: mine))
-        #expect(check.count == 1)
-        #expect(check.matched.first?.rejection?.code == "unknown_session")
-        #expect(check.otherSessions.map { $0.rejection?.session } == [finished])
-        #expect(check.message.contains("1 request(s) carrying another released session's id were not counted"))
-
-        let all = try #require(
-            try await query(app, RequestQuery(times: 0, scope: .sessionless, includeOtherSessions: true), session: mine)
-        )
-        #expect(all.count == 2)
-        try await app.asyncShutdown()
-    }
-
-    @Test("The server remembers a bounded number of ended sessions")
-    func endedSessionMemoryIsBounded() async throws {
-        let store = InMemoryMockStore()
-        var ids: [String] = []
-        for _ in 0..<(InMemoryMockStore.endedSessionMemory + 1) {
-            let id = try await store.createRuntimeSession()
-            ids.append(id)
-            await store.removeRuntimeSession(id)
-        }
-        #expect(await store.endedSessionAt(ids[0]) == nil)
-        #expect(await store.endedSessionAt(ids[ids.count - 1]) != nil)
-        await store.removeRuntimeSession("never-created")
-        #expect(await store.endedSessionAt("never-created") == nil)
-    }
-
     @Test("Session-less requests are attributed to a test by its token claims")
     func sessionless() async throws {
         let (app, store) = try await makeApp(requireSession: true)

@@ -45,7 +45,7 @@ extension AdminHandler {
         } else {
             rows = try await runtime(req: req).recentRequests().reversed()
         }
-        let result = query.evaluate(rows, callerSession: req.headers.first(name: "X-Mock-Session"))
+        let result = query.evaluate(rows)
         logger.debug("Request query matched \(result.count) row(s), ok=\(result.ok)")
         return result
     }

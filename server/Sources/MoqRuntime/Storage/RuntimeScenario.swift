@@ -57,14 +57,11 @@ public struct RequestRejection: Codable, Sendable, Equatable {
     public let code: String
     /// What failed, e.g. `Header 'Authorization' is required`. Never contains a credential value.
     public let message: String
-    /// For `session` rejections: the `X-Mock-Session` value the request carried, if any.
-    public let session: String?
 
-    public init(kind: Kind, code: String, message: String, session: String? = nil) {
+    public init(kind: Kind, code: String, message: String) {
         self.kind = kind
         self.code = code
         self.message = message
-        self.session = session
     }
 }
 
@@ -243,26 +240,9 @@ extension InMemoryMockStore {
         return activity.createdAt
     }
 
-    /// How many released or expired session ids the server remembers.
-    public static let endedSessionMemory = 256
-
-    /// Releases a session (deleted or expired). Its id is remembered for a while so requests that
-    /// still carry it are reported as `released_session`.
     public func removeRuntimeSession(_ id: String) {
-        let existed = runtimeSessionActivity[id] != nil
         runtimeSessions.removeValue(forKey: id)
         runtimeSessionActivity.removeValue(forKey: id)
-        guard existed else { return }
-        endedSessions.removeAll { $0.id == id }
-        endedSessions.append((id, now().timeIntervalSince1970))
-        if endedSessions.count > Self.endedSessionMemory {
-            endedSessions.removeFirst(endedSessions.count - Self.endedSessionMemory)
-        }
-    }
-
-    /// When `id` was released or expired, if it is one of the recently ended sessions.
-    public func endedSessionAt(_ id: String) -> Double? {
-        endedSessions.last { $0.id == id }?.endedAt
     }
 
     /// Live sessions, oldest first, with their expiry under the current idle timeout.

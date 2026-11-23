@@ -60,14 +60,11 @@ public struct MoqRequestRejection: Decodable, Equatable, Sendable {
     public let code: String
     /// What failed, e.g. `Header 'Authorization' is required`. Never contains a credential.
     public let message: String
-    /// For `session` rejections: the `X-Mock-Session` value the request carried, if any.
-    public let session: String?
 
-    public init(kind: String, code: String, message: String, session: String? = nil) {
+    public init(kind: String, code: String, message: String) {
         self.kind = kind
         self.code = code
         self.message = message
-        self.session = session
     }
 }
 

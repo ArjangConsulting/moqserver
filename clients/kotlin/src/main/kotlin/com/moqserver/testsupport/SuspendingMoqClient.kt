@@ -88,10 +88,8 @@ public class SuspendingMoqClient(public val client: MoqClient) {
     public suspend fun assertAllRequestsCarrySession(
         claims: Map<String, String> = emptyMap(),
         includeUnattributed: Boolean = false,
-        includeOtherSessions: Boolean = false,
         since: Double? = null,
-    ): List<MoqRequestRecord> =
-        io { assertAllRequestsCarrySession(claims, includeUnattributed, includeOtherSessions, since) }
+    ): List<MoqRequestRecord> = io { assertAllRequestsCarrySession(claims, includeUnattributed, since) }
 
     private suspend fun assertQuery(query: MoqRequestQuery, timeoutMillis: Long): MoqRequestQueryResult {
         val deadline = System.nanoTime() + timeoutMillis.coerceAtLeast(0) * NANOS_PER_MILLI

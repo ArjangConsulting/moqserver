@@ -76,25 +76,15 @@ public struct MockHandler: Sendable {
         logger.warning("Rejected \(req.method) \(req.url.path): unknown X-Mock-Session")
         if let root = store as? InMemoryMockStore {
             let facts = await addonFacts(for: req)
-            let rejection: RequestRejection
-            if let endedAt = await root.endedSessionAt(id) {
-                let ended = ISO8601DateFormatter().string(from: Date(timeIntervalSince1970: endedAt))
-                rejection = RequestRejection(
-                    kind: .session, code: "released_session",
-                    message: "X-Mock-Session '\(id)' was released or expired at \(ended); the app is still sending it",
-                    session: id)
-            } else {
-                rejection = RequestRejection(
-                    kind: .session, code: "unknown_session",
-                    message: "Unknown X-Mock-Session '\(id)': it was never created, or ended too long ago to remember",
-                    session: id)
-            }
             await root.recordRequest(
                 RequestTrace(
                     id: UUID().uuidString, timestamp: Date().timeIntervalSince1970,
                     method: req.method.rawValue, path: req.url.path, endpoint: endpoint, status: 404,
                     variant: nil, reason: "unknown session", callNumber: nil, addons: traceAnnotations(facts),
-                    requestBody: capturedBody(req), requestHeaders: capturedHeaders(req), rejection: rejection))
+                    requestBody: capturedBody(req), requestHeaders: capturedHeaders(req),
+                    rejection: RequestRejection(
+                        kind: .session, code: "unknown_session",
+                        message: "Unknown X-Mock-Session '\(id)': it was never created, expired, or was deleted")))
         }
         return Abort(.notFound, reason: "Unknown mock session")
     }

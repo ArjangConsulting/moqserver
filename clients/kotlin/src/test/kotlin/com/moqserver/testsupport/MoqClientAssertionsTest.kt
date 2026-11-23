@@ -130,14 +130,6 @@ class MoqClientAssertionsTest {
         assertEquals(listOf("/v1/anon"), unattributed.map { it.path })
         assertEquals("sessionless", body()["scope"]?.jsonPrimitive?.content)
         assertFalse(body().containsKey("includeUnattributed"))
-        assertFalse(body().containsKey("includeOtherSessions"))
-    }
-
-    @Test
-    fun `session check can count other released sessions`() {
-        responses += passing
-        MoqClient(baseUrl, sessionId = "s1").assertAllRequestsCarrySession(includeOtherSessions = true)
-        assertTrue(body()["includeOtherSessions"]!!.jsonPrimitive.boolean)
     }
 
     @Test

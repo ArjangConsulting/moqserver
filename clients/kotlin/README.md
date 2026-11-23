@@ -81,9 +81,7 @@ session.assertAllRequestsCarrySession(claims = mapOf("sub" to uid))
 
 `times = null` means at least once. `timeoutMillis` re-checks until the app has made the call.
 Without `--require-session`, the session check covers global requests recorded after the session
-was created, so app start-up traffic before `createSession()` doesn't count. Calls that carry another,
-already released session's id (a finished run's app still running in the background) don't count
-either, unless you pass `includeOtherSessions = true`.
+was created, so app start-up traffic before `createSession()` doesn't count.
 
 To test a retry, fail only the next call in this session:
 
