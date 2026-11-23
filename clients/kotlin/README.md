@@ -49,6 +49,46 @@ val sent = session.requests().first { it.path == "/ai" }.requestBody?.jsonObject
 session.closeSession()
 ```
 
+### Asserting what the app sent
+
+The server evaluates these checks (`POST /_admin/requests/query`), so Kotlin, Swift and scripts
+agree on what they mean. A failed check throws `MoqRequestAssertionException` (an
+`AssertionError`), whose message lists the near misses or the offending requests. Header
+expectations need `serve --capture-request-headers`; claims come from the `jwt-claims` add-on.
+
+```kotlin
+// GET /v1/me was called twice with this user's Bearer token, the retry with a newer token.
+val calls = session.assertRequest(
+    "GET /v1/me", times = 2,
+    headers = listOf(MoqHeaderExpectation.Scheme("Authorization", "Bearer")),
+    claims = mapOf("sub" to uid),
+)
+assertTrue(calls[0].claims.getValue("iat").toLong() < calls[1].claims.getValue("iat").toLong())
+
+// No Authorization header on the content call.
+session.assertRequest("GET /content/{id}", headers = listOf(MoqHeaderExpectation.Absent("Authorization")))
+
+// Nothing after sign-out carried a token.
+val signedOut = session.mark()
+session.assertRequest(
+    "GET /v1/me", times = 0, headers = listOf(MoqHeaderExpectation.Present("Authorization")), since = signedOut,
+)
+
+// After the test: no request was rejected, and none from this test's user skipped the session.
+session.assertNoRejectedRequests()
+session.assertAllRequestsCarrySession(claims = mapOf("sub" to uid))
+```
+
+`times = null` means at least once. `timeoutMillis` re-checks until the app has made the call.
+Without `--require-session`, the session check covers global requests recorded after the session
+was created, so app start-up traffic before `createSession()` doesn't count.
+
+To test a retry, fail only the next call in this session:
+
+```kotlin
+session.selectVariant("unauthorized", "GET", "/v1/me", times = 1)
+```
+
 Inspect and drive server state without hand-written HTTP:
 
 ```kotlin

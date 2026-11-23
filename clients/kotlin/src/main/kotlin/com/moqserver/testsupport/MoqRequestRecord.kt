@@ -24,10 +24,52 @@ public data class MoqRequestRecord(
     val addons: Map<String, Map<String, String>>? = null,
     /** The request body, when the server runs with `--capture-request-bodies`. */
     val requestBody: MoqCapturedBody? = null,
+    /** The request headers, when the server runs with `--capture-request-headers`. */
+    val requestHeaders: List<MoqCapturedHeader>? = null,
+    /** Set when the server refused the request itself. */
+    val rejection: MoqRequestRejection? = null,
 ) {
     /** Whether the request hit a path no endpoint in the bundle serves. */
-    val isUnmatched: Boolean get() = endpoint == null
+    val isUnmatched: Boolean get() = endpoint == null && rejection == null
+
+    /** Whether the server refused the request itself (see [rejection]). */
+    val isRejected: Boolean get() = rejection != null
+
+    /** Token claims recorded by the `jwt-claims` add-on, e.g. `{"sub": "u1", "iat": "1732000000"}`. */
+    val claims: Map<String, String> get() = addons?.get("jwt-claims").orEmpty()
+
+    /** The first captured header named [name] (any case). */
+    public fun header(name: String): MoqCapturedHeader? = requestHeaders?.firstOrNull { it.name == name.lowercase() }
 }
+
+/**
+ * One request header recorded by `serve --capture-request-headers`. Credential headers carry no
+ * [value]: only [scheme], [fingerprint] and, for `cookie`, [cookieNames].
+ */
+@Serializable
+public data class MoqCapturedHeader(
+    /** Lowercased header name. */
+    val name: String,
+    val value: String? = null,
+    val truncated: Boolean = false,
+    val redacted: Boolean = false,
+    /** Auth scheme of a redacted credential, e.g. `Bearer`. */
+    val scheme: String? = null,
+    /** First 16 hex characters of the SHA-256 of the credential (after the scheme). */
+    val fingerprint: String? = null,
+    val cookieNames: List<String>? = null,
+)
+
+/** Why the server refused a matched request itself. A mocked 4xx variant is not a rejection. */
+@Serializable
+public data class MoqRequestRejection(
+    /** `auth`, `request_rule`, `session`, `call_count` or `no_variant`. */
+    val kind: String,
+    /** The error code, e.g. `missing_required_header` or `unknown_session`. */
+    val code: String,
+    /** What failed, e.g. `Header 'Authorization' is required`. Never contains a credential. */
+    val message: String,
+)
 
 /** A request body recorded by `serve --capture-request-bodies <bytes>`. */
 @Serializable

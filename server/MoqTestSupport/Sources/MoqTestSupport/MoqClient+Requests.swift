@@ -24,6 +24,50 @@ public struct MoqCapturedBody: Decodable, Equatable, Sendable {
     }
 }
 
+/// One request header recorded by `serve --capture-request-headers`. Credential headers carry no
+/// `value`: only `scheme`, `fingerprint` and, for `cookie`, `cookieNames`.
+public struct MoqCapturedHeader: Decodable, Equatable, Sendable {
+    /// Lowercased header name.
+    public let name: String
+    public let value: String?
+    public let truncated: Bool
+    public let redacted: Bool
+    /// Auth scheme of a redacted credential, e.g. `Bearer`.
+    public let scheme: String?
+    /// First 16 hex characters of the SHA-256 of the credential (after the scheme).
+    public let fingerprint: String?
+    public let cookieNames: [String]?
+
+    public init(
+        name: String, value: String? = nil, truncated: Bool = false, redacted: Bool = false, scheme: String? = nil,
+        fingerprint: String? = nil, cookieNames: [String]? = nil
+    ) {
+        self.name = name
+        self.value = value
+        self.truncated = truncated
+        self.redacted = redacted
+        self.scheme = scheme
+        self.fingerprint = fingerprint
+        self.cookieNames = cookieNames
+    }
+}
+
+/// Why the server refused a matched request itself. A mocked 4xx variant is not a rejection.
+public struct MoqRequestRejection: Decodable, Equatable, Sendable {
+    /// `auth`, `request_rule`, `session`, `call_count` or `no_variant`.
+    public let kind: String
+    /// The error code, e.g. `missing_required_header` or `unknown_session`.
+    public let code: String
+    /// What failed, e.g. `Header 'Authorization' is required`. Never contains a credential.
+    public let message: String
+
+    public init(kind: String, code: String, message: String) {
+        self.kind = kind
+        self.code = code
+        self.message = message
+    }
+}
+
 /// One row of the server's request history (`GET /_admin/requests`).
 public struct MoqRequestRecord: Decodable, Equatable, Sendable {
     public let id: String
@@ -42,11 +86,16 @@ public struct MoqRequestRecord: Decodable, Equatable, Sendable {
     public let addons: [String: [String: String]]?
     /// The request body, when the server captures bodies.
     public let requestBody: MoqCapturedBody?
+    /// The request headers, when the server runs with `--capture-request-headers`.
+    public let requestHeaders: [MoqCapturedHeader]?
+    /// Set when the server refused the request itself.
+    public let rejection: MoqRequestRejection?
 
     public init(
         id: String, timestamp: Double, method: String, path: String, endpoint: String?, status: Int,
         variant: String?, reason: String, callNumber: Int?, addons: [String: [String: String]]? = nil,
-        requestBody: MoqCapturedBody? = nil
+        requestBody: MoqCapturedBody? = nil, requestHeaders: [MoqCapturedHeader]? = nil,
+        rejection: MoqRequestRejection? = nil
     ) {
         self.id = id
         self.timestamp = timestamp
@@ -59,10 +108,23 @@ public struct MoqRequestRecord: Decodable, Equatable, Sendable {
         self.callNumber = callNumber
         self.addons = addons
         self.requestBody = requestBody
+        self.requestHeaders = requestHeaders
+        self.rejection = rejection
     }
 
     /// Whether the request hit a path no endpoint in the bundle serves.
-    public var isUnmatched: Bool { endpoint == nil }
+    public var isUnmatched: Bool { endpoint == nil && rejection == nil }
+
+    /// Whether the server refused the request itself (see ``rejection``).
+    public var isRejected: Bool { rejection != nil }
+
+    /// Token claims recorded by the `jwt-claims` add-on, e.g. `["sub": "u1", "iat": "1732000000"]`.
+    public var claims: [String: String] { addons?["jwt-claims"] ?? [:] }
+
+    /// The first captured header named `name` (any case).
+    public func header(_ name: String) -> MoqCapturedHeader? {
+        requestHeaders?.first { $0.name == name.lowercased() }
+    }
 }
 
 /// Thrown by `assertNoUnmatchedRequests()`: the app called paths the bundle doesn't mock.

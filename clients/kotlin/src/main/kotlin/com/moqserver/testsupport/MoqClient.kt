@@ -88,6 +88,17 @@ public class MoqClient(
         send("PUT", endpointPath(method, path, "variant", operation), encode(mapOf("variant" to variant)))
     }
 
+    /**
+     * Makes [variant] the active response for the next [times] requests that reach variant
+     * selection, then returns the endpoint to normal selection. Use it to fail one call and let the
+     * app's retry succeed.
+     */
+    @JvmOverloads
+    public fun selectVariant(variant: String, method: String, path: String, times: Int, operation: String? = null) {
+        val body = json.encodeToString(VariantSelectionWire.serializer(), VariantSelectionWire(variant, times))
+        send("PUT", endpointPath(method, path, "variant", operation), body)
+    }
+
     @JvmOverloads
     public fun resetVariant(method: String, path: String, operation: String? = null) {
         send("DELETE", endpointPath(method, path, "variant", operation))
@@ -143,6 +154,99 @@ public class MoqClient(
         val unmatched = unmatchedRequests()
         if (unmatched.isNotEmpty()) throw MoqUnmatchedRequestsException(unmatched)
     }
+
+    // MARK: Request assertions
+
+    /** Asks the server to evaluate [query] over this client's request history. */
+    public fun query(query: MoqRequestQuery): MoqRequestQueryResult =
+        json.decodeFromString(
+            MoqRequestQueryResult.serializer(),
+            send("POST", "/_admin/requests/query", json.encodeToString(RequestQueryWire.serializer(), query.wire())),
+        )
+
+    /** The server's current time, to pass as `since` so a check only sees later requests. */
+    public fun mark(): Double {
+        val body = send("POST", "/_admin/requests/mark")
+        val result = json.decodeFromString(MapSerializer(String.serializer(), Double.serializer()), body)
+        return result["timestamp"] ?: throw MoqControlException.Transport("Missing timestamp")
+    }
+
+    /**
+     * Re-runs [query] until it passes or [timeoutMillis] elapses (`0` checks once), then throws
+     * [MoqRequestAssertionException] with the server's verdict.
+     */
+    internal fun assertQuery(query: MoqRequestQuery, timeoutMillis: Long): MoqRequestQueryResult {
+        val deadline = System.nanoTime() + timeoutMillis.coerceAtLeast(0) * NANOS_PER_MILLI
+        while (true) {
+            val result = query(query)
+            if (result.ok) return result
+            val remaining = (deadline - System.nanoTime()) / NANOS_PER_MILLI
+            if (remaining <= 0) throw MoqRequestAssertionException(result)
+            Thread.sleep(minOf(ASSERT_RETRY_MILLIS, remaining))
+        }
+    }
+
+    /**
+     * Asserts that [endpoint] (e.g. `GET /v1/me`) was called [times] times (at least once when
+     * `null`) with every header expectation and claim holding, and returns those calls oldest first.
+     * [timeoutMillis] waits for calls the app hasn't made yet.
+     *
+     * ```kotlin
+     * val calls = client.assertRequest(
+     *     "GET /v1/me", times = 2, headers = listOf(MoqHeaderExpectation.Scheme("Authorization", "Bearer")),
+     *     claims = mapOf("sub" to uid))
+     * assertTrue(calls[0].claims.getValue("iat").toLong() < calls[1].claims.getValue("iat").toLong())
+     * ```
+     */
+    @JvmOverloads
+    public fun assertRequest(
+        endpoint: String,
+        times: Int? = null,
+        headers: List<MoqHeaderExpectation> = emptyList(),
+        claims: Map<String, String> = emptyMap(),
+        since: Double? = null,
+        timeoutMillis: Long = 0,
+    ): List<MoqRequestRecord> {
+        val query = MoqRequestQuery(endpoint = endpoint, since = since, headers = headers, claims = claims, times = times)
+        return assertQuery(query, timeoutMillis).matched
+    }
+
+    /** Requests the server refused itself (auth, request rules, session, call count), oldest first. */
+    @JvmOverloads
+    public fun rejectedRequests(since: Double? = null): List<MoqRequestRecord> =
+        query(MoqRequestQuery(since = since, rejected = true)).matched
+
+    /** Throws [MoqRequestAssertionException] naming each rejected request and the rule it broke. */
+    @JvmOverloads
+    public fun assertNoRejectedRequests(since: Double? = null) {
+        assertQuery(MoqRequestQuery(since = since, rejected = true, times = 0), 0)
+    }
+
+    /**
+     * Throws when a request reached the server without a valid `X-Mock-Session` since this client's
+     * session was created. Needs a session-scoped client ([createSession]).
+     *
+     * With [claims] (e.g. `mapOf("sub" to uid)`), only session-less requests carrying this test's
+     * token count, so parallel workers sharing one server don't fail each other. Requests with no
+     * token can't be attributed: they count only with [includeUnattributed], and are returned
+     * either way.
+     */
+    @JvmOverloads
+    public fun assertAllRequestsCarrySession(
+        claims: Map<String, String> = emptyMap(),
+        includeUnattributed: Boolean = false,
+        since: Double? = null,
+    ): List<MoqRequestRecord> = assertQuery(sessionQuery(claims, includeUnattributed, since), 0).unattributed
+
+    internal fun sessionQuery(
+        claims: Map<String, String>,
+        includeUnattributed: Boolean,
+        since: Double?,
+    ): MoqRequestQuery =
+        MoqRequestQuery(
+            since = since, claims = claims, times = 0, scope = MoqRequestQuery.Scope.SESSIONLESS,
+            includeUnattributed = includeUnattributed.takeIf { it },
+        )
 
     // MARK: Readiness
 
@@ -216,6 +320,7 @@ public class MoqClient(
         const val NANOS_PER_MILLI = 1_000_000L
         const val READY_PROBE_MILLIS = 2_000
         const val READY_RETRY_MILLIS = 200L
+        const val ASSERT_RETRY_MILLIS = 100L
 
         val json = Json { ignoreUnknownKeys = true }
 

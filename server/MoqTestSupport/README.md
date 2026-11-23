@@ -78,6 +78,43 @@ matched endpoint, variant, selection reason, and add-on annotations such as the 
 history. When the server runs with `--capture-request-bodies`, `requestBody` holds what the app sent;
 `requestBody?.jsonObject` parses a complete JSON body.
 
+### Asserting what the app sent
+
+The server evaluates these checks (`POST /_admin/requests/query`), so Swift, Kotlin and scripts
+agree on what they mean. A failed check throws `MoqRequestAssertionError`, whose description lists
+the near misses or the offending requests. Header expectations need
+`serve --capture-request-headers`; claims come from the `jwt-claims` add-on.
+
+```swift
+// GET /v1/me was called twice with this user's Bearer token, the retry with a newer token.
+let calls = try isolated.assertRequest(
+    endpoint: "GET /v1/me", times: 2, headers: [.scheme("Authorization", "Bearer")], claims: ["sub": uid])
+XCTAssertNotEqual(calls[0].header("Authorization")?.fingerprint, calls[1].header("Authorization")?.fingerprint)
+
+// No Authorization header on the content call.
+try isolated.assertRequest(endpoint: "GET /content/{id}", headers: [.absent("Authorization")])
+
+// Nothing after sign-out carried a token.
+let signedOut = try isolated.mark()
+// ... sign out and browse ...
+try isolated.assertRequest(endpoint: "GET /v1/me", times: 0, headers: [.present("Authorization")], since: signedOut)
+
+// In tearDown: no request was rejected, and none from this test's user skipped the session.
+try isolated.assertNoRejectedRequests()
+try isolated.assertAllRequestsCarrySession(claims: ["sub": uid])
+```
+
+`times: nil` means at least once. `timeout:` re-checks until the app has made the call. Matched
+requests come back oldest first with `claims` and captured headers. `.fingerprint("Authorization",
+of: token)` compares a known token without the server storing it, and `.equals(name, value)` works
+only for headers that aren't credentials.
+
+To test a retry, fail only the next call in this session:
+
+```swift
+try isolated.selectVariant("unauthorized", for: "GET", path: "/v1/me", times: 1)
+```
+
 Inspect and drive server state without hand-written HTTP:
 
 ```swift

@@ -56,6 +56,52 @@ public class SuspendingMoqClient(public val client: MoqClient) {
 
     public suspend fun assertNoUnmatchedRequests(): Unit = io { assertNoUnmatchedRequests() }
 
+    public suspend fun query(query: MoqRequestQuery): MoqRequestQueryResult = io { query(query) }
+
+    public suspend fun mark(): Double = io { mark() }
+
+    public suspend fun selectVariant(
+        variant: String,
+        method: String,
+        path: String,
+        times: Int,
+        operation: String? = null,
+    ): Unit = io { selectVariant(variant, method, path, times, operation) }
+
+    /** [MoqClient.assertRequest] without blocking; polls with [delay] while waiting for calls. */
+    public suspend fun assertRequest(
+        endpoint: String,
+        times: Int? = null,
+        headers: List<MoqHeaderExpectation> = emptyList(),
+        claims: Map<String, String> = emptyMap(),
+        since: Double? = null,
+        timeoutMillis: Long = 0,
+    ): List<MoqRequestRecord> {
+        val query = MoqRequestQuery(endpoint = endpoint, since = since, headers = headers, claims = claims, times = times)
+        return assertQuery(query, timeoutMillis).matched
+    }
+
+    public suspend fun rejectedRequests(since: Double? = null): List<MoqRequestRecord> = io { rejectedRequests(since) }
+
+    public suspend fun assertNoRejectedRequests(since: Double? = null): Unit = io { assertNoRejectedRequests(since) }
+
+    public suspend fun assertAllRequestsCarrySession(
+        claims: Map<String, String> = emptyMap(),
+        includeUnattributed: Boolean = false,
+        since: Double? = null,
+    ): List<MoqRequestRecord> = io { assertAllRequestsCarrySession(claims, includeUnattributed, since) }
+
+    private suspend fun assertQuery(query: MoqRequestQuery, timeoutMillis: Long): MoqRequestQueryResult {
+        val deadline = System.nanoTime() + timeoutMillis.coerceAtLeast(0) * NANOS_PER_MILLI
+        while (true) {
+            val result = io { query(query) }
+            if (result.ok) return result
+            val remaining = (deadline - System.nanoTime()) / NANOS_PER_MILLI
+            if (remaining <= 0) throw MoqRequestAssertionException(result)
+            delay(minOf(ASSERT_RETRY_MILLIS, remaining))
+        }
+    }
+
     /** Polls the admin API until the server answers or [timeoutMillis] elapses, without blocking. */
     public suspend fun waitUntilReady(timeoutMillis: Long = 10_000): Boolean {
         val deadline = System.nanoTime() + timeoutMillis * NANOS_PER_MILLI
@@ -71,5 +117,6 @@ public class SuspendingMoqClient(public val client: MoqClient) {
         const val NANOS_PER_MILLI = 1_000_000L
         const val READY_PROBE_MILLIS = 2_000L
         const val READY_RETRY_MILLIS = 200L
+        const val ASSERT_RETRY_MILLIS = 100L
     }
 }
