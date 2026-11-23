@@ -63,7 +63,7 @@ runs no longer fill the server until restart; change the idle time with
 lists live sessions with `createdAt`, `lastUsedAt` and `expiresAt` (Unix seconds). When all 64 are
 in use, `POST /_admin/sessions` answers `409` (code `conflict`).
 A request with no session header uses global state; an unknown session returns 404 instead of
-silently falling back. Start the server with `serve --require-session` to reject mock requests that
+silently falling back, and is recorded in the global history with a `session` rejection. Start the server with `serve --require-session` to reject mock requests that
 have no session header instead (`428`, code `session_required`). This catches an app code path that
 forgot the header. Rejected requests appear in the global `GET /_admin/requests` history with reason
 `missing session`. Admin, health, and add-on routes are unaffected.
@@ -73,7 +73,8 @@ forgot the header. Rejected requests appear in the global `GET /_admin/requests`
 When the server itself refuses a matched request, the history row carries `rejection`:
 `{kind, code, message}`. `kind` is `auth` (the endpoint's auth requirement failed), `request_rule` (a
 `request_rules` header, query or cookie rule, the required body, or the content type failed),
-`session` (`--require-session` and no session header), `call_count` (`strict_call_count` and no
+`session` (`--require-session` and no session header, code `session_required`; or an
+`X-Mock-Session` that doesn't exist, code `unknown_session`, always on), `call_count` (`strict_call_count` and no
 variant for this call) or `no_variant`. `message` names what failed, e.g.
 `Header 'Authorization' is required`, and never contains a credential or cookie value. A mocked 4xx
 variant is a served response, not a rejection. Unmatched paths have `endpoint: null` instead.

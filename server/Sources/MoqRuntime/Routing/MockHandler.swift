@@ -70,13 +70,32 @@ public struct MockHandler: Sendable {
         )
     }
 
+    /// A request named a session that doesn't exist (mistyped, expired, or already released). Record
+    /// it in the global history so session checks see it, then answer 404 as before.
+    private func unknownSession(req: Request, id: String, endpoint: String?) async -> Abort {
+        logger.warning("Rejected \(req.method) \(req.url.path): unknown X-Mock-Session")
+        if let root = store as? InMemoryMockStore {
+            let facts = await addonFacts(for: req)
+            await root.recordRequest(
+                RequestTrace(
+                    id: UUID().uuidString, timestamp: Date().timeIntervalSince1970,
+                    method: req.method.rawValue, path: req.url.path, endpoint: endpoint, status: 404,
+                    variant: nil, reason: "unknown session", callNumber: nil, addons: traceAnnotations(facts),
+                    requestBody: capturedBody(req), requestHeaders: capturedHeaders(req),
+                    rejection: RequestRejection(
+                        kind: .session, code: "unknown_session",
+                        message: "Unknown X-Mock-Session '\(id)': it was never created, expired, or was deleted")))
+        }
+        return Abort(.notFound, reason: "Unknown mock session")
+    }
+
     /// Records a request that matched no endpoint in the history of its session (or the global one).
     private func recordUnmatched(req: Request, status: Int, reason: String) async throws {
         guard let root = store as? InMemoryMockStore else { return }
         let runtime: InMemoryMockStore
         if let id = req.headers.first(name: "X-Mock-Session") {
             guard let session = await root.runtimeSession(id) else {
-                throw Abort(.notFound, reason: "Unknown mock session")
+                throw await unknownSession(req: req, id: id, endpoint: nil)
             }
             runtime = session
         } else {
@@ -99,11 +118,12 @@ public struct MockHandler: Sendable {
         guard requireSession, req.headers.first(name: "X-Mock-Session") == nil else { return nil }
         logger.warning("Rejected \(req.method) \(req.url.path): missing X-Mock-Session (--require-session)")
         if let root = store as? InMemoryMockStore {
+            let facts = await addonFacts(for: req)
             await root.recordRequest(
                 RequestTrace(
                     id: UUID().uuidString, timestamp: Date().timeIntervalSince1970,
                     method: req.method.rawValue, path: req.url.path, endpoint: nil, status: 428,
-                    variant: nil, reason: "missing session", callNumber: nil,
+                    variant: nil, reason: "missing session", callNumber: nil, addons: traceAnnotations(facts),
                     requestBody: capturedBody(req),
                     requestHeaders: capturedHeaders(req),
                     rejection: RequestRejection(
@@ -146,7 +166,8 @@ public struct MockHandler: Sendable {
         var handler = self
         if let id = req.headers.first(name: "X-Mock-Session") {
             guard let root = store as? InMemoryMockStore, let session = await root.runtimeSession(id) else {
-                throw Abort(.notFound, reason: "Unknown mock session")
+                throw await unknownSession(
+                    req: req, id: id, endpoint: "\(matchedKey.method.rawValue) \(matchedKey.path)")
             }
             handler = MockHandler(
                 store: session, config: config, authValidator: authValidator, requestValidator: requestValidator,

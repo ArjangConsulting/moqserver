@@ -165,6 +165,25 @@ struct RequestHeaderCaptureTests {
         try await app.asyncShutdown()
     }
 
+    @Test("A request with an unknown session is recorded in global history as a session rejection")
+    func recordsUnknownSession() async throws {
+        let store = InMemoryMockStore()
+        await store.register(makeTestEndpoint(method: .get, path: "/me"))
+        let app = try await buildApp(store: store)
+
+        try await app.testing().test(.GET, "/me", headers: ["X-Mock-Session": "stale-id"]) { res async in
+            #expect(res.status == .notFound)
+        }
+        try await app.testing().test(.GET, "/nowhere", headers: ["X-Mock-Session": "stale-id"]) { res async in
+            #expect(res.status == .notFound)
+        }
+        let rows = await store.recentRequests()
+        #expect(rows.map(\.endpoint) == [nil, "GET /me"])
+        #expect(rows.allSatisfy { $0.rejection?.kind == .session && $0.rejection?.code == "unknown_session" })
+        #expect(rows.first?.rejection?.message.contains("'stale-id'") == true)
+        try await app.asyncShutdown()
+    }
+
     @Test("Auth failures and missing sessions record their rejection kind")
     func recordsAuthAndSessionRejections() async throws {
         let store = InMemoryMockStore()
