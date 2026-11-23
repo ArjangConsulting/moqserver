@@ -31,6 +31,9 @@ public struct RequestTrace: Codable, Sendable {
     /// Why the server refused to serve a mock response, when it did. `nil` for served requests and
     /// for requests no endpoint matched (those have `endpoint == nil`).
     public var rejection: RequestRejection? = nil
+
+    /// A request to a path no endpoint serves: no matched endpoint and not refused by the server.
+    public var isUnmatched: Bool { endpoint == nil && rejection == nil }
 }
 
 /// Why a matched request got an error from the server itself instead of a mocked variant. A mocked

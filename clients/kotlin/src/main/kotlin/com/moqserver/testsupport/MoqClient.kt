@@ -139,8 +139,11 @@ public class MoqClient(
     public fun requests(): List<MoqRequestRecord> =
         json.decodeFromString(ListSerializer(MoqRequestRecord.serializer()), send("GET", "/_admin/requests"))
 
-    /** Requests that matched no endpoint, oldest first. */
-    public fun unmatchedRequests(): List<MoqRequestRecord> = requests().filter { it.isUnmatched }.reversed()
+    /**
+     * Requests to paths no endpoint serves, oldest first. The server decides what counts
+     * (`POST /_admin/requests/query` with `unmatched: true`), so every client agrees.
+     */
+    public fun unmatchedRequests(): List<MoqRequestRecord> = query(MoqRequestQuery(unmatched = true)).matched
 
     public fun clearRequests() {
         send("DELETE", "/_admin/requests")

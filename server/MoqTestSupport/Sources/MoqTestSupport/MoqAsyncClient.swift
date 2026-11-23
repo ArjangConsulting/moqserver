@@ -109,7 +109,7 @@ public struct MoqAsyncClient: Sendable {
     }
 
     public func unmatchedRequests() async throws -> [MoqRequestRecord] {
-        try await requests().filter(\.isUnmatched).reversed()
+        try await query(MoqRequestQuery(unmatched: true)).matched
     }
 
     public func clearRequests() async throws {

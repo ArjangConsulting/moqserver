@@ -35,6 +35,13 @@ class MoqClientTest {
         ]
         """.trimIndent()
 
+    private val unmatchedResult =
+        """
+        {"ok":true,"count":2,"message":"Found 2","nearMisses":[],"unattributed":[],"matched":[
+          {"id":"1","timestamp":1,"method":"GET","path":"/cart","status":404,"reason":"endpoint not found"},
+          {"id":"3","timestamp":3,"method":"GET","path":"/missing","status":404,"reason":"endpoint not found"}]}
+        """.trimIndent()
+
     @BeforeTest
     fun start() {
         server = HttpServer.create(InetSocketAddress("127.0.0.1", 0), 0)
@@ -51,6 +58,7 @@ class MoqClientTest {
                 when {
                     path == "/_admin/sessions" && exchange.requestMethod == "POST" -> 200 to """{"id":"s-1"}"""
                     path == "/_admin/requests" && exchange.requestMethod == "GET" -> 200 to history
+                    path == "/_admin/requests/query" -> 200 to unmatchedResult
                     path == "/_admin/sessions" -> 200 to """[{"id":"s-1","createdAt":0,"lastUsedAt":0,"expiresAt":1800}]"""
                     path == "/_admin/endpoints" ->
                         200 to
@@ -117,6 +125,7 @@ class MoqClientTest {
     fun `assertNoUnmatchedRequests lists unmatched paths oldest first`() {
         val error = assertFailsWith<MoqUnmatchedRequestsException> { MoqClient(baseUrl).assertNoUnmatchedRequests() }
         assertEquals(listOf("/cart", "/missing"), error.requests.map { it.path })
+        assertEquals("""{"unmatched":true}""", recorded.last().body)
         assertTrue(error.message.orEmpty().contains("GET /cart"))
     }
 

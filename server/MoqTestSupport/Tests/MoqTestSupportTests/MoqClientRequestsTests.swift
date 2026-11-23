@@ -21,8 +21,9 @@ final class MoqClientRequestsTests: XCTestCase {
         XCTAssertNil(records[0].requestBody)
     }
 
-    func testUnmatchedRequestsAreOldestFirst() throws {
+    func testUnmatchedRequestsAskTheServerAndAreOldestFirst() throws {
         XCTAssertEqual(try client().unmatchedRequests().map(\.path), ["/cart", "/missing"])
+        XCTAssertEqual(HistoryStub.lastQuery?["unmatched"] as? Bool, true)
     }
 
     func testAssertNoUnmatchedRequestsThrowsWithPaths() {
@@ -36,12 +37,24 @@ final class MoqClientRequestsTests: XCTestCase {
 
 private final class HistoryStub: URLProtocol {
     nonisolated(unsafe) static var lastSessionHeader: String?
+    nonisolated(unsafe) static var lastQuery: [String: Any]?
     override class func canInit(with request: URLRequest) -> Bool { true }
     override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
 
     override func startLoading() {
         guard let url = request.url else { return }
         Self.lastSessionHeader = request.value(forHTTPHeaderField: "X-Mock-Session")
+        if url.path == "/_admin/requests/query" {
+            let sent = request.httpBody ?? request.httpBodyStream.map(Self.read) ?? Data()
+            Self.lastQuery = try? JSONSerialization.jsonObject(with: sent) as? [String: Any]
+            let result = """
+                {"ok":true,"count":2,"message":"Found 2","nearMisses":[],"unattributed":[],"matched":[
+                  {"id":"1","timestamp":1,"method":"GET","path":"/cart","status":404,"reason":"endpoint not found"},
+                  {"id":"3","timestamp":3,"method":"GET","path":"/missing","status":404,"reason":"endpoint not found"}]}
+                """
+            respond(url, Data(result.utf8))
+            return
+        }
         XCTAssertEqual(url.path, "/_admin/requests")
         let body = """
             [
@@ -53,10 +66,27 @@ private final class HistoryStub: URLProtocol {
               {"id":"1","timestamp":1,"method":"GET","path":"/cart","status":404,"reason":"endpoint not found"}
             ]
             """
+        respond(url, Data(body.utf8))
+    }
+
+    private func respond(_ url: URL, _ data: Data) {
         let response = HTTPURLResponse(url: url, statusCode: 200, httpVersion: nil, headerFields: nil)!
         client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
-        client?.urlProtocol(self, didLoad: Data(body.utf8))
+        client?.urlProtocol(self, didLoad: data)
         client?.urlProtocolDidFinishLoading(self)
+    }
+
+    private static func read(_ stream: InputStream) -> Data {
+        stream.open()
+        defer { stream.close() }
+        var data = Data()
+        var buffer = [UInt8](repeating: 0, count: 4096)
+        while stream.hasBytesAvailable {
+            let count = stream.read(&buffer, maxLength: buffer.count)
+            guard count > 0 else { break }
+            data.append(buffer, count: count)
+        }
+        return data
     }
 
     override func stopLoading() {}

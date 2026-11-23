@@ -186,6 +186,23 @@ struct RequestQueryTests {
         try await app.asyncShutdown()
     }
 
+    @Test("unmatched counts paths no endpoint serves, not rows the server rejected")
+    func unmatchedExcludesRejections() async throws {
+        let (app, store) = try await makeApp()
+        let session = try await store.createRuntimeSession()
+        try await call(app, "/nowhere", headers: ["X-Mock-Session": session])
+        try await call(app, "/also-nowhere", headers: ["X-Mock-Session": "stale"])
+        try await call(app, "/v1/me", headers: ["X-Mock-Session": session])
+
+        let result = try #require(try await query(app, RequestQuery(unmatched: true, times: 0), session: session))
+        #expect(!result.ok)
+        #expect(result.matched.map(\.path) == ["/nowhere"])
+        #expect(result.message.contains("matching [unmatched]"))
+        let global = try #require(try await query(app, RequestQuery(unmatched: true)))
+        #expect(global.count == 0)
+        try await app.asyncShutdown()
+    }
+
     @Test("Session-less requests are attributed to a test by its token claims")
     func sessionless() async throws {
         let (app, store) = try await makeApp(requireSession: true)

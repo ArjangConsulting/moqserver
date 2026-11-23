@@ -145,9 +145,10 @@ extension MoqClient {
         return try JSONDecoder().decode([MoqRequestRecord].self, from: data)
     }
 
-    /// Requests that matched no endpoint, oldest first.
+    /// Requests to paths no endpoint serves, oldest first. The server decides what counts
+    /// (`POST /_admin/requests/query` with `unmatched: true`), so every client agrees.
     public func unmatchedRequests() throws -> [MoqRequestRecord] {
-        try requests().filter(\.isUnmatched).reversed()
+        try query(MoqRequestQuery(unmatched: true)).matched
     }
 
     /// Clears request history (this session's, when the client has one).

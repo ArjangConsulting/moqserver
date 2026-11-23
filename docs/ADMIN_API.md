@@ -441,6 +441,7 @@ and Kotlin test clients and any script evaluate the same predicates the same way
 | `method`, `path` | `string` | Request method and concrete path, e.g. `/v1/users/42` |
 | `since` | `number` | Only rows at or after this Unix time (from `POST /_admin/requests/mark`) |
 | `rejected` | `boolean` | `true`: only rows with a `rejection`; `false`: only served rows |
+| `unmatched` | `boolean` | `true`: only requests to a path no endpoint serves (no `endpoint` and no `rejection`). Both clients' `unmatchedRequests()`/`assertNoUnmatchedRequests()` use this, so a rejected request (e.g. an unknown session) counts as rejected, not unmatched |
 | `headers` | `HeaderPredicate[]` | See below; needs `serve --capture-request-headers` (`409` otherwise) |
 | `claims` | `{string: string}` | Each must equal the row's `addons["jwt-claims"]` value |
 | `times` | `integer` | Exact number of matches expected; omitted means at least one |

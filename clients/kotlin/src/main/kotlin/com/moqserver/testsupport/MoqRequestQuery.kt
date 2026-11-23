@@ -42,6 +42,8 @@ public data class MoqRequestQuery(
     /** Unix seconds from [MoqClient.mark]; only rows at or after it. */
     val since: Double? = null,
     val rejected: Boolean? = null,
+    /** `true` keeps only requests to paths no endpoint serves (see [MoqRequestRecord.isUnmatched]). */
+    val unmatched: Boolean? = null,
     val headers: List<MoqHeaderExpectation> = emptyList(),
     val claims: Map<String, String> = emptyMap(),
     /** Exact match count expected; `null` means at least one. */
@@ -65,7 +67,7 @@ public data class MoqRequestQuery(
     internal fun wire(): RequestQueryWire =
         RequestQueryWire(
             endpoint = endpoint, method = method, path = path, since = since, rejected = rejected,
-            headers = headers.takeIf { it.isNotEmpty() }?.map(::wire),
+            unmatched = unmatched, headers = headers.takeIf { it.isNotEmpty() }?.map(::wire),
             claims = claims.takeIf { it.isNotEmpty() }, times = times, scope = scope,
             includeUnattributed = includeUnattributed,
         )
@@ -88,6 +90,7 @@ internal data class RequestQueryWire(
     val path: String? = null,
     val since: Double? = null,
     val rejected: Boolean? = null,
+    val unmatched: Boolean? = null,
     val headers: List<HeaderPredicateWire>? = null,
     val claims: Map<String, String>? = null,
     val times: Int? = null,

@@ -60,6 +60,8 @@ public struct MoqRequestQuery: Encodable, Equatable, Sendable {
     /// Unix seconds from ``MoqClient/mark()``; only rows at or after it.
     public var since: Double?
     public var rejected: Bool?
+    /// `true` keeps only requests to paths no endpoint serves (see ``MoqRequestRecord/isUnmatched``).
+    public var unmatched: Bool?
     public var headers: [MoqHeaderExpectation]?
     public var claims: [String: String]?
     /// Exact match count expected; `nil` means at least one.
@@ -69,14 +71,15 @@ public struct MoqRequestQuery: Encodable, Equatable, Sendable {
 
     public init(
         endpoint: String? = nil, method: String? = nil, path: String? = nil, since: Double? = nil,
-        rejected: Bool? = nil, headers: [MoqHeaderExpectation]? = nil, claims: [String: String]? = nil,
-        times: Int? = nil, scope: Scope? = nil, includeUnattributed: Bool? = nil
+        rejected: Bool? = nil, unmatched: Bool? = nil, headers: [MoqHeaderExpectation]? = nil,
+        claims: [String: String]? = nil, times: Int? = nil, scope: Scope? = nil, includeUnattributed: Bool? = nil
     ) {
         self.endpoint = endpoint
         self.method = method
         self.path = path
         self.since = since
         self.rejected = rejected
+        self.unmatched = unmatched
         self.headers = headers
         self.claims = claims
         self.times = times

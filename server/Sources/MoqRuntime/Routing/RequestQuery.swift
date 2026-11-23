@@ -27,6 +27,9 @@ public struct RequestQuery: Codable, Sendable, Equatable {
     public var since: Double?
     /// `true` keeps only rows the server rejected itself, `false` only rows it served.
     public var rejected: Bool?
+    /// `true` keeps only requests to a path no endpoint serves (no `endpoint` and no `rejection`),
+    /// `false` only the others. The one definition every client's `assertNoUnmatchedRequests` uses.
+    public var unmatched: Bool?
     public var headers: [HeaderPredicate]?
     /// Each claim must equal the `jwt-claims` add-on's annotation on the row.
     public var claims: [String: String]?
@@ -39,14 +42,15 @@ public struct RequestQuery: Codable, Sendable, Equatable {
 
     public init(
         endpoint: String? = nil, method: String? = nil, path: String? = nil, since: Double? = nil,
-        rejected: Bool? = nil, headers: [HeaderPredicate]? = nil, claims: [String: String]? = nil,
-        times: Int? = nil, scope: Scope? = nil, includeUnattributed: Bool? = nil
+        rejected: Bool? = nil, unmatched: Bool? = nil, headers: [HeaderPredicate]? = nil,
+        claims: [String: String]? = nil, times: Int? = nil, scope: Scope? = nil, includeUnattributed: Bool? = nil
     ) {
         self.endpoint = endpoint
         self.method = method
         self.path = path
         self.since = since
         self.rejected = rejected
+        self.unmatched = unmatched
         self.headers = headers
         self.claims = claims
         self.times = times
@@ -271,6 +275,9 @@ extension RequestQuery {
         if let rejected, rejected != (row.rejection != nil) {
             failed.append(rejected ? "rejected" : "not rejected")
         }
+        if let unmatched, unmatched != row.isUnmatched {
+            failed.append(unmatched ? "unmatched" : "matched")
+        }
         for predicate in headers ?? [] where !Self.holds(predicate, in: row.requestHeaders ?? []) {
             failed.append(predicate.label)
         }
@@ -314,6 +321,7 @@ extension RequestQuery {
         if scope == .sessionless { subject = "session-less " + subject }
         var conditions: [String] = []
         if let rejected { conditions.append(rejected ? "rejected" : "not rejected") }
+        if let unmatched { conditions.append(unmatched ? "unmatched" : "matched") }
         conditions += (headers ?? []).map(\.label)
         conditions += (claims ?? [:]).sorted(by: { $0.key < $1.key }).map { "claim \($0.key)=\($0.value)" }
         let matching = conditions.isEmpty ? "" : " matching [\(conditions.joined(separator: ", "))]"
