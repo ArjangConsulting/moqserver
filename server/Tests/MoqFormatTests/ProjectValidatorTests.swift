@@ -557,10 +557,10 @@ struct ProjectValidatorTests {
     func scenarioProject(_ scenarios: [String: ProjectScenario]) -> MoqProject {
         let base = sampleManifest()
         let endpoint = sampleEndpoint(
-            id: "get-balance", path: "/balance",
+            id: "get-cart", path: "/cart",
             variants: [
                 ProjectVariant(name: "default", isDefault: true, status: 200),
-                ProjectVariant(name: "Empty", referenceName: "empty_balance", status: 200),
+                ProjectVariant(name: "Empty", referenceName: "empty_cart", status: 200),
             ])
         return MoqProject(
             manifest: ProjectManifest(name: base.name, defaults: base.defaults, scenarios: scenarios),
@@ -570,8 +570,8 @@ struct ProjectValidatorTests {
     @Test("Accepts scenarios that select variants by name or reference_name")
     func acceptsScenarios() {
         let project = scenarioProject([
-            "by-name": ProjectScenario(variants: ["get-balance": "Empty"]),
-            "by-reference": ProjectScenario(description: "d", variants: ["get-balance": "empty_balance"]),
+            "by-name": ProjectScenario(variants: ["get-cart": "Empty"]),
+            "by-reference": ProjectScenario(description: "d", variants: ["get-cart": "empty_cart"]),
         ])
         #expect(validator.validate(project).filter { $0.severity == .error }.isEmpty)
     }
@@ -580,7 +580,7 @@ struct ProjectValidatorTests {
     func rejectsBadScenarios() {
         let project = scenarioProject([
             "a": ProjectScenario(variants: ["missing": "x"]),
-            "b": ProjectScenario(variants: ["get-balance": "empty"]),
+            "b": ProjectScenario(variants: ["get-cart": "empty"]),
             "c": ProjectScenario(variants: [:]),
         ])
         let codes = validator.validate(project).compactMap(\.code)

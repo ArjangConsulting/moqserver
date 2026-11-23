@@ -30,8 +30,8 @@ class MoqClientTest {
            "addons":{"jwt-claims":{"sub":"alice"}}},
           {"id":"2","timestamp":2,"method":"POST","path":"/ai","endpoint":"POST /ai","status":200,
            "variant":"success","reason":"declared default","callNumber":1,"futureField":true,
-           "requestBody":{"value":"{\"action\":\"translate\"}","encoding":"utf8","size":22,"truncated":false}},
-          {"id":"1","timestamp":1,"method":"GET","path":"/balance","status":404,"reason":"endpoint not found"}
+           "requestBody":{"value":"{\"action\":\"summarize\"}","encoding":"utf8","size":22,"truncated":false}},
+          {"id":"1","timestamp":1,"method":"GET","path":"/cart","status":404,"reason":"endpoint not found"}
         ]
         """.trimIndent()
 
@@ -94,14 +94,14 @@ class MoqClientTest {
     @Test
     fun `activateScenario and resets hit the admin routes`() {
         val client = MoqClient(baseUrl)
-        client.activateScenario("out-of-credits")
+        client.activateScenario("checkout-fails")
         client.resetAll()
-        client.resetCallCount("POST", "/lessons/")
+        client.resetCallCount("POST", "/orders/")
         assertEquals(
-            listOf("PUT /_admin/scenario", "DELETE /_admin/state", "DELETE /_admin/endpoints/POST/lessons/call-count"),
+            listOf("PUT /_admin/scenario", "DELETE /_admin/state", "DELETE /_admin/endpoints/POST/orders/call-count"),
             recorded.map { "${it.method} ${it.path}" },
         )
-        assertEquals("""{"name":"out-of-credits"}""", recorded[0].body)
+        assertEquals("""{"name":"checkout-fails"}""", recorded[0].body)
     }
 
     @Test
@@ -109,15 +109,15 @@ class MoqClientTest {
         val records = MoqClient(baseUrl).requests()
         assertEquals(3, records.size)
         assertEquals(mapOf("jwt-claims" to mapOf("sub" to "alice")), records[0].addons)
-        assertEquals("translate", records[1].requestBody?.jsonObject()?.get("action")?.jsonPrimitive?.content)
+        assertEquals("summarize", records[1].requestBody?.jsonObject()?.get("action")?.jsonPrimitive?.content)
         assertNull(records[2].requestBody)
     }
 
     @Test
     fun `assertNoUnmatchedRequests lists unmatched paths oldest first`() {
         val error = assertFailsWith<MoqUnmatchedRequestsException> { MoqClient(baseUrl).assertNoUnmatchedRequests() }
-        assertEquals(listOf("/balance", "/missing"), error.requests.map { it.path })
-        assertTrue(error.message.orEmpty().contains("GET /balance"))
+        assertEquals(listOf("/cart", "/missing"), error.requests.map { it.path })
+        assertTrue(error.message.orEmpty().contains("GET /cart"))
     }
 
     @Test

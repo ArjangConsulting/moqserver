@@ -32,10 +32,10 @@ request rules:
 
 ```yaml
 scenarios:
-  out-of-credits:
-    description: Balance is zero, lesson purchase fails
+  checkout-fails:
+    description: Payment is declined, checkout fails
     variants:            # endpoint id -> variant name or reference_name
-      get-balance: empty
+      get-cart: empty
       post-lesson: payment-required
 ```
 

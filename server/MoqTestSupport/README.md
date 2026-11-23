@@ -6,9 +6,8 @@ tests — select a variant, reset one, or reset a call counter — via moqserver
 `X-Mock-Variant` can't select a scenario from the test side; only the admin API can reach in from
 outside.
 
-Originally written inline in a consuming app (ExampleApp's `ExampleAppUITestSupport/MoqControl.swift`)
-and lifted here so every app pointing at moqserver gets it rather than re-implementing the same
-HTTP calls. See `server/skills/moqserver-scenario-design` for when to reach for this versus a
+Originally written inline in a consuming app's UI-test support code and lifted here so every
+app pointing at moqserver gets it rather than re-implementing the same HTTP calls. See `server/skills/moqserver-scenario-design` for when to reach for this versus a
 bundle's own `call_count`.
 
 ## Adding it to an app

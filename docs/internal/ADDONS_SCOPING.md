@@ -1,7 +1,7 @@
 # Add-ons — scoping
 
 Status: **accepted 2026-09-23**. Option A (compiled in-process Swift, Codable hook payloads).
-Started from ExampleApp's mocked UI-test work (the consumer requests are at the end).
+Started from consumer needs for mocked UI tests (the core requests are at the end).
 
 ## Decisions
 
@@ -20,7 +20,7 @@ validator and writer, `jwt-claims`, and the `oauth-mock` migration are built —
 server config, so existing `/_auth` users don't break. Core items a (`MoqClient` history
 helpers), c (`serve --require-session`), d (`scenarios:` in `project.yml`), e
 (`serve --capture-request-bodies`) and f (`{{baseURL}}`) are also built, and b is the Kotlin/JVM
-client in `clients/kotlin` (JitPack by SHA). All ExampleApp requests a–f are done.
+client in `clients/kotlin` (JitPack by SHA). Core requests a–f are done.
 
 Order: add-on API (`MoqAddonKit`, the `addons:` key and schema, H1/H2/H5/H7) → `jwt-claims` →
 `oauth-mock` migration → core items a–f.
@@ -29,9 +29,9 @@ Order: add-on API (`MoqAddonKit`, the `addons:` key and schema, H1/H2/H5/H7) →
 
 The first concrete need is small: read the claims from an incoming bearer token, so tests can
 assert *which* user a request belongs to and pick a variant from a claim (for example
-`premium: true` → the `premium` variant). ExampleApp is moving its mocked tests to the **Firebase
-Auth emulator** for sign-in, and the emulator issues unsigned JWTs. Every such test then carries a
-token whose claims describe the test account.
+`premium: true` → the `premium` variant). Mocked UI tests increasingly sign in against an identity
+provider's local emulator, and such emulators often issue unsigned JWTs. Every such test then
+carries a token whose claims describe the test account.
 
 Adding JWT claims straight into core would work. But this is the second auth-flavoured feature
 in the runtime (`AuthRouter`'s mock `/_auth/token` is the first), more will follow, and each one
@@ -40,9 +40,9 @@ features in first.
 
 ## What moqserver must not become
 
-- **Not a Firebase tool.** No product-specific logic in core. The claims feature must work for
+- **Not tied to one identity provider.** No product-specific logic in core. The claims feature must work for
   any identity provider that issues JWTs.
-- **Not a process supervisor.** Starting sidecars (the Firebase emulator, databases) belongs to
+- **Not a process supervisor.** Starting sidecars (an auth emulator, databases) belongs to
   the consumer's runner script. That's a few lines of shell, and in moqserver it would mean
   depending on Java and Node.
 - **Not a scripting host in v1.** No embedded JS/Lua/WASM until an in-process Swift add-on API
@@ -153,17 +153,17 @@ variants:
 6. Docs: `docs/ADDONS.md` for authors; a section in `ADMIN_API`/`RUNTIME_WORKFLOWS` on facts in
    request history.
 
-## Core requests from ExampleApp (not add-ons)
+## Core requests (not add-ons)
 
 These came out of the same review. They are core runtime/test-support gaps, listed so they get
-scheduled alongside the add-on work. ExampleApp pins `MoqTestSupport` at a commit SHA, and there
+scheduled alongside the add-on work. Consumers pin `MoqTestSupport` at a commit SHA, and there
 is no tagged release yet (deliberately deferred).
 
 | # | Request | Why |
 |---|---|---|
-| a | `MoqClient.requests()` + `assertNoUnmatchedRequests()` helpers over `GET /_admin/requests` (session-scoped) | Consumers fail a test when the app hits an unmocked endpoint. ExampleApp's missing `/balance` fixture was tolerated silently |
+| a | `MoqClient.requests()` + `assertNoUnmatchedRequests()` helpers over `GET /_admin/requests` (session-scoped) | Consumers fail a test when the app hits an unmocked endpoint, instead of the app silently tolerating a missing fixture |
 | b | Kotlin/JVM client (parity with `MoqTestSupport`: sessions, variants, scenarios, history) | Android can't drive error/retry scenarios today |
-| c | `serve --require-session`: reject mock requests with no `X-Mock-Session` | An app client that forgets the header silently uses global state. ExampleApp iOS adds the header by hand in 5 places |
+| c | `serve --require-session`: reject mock requests with no `X-Mock-Session` | An app client that forgets the header silently uses global state |
 | d | Scenarios declared in the bundle (not only via the admin API, in memory) | The docs currently tell consumers to re-load scenario JSON at test setup |
 | e | Opt-in, size-limited body capture in session history | Assert what the app sent (e.g. AI request action/language) |
-| f | `{{baseURL}}` in response bodies | Removes ExampleApp's runtime-copy URL rewrite and the Android `10.0.2.2` variant. May be the H6 add-on, see Q1 |
+| f | `{{baseURL}}` in response bodies | Removes consumers' runtime URL rewriting of fixtures and per-platform variants (e.g. Android's `10.0.2.2`). May be the H6 add-on, see Q1 |

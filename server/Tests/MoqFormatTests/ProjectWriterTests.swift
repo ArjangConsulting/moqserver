@@ -681,7 +681,7 @@ struct ProjectWriterTests {
     @Test("Round-trips scenarios and converts them to runtime overrides")
     func roundTripsScenarios() throws {
         let scenarios = [
-            "out-of-credits": ProjectScenario(description: "Balance is zero", variants: ["get-balance": "empty"])
+            "checkout-fails": ProjectScenario(description: "Payment is declined", variants: ["get-cart": "empty"])
         ]
         let project = MoqProject(
             manifest: ProjectManifest(
@@ -691,7 +691,7 @@ struct ProjectWriterTests {
                 scenarios: scenarios),
             endpoints: [
                 EndpointDocument(
-                    id: "get-balance", method: "get", path: "/balance",
+                    id: "get-cart", method: "get", path: "/cart",
                     variants: [
                         ProjectVariant(name: "default", isDefault: true, status: 200),
                         ProjectVariant(name: "empty", status: 200),
@@ -706,6 +706,6 @@ struct ProjectWriterTests {
         let reloaded = try ProjectLoader().load(from: outputPath)
 
         #expect(reloaded.manifest.scenarios == scenarios)
-        #expect(ProjectToRuntimeConverter.scenarioOverrides(reloaded) == ["out-of-credits": ["GET /balance": "empty"]])
+        #expect(ProjectToRuntimeConverter.scenarioOverrides(reloaded) == ["checkout-fails": ["GET /cart": "empty"]])
     }
 }

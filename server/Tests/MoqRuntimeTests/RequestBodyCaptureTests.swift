@@ -18,7 +18,7 @@ struct RequestBodyCaptureTests {
     func offByDefault() async throws {
         let store = await store()
         let app = try await buildApp(store: store)
-        try await app.testing().test(.POST, "/ai", body: ByteBuffer(string: #"{"action":"translate"}"#)) { _ async in }
+        try await app.testing().test(.POST, "/ai", body: ByteBuffer(string: #"{"action":"summarize"}"#)) { _ async in }
         #expect(await store.recentRequests().first?.requestBody == nil)
         try await app.asyncShutdown()
     }
@@ -30,14 +30,14 @@ struct RequestBodyCaptureTests {
         let id = try await store.createRuntimeSession()
         try await app.testing().test(
             .POST, "/ai", headers: ["X-Mock-Session": id],
-            body: ByteBuffer(string: #"{"action":"translate","language":"fr"}"#)
+            body: ByteBuffer(string: #"{"action":"summarize","style":"brief"}"#)
         ) { _ async in }
         try await app.testing().test(.POST, "/missing", body: ByteBuffer(string: "short")) { _ async in }
 
         let sessionRow = try #require(await store.runtimeSession(id)?.recentRequests().first)
         #expect(
             sessionRow.requestBody
-                == CapturedBody(value: #"{"action":"trans"#, encoding: .utf8, size: 38, truncated: true))
+                == CapturedBody(value: #"{"action":"summa"#, encoding: .utf8, size: 38, truncated: true))
         #expect(await store.recentRequests().first?.requestBody?.value == "short")
         try await app.asyncShutdown()
     }

@@ -39,7 +39,7 @@ check(admin.waitUntilReady())
 
 val session = admin.createSession()
 // Configure the app to send `X-Mock-Session: ${session.sessionId}` on its mock requests.
-session.activateScenario("out-of-credits")          // declared under scenarios: in project.yml
+session.activateScenario("checkout-fails")          // declared under scenarios: in project.yml
 session.selectVariant("error", "GET", "/users/{id}")
 
 // ... drive the app ...
@@ -105,7 +105,7 @@ Coroutine tests use `client.suspending`, which offers every call as a `suspend` 
 ```kotlin
 runTest {
     val session = admin.suspending.createSession()
-    session.suspending.activateScenario("out-of-credits")
+    session.suspending.activateScenario("checkout-fails")
     assertEquals(0, session.suspending.callCount("POST", "/checkout"))
 }
 ```

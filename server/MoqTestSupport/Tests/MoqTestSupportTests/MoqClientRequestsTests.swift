@@ -17,19 +17,19 @@ final class MoqClientRequestsTests: XCTestCase {
         XCTAssertEqual(records.count, 3)
         XCTAssertEqual(records[0].addons, ["jwt-claims": ["sub": "alice"]])
         XCTAssertEqual(HistoryStub.lastSessionHeader, "s1")
-        XCTAssertEqual(records[1].requestBody?.jsonObject?["action"] as? String, "translate")
+        XCTAssertEqual(records[1].requestBody?.jsonObject?["action"] as? String, "summarize")
         XCTAssertNil(records[0].requestBody)
     }
 
     func testUnmatchedRequestsAreOldestFirst() throws {
-        XCTAssertEqual(try client().unmatchedRequests().map(\.path), ["/balance", "/missing"])
+        XCTAssertEqual(try client().unmatchedRequests().map(\.path), ["/cart", "/missing"])
     }
 
     func testAssertNoUnmatchedRequestsThrowsWithPaths() {
         XCTAssertThrowsError(try client().assertNoUnmatchedRequests()) { error in
             let unmatched = error as? MoqUnmatchedRequestsError
-            XCTAssertEqual(unmatched?.requests.map(\.path), ["/balance", "/missing"])
-            XCTAssertTrue(unmatched?.description.contains("GET /balance") == true)
+            XCTAssertEqual(unmatched?.requests.map(\.path), ["/cart", "/missing"])
+            XCTAssertTrue(unmatched?.description.contains("GET /cart") == true)
         }
     }
 }
@@ -49,8 +49,8 @@ private final class HistoryStub: URLProtocol {
                "addons":{"jwt-claims":{"sub":"alice"}}},
               {"id":"2","timestamp":2,"method":"POST","path":"/ai","endpoint":"POST /ai","status":200,
                "variant":"success","reason":"declared default","callNumber":1,
-               "requestBody":{"value":"{\\"action\\":\\"translate\\"}","encoding":"utf8","size":22,"truncated":false}},
-              {"id":"1","timestamp":1,"method":"GET","path":"/balance","status":404,"reason":"endpoint not found"}
+               "requestBody":{"value":"{\\"action\\":\\"summarize\\"}","encoding":"utf8","size":22,"truncated":false}},
+              {"id":"1","timestamp":1,"method":"GET","path":"/cart","status":404,"reason":"endpoint not found"}
             ]
             """
         let response = HTTPURLResponse(url: url, statusCode: 200, httpVersion: nil, headerFields: nil)!

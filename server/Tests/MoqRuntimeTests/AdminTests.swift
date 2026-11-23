@@ -219,7 +219,7 @@ struct AdminTests {
     }
 
     /// Regression: Vapor's catchall drops the trailing empty segment, so an endpoint whose
-    /// registered path ends in "/" (every ExampleApp API path does) could never be addressed
+    /// registered path ends in "/" (common in Django-style APIs) could never be addressed
     /// through the admin API — runtime variant switching was unusable for those endpoints.
     @Test("Admin API addresses an endpoint whose registered path ends in a slash")
     func setVariantOnTrailingSlashPath() async throws {
