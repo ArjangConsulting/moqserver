@@ -51,8 +51,12 @@ public enum HARImporter {
     ]
 
     /// Parses `content`. Response headers named in `redactHeaders` (any case) are redacted on top of
-    /// the `SensitiveHeaders` names and keywords.
-    public static func parse(_ content: String, redactHeaders: [String] = []) throws -> ParsedSpec {
+    /// the `SensitiveHeaders` names and keywords. With `inferHeaderRules`, each endpoint requires
+    /// (presence only, never a value) the request headers its captured calls always sent; see
+    /// ``inferredRequiredHeaders(_:)``.
+    public static func parse(
+        _ content: String, redactHeaders: [String] = [], inferHeaderRules: Bool = false
+    ) throws -> ParsedSpec {
         let extraNames = SensitiveHeaders.normalized(redactHeaders)
         logger.info("Parsing HAR file (\(content.utf8.count) bytes)")
         let har: HarFile
@@ -97,6 +101,7 @@ public enum HARImporter {
                 alias: EndpointAlias.defaultAlias(method: key.method, path: key.path),
                 responses: responses,
                 queryParameters: collectRuleMatchers(exchanges) { $0.queryParameters },
+                requiredHeaders: inferHeaderRules ? inferredRequiredHeaders(exchanges) : [],
                 cookies: collectRuleMatchers(exchanges) { $0.cookies }
             )
         }
@@ -167,7 +172,8 @@ public enum HARImporter {
                 body: sanitizedBody.value,
                 bodyIsBase64: sanitizedBody.isBase64,
                 cookies: extractRequestCookies(request),
-                queryParameters: requestQueryParameters(request, components)
+                queryParameters: requestQueryParameters(request, components),
+                requestHeaderNames: requestHeaderNames(request)
             ),
             responseBodyRedacted: sanitizedBody.redacted
         )
@@ -297,6 +303,44 @@ public enum HARImporter {
             result[name] = sanitizeParamValue(name: name, value: rawValue)
         }
         return result
+    }
+
+    // MARK: - Header rule inference
+
+    /// Standard request headers that say nothing about what the API requires: transport, caching,
+    /// negotiation and browser metadata. Cookies have their own rules; the mock-control headers are
+    /// test plumbing.
+    private static let ignoredInferenceHeaders: Set<String> = [
+        "accept", "accept-encoding", "accept-language", "cache-control", "connection", "content-length",
+        "content-type", "cookie", "dnt", "host", "if-modified-since", "if-none-match", "keep-alive", "origin",
+        "pragma", "priority", "referer", "te", "upgrade-insecure-requests", "user-agent", "x-mock-session",
+        "x-mock-variant", "x-requested-with",
+    ]
+
+    /// Header names to require on an endpoint: those sent on every successful (2xx) captured call,
+    /// or on every call when none succeeded, that are credentials (``SensitiveHeaders``) or custom
+    /// `X-` headers. Sorted, in their captured spelling.
+    private static func inferredRequiredHeaders(_ exchanges: [CapturedExchange]) -> [String] {
+        let successful = exchanges.filter { (200...299).contains($0.statusCode) }
+        let basis = successful.isEmpty ? exchanges : successful
+        guard let first = basis.first else { return [] }
+        var common = Set(first.requestHeaderNames.keys)
+        for exchange in basis.dropFirst() { common.formIntersection(exchange.requestHeaderNames.keys) }
+        let kept = common.filter { name in
+            !name.hasPrefix(":") && !name.hasPrefix("sec-") && !ignoredInferenceHeaders.contains(name)
+                && (SensitiveHeaders.isCredentialName(name) || name.hasPrefix("x-"))
+        }
+        return kept.sorted().map { first.requestHeaderNames[$0] ?? $0 }
+    }
+
+    private static func requestHeaderNames(_ request: HarRequest) -> [String: String] {
+        var names: [String: String] = [:]
+        for header in request.headers {
+            let name = (header.name ?? "").trimmingCharacters(in: .whitespaces)
+            guard !name.isEmpty else { continue }
+            names[name.lowercased()] = names[name.lowercased()] ?? name
+        }
+        return names
     }
 
     private static func collectRuleMatchers(
@@ -481,6 +525,8 @@ public enum HARImporter {
         let bodyIsBase64: Bool
         let cookies: [String: String]
         let queryParameters: [String: String]
+        /// Request header names as captured, keyed by lowercased name. Values are never kept.
+        let requestHeaderNames: [String: String]
     }
 }
 

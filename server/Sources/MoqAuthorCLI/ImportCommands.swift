@@ -21,6 +21,14 @@ public struct ImportHARCommand: AsyncParsableCommand {
     )
     var redactHeaders: [String] = []
 
+    @Flag(
+        name: .long,
+        help: ArgumentHelp(
+            "Add presence-only request_rules headers (never values) for credential and X- headers that "
+                + "every successful captured call to an endpoint sent, e.g. Authorization.")
+    )
+    var inferHeaderRules = false
+
     @Option(
         name: .long,
         help: ArgumentHelp(
@@ -38,7 +46,9 @@ public struct ImportHARCommand: AsyncParsableCommand {
             let common = try authorImportOptions(options)
             let (service, handle) = try await openProjectForEditing(project, allowNetworkImport: false)
             let summary = try await service.importHAR(
-                handle: handle, input: ImportHARInput(path: harPath, redactHeaders: redactHeaders), common: common,
+                handle: handle,
+                input: ImportHARInput(path: harPath, redactHeaders: redactHeaders, inferHeaderRules: inferHeaderRules),
+                common: common,
                 autosave: true)
             try printJSON(summary)
         } catch {

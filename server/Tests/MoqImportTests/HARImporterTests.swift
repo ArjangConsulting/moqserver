@@ -186,6 +186,44 @@ struct HARImporterTests {
         #expect(response.headers["X-Correlation"] == "\(jwtHeader).\(jwtPayload).redacted")
     }
 
+    @Test("Infers presence-only header rules from the headers every successful call sent")
+    func infersHeaderRules() throws {
+        func entry(_ path: String, status: Int, headers: String) -> String {
+            """
+            {
+              "request": { "method": "GET", "url": "https://api.test\(path)", "headers": [\(headers)] },
+              "response": { "status": \(status), "headers": [], "content": { "mimeType": "application/json", "text": "{}" } }
+            }
+            """
+        }
+        let authed = #"""
+            { "name": "Authorization", "value": "Bearer secret-token" },
+            { "name": "X-Client-Version", "value": "1.2" },
+            { "name": "Accept", "value": "application/json" },
+            { "name": "User-Agent", "value": "app" },
+            { "name": ":authority", "value": "api.test" }
+            """#
+        let har = """
+            { "log": { "version": "1.2", "entries": [
+              \(entry("/v1/me", status: 200, headers: authed)),
+              \(entry("/v1/me", status: 200, headers: #"{ "name": "authorization", "value": "Bearer other" }, { "name": "X-Client-Version", "value": "1.3" }, { "name": "X-Trace", "value": "t" }"#)),
+              \(entry("/v1/me", status: 401, headers: #"{ "name": "X-Client-Version", "value": "1.2" }"#)),
+              \(entry("/content/1", status: 200, headers: #"{ "name": "Accept", "value": "*/*" }"#))
+            ] } }
+            """
+        let spec = try HARImporter.parse(har, inferHeaderRules: true)
+        let me = try #require(spec.endpoints.first { $0.path == "/v1/me" })
+        #expect(me.requiredHeaders == ["Authorization", "X-Client-Version"])
+        #expect(spec.endpoints.first { $0.path == "/content/1" }?.requiredHeaders == [])
+
+        let project = ImportConverter.convert(spec, selection: .all, name: "Test", path: "/tmp/test.moqproj")
+        let rules = try #require(project.endpoints.first { $0.path == "/v1/me" }?.requestRules?.headers)
+        #expect(rules.map(\.name) == ["Authorization", "X-Client-Version"])
+        #expect(rules.allSatisfy { $0.match == nil && $0.required == true })
+
+        #expect(try HARImporter.parse(har).endpoints.allSatisfy { $0.requiredHeaders.isEmpty })
+    }
+
     @Test("Redacts custom auth headers by name keyword and by --redact-header")
     func redactsCustomAuthHeaders() throws {
         let har = """

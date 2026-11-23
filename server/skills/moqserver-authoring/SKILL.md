@@ -79,7 +79,8 @@ turn those flags on. Importing a URL needs `MOQ_AUTHOR_ALLOW_NETWORK=1`; a local
   `eyJ`, `token`, `password` and email addresses. Anything not already redacted becomes a
   committed fixture. Header names containing `auth`, `token`, `key`, `secret`, `session` or
   `appcheck` are redacted automatically; pass `--redact-header <name>` for any other custom auth
-  header the app sends.
+  header the app sends. Add `--infer-header-rules` to require (by name only) the auth and `X-`
+  headers every successful captured call sent, so a call that drops its token is rejected visibly.
 
 - **Variant names are case-insensitive.** `Success` and `success` are the *same* variant.
   Upserting a name that matches an existing one in any casing **replaces it in place**: the

@@ -62,6 +62,13 @@ HAR import redacts credential response headers by the same rules as request-hist
 `--redact-header <name>` (repeatable) for a custom auth header those rules miss; `import.parseHar`
 over `moq-format` takes the same list as `redactHeaders`.
 
+`--infer-header-rules` (`inferHeaderRules` over `moq-format`) adds presence-only `request_rules`
+headers to each imported endpoint: credential headers (by the same rules) and custom `X-` headers
+that every successful captured call to that endpoint sent. If no call succeeded, every call counts.
+Only names are written, never values, so an imported endpoint then rejects a request that drops,
+say, `Authorization`, and the test sees a `request_rule` rejection naming it. Transport, caching and
+browser headers (`Accept`, `User-Agent`, `Sec-*`, `Cookie`, ...) are never inferred.
+
 Imports preserve existing endpoint details and bodies unless options explicitly enable changes:
 
 ```json

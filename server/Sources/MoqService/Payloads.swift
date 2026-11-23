@@ -273,10 +273,13 @@ public struct ImportHARInput: Decodable, Sendable {
     public let path: String
     /// Extra response-header names to redact, on top of `SensitiveHeaders`.
     public let redactHeaders: [String]?
+    /// Require, presence only, the request headers each endpoint's captured calls always sent.
+    public let inferHeaderRules: Bool?
 
-    public init(path: String, redactHeaders: [String]? = nil) {
+    public init(path: String, redactHeaders: [String]? = nil, inferHeaderRules: Bool? = nil) {
         self.path = path
         self.redactHeaders = redactHeaders
+        self.inferHeaderRules = inferHeaderRules
     }
 }
 
