@@ -32,17 +32,7 @@ public enum HARImporter {
     /// Header names (case-insensitive) whose values are always redacted. Covers auth
     /// credentials, session tokens, and CSRF tokens. Mirrors the Cloudflare HAR Sanitizer
     /// default word list.
-    private static let sensitiveHeaderPatterns: Set<String> = [
-        "authorization",
-        "cookie",
-        "set-cookie",
-        "x-api-key",
-        "x-auth-token",
-        "x-csrf-token",
-        "x-forwarded-for",
-        "proxy-authorization",
-        "www-authenticate",
-    ]
+    private static let sensitiveHeaderPatterns: Set<String> = SensitiveHeaders.names
 
     /// Query parameter / post-data parameter names (case-insensitive) whose values are
     /// redacted. Based on the Cloudflare default word list.

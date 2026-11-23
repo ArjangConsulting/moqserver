@@ -55,7 +55,7 @@ the Firebase Auth emulator, which issues unsigned tokens.
 | `verify_signature` | *(required)* | Must be `false`. Tokens are decoded without checking the signature. Verification (JWKS) is not implemented yet. |
 | `header` | `Authorization` | Header that carries the token. |
 | `scheme` | `Bearer` | Scheme prefix (case-insensitive). `""` reads the raw header value. |
-| `trace_claims` | `[sub]` | Scalar claims recorded on each request-history row. |
+| `trace_claims` | `[sub]` | Claims recorded on each request-history row. String, number and boolean claims are recorded as strings; array and object claims are skipped. |
 
 **Matching.** `claims` is a subset match. Every listed claim must be present and equal, and
 nested mappings are matched the same way, so

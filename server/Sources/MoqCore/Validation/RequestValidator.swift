@@ -133,7 +133,9 @@ public struct RequestValidator: RequestValidating {
                         message: "\(kind.label) '\(rule.name)' is required"
                     )
                 case .mismatch(let expectedDescription, let actualValue):
-                    let actualDescription = actualValue.map { "got '\($0)'" } ?? "but was missing"
+                    let hidesValue = kind == .cookie || (kind == .header && SensitiveHeaders.contains(rule.name))
+                    let actualDescription =
+                        actualValue.map { hidesValue ? "got a redacted value" : "got '\($0)'" } ?? "but was missing"
                     return RequestValidationError(
                         statusCode: .badRequest,
                         code: kind.mismatchCode,

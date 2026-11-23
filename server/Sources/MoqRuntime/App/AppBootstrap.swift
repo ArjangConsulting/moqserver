@@ -15,6 +15,7 @@ public func buildApp(
     addons: ActiveAddons = .none,
     requireSession: Bool = false,
     requestBodyCaptureLimit: Int = 0,
+    captureRequestHeaders: Bool = false,
     maxRequestBodySize: Int = MockRouter.defaultMaxBodySize,
     cors: Bool = false,
     tls: TLSFiles? = nil,
@@ -58,7 +59,8 @@ public func buildApp(
         requestValidator: requestValidator,
         addons: addons,
         requireSession: requireSession,
-        requestBodyCaptureLimit: requestBodyCaptureLimit
+        requestBodyCaptureLimit: requestBodyCaptureLimit,
+        captureRequestHeaders: captureRequestHeaders
     )
 
     app.get("health") { _ async -> [String: String] in

@@ -192,6 +192,7 @@ let package = Package(
                 .target(name: "MoqAddonKit"),
                 .target(name: "MoqAddons"),
                 .target(name: "MoqCore"),
+                .product(name: "Crypto", package: "swift-crypto"),
                 .product(name: "NIOConcurrencyHelpers", package: "swift-nio"),
                 .product(name: "NIOCore", package: "swift-nio"),
                 .product(name: "NIOSSL", package: "swift-nio-ssl"),

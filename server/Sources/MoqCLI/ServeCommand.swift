@@ -63,6 +63,15 @@ public struct ServeCommand: AsyncParsableCommand {
     )
     var captureRequestBodies: Int = 0
 
+    @ArgumentParser.Flag(
+        name: .long,
+        help: ArgumentHelp(
+            "Record each mock request's headers in request history (GET /_admin/requests). Credential "
+                + "headers (Authorization, Cookie, X-Api-Key, ...) keep only their scheme, a SHA-256 "
+                + "fingerprint and cookie names, never the value.")
+    )
+    var captureRequestHeaders = false
+
     @ArgumentParser.Option(
         name: .long,
         help: ArgumentHelp("Largest mock request body to accept, in bytes; larger bodies get 413. Default 10 MiB.")
@@ -176,7 +185,8 @@ public struct ServeCommand: AsyncParsableCommand {
         let projectPath = project
         let app = try await buildApp(
             store: store, config: serverConfig, addons: addons, requireSession: requireSession,
-            requestBodyCaptureLimit: captureRequestBodies, maxRequestBodySize: maxBodySize, cors: cors, tls: tls,
+            requestBodyCaptureLimit: captureRequestBodies, captureRequestHeaders: captureRequestHeaders,
+            maxRequestBodySize: maxBodySize, cors: cors, tls: tls,
             reloadSource: { try Self.loadSnapshot(from: projectPath) }, hostname: hostname, port: port)
 
         let watcher = watch ? app.mockReloader.map { ProjectWatcher(path: projectPath, reloader: $0).start() } : nil

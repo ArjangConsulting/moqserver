@@ -18,6 +18,8 @@ public struct MockHandler: Sendable {
     let requireSession: Bool
     /// Maximum request-body bytes recorded in history; `0` records none.
     let requestBodyCaptureLimit: Int
+    /// When true, history records request headers, with credential values redacted.
+    let captureRequestHeaders: Bool
 
     public init(
         store: any MockStoring,
@@ -26,7 +28,8 @@ public struct MockHandler: Sendable {
         requestValidator: (any RequestValidating)? = nil,
         addons: ActiveAddons = .none,
         requireSession: Bool = false,
-        requestBodyCaptureLimit: Int = 0
+        requestBodyCaptureLimit: Int = 0,
+        captureRequestHeaders: Bool = false
     ) {
         self.store = store
         self.config = config
@@ -35,6 +38,7 @@ public struct MockHandler: Sendable {
         self.addons = addons
         self.requireSession = requireSession
         self.requestBodyCaptureLimit = max(0, requestBodyCaptureLimit)
+        self.captureRequestHeaders = captureRequestHeaders
     }
 
     /// Called by the catch-all fallback route for paths not matched by any registered endpoint.
@@ -80,7 +84,8 @@ public struct MockHandler: Sendable {
                 id: UUID().uuidString, timestamp: Date().timeIntervalSince1970,
                 method: req.method.rawValue, path: req.url.path, endpoint: nil, status: status,
                 variant: nil, reason: reason, callNumber: nil,
-                addons: traceAnnotations(facts), requestBody: capturedBody(req)))
+                addons: traceAnnotations(facts), requestBody: capturedBody(req),
+                requestHeaders: capturedHeaders(req)))
     }
 
     /// With `requireSession`, a request that forgot `X-Mock-Session` would otherwise silently read
@@ -94,7 +99,10 @@ public struct MockHandler: Sendable {
                 RequestTrace(
                     id: UUID().uuidString, timestamp: Date().timeIntervalSince1970,
                     method: req.method.rawValue, path: req.url.path, endpoint: nil, status: 428,
-                    variant: nil, reason: "missing session", callNumber: nil, requestBody: capturedBody(req)))
+                    variant: nil, reason: "missing session", callNumber: nil, requestBody: capturedBody(req),
+                    requestHeaders: capturedHeaders(req),
+                    rejection: RequestRejection(
+                        kind: .session, code: "session_required", message: "Missing X-Mock-Session header")))
         }
         let errorResponse = ErrorResponse(
             error: "Missing X-Mock-Session header",
@@ -137,7 +145,8 @@ public struct MockHandler: Sendable {
             }
             handler = MockHandler(
                 store: session, config: config, authValidator: authValidator, requestValidator: requestValidator,
-                addons: addons, requireSession: requireSession, requestBodyCaptureLimit: requestBodyCaptureLimit)
+                addons: addons, requireSession: requireSession, requestBodyCaptureLimit: requestBodyCaptureLimit,
+                captureRequestHeaders: captureRequestHeaders)
         }
         let response = try await handler.handleResolved(req: req, matchedKey: matchedKey)
         if let runtime = handler.store as? InMemoryMockStore {
@@ -150,7 +159,8 @@ public struct MockHandler: Sendable {
                     variant: selection?.variant, reason: selection?.reason ?? "request rejected",
                     callNumber: selection?.callNumber,
                     addons: traceAnnotations(req.storage[AddonFactsKey.self] ?? AddonFacts()),
-                    requestBody: capturedBody(req)))
+                    requestBody: capturedBody(req), requestHeaders: capturedHeaders(req),
+                    rejection: selection?.rejection))
         }
         return response
     }
@@ -182,7 +192,8 @@ public struct MockHandler: Sendable {
         let authOutcome = authValidator.evaluate(endpoint.authRequirement, context: authContext)
         if let authError = authResponseFromOutcome(authOutcome) {
             req.storage[SelectionKey.self] = SelectionDetail(
-                variant: nil, reason: "authentication failed", callNumber: nil)
+                variant: nil, reason: "authentication failed", callNumber: nil,
+                rejection: authRejection(authOutcome))
             logger.warning("Auth failed for \(req.method) \(req.url.path)")
             return authError
         }
@@ -197,7 +208,9 @@ public struct MockHandler: Sendable {
         )
         if let validationError = requestValidator.validate(endpoint: endpoint, context: requestContext) {
             req.storage[SelectionKey.self] = SelectionDetail(
-                variant: nil, reason: validationError.code.rawValue, callNumber: nil)
+                variant: nil, reason: validationError.code.rawValue, callNumber: nil,
+                rejection: RequestRejection(
+                    kind: .requestRule, code: validationError.code.rawValue, message: validationError.message))
             let errorResponse = ErrorResponse(
                 error: validationError.message,
                 code: validationError.code.rawValue,
@@ -227,7 +240,10 @@ public struct MockHandler: Sendable {
             let hasExactMatch = endpoint.variants.contains { $0.callCount == callNumber }
             if !hasExactMatch {
                 req.storage[SelectionKey.self] = SelectionDetail(
-                    variant: nil, reason: "call count exceeded", callNumber: callNumber)
+                    variant: nil, reason: "call count exceeded", callNumber: callNumber,
+                    rejection: RequestRejection(
+                        kind: .callCount, code: "call_count_exceeded",
+                        message: "Call #\(callNumber) has no variant with a matching call_count"))
                 logger.warning("Call count exceeded for \(endpointKeyString): call #\(callNumber)")
                 let configuredCounts =
                     endpoint.variants.compactMap(\.callCount).sorted().map(String.init).joined(separator: ", ")
@@ -259,7 +275,10 @@ public struct MockHandler: Sendable {
         guard let selected = selectVariant(endpoint: endpoint, named: variantName, req: req, callNumber: callNumber)
         else {
             req.storage[SelectionKey.self] = SelectionDetail(
-                variant: nil, reason: "no eligible variant", callNumber: callNumber)
+                variant: nil, reason: "no eligible variant", callNumber: callNumber,
+                rejection: RequestRejection(
+                    kind: .noVariant, code: "variant_not_found",
+                    message: variantName.map { "No eligible variant named '\($0)'" } ?? "No eligible variant"))
             let availableNames = endpoint.variants.map(\.name).joined(separator: ", ")
             let requestedInfo: String
             if let variantName {
@@ -360,6 +379,17 @@ public struct MockHandler: Sendable {
             return authErrorResponse(status: .unauthorized, message: message, wwwAuthenticate: challenge)
         case .forbidden(let message, let challenge):
             return authErrorResponse(status: .forbidden, message: message, wwwAuthenticate: challenge)
+        }
+    }
+
+    private func authRejection(_ outcome: AuthOutcome) -> RequestRejection? {
+        switch outcome {
+        case .allowed:
+            return nil
+        case .unauthorized(let message, _):
+            return RequestRejection(kind: .auth, code: "unauthorized", message: message)
+        case .forbidden(let message, _):
+            return RequestRejection(kind: .auth, code: "forbidden", message: message)
         }
     }
 
@@ -543,6 +573,11 @@ public struct MockHandler: Sendable {
         }
 
         return true
+    }
+
+    private func capturedHeaders(_ req: Request) -> [CapturedHeader]? {
+        guard captureRequestHeaders else { return nil }
+        return req.headers.map { CapturedHeader.capture(name: $0.name, value: $0.value) }
     }
 
     private func capturedBody(_ req: Request) -> CapturedBody? {
@@ -749,6 +784,7 @@ private struct SelectionDetail: Sendable {
     let variant: String?
     let reason: String
     let callNumber: Int?
+    var rejection: RequestRejection? = nil
 }
 
 private struct SelectionKey: StorageKey {

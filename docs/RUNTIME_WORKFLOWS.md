@@ -68,7 +68,33 @@ have no session header instead (`428`, code `session_required`). This catches an
 forgot the header. Rejected requests appear in the global `GET /_admin/requests` history with reason
 `missing session`. Admin, health, and add-on routes are unaffected.
 
-To assert what the app sent, start the server with `serve --capture-request-bodies <bytes>`. Each
+### Asserting what the app sent
+
+When the server itself refuses a matched request, the history row carries `rejection`:
+`{kind, code, message}`. `kind` is `auth` (the endpoint's auth requirement failed), `request_rule` (a
+`request_rules` header, query or cookie rule, the required body, or the content type failed),
+`session` (`--require-session` and no session header), `call_count` (`strict_call_count` and no
+variant for this call) or `no_variant`. `message` names what failed, e.g.
+`Header 'Authorization' is required`, and never contains a credential or cookie value. A mocked 4xx
+variant is a served response, not a rejection. Unmatched paths have `endpoint: null` instead.
+
+Start the server with `serve --capture-request-headers` to record request headers as
+`requestHeaders`: `[{name, value, truncated, redacted, scheme, fingerprint, cookieNames}]`. Names are
+lowercased. Ordinary headers keep their value, cut to 256 characters. Credential headers
+(`authorization`, `proxy-authorization`, `cookie`, `set-cookie`, `x-api-key`, `x-auth-token`,
+`x-csrf-token`, `x-forwarded-for`, `www-authenticate`) never store a value:
+
+- `authorization` and `proxy-authorization` keep `scheme` (e.g. `Bearer`) and `fingerprint`, the
+  first 16 hex characters of the SHA-256 of the credential after the scheme. A test can compute the
+  same fingerprint from the token it expects.
+- `cookie` keeps only `cookieNames`.
+- Other credential headers keep `fingerprint` of the whole value.
+
+Decoded token claims come from the [`jwt-claims` add-on](ADDONS.md#jwt-claims) in `addons`, not from
+header capture. Its `trace_claims` records string, number and boolean claims as strings; array and
+object claims are skipped.
+
+To assert what the app sent in a body, start the server with `serve --capture-request-bodies <bytes>`. Each
 history row then carries `requestBody`: `{value, encoding: "utf8"|"base64", size, truncated}`, cut to
 at most that many bytes. It's off by default, because bodies can contain credentials or personal
 data. From Swift, use `MoqRequestRecord.requestBody?.jsonObject`. Session IDs select test state, not an authentication boundary. Admin

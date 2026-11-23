@@ -415,6 +415,9 @@ for session-local operations; omit it for global state.
 
 History records have `id`, `timestamp` (Unix seconds), `method`, `path`, `endpoint`, `status`,
 optional `variant`, `reason`, optional `callNumber`, optional `requestBody` (with
-`serve --capture-request-bodies`: `{value, encoding, size, truncated}`), and optional `addons` (add-on annotations
+`serve --capture-request-bodies`: `{value, encoding, size, truncated}`), optional `requestHeaders` (with
+`serve --capture-request-headers`: `[{name, value, truncated, redacted, scheme, fingerprint, cookieNames}]`), optional
+`rejection` (`{kind, code, message}` when the server refused the request itself; `kind` is `auth`, `request_rule`,
+`session`, `call_count` or `no_variant`), and optional `addons` (add-on annotations
 keyed by add-on id, e.g. `{"jwt-claims": {"sub": "user-1"}}` — see [ADDONS.md](ADDONS.md)). See [runtime workflows](RUNTIME_WORKFLOWS.md)
 for limits, lifecycle, scenario examples and parallel-test setup.

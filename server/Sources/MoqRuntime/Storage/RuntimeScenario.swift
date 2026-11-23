@@ -25,6 +25,41 @@ public struct RequestTrace: Codable, Sendable {
     public var addons: [String: [String: String]]? = nil
     /// The request body, captured only with `serve --capture-request-bodies <bytes>`.
     public var requestBody: CapturedBody? = nil
+    /// The request headers, captured only with `serve --capture-request-headers`. Credential
+    /// headers never carry their value; see ``CapturedHeader``.
+    public var requestHeaders: [CapturedHeader]? = nil
+    /// Why the server refused to serve a mock response, when it did. `nil` for served requests and
+    /// for requests no endpoint matched (those have `endpoint == nil`).
+    public var rejection: RequestRejection? = nil
+}
+
+/// Why a matched request got an error from the server itself instead of a mocked variant. A mocked
+/// 4xx variant is not a rejection.
+public struct RequestRejection: Codable, Sendable, Equatable {
+    public enum Kind: String, Codable, Sendable {
+        /// The endpoint's auth requirement failed.
+        case auth
+        /// A `request_rules` header, query or cookie rule, the body requirement, or content type failed.
+        case requestRule = "request_rule"
+        /// `--require-session` is on and the request had no `X-Mock-Session`.
+        case session
+        /// `strict_call_count` is on and no variant covers this call number.
+        case callCount = "call_count"
+        /// No variant matched the request.
+        case noVariant = "no_variant"
+    }
+
+    public let kind: Kind
+    /// The machine-readable error code the response carried, e.g. `missing_required_header`.
+    public let code: String
+    /// What failed, e.g. `Header 'Authorization' is required`. Never contains a credential value.
+    public let message: String
+
+    public init(kind: Kind, code: String, message: String) {
+        self.kind = kind
+        self.code = code
+        self.message = message
+    }
 }
 
 /// A request body recorded in history, cut to the configured byte limit.
