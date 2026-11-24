@@ -69,6 +69,19 @@ Only names are written, never values, so an imported endpoint then rejects a req
 say, `Authorization`, and the test sees a `request_rule` rejection naming it. Transport, caching and
 browser headers (`Accept`, `User-Agent`, `Sec-*`, `Cookie`, ...) are never inferred.
 
+OpenAPI import maps an operation's security (or the document's) as follows. All schemes listed
+in one requirement object are required together. The first Authorization scheme (http bearer or
+basic, oauth2, openIdConnect), or else the first header API key, becomes the endpoint's `auth`.
+Every other scheme becomes a required `request_rules` entry: a header API key a header rule, a
+cookie API key (`in: cookie`) a cookie rule, and a query API key a query rule. Schemes are taken in
+a fixed order, so the same spec always imports the same way. When the spec lists alternative
+requirement objects, only the first is imported. The import result's `warnings` report this, along
+with schemes it can't express (mutualTLS, other http schemes, a second Authorization scheme).
+
+Declared response `headers` that have an example (`example`, `examples`, or a schema example) are
+copied into the variant. A header with no example is reported in `warnings`, not given a made-up
+value.
+
 Imports preserve existing endpoint details and bodies unless options explicitly enable changes:
 
 ```json

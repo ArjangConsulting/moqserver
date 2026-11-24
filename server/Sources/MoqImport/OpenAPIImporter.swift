@@ -34,12 +34,13 @@ public enum OpenAPIImporter {
             throw OpenAPIImportError.invalidSpec("Unable to resolve references in API spec: \(error)")
         }
 
-        let endpoints = buildParsedEndpoints(dereferenced)
+        var warnings: [String] = []
+        let endpoints = buildParsedEndpoints(dereferenced, warnings: &warnings)
         let title = dereferenced.info.title.isEmpty ? defaultTitle : dereferenced.info.title
         let version = dereferenced.info.version.isEmpty ? defaultVersion : dereferenced.info.version
 
         logger.info("API parse complete: '\(title)' v\(version) — \(endpoints.count) endpoint(s)")
-        return ParsedSpec(title: title, version: version, endpoints: endpoints)
+        return ParsedSpec(title: title, version: version, endpoints: endpoints, warnings: warnings)
     }
 
     // MARK: - Decoding
@@ -76,7 +77,9 @@ public enum OpenAPIImporter {
 
     // MARK: - Endpoint building
 
-    private static func buildParsedEndpoints(_ document: DereferencedDocument) -> [ParsedEndpoint] {
+    private static func buildParsedEndpoints(
+        _ document: DereferencedDocument, warnings: inout [String]
+    ) -> [ParsedEndpoint] {
         var endpoints: [ParsedEndpoint] = []
         for (path, pathItem) in document.paths {
             for endpoint in pathItem.endpoints {
@@ -84,7 +87,7 @@ public enum OpenAPIImporter {
                     buildParsedEndpoint(
                         path: path.rawValue, method: endpoint.method.rawValue.uppercased(),
                         operation: endpoint.operation, pathParameters: pathItem.parameters,
-                        documentSecurity: document.security))
+                        documentSecurity: document.security, warnings: &warnings))
             }
         }
         return endpoints
@@ -92,11 +95,14 @@ public enum OpenAPIImporter {
 
     private static func buildParsedEndpoint(
         path: String, method: String, operation: DereferencedOperation,
-        pathParameters: [DereferencedParameter], documentSecurity: [DereferencedSecurityRequirement]
+        pathParameters: [DereferencedParameter], documentSecurity: [DereferencedSecurityRequirement],
+        warnings: inout [String]
     ) -> ParsedEndpoint {
-        let responses = buildResponses(operation)
-        let auth = resolveAuth(operation.security ?? documentSecurity)
-        let requestRules = extractRequestRules(pathParameters + operation.parameters)
+        let label = "\(method) \(path)"
+        let responses = buildResponses(operation, label: label, warnings: &warnings)
+        let security = resolveSecurity(operation.security ?? documentSecurity, label: label)
+        warnings.append(contentsOf: security.warnings)
+        let requestRules = extractRequestRules(pathParameters + operation.parameters).adding(security)
         // OpenAPI 3.0 supports `requestBody` only where HTTP defines body semantics (consumers
         // must ignore it elsewhere); 3.1 permits but discourages it on GET, HEAD and DELETE. So
         // body rules are enforced only for methods that carry a body.
@@ -110,8 +116,8 @@ public enum OpenAPIImporter {
             referenceName: operation.operationId?.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty,
             tags: operation.tags ?? [],
             responses: responses,
-            authType: auth.type,
-            authHeaderName: auth.headerName,
+            authType: security.auth.type,
+            authHeaderName: security.auth.headerName,
             queryParameters: requestRules.query,
             requiredQueryParameters: requestRules.requiredQueryParameters,
             requiredHeaders: requestRules.requiredHeaders,
@@ -136,7 +142,9 @@ public enum OpenAPIImporter {
 
     // MARK: - Response building
 
-    private static func buildResponses(_ operation: DereferencedOperation) -> [ParsedResponse] {
+    private static func buildResponses(
+        _ operation: DereferencedOperation, label: String, warnings: inout [String]
+    ) -> [ParsedResponse] {
         var responses: [ParsedResponse] = []
         var usedNames: Set<String> = []
 
@@ -146,7 +154,8 @@ public enum OpenAPIImporter {
             let baseName =
                 outcome.response.description?.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty
                 ?? statusCodeToVariantName(statusString, code)
-            let responseHeaders = extractResponseHeaders(outcome.response)
+            let responseHeaders = extractResponseHeaders(
+                outcome.response, label: "\(label) \(statusString)", warnings: &warnings)
             let content = outcome.response.content
 
             if content.isEmpty {
@@ -305,11 +314,39 @@ public enum OpenAPIImporter {
 
     // MARK: - Response headers
 
-    private static func extractResponseHeaders(_ response: DereferencedResponse) -> [String: String] {
-        // Response header *examples* (as opposed to Content-Type, set by the caller) are a minor
-        // documentation nicety in practice and are intentionally not extracted here — headers
-        // are populated from the content-type loop only.
-        [:]
+    /// Declared response headers that carry an example. Content-Type is skipped because the
+    /// content loop sets it; a header without an example is reported rather than given a made-up value.
+    private static func extractResponseHeaders(
+        _ response: DereferencedResponse, label: String, warnings: inout [String]
+    ) -> [String: String] {
+        var headers: [String: String] = [:]
+        var skipped: [String] = []
+        for (name, header) in response.headers ?? [:] {
+            guard name.caseInsensitiveCompare(contentTypeHeader) != .orderedSame else { continue }
+            if let example = headerExampleValue(header) {
+                headers[name] = matchValueString(example)
+            } else {
+                skipped.append(name)
+            }
+        }
+        if !skipped.isEmpty {
+            let names = skipped.joined(separator: ", ")
+            warnings.append("\(label): response header(s) \(names) have no example and were not imported.")
+        }
+        return headers
+    }
+
+    private static func headerExampleValue(_ header: DereferencedHeader) -> Any? {
+        switch header.schemaOrContent {
+        case .a(let context):
+            if let example = context.example { return example.value }
+            if let example = context.examples?.values.first?.dataOrLegacyValue { return example.value }
+            return context.schema.examples.first?.value
+        case .b(let content):
+            guard let media = content.values.first else { return nil }
+            if let example = media.example { return example.value }
+            return media.examples?.values.first?.dataOrLegacyValue?.value
+        }
     }
 
     // MARK: - Auth resolution
@@ -320,29 +357,83 @@ public enum OpenAPIImporter {
         static let none = ResolvedAuth(type: .none, headerName: nil)
     }
 
-    private static func resolveAuth(_ requirements: [DereferencedSecurityRequirement]) -> ResolvedAuth {
-        for requirement in requirements {
-            for (_, scoped) in requirement.schemes {
-                if let resolved = resolveAuth(scoped.securityScheme) { return resolved }
-            }
-        }
-        return .none
+    private struct ResolvedSecurity {
+        var auth = ResolvedAuth.none
+        var headers: [String] = []
+        var cookies: [RuleMatcher] = []
+        var query: [RuleMatcher] = []
+        var warnings: [String] = []
     }
 
-    private static func resolveAuth(_ scheme: OpenAPI.SecurityScheme) -> ResolvedAuth? {
-        switch scheme.type {
-        case .http(let httpScheme, _):
-            switch httpScheme.lowercased() {
-            case "bearer": return ResolvedAuth(type: .bearer, headerName: nil)
-            case "basic": return ResolvedAuth(type: .basic, headerName: nil)
-            default: return nil
+    /// Maps the first security requirement onto the endpoint. Every scheme in one requirement object
+    /// is required together: the highest-ranked becomes `auth`, the rest become request rules.
+    /// Schemes are visited in a fixed order because OpenAPIKit keeps them in an unordered dictionary.
+    private static func resolveSecurity(
+        _ requirements: [DereferencedSecurityRequirement], label: String
+    ) -> ResolvedSecurity {
+        var result = ResolvedSecurity()
+        guard let first = requirements.first else { return result }
+        let schemes = first.schemes.values.sorted {
+            (securityRank($0.securityScheme), $0.name) < (securityRank($1.securityScheme), $1.name)
+        }
+        if requirements.count > 1 {
+            let chosen = schemes.isEmpty ? "no auth" : schemes.map(\.name).joined(separator: " + ")
+            let count = requirements.count
+            result.warnings.append(
+                "\(label): \(count) alternative security requirements; imported only the first (\(chosen)).")
+        }
+        for scoped in schemes {
+            switch scoped.securityScheme.type {
+            case .http(let scheme, _):
+                switch scheme.lowercased() {
+                case "bearer": addAuthorization(.bearer, scoped.name, to: &result, label: label)
+                case "basic": addAuthorization(.basic, scoped.name, to: &result, label: label)
+                default:
+                    result.warnings.append(
+                        "\(label): security scheme \(scoped.name) (http \(scheme)) is not supported and was skipped.")
+                }
+            case .oauth2, .openIdConnect:
+                addAuthorization(.bearer, scoped.name, to: &result, label: label)
+            case .apiKey(let name, let location):
+                switch location {
+                case .header:
+                    if result.auth.type == .none {
+                        result.auth = ResolvedAuth(type: .apiKey, headerName: name)
+                    } else {
+                        result.headers.append(name)
+                    }
+                case .cookie: result.cookies.append(RuleMatcher(name: name, required: true))
+                case .query: result.query.append(RuleMatcher(name: name, required: true))
+                }
+            case .mutualTLS:
+                result.warnings.append(
+                    "\(label): security scheme \(scoped.name) (mutualTLS) is not supported and was skipped.")
             }
-        case .apiKey(let name, _):
-            return ResolvedAuth(type: .apiKey, headerName: name)
-        case .mutualTLS:
-            return nil
-        case .oauth2, .openIdConnect:
-            return ResolvedAuth(type: .bearer, headerName: nil)
+        }
+        return result
+    }
+
+    private static func addAuthorization(
+        _ type: ProjectAuthConfig.AuthType, _ schemeName: String, to result: inout ResolvedSecurity, label: String
+    ) {
+        switch result.auth.type {
+        case .none:
+            result.auth = ResolvedAuth(type: type, headerName: nil)
+        case .bearer, .basic:
+            result.warnings.append(
+                "\(label): security scheme \(schemeName) also uses the Authorization header and was skipped.")
+        case .apiKey, .header:
+            result.headers.append("Authorization")
+        }
+    }
+
+    /// Authorization-header schemes first, then header API keys, then cookie and query keys.
+    private static func securityRank(_ scheme: OpenAPI.SecurityScheme) -> Int {
+        switch scheme.type {
+        case .http, .oauth2, .openIdConnect: return 0
+        case .apiKey(_, .header): return 1
+        case .apiKey: return 2
+        case .mutualTLS: return 3
         }
     }
 
@@ -353,6 +444,25 @@ public enum OpenAPIImporter {
         let requiredQueryParameters: [String]
         let requiredHeaders: [String]
         let cookies: [RuleMatcher]
+
+        /// Adds the rules a security requirement implies, keeping a declared parameter's rule when
+        /// both name the same header, cookie or query parameter.
+        func adding(_ security: ResolvedSecurity) -> RequestRules {
+            let headerNames = Set(requiredHeaders.map { $0.lowercased() })
+            let extraHeaders = security.headers.filter { !headerNames.contains($0.lowercased()) }
+            let cookieNames = Set(cookies.map(\.name))
+            let queryNames = Set(query.map(\.name))
+            let mergedQuery = (query + security.query.filter { !queryNames.contains($0.name) }).sorted {
+                $0.name < $1.name
+            }
+            return RequestRules(
+                query: mergedQuery,
+                requiredQueryParameters: mergedQuery.filter { $0.required == true }.map(\.name),
+                requiredHeaders: (requiredHeaders + extraHeaders).sorted(),
+                cookies: (cookies + security.cookies.filter { !cookieNames.contains($0.name) }).sorted {
+                    $0.name < $1.name
+                })
+        }
     }
 
     private static func extractRequestRules(_ parameters: [DereferencedParameter]) -> RequestRules {
