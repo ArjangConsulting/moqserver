@@ -74,6 +74,64 @@ class RemoteHARImportTest {
         }
     }
 
+    @Test
+    fun `parseHar passes redaction and header-rule inference to moq-format`() {
+        val binaryPath = try {
+            FormatBinaryLocator.locate()
+        } catch (e: FormatBinaryLocator.NotFoundException) {
+            println("Skipping: ${e.message}")
+            return
+        }
+        val process = FormatProcess(locateBinary = { binaryPath }).apply { start() }
+        val harPath = kotlin.io.path.createTempFile("moqproj-har-options", ".har").toFile()
+        try {
+            harPath.writeText(headerHar())
+            runBlocking {
+                withTimeout(15_000) {
+                    val client = FormatClient(process)
+                    val plain = client.parseHar(harPath.absolutePath).endpoints.single()
+                    assertEquals("ref-1", plain.responses.single().headers["X-Request-Ref"])
+                    assertTrue(plain.requiredHeaders.isEmpty())
+
+                    val tuned = client.parseHar(
+                        harPath.absolutePath,
+                        redactHeaders = listOf("X-Request-Ref"),
+                        inferHeaderRules = true,
+                    ).endpoints.single()
+                    assertEquals("[redacted]", tuned.responses.single().headers["X-Request-Ref"])
+                    assertEquals(listOf("X-App-Device"), tuned.requiredHeaders)
+                }
+            }
+        } finally {
+            harPath.delete()
+            process.stop()
+        }
+    }
+
+    private fun headerHar(): String = """
+        {
+          "log": {
+            "version": "1.2",
+            "creator": { "name": "Browser", "version": "1.0" },
+            "entries": [
+              {
+                "request": {
+                  "method": "GET",
+                  "url": "https://api.example.test/v1/items",
+                  "headers": [{ "name": "X-App-Device", "value": "device-1" }],
+                  "queryString": []
+                },
+                "response": {
+                  "status": 200,
+                  "headers": [{ "name": "X-Request-Ref", "value": "ref-1" }],
+                  "content": { "mimeType": "application/json", "text": "{}" }
+                }
+              }
+            ]
+          }
+        }
+    """.trimIndent()
+
     private fun assertRoundTrippedFixture(
         reloaded: com.moqserver.studio.projectformat.MoqProject,
         tempDir: File,

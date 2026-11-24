@@ -1,16 +1,22 @@
 package com.moqserver.studio
 
+import com.moqserver.studio.domain.RuntimeHeader
 import com.moqserver.studio.domain.RuntimeInspectionState
+import com.moqserver.studio.domain.RuntimeRejection
 import com.moqserver.studio.domain.RuntimeRequest
 import com.moqserver.studio.domain.RuntimeScenarioDefinition
+import com.moqserver.studio.domain.RuntimeServerInfo
 import com.moqserver.studio.domain.StudioRootViewModel
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.int
 import kotlinx.serialization.json.intOrNull
@@ -90,10 +96,17 @@ private class RuntimeConnection(private var state: RuntimeInspectionState) : Aut
 			val requests = Json.parseToJsonElement(
 				request("GET", "requests"),
 			).jsonArray.map { decodeRuntimeRequest(it.jsonObject) }
-			state.copy(scenarios = scenarios, requests = requests, error = null)
+			state.copy(scenarios = scenarios, requests = requests, serverInfo = fetchServerInfo(), error = null)
 		} catch (error: Exception) {
 			state.copy(error = error.message ?: "Could not refresh runtime state")
 		}
+	}
+
+	private fun fetchServerInfo(): RuntimeServerInfo = try {
+		decodeServerInfo(Json.parseToJsonElement(request("GET", "version")).jsonObject)
+	} catch (error: RuntimeStatusException) {
+		if (error.status != NOT_FOUND) throw error
+		RuntimeServerInfo(available = false)
 	}
 
 	private fun request(method: String, path: String, body: String? = null): String {
@@ -108,10 +121,22 @@ private class RuntimeConnection(private var state: RuntimeInspectionState) : Aut
 			body?.let(HttpRequest.BodyPublishers::ofString) ?: HttpRequest.BodyPublishers.noBody(),
 		).build()
 		val response = client.send(request, HttpResponse.BodyHandlers.ofString())
-		check(response.statusCode() in 200..299) { "Server returned ${response.statusCode()}: ${response.body().take(1000)}" }
+		if (response.statusCode() !in 200..299) throw RuntimeStatusException(response.statusCode(), response.body())
 		return response.body()
 	}
 }
+
+private const val NOT_FOUND = 404
+
+private class RuntimeStatusException(val status: Int, body: String) :
+	IllegalStateException("Server returned $status: ${body.take(1000)}")
+
+internal fun decodeServerInfo(value: JsonObject): RuntimeServerInfo = RuntimeServerInfo(
+	available = true,
+	version = value["version"]?.stringOrNull(),
+	commit = value["commit"]?.stringOrNull(),
+	capabilities = value["capabilities"]?.jsonArray?.mapNotNull { it.stringOrNull() }.orEmpty(),
+)
 
 internal fun decodeRuntimeRequest(value: JsonObject): RuntimeRequest = RuntimeRequest(
 	id = value.getValue("id").jsonPrimitive.content,
@@ -121,4 +146,33 @@ internal fun decodeRuntimeRequest(value: JsonObject): RuntimeRequest = RuntimeRe
 	variant = value["variant"]?.jsonPrimitive?.content,
 	reason = value.getValue("reason").jsonPrimitive.content,
 	callNumber = value["callNumber"]?.jsonPrimitive?.intOrNull,
+	endpoint = value["endpoint"]?.stringOrNull(),
+	rejection = (value["rejection"] as? JsonObject)?.let {
+		RuntimeRejection(
+			kind = it["kind"]?.stringOrNull().orEmpty(),
+			code = it["code"]?.stringOrNull().orEmpty(),
+			message = it["message"]?.stringOrNull().orEmpty(),
+		)
+	},
+	headers = (value["requestHeaders"] as? JsonArray)
+		?.mapNotNull { header -> (header as? JsonObject)?.let(::decodeRuntimeHeader) }
+		.orEmpty(),
+	claims = ((value["addons"] as? JsonObject)?.get("jwt-claims") as? JsonObject)
+		?.mapNotNull { (key, claim) -> claim.stringOrNull()?.let { key to it } }
+		?.toMap()
+		.orEmpty(),
 )
+
+private fun decodeRuntimeHeader(value: JsonObject): RuntimeHeader? {
+	val name = value["name"]?.stringOrNull() ?: return null
+	return RuntimeHeader(
+		name = name,
+		value = value["value"]?.stringOrNull(),
+		redacted = (value["redacted"] as? JsonPrimitive)?.booleanOrNull == true,
+		scheme = value["scheme"]?.stringOrNull(),
+		fingerprint = value["fingerprint"]?.stringOrNull(),
+		cookieNames = (value["cookieNames"] as? JsonArray)?.mapNotNull { it.stringOrNull() }.orEmpty(),
+	)
+}
+
+private fun JsonElement.stringOrNull(): String? = (this as? JsonPrimitive)?.takeIf { it.isString }?.content

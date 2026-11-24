@@ -15,6 +15,7 @@ data class AISettings(
     val selectedProviderId: String? = null,
     val themeMode: ThemePreference = ThemePreference.SYSTEM,
     val variantReferenceSyncByProject: Map<String, VariantReferenceSyncPreference> = emptyMap(),
+    val harImport: HARImportSettings = HARImportSettings(),
     val ollama: OllamaSettings = OllamaSettings(),
     val openai: OpenAISettings = OpenAISettings(),
     val anthropic: AnthropicSettings = AnthropicSettings(),
@@ -71,3 +72,14 @@ data class GeminiSettings(
         const val DEFAULT_MODEL = "gemini-3.8-flash"
     }
 }
+
+/**
+ * How Studio parses HAR captures. [redactHeaders] adds header names to the built-in credential
+ * list; [inferHeaderRules] turns credential and `X-` headers every successful call sent into
+ * presence-only request rules.
+ */
+@Serializable
+data class HARImportSettings(
+    val redactHeaders: List<String> = emptyList(),
+    val inferHeaderRules: Boolean = false,
+)

@@ -1,10 +1,19 @@
 # Scenarios, isolated tests, and request diagnostics
 
 Open Studio's **Tools → Runtime Inspector** and enter the running server's URL. For a protected
-admin API, enter its bearer token. Refresh lists scenarios and the most recent requests; each
-request shows the returned status, selected variant, selection reason, and call number. History
-holds at most 500 requests per state store. It excludes bodies, query strings and headers; paths
-may still contain user identifiers. Clear history when it is no longer needed.
+admin API, enter its bearer token. Refresh shows the server's release and capabilities
+(`GET /_admin/version`), lists scenarios, and lists the most recent requests. Each request shows
+the returned status, selected variant, selection reason and call number. A request the server
+refused shows its rejection (kind, code and message), and one no endpoint serves is marked
+unmatched. With `serve --capture-request-headers`, each row also lists the captured headers (only
+scheme, fingerprint and cookie names for credentials) and any `jwt-claims` claims. History holds at
+most 500 requests per state store. Bodies and headers are recorded only with the capture flags, and
+query strings never are; paths may still contain user identifiers. Clear history when it is no
+longer needed.
+
+Studio's **Preferences → General → HAR import** sets the same options as `moq-author import har`:
+extra headers to redact and whether to infer required-header rules
+([AUTHORING_CLI.md](AUTHORING_CLI.md)).
 
 ## Named scenarios
 

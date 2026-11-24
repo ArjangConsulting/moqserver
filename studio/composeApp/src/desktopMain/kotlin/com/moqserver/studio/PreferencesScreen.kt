@@ -23,6 +23,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import com.moqserver.studio.data.AISettings
+import com.moqserver.studio.data.HARImportSettings
 import com.moqserver.studio.designsystem.toSharedThemeMode
 import io.github.maniramezan.kmpcomponents.AdaptiveContentContainer
 import io.github.maniramezan.kmpcomponents.CheckStatus
@@ -41,6 +42,7 @@ import io.github.maniramezan.kmpcomponents.SidebarItem
 import io.github.maniramezan.kmpcomponents.SidebarNavigation
 import io.github.maniramezan.kmpcomponents.ThemeModeLabels
 import io.github.maniramezan.kmpcomponents.ThemeModeSelector
+import io.github.maniramezan.kmpcomponents.ThemeSwitch
 import io.github.maniramezan.kmpcomponents.ThemeVerticalDivider
 import io.github.maniramezan.kmpcomponents.isValid
 import io.github.maniramezan.kmpcomponents.validate
@@ -82,6 +84,13 @@ private object PreferencesStrings {
 	const val TEST_CONNECTION_HELP = "Tests the current unsaved settings for this provider."
 	const val SHOW = "Show"
 	const val HIDE = "Hide"
+	const val HAR_IMPORT = "HAR import"
+	const val HAR_IMPORT_HELP = "Credential headers in a capture are always redacted on import."
+	const val REDACT_HEADERS = "Also redact these headers (comma-separated)"
+	const val INFER_RULES = "Require the headers every call sent"
+	const val INFER_RULES_TOOLTIP =
+		"Adds presence-only request rules for credential and X- headers that every successful call sent."
+	const val SAVE_HAR = "Save HAR Import Settings"
 }
 
 private enum class PreferencesSection { GENERAL, AI }
@@ -102,6 +111,7 @@ fun PreferencesScreen(
 	onSaveAISettings: (AISettings) -> Unit,
 	onTestAIProvider: (String, AISettings, (CheckStatus) -> Unit) -> Unit,
 	modifier: Modifier = Modifier,
+	onSaveHARImport: (HARImportSettings) -> Unit = {},
 ) {
 	var selectedSection by remember { mutableStateOf(PreferencesSection.GENERAL) }
 	var selectedProvider by remember(state.aiSettings.selectedProviderId) {
@@ -135,7 +145,12 @@ fun PreferencesScreen(
 			Box(Modifier.weight(1f).fillMaxHeight().verticalScroll(rememberScrollState()).padding(StudioDimens.xl)) {
 				AdaptiveContentContainer {
 					when (selectedSection) {
-						PreferencesSection.GENERAL -> GeneralPreferencesPane(state.themeMode, onThemeModeChange)
+						PreferencesSection.GENERAL -> GeneralPreferencesPane(
+							themeMode = state.themeMode,
+							onThemeModeChange = onThemeModeChange,
+							harImport = state.aiSettings.harImport,
+							onSaveHARImport = onSaveHARImport,
+						)
 						PreferencesSection.AI -> AIPreferencesPane(
 							selectedProvider = selectedProvider,
 							onSelectProvider = {
@@ -164,16 +179,51 @@ fun PreferencesScreen(
 }
 
 @Composable
-private fun GeneralPreferencesPane(themeMode: StudioThemeMode, onThemeModeChange: (StudioThemeMode) -> Unit) {
-	SectionCard(title = PreferencesStrings.APPEARANCE, description = PreferencesStrings.COLOR_SCHEME_HELP) {
-		Text(PreferencesStrings.COLOR_SCHEME, style = MaterialTheme.typography.labelLarge)
-		ThemeModeSelector(
-			selected = themeMode.toSharedThemeMode(),
-			onSelect = { onThemeModeChange(StudioThemeMode.valueOf(it.name)) },
-			labels = ThemeModeLabels(PreferencesStrings.SYSTEM, PreferencesStrings.LIGHT, PreferencesStrings.DARK),
-		)
+private fun GeneralPreferencesPane(
+	themeMode: StudioThemeMode,
+	onThemeModeChange: (StudioThemeMode) -> Unit,
+	harImport: HARImportSettings,
+	onSaveHARImport: (HARImportSettings) -> Unit,
+) {
+	Column(verticalArrangement = Arrangement.spacedBy(StudioDimens.l)) {
+		SectionCard(title = PreferencesStrings.APPEARANCE, description = PreferencesStrings.COLOR_SCHEME_HELP) {
+			Text(PreferencesStrings.COLOR_SCHEME, style = MaterialTheme.typography.labelLarge)
+			ThemeModeSelector(
+				selected = themeMode.toSharedThemeMode(),
+				onSelect = { onThemeModeChange(StudioThemeMode.valueOf(it.name)) },
+				labels = ThemeModeLabels(PreferencesStrings.SYSTEM, PreferencesStrings.LIGHT, PreferencesStrings.DARK),
+			)
+		}
+		HARImportSection(harImport, onSaveHARImport)
 	}
 }
+
+@Composable
+private fun HARImportSection(saved: HARImportSettings, onSave: (HARImportSettings) -> Unit) {
+	var redactText by remember(saved) { mutableStateOf(saved.redactHeaders.joinToString(", ")) }
+	var inferRules by remember(saved) { mutableStateOf(saved.inferHeaderRules) }
+	val draft = HARImportSettings(redactHeaders = parseHeaderNames(redactText), inferHeaderRules = inferRules)
+	SectionCard(title = PreferencesStrings.HAR_IMPORT, description = PreferencesStrings.HAR_IMPORT_HELP) {
+		FormTextField(
+			label = PreferencesStrings.REDACT_HEADERS,
+			value = redactText,
+			onValueChange = { redactText = it },
+			singleLine = true,
+			modifier = Modifier.fillMaxWidth(),
+		)
+		ThemeSwitch(
+			checked = inferRules,
+			onCheckedChange = { inferRules = it },
+			label = PreferencesStrings.INFER_RULES,
+			tooltip = PreferencesStrings.INFER_RULES_TOOLTIP,
+		)
+		PrimaryButton(text = PreferencesStrings.SAVE_HAR, enabled = draft != saved, onClick = { onSave(draft) })
+	}
+}
+
+/** Splits a comma- or whitespace-separated list of header names, dropping blanks and duplicates. */
+internal fun parseHeaderNames(text: String): List<String> =
+	text.split(',', ' ', '\n', '\t').map(String::trim).filter(String::isNotEmpty).distinctBy(String::lowercase)
 
 @Composable
 private fun AIPreferencesPane(

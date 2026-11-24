@@ -1,5 +1,6 @@
 package com.moqserver.studio
 
+import com.moqserver.studio.data.HARImportSettings
 import com.moqserver.studio.domain.EndpointUpdateStatus
 import com.moqserver.studio.domain.ImportConverter
 import com.moqserver.studio.domain.ImportMode
@@ -27,9 +28,9 @@ internal enum class ImportFileKind(
 	HAR("HAR File", setOf("har", "json"), ImportSourceType.HAR, "Failed to parse HAR file"),
 	;
 
-	suspend fun parse(client: FormatClient, path: String): ParsedSpec = when (this) {
+	suspend fun parse(client: FormatClient, path: String, har: HARImportSettings): ParsedSpec = when (this) {
 		OPENAPI, SWAGGER -> client.parseOpenapi(path).spec.toParsedSpec()
-		HAR -> client.parseHar(path).toParsedSpec()
+		HAR -> client.parseHar(path, har.redactHeaders, har.inferHeaderRules).toParsedSpec()
 	}
 }
 
@@ -56,7 +57,7 @@ internal class ImportActions(
 			val file = chooseImportFile(kind, "Import ${kind.label}") ?: return@launch
 			logger.info("Importing {} from: {}", kind.label, file.absolutePath)
 			runReporting(kind.failureContext, viewModel::setError) {
-				val spec = kind.parse(services.formatClient, file.absolutePath)
+				val spec = kind.parse(services.formatClient, file.absolutePath, appState.aiSettings.harImport)
 				viewModel.startImport(spec, kind.sourceType, file.name)
 				appState.rememberDirectoryOf(file)
 			}
@@ -71,7 +72,7 @@ internal class ImportActions(
 			val file = chooseImportFile(kind, "Update from ${kind.label}") ?: return@launch
 			logger.info("Updating project '{}' from {}: {}", currentProject.manifest.name, kind.label, file.absolutePath)
 			runReporting(kind.failureContext, viewModel::setError) {
-				val spec = kind.parse(services.formatClient, file.absolutePath)
+				val spec = kind.parse(services.formatClient, file.absolutePath, appState.aiSettings.harImport)
 				val previouslyDeselected = loadDeselected(
 					services.importHistoryRepo,
 					currentProject,

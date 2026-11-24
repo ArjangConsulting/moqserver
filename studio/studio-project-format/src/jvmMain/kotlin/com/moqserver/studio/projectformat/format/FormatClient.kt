@@ -7,6 +7,7 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
@@ -253,8 +254,19 @@ class FormatClient(private val process: FormatProcess) {
      * interactive review before anything is committed. See `RemoteImportParsing.kt` in
      * `studio-domain` for the map onto the domain's own `ParsedSpec`.
      */
-    suspend fun parseHar(path: String): RemoteParsedSpec {
-        val result = call("import.parseHar", buildJsonObject { put("path", path) })
+    suspend fun parseHar(
+        path: String,
+        redactHeaders: List<String> = emptyList(),
+        inferHeaderRules: Boolean = false,
+    ): RemoteParsedSpec {
+        val params = buildJsonObject {
+            put("path", path)
+            if (redactHeaders.isNotEmpty()) {
+                put("redactHeaders", JsonArray(redactHeaders.map(::JsonPrimitive)))
+            }
+            if (inferHeaderRules) put("inferHeaderRules", true)
+        }
+        val result = call("import.parseHar", params)
         return json.decodeFromJsonElement(RemoteParsedSpec.serializer(), result)
     }
 

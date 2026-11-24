@@ -119,6 +119,7 @@ internal fun PreferencesWindow(appState: StudioAppState, settingsActions: Settin
 				onThemeModeChange = settingsActions::saveThemeMode,
 				onTestAIProvider = settingsActions::testAIProvider,
 				onSaveAISettings = settingsActions::saveAISettings,
+				onSaveHARImport = settingsActions::saveHARImportSettings,
 			)
 		}
 	}

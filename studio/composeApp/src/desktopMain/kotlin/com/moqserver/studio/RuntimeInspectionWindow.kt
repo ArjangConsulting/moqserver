@@ -10,12 +10,16 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.text.selection.SelectionContainer
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.window.Window
 import androidx.compose.ui.window.rememberWindowState
+import com.moqserver.studio.domain.RuntimeHeader
 import com.moqserver.studio.domain.RuntimeInspectionState
+import com.moqserver.studio.domain.RuntimeRequest
+import com.moqserver.studio.domain.RuntimeServerInfo
 import io.github.maniramezan.kmpcomponents.ContentRow
 import io.github.maniramezan.kmpcomponents.EmptyState
 import io.github.maniramezan.kmpcomponents.FlowLayout
@@ -49,6 +53,55 @@ private object RuntimeStrings {
 	const val HIDE = "Hide"
 	const val RETRY = "Retry"
 	const val EMPTY = "No requests recorded. Make a request to the server, then refresh."
+	const val SERVER = "Server "
+	const val UNRELEASED = "unreleased build"
+	const val NO_VERSION = "Server predates /_admin/version; newer runtime features may be missing."
+	const val CAPABILITIES = " · capabilities: "
+	const val NONE = "none"
+	const val REJECTED = "Rejected "
+	const val UNMATCHED = "Unmatched: no endpoint serves this path"
+	const val HEADERS = "Headers: "
+	const val CLAIMS = "Claims: "
+	const val REDACTED = "redacted"
+	const val FINGERPRINT = "fingerprint "
+	const val COOKIES = "cookies "
+}
+
+/** One line describing the server's release and capabilities. */
+internal fun serverSummary(info: RuntimeServerInfo): String {
+	if (!info.available) return RuntimeStrings.NO_VERSION
+	val release = info.version?.let { version -> info.commit?.let { "$version (${it.take(12)})" } ?: version }
+		?: RuntimeStrings.UNRELEASED
+	val capabilities = info.capabilities.ifEmpty { listOf(RuntimeStrings.NONE) }.joinToString(", ")
+	return RuntimeStrings.SERVER + release + RuntimeStrings.CAPABILITIES + capabilities
+}
+
+/** The supporting lines under a request: why it was answered or refused, then headers and claims. */
+internal fun requestSummary(request: RuntimeRequest): String {
+	val rejection = request.rejection
+	val outcome = when {
+		rejection != null -> "${RuntimeStrings.REJECTED}(${rejection.kind} ${rejection.code}): ${rejection.message}"
+		request.isUnmatched -> RuntimeStrings.UNMATCHED
+		else -> "${request.reason} · call ${request.callNumber ?: "—"} · ${request.variant ?: "—"}"
+	}
+	val lines = mutableListOf(outcome)
+	if (request.headers.isNotEmpty()) {
+		lines += RuntimeStrings.HEADERS + request.headers.joinToString(", ", transform = ::headerSummary)
+	}
+	if (request.claims.isNotEmpty()) {
+		lines += RuntimeStrings.CLAIMS + request.claims.entries.joinToString(", ") { "${it.key}=${it.value}" }
+	}
+	return lines.joinToString("\n")
+}
+
+private fun headerSummary(header: RuntimeHeader): String {
+	if (!header.redacted) return "${header.name}=${header.value.orEmpty()}"
+	val details = buildList {
+		header.scheme?.let(::add)
+		header.fingerprint?.let { add(RuntimeStrings.FINGERPRINT + it) }
+		if (header.cookieNames.isNotEmpty()) add(RuntimeStrings.COOKIES + header.cookieNames.joinToString("/"))
+	}.ifEmpty { listOf(RuntimeStrings.REDACTED) }
+	return "${header.name} (${details.joinToString(", ")})"
 }
 
 @Composable
@@ -85,6 +138,7 @@ internal fun RuntimeInspectionWindow(
 				SelectionContainer {
 					Text(if (state.sessionId.isBlank()) RuntimeStrings.GLOBAL else RuntimeStrings.SESSION + state.sessionId)
 				}
+				state.serverInfo?.let { Text(serverSummary(it), style = MaterialTheme.typography.bodySmall) }
 				if (state.loading) InlineProgressIndicator(label = RuntimeStrings.LOADING)
 				state.error?.let {
 					NoticeCard(
@@ -122,7 +176,7 @@ internal fun RuntimeInspectionWindow(
 					items(state.requests, key = { it.id }) { request ->
 						ContentRow(
 							title = "${request.status} ${request.method} ${request.path}",
-							supportingText = "${request.reason} · call ${request.callNumber ?: "—"} · ${request.variant ?: "—"}",
+							supportingText = requestSummary(request),
 						)
 					}
 				}

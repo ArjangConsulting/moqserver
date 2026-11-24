@@ -1,6 +1,7 @@
 package com.moqserver.studio
 
 import com.moqserver.studio.data.AISettings
+import com.moqserver.studio.data.HARImportSettings
 import com.moqserver.studio.domain.VariantReferenceSyncPreference
 import com.moqserver.studio.logging.loggerFor
 import io.github.maniramezan.kmpcomponents.CheckStatus
@@ -38,6 +39,12 @@ internal class SettingsActions(
 			logger.info("Theme preference saved")
 			appState.themeMode = themeMode
 			refreshProviders(settings)
+		}
+	}
+
+	fun saveHARImportSettings(harImport: HARImportSettings) {
+		scope.launch(handler) {
+			if (persist(appState.aiSettings.copy(harImport = harImport))) logger.info("HAR import preferences saved")
 		}
 	}
 
