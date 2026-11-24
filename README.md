@@ -81,6 +81,7 @@ Stable Studio releases are signed: macOS DMGs are Developer ID signed and notari
 - [`docs/API_GUIDE.md`](docs/API_GUIDE.md): server CLI, format, variants, auth, Admin API, and Docker
 - [`docs/ADMIN_API.md`](docs/ADMIN_API.md): Admin API reference
 - [`docs/ERROR_CATALOG.md`](docs/ERROR_CATALOG.md): every structured error code the server returns
+- [`docs/NON_GOALS.md`](docs/NON_GOALS.md): what moqserver deliberately does not do, and what to use instead
 - [`docs/ADDONS.md`](docs/ADDONS.md): built-in add-ons and their configuration
 - [`docs/RUNTIME_WORKFLOWS.md`](docs/RUNTIME_WORKFLOWS.md): scenarios, isolated test sessions, and the Studio Runtime Inspector
 - [`docs/AUTHORING_CLI.md`](docs/AUTHORING_CLI.md): authoring bundles with `moq-author`, for scripts, CI and AI agents

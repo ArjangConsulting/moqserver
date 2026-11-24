@@ -56,7 +56,9 @@ The planned authoring surface is a desktop Studio app. Provider settings live in
 - Not a full OpenAPI compliance validator
 - Not a real authentication system
 - Not a performance testing tool
-- Not a request/response recorder
+- Not a request/response recorder or proxy (record elsewhere and import the HAR)
+
+[`docs/NON_GOALS.md`](docs/NON_GOALS.md) lists every deliberate non-goal, why, and what to do instead.
 
 ## Typical Use Cases
 
@@ -87,7 +89,6 @@ The planned authoring surface is a desktop Studio app. Provider settings live in
 - Webhook simulation
 - Response templating
 - Advanced request matching
-- Recorded traffic playback
 
 ---
 
