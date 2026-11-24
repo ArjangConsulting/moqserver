@@ -126,6 +126,23 @@ public class MoqClient(
         json.decodeFromString(EndpointCallCount.serializer(), send("GET", endpointPath(method, path, "", operation)))
             .currentCallCount
 
+    /** The server's release, commit and capabilities, from `GET /_admin/version`. */
+    public fun serverInfo(): MoqServerInfo =
+        json.decodeFromString(MoqServerInfo.serializer(), send("GET", "/_admin/version"))
+
+    /** Throws [MoqMissingCapabilitiesException] unless the server supports every capability named. */
+    public fun requireCapabilities(vararg capabilities: String) {
+        val info =
+            try {
+                serverInfo()
+            } catch (e: MoqControlException.Rejected) {
+                if (e.status != 404) throw e
+                null
+            }
+        val missing = capabilities.filter { info?.supports(it) != true }
+        if (missing.isNotEmpty()) throw MoqMissingCapabilitiesException(missing, info)
+    }
+
     /** Live sessions on the server, oldest first. */
     public fun sessions(): List<MoqSession> =
         json.decodeFromString(ListSerializer(MoqSession.serializer()), send("GET", "/_admin/sessions"))
@@ -351,6 +368,17 @@ public sealed class MoqControlException(message: String) : Exception(message) {
     public class Rejected(public val status: Int, public val body: String) :
         MoqControlException("moqserver rejected the request ($status): $body")
 }
+
+/**
+ * Thrown by [MoqClient.requireCapabilities]. [server] is `null` when the server predates
+ * `GET /_admin/version`.
+ */
+public class MoqMissingCapabilitiesException(public val missing: List<String>, public val server: MoqServerInfo?) :
+    AssertionError(
+        "moqserver lacks ${missing.joinToString(", ")} " +
+            "(found ${server?.let { it.version ?: "an unreleased build" } ?: "a server without /_admin/version"}); " +
+            "upgrade the server.",
+    )
 
 /** Thrown by [MoqClient.assertNoUnmatchedRequests]: the app called paths the bundle doesn't mock. */
 public class MoqUnmatchedRequestsException(public val requests: List<MoqRequestRecord>) :

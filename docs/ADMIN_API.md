@@ -313,6 +313,38 @@ curl -X DELETE http://127.0.0.1:8080/_admin/endpoints/GET/api/v1/users/call-coun
 
 ---
 
+### GET `/_admin/version`
+
+Reports what this server binary is and which admin-API behaviours it supports, so a client can check
+before relying on them instead of probing each feature.
+
+```json
+{
+  "version": "1.2.3",
+  "commit": "0123456789abcdef0123456789abcdef01234567",
+  "capabilities": ["request-headers", "request-rejections", "request-query", "limited-overrides"]
+}
+```
+
+`version` (bare SemVer) and `commit` are set only on release builds, binaries and container images;
+a build from source reports both as `null`. `moqserver --version` prints the same information:
+`1.2.3 (0123456789ab)`, or `unreleased build`.
+
+Check `capabilities` rather than `version` when you need a specific behaviour: it is accurate for
+source builds pinned to a commit, too. A server without this route predates all of them.
+
+| Capability | Behaviour |
+|---|---|
+| `request-headers` | `serve --capture-request-headers` records redacted request headers on history rows |
+| `request-rejections` | History rows carry `rejection` when the server refused a request itself |
+| `request-query` | `POST /_admin/requests/query` and `/_admin/requests/mark`, including the `unmatched` filter and the `400` for an unknown `endpoint` key |
+| `limited-overrides` | `PUT /_admin/endpoints/:method/**/variant` accepts `times` |
+
+Capability names are permanent. New behaviours add a name; a name disappears only with the
+behaviour it describes.
+
+---
+
 ### Runtime routes
 
 | Route | Purpose |

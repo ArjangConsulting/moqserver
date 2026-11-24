@@ -7,6 +7,11 @@ WORKDIR /app
 COPY Package.swift Package.resolved ./
 RUN swift package resolve
 COPY Sources/ Sources/
+COPY scripts/stamp-build-info.sh scripts/
+# Release images pass both; local builds leave them empty and report an unreleased build.
+ARG MOQSERVER_VERSION=""
+ARG MOQSERVER_COMMIT=""
+RUN if [ -n "$MOQSERVER_VERSION" ]; then scripts/stamp-build-info.sh "$MOQSERVER_VERSION" "$MOQSERVER_COMMIT"; fi
 RUN swift build -c release --product moqserver --static-swift-stdlib
 
 # Runtime stage

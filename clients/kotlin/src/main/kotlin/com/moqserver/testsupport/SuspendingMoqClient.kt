@@ -60,6 +60,11 @@ public class SuspendingMoqClient(public val client: MoqClient) {
 
     public suspend fun mark(): Double = io { mark() }
 
+    public suspend fun serverInfo(): MoqServerInfo = io { serverInfo() }
+
+    public suspend fun requireCapabilities(vararg capabilities: String): Unit =
+        io { requireCapabilities(*capabilities) }
+
     public suspend fun selectVariant(
         variant: String,
         method: String,

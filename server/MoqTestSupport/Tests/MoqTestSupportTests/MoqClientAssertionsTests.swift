@@ -162,3 +162,63 @@ private final class QueryStub: URLProtocol {
         return data
     }
 }
+
+final class MoqServerInfoTests: XCTestCase {
+    private func client(status: Int = 200, body: String) -> MoqClient {
+        VersionStub.status = status
+        VersionStub.body = Data(body.utf8)
+        let config = URLSessionConfiguration.ephemeral
+        config.protocolClasses = [VersionStub.self]
+        return MoqClient(
+            baseURL: URL(string: "http://localhost:9999")!, session: URLSession(configuration: config), timeout: 1)
+    }
+
+    func testServerInfoDecodes() throws {
+        let info = try client(body: #"{"version":"1.2.3","commit":"abc","capabilities":["request-query"]}"#)
+            .serverInfo()
+        XCTAssertEqual(info.version, "1.2.3")
+        XCTAssertTrue(info.supports("request-query"))
+        XCTAssertEqual(VersionStub.path, "/_admin/version")
+    }
+
+    func testRequireCapabilitiesListsWhatIsMissing() {
+        let moq = client(body: #"{"version":null,"commit":null,"capabilities":["request-query"]}"#)
+        XCTAssertNoThrow(try moq.requireCapabilities("request-query"))
+        XCTAssertThrowsError(try moq.requireCapabilities("request-query", "limited-overrides")) { error in
+            XCTAssertEqual((error as? MoqMissingCapabilitiesError)?.missing, ["limited-overrides"])
+        }
+    }
+
+    func testRequireCapabilitiesTreatsAMissingRouteAsAnOlderServer() async {
+        let moq = client(status: 404, body: "{}")
+        do {
+            try await moq.asyncClient.requireCapabilities("request-query")
+            XCTFail("expected a missing capability")
+        } catch let error as MoqMissingCapabilitiesError {
+            XCTAssertNil(error.server)
+            XCTAssertTrue(error.description.contains("without /_admin/version"))
+        } catch {
+            XCTFail("unexpected \(error)")
+        }
+    }
+}
+
+private final class VersionStub: URLProtocol {
+    nonisolated(unsafe) static var status = 200
+    nonisolated(unsafe) static var body = Data()
+    nonisolated(unsafe) static var path: String?
+
+    override class func canInit(with request: URLRequest) -> Bool { true }
+    override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
+
+    override func startLoading() {
+        guard let url = request.url else { return }
+        Self.path = url.path
+        let response = HTTPURLResponse(url: url, statusCode: Self.status, httpVersion: nil, headerFields: nil)!
+        client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
+        client?.urlProtocol(self, didLoad: Self.body)
+        client?.urlProtocolDidFinishLoading(self)
+    }
+
+    override func stopLoading() {}
+}

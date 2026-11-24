@@ -77,6 +77,14 @@ matched endpoint, variant, selection reason, and add-on annotations such as the 
 history. When the server runs with `--capture-request-bodies`, `requestBody` holds what the app sent;
 `requestBody?.jsonObject` parses a complete JSON body.
 
+### Checking the server supports what a suite needs
+
+`serverInfo()` returns the server's release, commit and capabilities (`GET /_admin/version`).
+`requireCapabilities("request-query", "limited-overrides")` throws `MoqMissingCapabilitiesError`
+naming whatever the running server lacks, so a suite can fail fast on an outdated server instead of
+failing later on a missing route. The capability names are listed in
+[ADMIN_API.md](../../docs/ADMIN_API.md#get-_adminversion).
+
 ### Asserting what the app sent
 
 The server evaluates these checks (`POST /_admin/requests/query`), so Swift, Kotlin and scripts

@@ -44,3 +44,14 @@ public data class MoqReloadSummary(
 
 @Serializable
 internal data class EndpointCallCount(val currentCallCount: Int)
+
+/** What `GET /_admin/version` reports. [version] and [commit] are `null` for a server built from source. */
+@Serializable
+public data class MoqServerInfo(
+    val version: String? = null,
+    val commit: String? = null,
+    /** Admin-API behaviours the server supports, such as `request-query`. */
+    val capabilities: List<String> = emptyList(),
+) {
+    public fun supports(capability: String): Boolean = capability in capabilities
+}

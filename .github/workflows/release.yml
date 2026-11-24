@@ -168,8 +168,11 @@ jobs:
       - name: Build, smoke test, and archive server
         working-directory: server
         run: |
+          scripts/stamp-build-info.sh "${{ needs.preflight.outputs.version }}" "${GITHUB_SHA}"
           swift build -c release --product moqserver
           BIN_DIR="$(swift build -c release --show-bin-path)"
+          "${BIN_DIR}/moqserver" --version | grep -qF "${{ needs.preflight.outputs.version }} (" \
+            || { echo "moqserver --version does not report the release"; exit 1; }
           "${BIN_DIR}/moqserver" validate --project ../format/examples/sample-app.moqproj
           STAGE="${RUNNER_TEMP}/moqserver"
           mkdir -p "${STAGE}"
@@ -583,6 +586,9 @@ jobs:
         with:
           context: server
           load: true
+          build-args: |
+            MOQSERVER_VERSION=${{ needs.preflight.outputs.version }}
+            MOQSERVER_COMMIT=${{ github.sha }}
           tags: ghcr.io/arjangconsulting/moqserver/server:${{ needs.preflight.outputs.version }}
       - uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25
         with:

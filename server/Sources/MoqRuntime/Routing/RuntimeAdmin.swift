@@ -59,6 +59,10 @@ extension AdminHandler {
 
 extension AdminRouter {
     func registerRuntimeRoutes(on admin: RoutesBuilder) {
+        admin.get("version") { req async throws -> ServerInfo in
+            try handler.requireAdminAuth(req: req)
+            return .current
+        }
         admin.get("requests") { req async throws -> [RequestTrace] in
             try await handler.runtime(req: req).recentRequests()
         }

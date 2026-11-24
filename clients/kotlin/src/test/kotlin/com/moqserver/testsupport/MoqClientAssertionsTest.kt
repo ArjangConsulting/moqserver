@@ -149,6 +149,23 @@ class MoqClientAssertionsTest {
     }
 
     @Test
+    fun `serverInfo decodes and requireCapabilities names what is missing`() {
+        responses += """{"version":"1.2.3","commit":"abc","capabilities":["request-query"]}"""
+        val info = MoqClient(baseUrl).serverInfo()
+        assertEquals("1.2.3", info.version)
+        assertTrue(info.supports("request-query"))
+        assertEquals("/_admin/version", sent.single().path)
+
+        responses += """{"version":null,"commit":null,"capabilities":["request-query"]}"""
+        val error =
+            assertFailsWith<MoqMissingCapabilitiesException> {
+                MoqClient(baseUrl).requireCapabilities("request-query", "limited-overrides")
+            }
+        assertEquals(listOf("limited-overrides"), error.missing)
+        assertTrue(error.message.orEmpty().contains("unreleased build"))
+    }
+
+    @Test
     fun `suspending assertions mirror the blocking ones`() =
         runBlocking {
             responses += failing
