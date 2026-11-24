@@ -151,9 +151,8 @@ public enum OpenAPIImporter {
         for outcome in operation.responseOutcomes {
             let statusString = outcome.status.rawValue
             let code = parseStatusCode(statusString)
-            let baseName =
-                outcome.response.description?.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty
-                ?? statusCodeToVariantName(statusString, code)
+            let baseName = variantBaseName(statusString, code)
+            let description = outcome.response.description?.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty
             let responseHeaders = extractResponseHeaders(
                 outcome.response, label: "\(label) \(statusString)", warnings: &warnings)
             let content = outcome.response.content
@@ -161,24 +160,27 @@ public enum OpenAPIImporter {
             if content.isEmpty {
                 let name = uniqueImportName(baseName, usedNames)
                 usedNames.insert(name)
-                responses.append(ParsedResponse(name: name, statusCode: code, headers: responseHeaders))
+                responses.append(
+                    ParsedResponse(name: name, statusCode: code, headers: responseHeaders, description: description))
                 continue
             }
 
             for (index, entry) in sortContentTypes(content).enumerated() {
                 let (contentType, mediaType) = entry
-                let suffix = index == 0 ? "" : "-\(contentTypeSuffix(contentType))"
-                let name = uniqueImportName(baseName + suffix, usedNames)
-                usedNames.insert(name)
+                let typeName = index == 0 ? baseName : "\(baseName)_\(contentTypeSuffix(contentType))"
 
                 var headers = responseHeaders
                 headers = headers.filter { $0.key.caseInsensitiveCompare(contentTypeHeader) != .orderedSame }
                 headers[contentTypeHeader] = contentType
 
-                responses.append(
-                    ParsedResponse(
-                        name: name, statusCode: code, headers: headers,
-                        body: extractBody(mediaType, contentType: contentType)))
+                for (exampleKey, body) in extractBodies(mediaType, contentType: contentType) {
+                    let exampleName = exampleKey.map { "\(typeName)_\(defaultReferenceNameForVariantName($0))" }
+                    let name = uniqueImportName(exampleName ?? typeName, usedNames)
+                    usedNames.insert(name)
+                    responses.append(
+                        ParsedResponse(
+                            name: name, statusCode: code, headers: headers, body: body, description: description))
+                }
             }
         }
 
@@ -205,6 +207,20 @@ public enum OpenAPIImporter {
         if let jsonEntry { sorted.append(jsonEntry) }
         sorted.append(contentsOf: rest.sorted { $0.0 < $1.0 })
         return sorted
+    }
+
+    /// One body per named example when a media type lists several (keyed by example name), else
+    /// a single unkeyed body.
+    private static func extractBodies(
+        _ mediaType: DereferencedContent, contentType: String
+    ) -> [(key: String?, body: String?)] {
+        // OpenAPIKit fills `example` from the first of `examples`, so only `examples` decides here.
+        guard let examples = mediaType.examples, examples.count > 1 else {
+            return [(nil, extractBody(mediaType, contentType: contentType))]
+        }
+        return examples.map { key, example in
+            (key, example.dataOrLegacyValue.map { formatExample($0.value, contentType: contentType) })
+        }
     }
 
     private static func extractBody(_ mediaType: DereferencedContent, contentType: String) -> String? {
@@ -537,24 +553,52 @@ public enum OpenAPIImporter {
 
     // MARK: - Helpers
 
+    /// A status code, or the first code of a range such as `4XX`.
     private static func parseStatusCode(_ statusString: String) -> Int {
-        Int(statusString) ?? defaultStatusCode
+        if let code = Int(statusString) { return code }
+        if statusString.count == 3, statusString.uppercased().hasSuffix("XX"),
+            let digit = statusString.first?.wholeNumberValue
+        {
+            return digit * 100
+        }
+        return defaultStatusCode
     }
 
-    private static func statusCodeToVariantName(_ statusString: String, _ code: Int) -> String {
+    /// A short variant name tests can pass to select a variant: the status's reason phrase in
+    /// camelCase (`ok`, `unauthorized`, `notFound`), the range's class for `4XX`, else `status<code>`.
+    private static func variantBaseName(_ statusString: String, _ code: Int) -> String {
         if statusString == defaultVariantName { return defaultVariantName }
-        switch code {
-        case 200...299: return defaultVariantName
-        case 400...599: return "error-\(code)"
-        default: return "\(code)"
-        }
+        if Int(statusString) == nil, let range = rangeNames[statusString.uppercased()] { return range }
+        return reasonPhrases[code] ?? "status\(code)"
     }
+
+    private static let rangeNames = [
+        "1XX": "informational", "2XX": "success", "3XX": "redirection", "4XX": "clientError", "5XX": "serverError",
+    ]
+
+    private static let reasonPhrases: [Int: String] = [
+        100: "continue", 101: "switchingProtocols", 102: "processing", 103: "earlyHints",
+        200: "ok", 201: "created", 202: "accepted", 203: "nonAuthoritativeInformation", 204: "noContent",
+        205: "resetContent", 206: "partialContent", 207: "multiStatus", 208: "alreadyReported", 226: "imUsed",
+        300: "multipleChoices", 301: "movedPermanently", 302: "found", 303: "seeOther", 304: "notModified",
+        307: "temporaryRedirect", 308: "permanentRedirect",
+        400: "badRequest", 401: "unauthorized", 402: "paymentRequired", 403: "forbidden", 404: "notFound",
+        405: "methodNotAllowed", 406: "notAcceptable", 407: "proxyAuthenticationRequired", 408: "requestTimeout",
+        409: "conflict", 410: "gone", 411: "lengthRequired", 412: "preconditionFailed", 413: "contentTooLarge",
+        414: "uriTooLong", 415: "unsupportedMediaType", 416: "rangeNotSatisfiable", 417: "expectationFailed",
+        421: "misdirectedRequest", 422: "unprocessableContent", 423: "locked", 424: "failedDependency",
+        425: "tooEarly", 426: "upgradeRequired", 428: "preconditionRequired", 429: "tooManyRequests",
+        431: "requestHeaderFieldsTooLarge", 451: "unavailableForLegalReasons",
+        500: "internalServerError", 501: "notImplemented", 502: "badGateway", 503: "serviceUnavailable",
+        504: "gatewayTimeout", 505: "httpVersionNotSupported", 506: "variantAlsoNegotiates",
+        507: "insufficientStorage", 508: "loopDetected", 511: "networkAuthenticationRequired",
+    ]
 
     private static func uniqueImportName(_ base: String, _ used: Set<String>) -> String {
         guard used.contains(base) else { return base }
         var suffix = 2
-        while used.contains("\(base)-\(suffix)") { suffix += 1 }
-        return "\(base)-\(suffix)"
+        while used.contains("\(base)_\(suffix)") { suffix += 1 }
+        return "\(base)_\(suffix)"
     }
 
     private static func contentTypeSuffix(_ contentType: String) -> String {

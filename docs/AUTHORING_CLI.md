@@ -78,6 +78,13 @@ a fixed order, so the same spec always imports the same way. When the spec lists
 requirement objects, only the first is imported. The import result's `warnings` report this, along
 with schemes it can't express (mutualTLS, other http schemes, a second Authorization scheme).
 
+OpenAPI variants are named after their status so tests can select them by a short, stable name:
+the reason phrase in camelCase (`ok`, `created`, `noContent`, `unauthorized`, `notFound`,
+`unprocessableContent`), the class for a range (`clientError` for `4XX`), or `status<code>` for a
+code with no standard phrase. The response's `description` becomes the variant's `description`. A
+second content type adds its suffix (`ok_xml`); a media type with several named `examples` gets one
+variant per example (`ok_empty`, `ok_fullPage`). Re-importing never renames existing variants.
+
 Declared response `headers` that have an example (`example`, `examples`, or a schema example) are
 copied into the variant. A header with no example is reported in `warnings`, not given a made-up
 value.

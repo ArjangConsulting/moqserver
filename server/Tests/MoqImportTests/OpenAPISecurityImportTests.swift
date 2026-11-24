@@ -174,3 +174,71 @@ struct OpenAPISecurityImportTests {
             ])
     }
 }
+
+struct OpenAPIVariantNamingTests {
+    @Test("Variants are named after the status, with the response description kept as description")
+    func statusPhraseNames() throws {
+        let parsed = try OpenAPIImporter.parse(
+            """
+            openapi: 3.0.3
+            info:
+              title: API
+              version: "1.0"
+            paths:
+              /v1/items:
+                get:
+                  responses:
+                    "200":
+                      description: A page of items.
+                      content:
+                        application/json:
+                          example: {"items": []}
+                        application/xml:
+                          example: <items/>
+                    "401":
+                      description: The token is missing or expired.
+                    "418":
+                      description: Unusual.
+                    "5XX":
+                      description: Something broke.
+            """)
+        let responses = try #require(parsed.endpoints.first).responses
+        #expect(responses.map(\.name) == ["ok", "ok_xml", "unauthorized", "status418", "serverError"])
+        #expect(responses.map(\.statusCode) == [200, 200, 401, 418, 500])
+        #expect(responses.first?.description == "A page of items.")
+
+        let project = ImportConverter.convert(parsed, selection: ImportSelection(), name: "API", path: "/tmp/api")
+        let variants = try #require(project.endpoints.first).variants
+        #expect(variants.map(\.name) == ["ok", "ok_xml", "unauthorized", "status418", "serverError"])
+        #expect(variants.map(\.referenceName) == ["ok", "ok_xml", "unauthorized", "status418", "serverError"])
+        #expect(variants.first?.isDefault == true)
+        #expect(variants[2].description == "The token is missing or expired.")
+    }
+
+    @Test("Several named examples become one variant each")
+    func namedExamples() throws {
+        let parsed = try OpenAPIImporter.parse(
+            """
+            openapi: 3.0.3
+            info:
+              title: API
+              version: "1.0"
+            paths:
+              /v1/items:
+                get:
+                  responses:
+                    "200":
+                      description: A page of items.
+                      content:
+                        application/json:
+                          examples:
+                            empty:
+                              value: {"items": []}
+                            full page:
+                              value: {"items": [1, 2]}
+            """)
+        let responses = try #require(parsed.endpoints.first).responses
+        #expect(responses.map(\.name) == ["ok_empty", "ok_fullPage"])
+        #expect(responses.map(\.body) == [#"{"items":[]}"#, #"{"items":[1,2]}"#])
+    }
+}
