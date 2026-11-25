@@ -70,7 +70,6 @@ let package = Package(
             name: "MoqFormat",
             dependencies: [
                 .target(name: "MoqAddonKit"),
-                .target(name: "MoqAddonKit"),
                 .target(name: "MoqAddons"),
                 .target(name: "MoqCore"),
                 .product(name: "Yams", package: "Yams"),
@@ -102,6 +101,7 @@ let package = Package(
         .target(
             name: "MoqService",
             dependencies: [
+                .target(name: "MoqAddonKit"),
                 .target(name: "MoqAddons"),
                 .target(name: "MoqCore"),
                 .target(name: "MoqFormat"),

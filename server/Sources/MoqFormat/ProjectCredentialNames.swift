@@ -11,12 +11,15 @@ extension CredentialNames {
         _ project: MoqProject?, catalog: AddonCatalog = .builtIn, extraHeaders: [String] = [],
         extraQueryParameters: [String] = [], exceptHeaders: [String] = [], exceptQueryParameters: [String] = []
     ) -> CredentialNames {
+        // Typed locals: one generic call over four `+`/`??` expressions times out the Linux type checker.
         let redact = project?.manifest.redact
+        let headers: [String] = extraHeaders + (redact?.headers ?? [])
+        let queryParameters: [String] = extraQueryParameters + (redact?.queryParameters ?? [])
+        let excepted: [String] = exceptHeaders + (redact?.except?.headers ?? [])
+        let exceptedQuery: [String] = exceptQueryParameters + (redact?.except?.queryParameters ?? [])
         let names = CredentialNames(
-            extraHeaders: extraHeaders + (redact?.headers ?? []),
-            extraQueryParameters: extraQueryParameters + (redact?.queryParameters ?? []),
-            exceptHeaders: exceptHeaders + (redact?.except?.headers ?? []),
-            exceptQueryParameters: exceptQueryParameters + (redact?.except?.queryParameters ?? []))
+            extraHeaders: headers, extraQueryParameters: queryParameters, exceptHeaders: excepted,
+            exceptQueryParameters: exceptedQuery)
         guard let project else { return names }
         return names.adding(headers: declaredCredentialHeaders(project, catalog: catalog))
     }
