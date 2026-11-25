@@ -38,6 +38,15 @@ the bundle or anything under it: a save replaces the bundle directory, which wou
 calling shell in a directory that no longer exists. Run from outside and pass the path. Read
 commands are allowed from anywhere.
 
+Opening a bundle creates `.<bundle>.lock` beside it (for `api.moqproj`, `.api.moqproj.lock`), an
+advisory lock that stops two writers (moq-author, Studio, moq-format) from saving over each other.
+The file is deliberately left in place, since deleting it could let two writers lock different
+files. It holds nothing; keep it out of version control:
+
+```gitignore
+.*.moqproj.lock
+```
+
 ## Output and errors
 
 Every successful operation emits one JSON document on stdout. Operational errors emit one
@@ -84,6 +93,16 @@ the reason phrase in camelCase (`ok`, `created`, `noContent`, `unauthorized`, `n
 code with no standard phrase. The response's `description` becomes the variant's `description`. A
 second content type adds its suffix (`ok_xml`); a media type with several named `examples` gets one
 variant per example (`ok_empty`, `ok_fullPage`). Re-importing never renames existing variants.
+
+OpenAPI query parameters become `request_rules.query_params` from their schema's value
+constraints: `enum` an anchored `matches_regex` of the listed values (`^(?:open|done)$`), `pattern` a
+`matches_regex` as written, and `minimum`/`maximum` (or their exclusive forms) `gte`/`gt`/`lte`/`lt`.
+A parameter with two constraints gets two rules. Each rule is `required: true` for a required
+parameter and `required: false` for an optional one, so an app that omits an optional parameter
+still passes, while one that sends an illegal value gets a `query_param_value_mismatch` rejection.
+A required parameter with no constraint gets a presence rule. An `example` or `default` adds no
+rule: it documents one legal value, not the only one. With `update_details`, re-importing replaces
+query rules that differ from the spec's. Cookie parameters import as presence rules.
 
 Declared response `headers` that have an example (`example`, `examples`, or a schema example) are
 copied into the variant. A header with no example is reported in `warnings`, not given a made-up

@@ -118,10 +118,8 @@ public enum ImportConverter {
         let existingRequiredHeaders = Set(
             (existing.requestRules?.headers ?? []).filter { $0.required == true }.map(\.name))
 
-        let parsedQueryParams =
-            !parsed.queryParameters.isEmpty
-            ? Set(parsed.queryParameters.map(\.name)) : Set(parsed.requiredQueryParameters)
-        let existingQueryParams = Set((existing.requestRules?.queryParams ?? []).map(\.name))
+        let parsedQueryParams = queryRuleKeys(buildRequestRules(parsed)?.queryParams ?? [])
+        let existingQueryParams = queryRuleKeys(existing.requestRules?.queryParams ?? [])
 
         let parsedCookies = Set(parsed.cookies.map(\.name))
         let existingCookies = Set((existing.requestRules?.cookies ?? []).map(\.name))
@@ -141,6 +139,15 @@ public enum ImportConverter {
             requestRulesChanged: requestRulesChanged,
             tagsChanged: tagsChanged
         )
+    }
+
+    /// Query rules compared in full, so a changed constraint (not only a renamed parameter) counts.
+    private static func queryRuleKeys(_ rules: [RuleMatcher]) -> [String] {
+        rules.map { rule in
+            let required = rule.required.map(String.init) ?? ""
+            return "\(rule.name)|\(required)|\(rule.matchType?.rawValue ?? "")|\(rule.match ?? "")"
+        }
+        .sorted()
     }
 
     private static func authPairsEqual(

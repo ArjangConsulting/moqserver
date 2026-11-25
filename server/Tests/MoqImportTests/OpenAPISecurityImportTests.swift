@@ -88,7 +88,7 @@ struct OpenAPISecurityImportTests {
                               example: abc
                     """))
         let cookies = try #require(parsed.endpoints.first).cookies
-        #expect(cookies == [RuleMatcher(name: "example_session", match: "abc", required: true, matchType: .equalTo)])
+        #expect(cookies == [RuleMatcher(name: "example_session", required: true)])
     }
 
     @Test("Alternatives and unsupported schemes are reported")

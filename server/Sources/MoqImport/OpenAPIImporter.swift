@@ -482,21 +482,16 @@ public enum OpenAPIImporter {
     }
 
     private static func extractRequestRules(_ parameters: [DereferencedParameter]) -> RequestRules {
-        var query: [String: RuleMatcher] = [:]
-        var queryOrder: [String] = []
+        var query: [String: [RuleMatcher]] = [:]
         var requiredHeaders: [String] = []
         var cookies: [RuleMatcher] = []
 
+        // Path-level parameters come first; an operation parameter with the same name replaces them.
         for parameter in parameters {
             switch parameter.location {
             case .query:
-                guard let rule = parseQueryRule(parameter) else { continue }
-                if let existing = query[parameter.name] {
-                    query[parameter.name] = mergeQueryRules(existing, rule)
-                } else {
-                    query[parameter.name] = rule
-                    queryOrder.append(parameter.name)
-                }
+                let rules = parseQueryRules(parameter)
+                query[parameter.name] = rules.isEmpty ? nil : rules
             case .header:
                 if parameter.required { requiredHeaders.append(parameter.name) }
             case .cookie:
@@ -506,44 +501,70 @@ public enum OpenAPIImporter {
             }
         }
 
-        let sortedQuery = queryOrder.compactMap { query[$0] }.sorted { $0.name < $1.name }
+        let sortedQuery = query.keys.sorted().flatMap { query[$0] ?? [] }
         return RequestRules(
             query: sortedQuery,
-            requiredQueryParameters: sortedQuery.filter { $0.required == true }.map(\.name),
+            requiredQueryParameters: Set(sortedQuery.filter { $0.required == true }.map(\.name)).sorted(),
             requiredHeaders: requiredHeaders.sorted(),
             cookies: cookies.sorted { $0.name < $1.name }
         )
     }
 
-    private static func parameterExampleValue(_ parameter: DereferencedParameter) -> Any? {
-        guard case .a(let schemaContext) = parameter.schemaOrContent else { return nil }
-        if let example = schemaContext.example { return example.value }
-        if let example = schemaContext.schema.examples.first { return example.value }
-        if let defaultValue = schemaContext.schema.defaultValue { return defaultValue.value }
-        return nil
+    /// The rules a query parameter implies: one per value constraint in its schema, or a presence rule
+    /// when it is required and unconstrained. An example is not a constraint, so it adds no rule.
+    private static func parseQueryRules(_ parameter: DereferencedParameter) -> [RuleMatcher] {
+        let constraints = valueConstraints(parameter)
+        guard constraints.isEmpty else {
+            return constraints.map {
+                RuleMatcher(name: parameter.name, match: $0.match, required: parameter.required, matchType: $0.type)
+            }
+        }
+        return parameter.required ? [RuleMatcher(name: parameter.name, required: true)] : []
     }
 
-    private static func parseQueryRule(_ parameter: DereferencedParameter) -> RuleMatcher? {
-        let isRequired = parameter.required
-        let matchValue = parameterExampleValue(parameter).map(matchValueString)
-        guard isRequired || matchValue != nil else { return nil }
-        return RuleMatcher(
-            name: parameter.name, match: matchValue, required: isRequired ? true : nil,
-            matchType: matchValue != nil ? .equalTo : nil)
+    /// `enum` becomes an anchored `matches_regex` of the listed values, `pattern` a `matches_regex` as
+    /// written, and `minimum`/`maximum` (exclusive or not) `gte`/`gt`/`lte`/`lt`. Rules carry
+    /// `required: false` on an optional parameter, so omitting it still passes.
+    private static func valueConstraints(_ parameter: DereferencedParameter) -> [(type: MatchType, match: String)] {
+        guard case .a(let schemaContext) = parameter.schemaOrContent else { return [] }
+        let schema = schemaContext.schema
+        var constraints: [(type: MatchType, match: String)] = []
+        if let allowed = schema.allowedValues, !allowed.isEmpty {
+            let alternatives = allowed.map { NSRegularExpression.escapedPattern(for: matchValueString($0.value)) }
+            constraints.append((.matchesRegex, "^(?:\(alternatives.joined(separator: "|")))$"))
+        }
+        switch schema {
+        case .string(_, let context):
+            if let pattern = context.pattern { constraints.append((.matchesRegex, pattern)) }
+        case .integer(_, let context):
+            if let minimum = context.minimum {
+                constraints.append((minimum.exclusive ? .gt : .gte, String(minimum.value)))
+            }
+            if let maximum = context.maximum {
+                constraints.append((maximum.exclusive ? .lt : .lte, String(maximum.value)))
+            }
+        case .number(_, let context):
+            if let minimum = context.minimum {
+                constraints.append((minimum.exclusive ? .gt : .gte, numberString(minimum.value)))
+            }
+            if let maximum = context.maximum {
+                constraints.append((maximum.exclusive ? .lt : .lte, numberString(maximum.value)))
+            }
+        default:
+            break
+        }
+        return constraints
     }
 
-    private static func mergeQueryRules(_ existing: RuleMatcher, _ incoming: RuleMatcher) -> RuleMatcher {
-        let matchValue = existing.match ?? incoming.match
-        return RuleMatcher(
-            name: incoming.name, match: matchValue,
-            required: (existing.required == true || incoming.required == true) ? true : nil,
-            matchType: matchValue != nil ? .equalTo : nil)
+    /// `10` rather than `10.0` for whole numbers, so the rule reads as the spec does.
+    private static func numberString(_ value: Double) -> String {
+        value.rounded() == value && abs(value) < 1e15 ? String(Int(value)) : String(value)
     }
 
+    /// A required cookie parameter. Its example is not a constraint: the app sends whatever value it
+    /// holds.
     private static func parseCookieRule(_ parameter: DereferencedParameter) -> RuleMatcher {
-        let matchValue = parameterExampleValue(parameter).map(matchValueString)
-        return RuleMatcher(
-            name: parameter.name, match: matchValue, required: true, matchType: matchValue != nil ? .equalTo : nil)
+        RuleMatcher(name: parameter.name, required: true)
     }
 
     private static func matchValueString(_ value: Any) -> String {
