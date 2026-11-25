@@ -69,6 +69,29 @@ public struct MoqRequestRejection: Decodable, Equatable, Sendable {
 }
 
 /// One row of the server's request history (`GET /_admin/requests`).
+/// A query parameter recorded by `serve --capture-request-query`. Credential-like parameters keep
+/// only `fingerprint`.
+public struct MoqCapturedQueryParameter: Decodable, Equatable, Sendable {
+    /// The name exactly as sent (case-sensitive).
+    public let name: String
+    /// The percent-decoded value, or `nil` when redacted.
+    public let value: String?
+    public let truncated: Bool
+    public let redacted: Bool
+    /// First 16 hex characters of the SHA-256 of a redacted value.
+    public let fingerprint: String?
+
+    public init(
+        name: String, value: String? = nil, truncated: Bool = false, redacted: Bool = false, fingerprint: String? = nil
+    ) {
+        self.name = name
+        self.value = value
+        self.truncated = truncated
+        self.redacted = redacted
+        self.fingerprint = fingerprint
+    }
+}
+
 public struct MoqRequestRecord: Decodable, Equatable, Sendable {
     public let id: String
     /// Unix seconds.
@@ -88,6 +111,8 @@ public struct MoqRequestRecord: Decodable, Equatable, Sendable {
     public let requestBody: MoqCapturedBody?
     /// The request headers, when the server runs with `--capture-request-headers`.
     public let requestHeaders: [MoqCapturedHeader]?
+    /// The query parameters in the order sent, when the server runs with `--capture-request-query`.
+    public let requestQuery: [MoqCapturedQueryParameter]?
     /// Set when the server refused the request itself.
     public let rejection: MoqRequestRejection?
 
@@ -95,7 +120,7 @@ public struct MoqRequestRecord: Decodable, Equatable, Sendable {
         id: String, timestamp: Double, method: String, path: String, endpoint: String?, status: Int,
         variant: String?, reason: String, callNumber: Int?, addons: [String: [String: String]]? = nil,
         requestBody: MoqCapturedBody? = nil, requestHeaders: [MoqCapturedHeader]? = nil,
-        rejection: MoqRequestRejection? = nil
+        rejection: MoqRequestRejection? = nil, requestQuery: [MoqCapturedQueryParameter]? = nil
     ) {
         self.id = id
         self.timestamp = timestamp
@@ -109,6 +134,7 @@ public struct MoqRequestRecord: Decodable, Equatable, Sendable {
         self.addons = addons
         self.requestBody = requestBody
         self.requestHeaders = requestHeaders
+        self.requestQuery = requestQuery
         self.rejection = rejection
     }
 
@@ -124,6 +150,12 @@ public struct MoqRequestRecord: Decodable, Equatable, Sendable {
     /// The first captured header named `name` (any case).
     public func header(_ name: String) -> MoqCapturedHeader? {
         requestHeaders?.first { $0.name == name.lowercased() }
+    }
+
+    /// Every captured value of the query parameter `name` (case-sensitive), in the order sent.
+    /// Redacted values are skipped.
+    public func queryValues(_ name: String) -> [String] {
+        (requestQuery ?? []).filter { $0.name == name }.compactMap(\.value)
     }
 }
 

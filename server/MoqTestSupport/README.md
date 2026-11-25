@@ -90,7 +90,9 @@ failing later on a missing route. The capability names are listed in
 The server evaluates these checks (`POST /_admin/requests/query`), so Swift, Kotlin and scripts
 agree on what they mean. A failed check throws `MoqRequestAssertionError`, whose description lists
 the near misses or the offending requests. Header expectations need
-`serve --capture-request-headers`; claims come from the `jwt-claims` add-on.
+`serve --capture-request-headers`, query expectations need `serve --capture-request-query`, and
+claims come from the `jwt-claims` add-on. Without `endpoint`, `assertRequest` counts requests to any
+path.
 
 ```swift
 // GET /v1/me was called twice with this user's Bearer token, the retry with a newer token.
@@ -100,6 +102,13 @@ XCTAssertNotEqual(calls[0].header("Authorization")?.fingerprint, calls[1].header
 
 // No Authorization header on the content call.
 try isolated.assertRequest(endpoint: "GET /content/{id}", headers: [.absent("Authorization")])
+
+// The list was fetched with the filter the screen shows, not just any legal one.
+let fetches = try isolated.assertRequest(endpoint: "GET /v1/items", query: [.equals("status", "done")])
+XCTAssertEqual(fetches.last?.queryValues("page"), ["1"])
+
+// The app reached this session at all (any path), waiting up to 5 seconds.
+try isolated.assertRequest(timeout: 5)
 
 // Nothing after sign-out carried a token.
 let signedOut = try isolated.mark()

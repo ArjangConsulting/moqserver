@@ -75,15 +75,18 @@ public class SuspendingMoqClient(public val client: MoqClient) {
 
     /** [MoqClient.assertRequest] without blocking; polls with [delay] while waiting for calls. */
     public suspend fun assertRequest(
-        endpoint: String,
+        endpoint: String? = null,
         times: Int? = null,
         headers: List<MoqHeaderExpectation> = emptyList(),
         claims: Map<String, String> = emptyMap(),
         since: Double? = null,
         timeoutMillis: Long = 0,
+        query: List<MoqQueryExpectation> = emptyList(),
     ): List<MoqRequestRecord> {
-        val query = MoqRequestQuery(endpoint = endpoint, since = since, headers = headers, claims = claims, times = times)
-        return assertQuery(query, timeoutMillis).matched
+        val request = MoqRequestQuery(
+            endpoint = endpoint, since = since, headers = headers, claims = claims, times = times, query = query,
+        )
+        return assertQuery(request, timeoutMillis).matched
     }
 
     public suspend fun rejectedRequests(since: Double? = null): List<MoqRequestRecord> = io { rejectedRequests(since) }

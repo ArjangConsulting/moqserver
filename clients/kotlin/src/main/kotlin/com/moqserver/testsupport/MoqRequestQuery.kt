@@ -30,6 +30,30 @@ public sealed interface MoqHeaderExpectation {
 }
 
 /**
+ * One condition on a query parameter, evaluated by the server (`POST /_admin/requests/query`).
+ * Query expectations need the server to run with `--capture-request-query`. Names are
+ * case-sensitive; values are compared after percent-decoding.
+ */
+public sealed interface MoqQueryExpectation {
+    public val name: String
+
+    /** The parameter was sent. */
+    public data class Present(override val name: String) : MoqQueryExpectation
+
+    /** The parameter was not sent. */
+    public data class Absent(override val name: String) : MoqQueryExpectation
+
+    /**
+     * The parameter was sent with exactly this value, e.g. `Equals("status", "done")`. Refused for
+     * credential-like parameters (`api_key`, `access_token`, ...), which store no value.
+     */
+    public data class Equals(override val name: String, val value: String) : MoqQueryExpectation
+
+    /** A credential-like parameter carried this value. The server compares fingerprints. */
+    public data class Fingerprint(override val name: String, val credential: String) : MoqQueryExpectation
+}
+
+/**
  * A question about request history, answered by the server. Every field is optional; see
  * `docs/ADMIN_API.md` ("Request queries") for the exact semantics.
  */
@@ -50,6 +74,7 @@ public data class MoqRequestQuery(
     val times: Int? = null,
     val scope: Scope? = null,
     val includeUnattributed: Boolean? = null,
+    val query: List<MoqQueryExpectation> = emptyList(),
 ) {
     public enum class Scope {
         /** This client's history: its session's, or the global one without a session. */
@@ -69,7 +94,7 @@ public data class MoqRequestQuery(
             endpoint = endpoint, method = method, path = path, since = since, rejected = rejected,
             unmatched = unmatched, headers = headers.takeIf { it.isNotEmpty() }?.map(::wire),
             claims = claims.takeIf { it.isNotEmpty() }, times = times, scope = scope,
-            includeUnattributed = includeUnattributed,
+            includeUnattributed = includeUnattributed, query = query.takeIf { it.isNotEmpty() }?.map(::wire),
         )
 
     private fun wire(expectation: MoqHeaderExpectation): HeaderPredicateWire =
@@ -80,6 +105,15 @@ public data class MoqRequestQuery(
             is MoqHeaderExpectation.Fingerprint ->
                 HeaderPredicateWire(expectation.name, fingerprintOf = expectation.credential)
             is MoqHeaderExpectation.Equals -> HeaderPredicateWire(expectation.name, equals = expectation.value)
+        }
+
+    private fun wire(expectation: MoqQueryExpectation): QueryPredicateWire =
+        when (expectation) {
+            is MoqQueryExpectation.Present -> QueryPredicateWire(expectation.name, present = true)
+            is MoqQueryExpectation.Absent -> QueryPredicateWire(expectation.name, present = false)
+            is MoqQueryExpectation.Equals -> QueryPredicateWire(expectation.name, equals = expectation.value)
+            is MoqQueryExpectation.Fingerprint ->
+                QueryPredicateWire(expectation.name, fingerprintOf = expectation.credential)
         }
 }
 
@@ -96,6 +130,15 @@ internal data class RequestQueryWire(
     val times: Int? = null,
     val scope: MoqRequestQuery.Scope? = null,
     val includeUnattributed: Boolean? = null,
+    val query: List<QueryPredicateWire>? = null,
+)
+
+@Serializable
+internal data class QueryPredicateWire(
+    val name: String,
+    val present: Boolean? = null,
+    val equals: String? = null,
+    val fingerprintOf: String? = null,
 )
 
 @Serializable

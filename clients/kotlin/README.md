@@ -62,7 +62,9 @@ failing later on a missing route. The capability names are listed in
 The server evaluates these checks (`POST /_admin/requests/query`), so Kotlin, Swift and scripts
 agree on what they mean. A failed check throws `MoqRequestAssertionException` (an
 `AssertionError`), whose message lists the near misses or the offending requests. Header
-expectations need `serve --capture-request-headers`; claims come from the `jwt-claims` add-on.
+expectations need `serve --capture-request-headers`, query expectations need
+`serve --capture-request-query`, and claims come from the `jwt-claims` add-on. Without an endpoint,
+`assertRequest` counts requests to any path.
 
 ```kotlin
 // GET /v1/me was called twice with this user's Bearer token, the retry with a newer token.
@@ -75,6 +77,13 @@ assertTrue(calls[0].claims.getValue("iat").toLong() < calls[1].claims.getValue("
 
 // No Authorization header on the content call.
 session.assertRequest("GET /content/{id}", headers = listOf(MoqHeaderExpectation.Absent("Authorization")))
+
+// The list was fetched with the filter the screen shows, not just any legal one.
+val fetches = session.assertRequest("GET /v1/items", query = listOf(MoqQueryExpectation.Equals("status", "done")))
+assertEquals(listOf("1"), fetches.last().queryValues("page"))
+
+// The app reached this session at all (any path), waiting up to 5 seconds.
+session.assertRequest(timeoutMillis = 5_000)
 
 // Nothing after sign-out carried a token.
 val signedOut = session.mark()

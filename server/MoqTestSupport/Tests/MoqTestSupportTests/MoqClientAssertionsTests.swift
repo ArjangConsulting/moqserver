@@ -37,6 +37,31 @@ final class MoqClientAssertionsTests: XCTestCase {
         XCTAssertEqual(QueryStub.sessionHeaders, ["s1"])
     }
 
+    func testAssertRequestSendsQueryExpectationsAndDecodesCapturedQuery() throws {
+        QueryStub.responses = [QueryStub.passing]
+        let calls = try client().assertRequest(
+            endpoint: "GET /v1/me",
+            query: [.equals("status", "done"), .absent("page"), .present("tag"), .fingerprint("api_key", of: "k")])
+
+        XCTAssertEqual(calls.first?.queryValues("tag"), ["a", "b"])
+        XCTAssertEqual(calls.first?.queryValues("api_key"), [])
+        XCTAssertEqual(calls.first?.requestQuery?[1].fingerprint, "bbbbbbbbbbbbbbbb")
+        let query = try XCTUnwrap(QueryStub.bodies.first?["query"] as? [[String: Any]])
+        XCTAssertEqual(query[0]["equals"] as? String, "done")
+        XCTAssertEqual(query[1]["present"] as? Bool, false)
+        XCTAssertEqual(query[2]["present"] as? Bool, true)
+        XCTAssertEqual(query[3]["fingerprintOf"] as? String, "k")
+        XCTAssertNil(QueryStub.bodies.first?["headers"])
+    }
+
+    func testAssertRequestWithoutEndpointChecksAnyRequestReachedTheSession() throws {
+        QueryStub.responses = [QueryStub.failing, QueryStub.passing]
+        XCTAssertEqual(try client().assertRequest(timeout: 2).count, 2)
+        let sent = try XCTUnwrap(QueryStub.bodies.last)
+        XCTAssertTrue(sent.isEmpty, "an unfiltered query has no fields: \(sent)")
+        XCTAssertEqual(QueryStub.sessionHeaders, ["s1", "s1"])
+    }
+
     func testFailedAssertionThrowsTheServerVerdict() {
         QueryStub.responses = [QueryStub.failing]
         XCTAssertThrowsError(try client().assertNoRejectedRequests()) { error in
@@ -113,7 +138,10 @@ private final class QueryStub: URLProtocol {
          "matched":[
           {"id":"1","timestamp":1,"method":"GET","path":"/v1/me","endpoint":"GET /v1/me","status":200,"reason":"declared default",
            "addons":{"jwt-claims":{"sub":"u1","iat":"100"}},
-           "requestHeaders":[{"name":"authorization","truncated":false,"redacted":true,"scheme":"Bearer","fingerprint":"aaaaaaaaaaaaaaaa"}]},
+           "requestHeaders":[{"name":"authorization","truncated":false,"redacted":true,"scheme":"Bearer","fingerprint":"aaaaaaaaaaaaaaaa"}],
+           "requestQuery":[{"name":"tag","value":"a","truncated":false,"redacted":false},
+                           {"name":"api_key","truncated":false,"redacted":true,"fingerprint":"bbbbbbbbbbbbbbbb"},
+                           {"name":"tag","value":"b","truncated":false,"redacted":false}]},
           {"id":"2","timestamp":2,"method":"GET","path":"/v1/me","endpoint":"GET /v1/me","status":200,"reason":"declared default",
            "addons":{"jwt-claims":{"sub":"u1","iat":"200"}}}
          ]}

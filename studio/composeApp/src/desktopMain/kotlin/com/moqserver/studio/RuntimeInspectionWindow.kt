@@ -18,6 +18,7 @@ import androidx.compose.ui.window.Window
 import androidx.compose.ui.window.rememberWindowState
 import com.moqserver.studio.domain.RuntimeHeader
 import com.moqserver.studio.domain.RuntimeInspectionState
+import com.moqserver.studio.domain.RuntimeQueryParameter
 import com.moqserver.studio.domain.RuntimeRequest
 import com.moqserver.studio.domain.RuntimeServerInfo
 import io.github.maniramezan.kmpcomponents.ContentRow
@@ -61,6 +62,7 @@ private object RuntimeStrings {
 	const val REJECTED = "Rejected "
 	const val UNMATCHED = "Unmatched: no endpoint serves this path"
 	const val HEADERS = "Headers: "
+	const val QUERY = "Query: "
 	const val CLAIMS = "Claims: "
 	const val REDACTED = "redacted"
 	const val FINGERPRINT = "fingerprint "
@@ -88,6 +90,9 @@ internal fun requestSummary(request: RuntimeRequest): String {
 	if (request.headers.isNotEmpty()) {
 		lines += RuntimeStrings.HEADERS + request.headers.joinToString(", ", transform = ::headerSummary)
 	}
+	if (request.query.isNotEmpty()) {
+		lines += RuntimeStrings.QUERY + request.query.joinToString("&", transform = ::queryParameterSummary)
+	}
 	if (request.claims.isNotEmpty()) {
 		lines += RuntimeStrings.CLAIMS + request.claims.entries.joinToString(", ") { "${it.key}=${it.value}" }
 	}
@@ -103,6 +108,13 @@ private fun headerSummary(header: RuntimeHeader): String {
 	}.ifEmpty { listOf(RuntimeStrings.REDACTED) }
 	return "${header.name} (${details.joinToString(", ")})"
 }
+
+private fun queryParameterSummary(parameter: RuntimeQueryParameter): String =
+	if (parameter.redacted) {
+		"${parameter.name} (${parameter.fingerprint?.let { RuntimeStrings.FINGERPRINT + it } ?: RuntimeStrings.REDACTED})"
+	} else {
+		"${parameter.name}=${parameter.value.orEmpty()}"
+	}
 
 @Composable
 internal fun RuntimeInspectionWindow(

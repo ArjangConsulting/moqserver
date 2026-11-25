@@ -6,7 +6,8 @@ import MoqCore
 /// so every caller evaluates the same predicates the same way.
 ///
 /// Rows are first narrowed by ``scope``, ``since``, ``endpoint``, ``method`` and ``path``. Those are
-/// the candidates. A candidate matches when it also passes ``rejected``, ``headers`` and ``claims``;
+/// the candidates. A candidate matches when it also passes ``rejected``, ``unmatched``, ``headers``,
+/// ``query`` and ``claims``;
 /// candidates that fail are reported as near misses with the predicates they failed.
 public struct RequestQuery: Codable, Sendable, Equatable {
     public enum Scope: String, Codable, Sendable {
@@ -31,6 +32,8 @@ public struct RequestQuery: Codable, Sendable, Equatable {
     /// `false` only the others. The one definition every client's `assertNoUnmatchedRequests` uses.
     public var unmatched: Bool?
     public var headers: [HeaderPredicate]?
+    /// Conditions on the query parameters the request sent. Needs `serve --capture-request-query`.
+    public var query: [QueryPredicate]?
     /// Each claim must equal the `jwt-claims` add-on's annotation on the row.
     public var claims: [String: String]?
     /// Exact number of matches expected; `nil` means at least one.
@@ -43,7 +46,8 @@ public struct RequestQuery: Codable, Sendable, Equatable {
     public init(
         endpoint: String? = nil, method: String? = nil, path: String? = nil, since: Double? = nil,
         rejected: Bool? = nil, unmatched: Bool? = nil, headers: [HeaderPredicate]? = nil,
-        claims: [String: String]? = nil, times: Int? = nil, scope: Scope? = nil, includeUnattributed: Bool? = nil
+        query: [QueryPredicate]? = nil, claims: [String: String]? = nil, times: Int? = nil, scope: Scope? = nil,
+        includeUnattributed: Bool? = nil
     ) {
         self.endpoint = endpoint
         self.method = method
@@ -52,6 +56,7 @@ public struct RequestQuery: Codable, Sendable, Equatable {
         self.rejected = rejected
         self.unmatched = unmatched
         self.headers = headers
+        self.query = query
         self.claims = claims
         self.times = times
         self.scope = scope
@@ -97,6 +102,39 @@ public struct HeaderPredicate: Codable, Sendable, Equatable {
     }
 }
 
+/// One query-parameter condition. Every field that is set must hold for the same occurrence of the
+/// parameter; names compare case-sensitively. `present: false` alone means the parameter was not sent.
+public struct QueryPredicate: Codable, Sendable, Equatable {
+    public var name: String
+    public var present: Bool?
+    /// Exact decoded value; only for parameters that are not credentials, since those store no value.
+    public var equals: String?
+    /// The recorded fingerprint (16 hex characters) of a redacted value.
+    public var fingerprint: String?
+    /// A credential the server fingerprints and compares with a redacted value.
+    public var fingerprintOf: String?
+
+    public init(
+        name: String, present: Bool? = nil, equals: String? = nil, fingerprint: String? = nil,
+        fingerprintOf: String? = nil
+    ) {
+        self.name = name
+        self.present = present
+        self.equals = equals
+        self.fingerprint = fingerprint
+        self.fingerprintOf = fingerprintOf
+    }
+
+    var label: String {
+        if present == false { return "no query \(name)" }
+        var parts: [String] = []
+        if let equals { parts.append("= '\(equals)'") }
+        if let fingerprint { parts.append("fingerprint \(fingerprint)") }
+        if fingerprintOf != nil { parts.append("fingerprint of the given credential") }
+        return parts.isEmpty ? "query \(name)" : "query \(name) " + parts.joined(separator: ", ")
+    }
+}
+
 public struct RequestQueryNearMiss: Codable, Sendable {
     public let request: RequestTrace
     /// Labels of the predicates this row failed, e.g. `authorization scheme Bearer`.
@@ -121,8 +159,11 @@ public struct RequestQueryResult: Codable, Sendable {
 public enum RequestQueryError: Error, Equatable, CustomStringConvertible {
     case negativeTimes
     case emptyHeaderName
+    case emptyQueryName
     case valueOfCredential(String)
+    case valueOfCredentialParameter(String)
     case headerCaptureDisabled
+    case queryCaptureDisabled
     case sessionlessNeedsSession
     case malformedEndpoint(String)
     case operationEndpoint(String)
@@ -134,11 +175,17 @@ public enum RequestQueryError: Error, Equatable, CustomStringConvertible {
         switch self {
         case .negativeTimes: return "times must be 0 or more"
         case .emptyHeaderName: return "Every header predicate needs a name"
+        case .emptyQueryName: return "Every query predicate needs a name"
         case .valueOfCredential(let name):
             return
                 "'\(name)' is a credential header and stores no value; use present, scheme, fingerprint or fingerprintOf"
+        case .valueOfCredentialParameter(let name):
+            return
+                "query parameter '\(name)' is a credential and stores no value; use present, fingerprint or fingerprintOf"
         case .headerCaptureDisabled:
             return "Header predicates need the server to run with --capture-request-headers"
+        case .queryCaptureDisabled:
+            return "Query predicates need the server to run with --capture-request-query"
         case .sessionlessNeedsSession:
             return "scope sessionless needs X-Mock-Session: it reports global requests made since that session began"
         case .malformedEndpoint(let endpoint):
@@ -212,7 +259,7 @@ extension RequestQuery {
 
     /// Checks the query before evaluation, so a predicate that cannot be answered fails loudly
     /// instead of silently passing.
-    func validate(headerCaptureEnabled: Bool, redactHeaders: Set<String>) throws {
+    func validate(headerCaptureEnabled: Bool, queryCaptureEnabled: Bool = false, redactHeaders: Set<String>) throws {
         if let times, times < 0 { throw RequestQueryError.negativeTimes }
         for predicate in headers ?? [] {
             let name = predicate.name.trimmingCharacters(in: .whitespaces)
@@ -221,7 +268,16 @@ extension RequestQuery {
                 throw RequestQueryError.valueOfCredential(name.lowercased())
             }
         }
+        for predicate in query ?? [] {
+            if predicate.name.isEmpty { throw RequestQueryError.emptyQueryName }
+            if predicate.equals != nil,
+                SensitiveHeaders.isCredentialName(predicate.name, additionalNames: redactHeaders)
+            {
+                throw RequestQueryError.valueOfCredentialParameter(predicate.name)
+            }
+        }
         if !(headers ?? []).isEmpty, !headerCaptureEnabled { throw RequestQueryError.headerCaptureDisabled }
+        if !(query ?? []).isEmpty, !queryCaptureEnabled { throw RequestQueryError.queryCaptureDisabled }
     }
 
     /// Evaluates the query over `rows`, which must be oldest first.
@@ -281,6 +337,9 @@ extension RequestQuery {
         for predicate in headers ?? [] where !Self.holds(predicate, in: row.requestHeaders ?? []) {
             failed.append(predicate.label)
         }
+        for predicate in query ?? [] where !Self.holds(predicate, in: row.requestQuery ?? []) {
+            failed.append(predicate.label)
+        }
         if checkClaims {
             let rowClaims = row.addons?["jwt-claims"] ?? [:]
             for (name, value) in (claims ?? [:]).sorted(by: { $0.key < $1.key }) where rowClaims[name] != value {
@@ -308,6 +367,20 @@ extension RequestQuery {
         }
     }
 
+    private static func holds(_ predicate: QueryPredicate, in parameters: [CapturedQueryParameter]) -> Bool {
+        let sent = parameters.filter { $0.name == predicate.name }
+        if predicate.present == false { return sent.isEmpty }
+        let expectedFingerprint = predicate.fingerprintOf.map(CapturedHeader.fingerprint(of:))
+        return sent.contains { parameter in
+            if let equals = predicate.equals, parameter.redacted || parameter.value != equals { return false }
+            if let fingerprint = predicate.fingerprint, parameter.fingerprint != fingerprint.lowercased() {
+                return false
+            }
+            if let expectedFingerprint, parameter.fingerprint != expectedFingerprint { return false }
+            return true
+        }
+    }
+
     private func message(
         ok: Bool, matched: [RequestTrace], nearMisses: [RequestQueryNearMiss], unattributed: [RequestTrace]
     ) -> String {
@@ -323,6 +396,7 @@ extension RequestQuery {
         if let rejected { conditions.append(rejected ? "rejected" : "not rejected") }
         if let unmatched { conditions.append(unmatched ? "unmatched" : "matched") }
         conditions += (headers ?? []).map(\.label)
+        conditions += (query ?? []).map(\.label)
         conditions += (claims ?? [:]).sorted(by: { $0.key < $1.key }).map { "claim \($0.key)=\($0.value)" }
         let matching = conditions.isEmpty ? "" : " matching [\(conditions.joined(separator: ", "))]"
         let window = since.map { " since \($0)" } ?? ""
@@ -349,8 +423,15 @@ extension RequestQuery {
         return lines.joined(separator: "\n")
     }
 
+    /// `?status=done&token=<redacted>` for captured parameters, or nothing.
+    static func queryText(_ parameters: [CapturedQueryParameter]) -> String {
+        guard !parameters.isEmpty else { return "" }
+        return "?"
+            + parameters.map { "\($0.name)=\($0.redacted ? "<redacted>" : $0.value ?? "")" }.joined(separator: "&")
+    }
+
     static func describe(_ row: RequestTrace) -> String {
-        var text = "\(row.method) \(row.path) → \(row.status)"
+        var text = "\(row.method) \(row.path)\(queryText(row.requestQuery ?? [])) → \(row.status)"
         if let rejection = row.rejection {
             text += " (\(rejection.kind.rawValue) \(rejection.code): \(rejection.message))"
         }

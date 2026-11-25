@@ -49,6 +49,26 @@ class RuntimeInspectionTest {
 	}
 
 	@Test
+	fun `captured query parameters are listed in order with credentials fingerprinted`() {
+		val value = Json.parseToJsonElement(
+			"""
+			{"id":"4","method":"GET","path":"/v1/items","endpoint":"GET /v1/items","status":200,"variant":"ok",
+			 "reason":"declared default","callNumber":1,
+			 "requestQuery":[
+			  {"name":"status","value":"open","truncated":false,"redacted":false},
+			  {"name":"api_key","truncated":false,"redacted":true,"fingerprint":"bbbbbbbbbbbbbbbb"}]}
+			""".trimIndent(),
+		).jsonObject
+		assertEquals(
+			"""
+			declared default · call 1 · ok
+			Query: status=open&api_key (fingerprint bbbbbbbbbbbbbbbb)
+			""".trimIndent(),
+			requestSummary(decodeRuntimeRequest(value)),
+		)
+	}
+
+	@Test
 	fun `a request no endpoint served is unmatched`() {
 		val value = Json.parseToJsonElement(
 			"""{"id":"3","method":"GET","path":"/v1/unknown","status":404,"reason":"no endpoint"}""",

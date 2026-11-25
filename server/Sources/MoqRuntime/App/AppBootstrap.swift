@@ -16,6 +16,7 @@ public func buildApp(
     requireSession: Bool = false,
     requestBodyCaptureLimit: Int = 0,
     captureRequestHeaders: Bool = false,
+    captureRequestQuery: Bool = false,
     redactHeaders: [String] = [],
     maxRequestBodySize: Int = MockRouter.defaultMaxBodySize,
     cors: Bool = false,
@@ -62,6 +63,7 @@ public func buildApp(
         requireSession: requireSession,
         requestBodyCaptureLimit: requestBodyCaptureLimit,
         captureRequestHeaders: captureRequestHeaders,
+        captureRequestQuery: captureRequestQuery,
         redactHeaders: SensitiveHeaders.normalized(redactHeaders)
     )
 
@@ -80,7 +82,7 @@ public func buildApp(
 
     let adminHandler = AdminHandler(
         store: store, config: config, reloader: reloader, captureRequestHeaders: captureRequestHeaders,
-        redactHeaders: SensitiveHeaders.normalized(redactHeaders))
+        captureRequestQuery: captureRequestQuery, redactHeaders: SensitiveHeaders.normalized(redactHeaders))
     let adminRouter = AdminRouter(handler: adminHandler)
     adminRouter.registerRoutes(on: app)
 

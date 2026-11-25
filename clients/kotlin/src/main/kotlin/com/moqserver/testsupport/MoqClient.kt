@@ -208,27 +208,33 @@ public class MoqClient(
 
     /**
      * Asserts that [endpoint] (e.g. `GET /v1/me`) was called [times] times (at least once when
-     * `null`) with every header expectation and claim holding, and returns those calls oldest first.
-     * [timeoutMillis] waits for calls the app hasn't made yet.
+     * `null`) with every header, query and claim expectation holding, and returns those calls oldest
+     * first. Without [endpoint] it counts requests to any path, so `assertRequest(timeoutMillis = 5_000)`
+     * checks that the app reached this session at all. [timeoutMillis] waits for calls the app hasn't
+     * made yet. [query] needs the server to run with `--capture-request-query`.
      *
      * ```kotlin
      * val calls = client.assertRequest(
      *     "GET /v1/me", times = 2, headers = listOf(MoqHeaderExpectation.Scheme("Authorization", "Bearer")),
      *     claims = mapOf("sub" to uid))
      * assertTrue(calls[0].claims.getValue("iat").toLong() < calls[1].claims.getValue("iat").toLong())
+     * client.assertRequest("GET /v1/items", query = listOf(MoqQueryExpectation.Equals("status", "done")))
      * ```
      */
     @JvmOverloads
     public fun assertRequest(
-        endpoint: String,
+        endpoint: String? = null,
         times: Int? = null,
         headers: List<MoqHeaderExpectation> = emptyList(),
         claims: Map<String, String> = emptyMap(),
         since: Double? = null,
         timeoutMillis: Long = 0,
+        query: List<MoqQueryExpectation> = emptyList(),
     ): List<MoqRequestRecord> {
-        val query = MoqRequestQuery(endpoint = endpoint, since = since, headers = headers, claims = claims, times = times)
-        return assertQuery(query, timeoutMillis).matched
+        val request = MoqRequestQuery(
+            endpoint = endpoint, since = since, headers = headers, claims = claims, times = times, query = query,
+        )
+        return assertQuery(request, timeoutMillis).matched
     }
 
     /** Requests the server refused itself (auth, request rules, session, call count), oldest first. */

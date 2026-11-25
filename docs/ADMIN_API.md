@@ -322,7 +322,9 @@ before relying on them instead of probing each feature.
 {
   "version": "1.2.3",
   "commit": "0123456789abcdef0123456789abcdef01234567",
-  "capabilities": ["request-headers", "request-rejections", "request-query", "limited-overrides"]
+  "capabilities": [
+    "request-headers", "request-rejections", "request-query", "limited-overrides", "request-query-parameters"
+  ]
 }
 ```
 
@@ -339,6 +341,7 @@ source builds pinned to a commit, too. A server without this route predates all 
 | `request-rejections` | History rows carry `rejection` when the server refused a request itself |
 | `request-query` | `POST /_admin/requests/query` and `/_admin/requests/mark`, including the `unmatched` filter and the `400` for an unknown `endpoint` key |
 | `limited-overrides` | `PUT /_admin/endpoints/:method/**/variant` accepts `times` |
+| `request-query-parameters` | `serve --capture-request-query` records query parameters on history rows (`requestQuery`), and request queries accept `query` predicates |
 
 Capability names are permanent. New behaviours add a name; a name disappears only with the
 behaviour it describes.
@@ -456,6 +459,9 @@ History records have `id`, `timestamp` (Unix seconds), `method`, `path`, `endpoi
 optional `variant`, `reason`, optional `callNumber`, optional `requestBody` (with
 `serve --capture-request-bodies`: `{value, encoding, size, truncated}`), optional `requestHeaders` (with
 `serve --capture-request-headers`: `[{name, value, truncated, redacted, scheme, fingerprint, cookieNames}]`), optional
+`requestQuery` (with `serve --capture-request-query`: `[{name, value, truncated, redacted, fingerprint}]` in the order
+sent, repeats included; parameters whose name matches the credential header names and keywords, a `--redact-header`
+name, or whose value is a JWT keep only `fingerprint`), optional
 `rejection` (`{kind, code, message}` when the server refused the request itself; `kind` is `auth`, `request_rule`,
 `session`, `call_count` or `no_variant`), and optional `addons` (add-on annotations
 keyed by add-on id, e.g. `{"jwt-claims": {"sub": "user-1"}}` — see [ADDONS.md](ADDONS.md)). See [runtime workflows](RUNTIME_WORKFLOWS.md)
@@ -475,6 +481,7 @@ and Kotlin test clients and any script evaluate the same predicates the same way
 | `rejected` | `boolean` | `true`: only rows with a `rejection`; `false`: only served rows |
 | `unmatched` | `boolean` | `true`: only requests to a path no endpoint serves (no `endpoint` and no `rejection`). Both clients' `unmatchedRequests()`/`assertNoUnmatchedRequests()` use this, so a rejected request (e.g. an unknown session) counts as rejected, not unmatched |
 | `headers` | `HeaderPredicate[]` | See below; needs `serve --capture-request-headers` (`409` otherwise) |
+| `query` | `QueryPredicate[]` | See below; needs `serve --capture-request-query` (`409` otherwise) |
 | `claims` | `{string: string}` | Each must equal the row's `addons["jwt-claims"]` value |
 | `times` | `integer` | Exact number of matches expected; omitted means at least one |
 | `scope` | `"session"` \| `"sessionless"` | `sessionless` (needs `X-Mock-Session`): global rows recorded since that session was created, i.e. requests that reached the server without a valid session while the test ran |
@@ -486,6 +493,12 @@ header was not sent. `scheme` compares case-insensitively. `fingerprint` is the 
 value; `fingerprintOf` is a credential the server fingerprints for you (the token without
 `Bearer `). `equals` is refused (`400`) for credential headers, which store no value.
 
+A `QueryPredicate` is `{name, present?, equals?, fingerprint?, fingerprintOf?}`, with the same rules
+applied to one occurrence of a query parameter. Names compare case-sensitively and values are
+compared after percent-decoding. `equals` is refused (`400`) for credential-like parameters such as
+`api_key` or `access_token`, which store only a fingerprint. Near-miss lines show the parameters the
+request sent, e.g. `GET /v1/items?status=open → 200: failed query status = 'done'`.
+
 Filters that could never match are refused (`400`) rather than silently matching nothing, which
 would make a `times: 0` check pass. `endpoint` must name a loaded `METHOD /template` key; one that
 differs only by a trailing slash resolves to that key, and an unknown one names the closest key
@@ -494,7 +507,7 @@ records the route (`POST /graphql`). `method` must be an HTTP method and `path` 
 `/`; any concrete path is otherwise accepted, since the app may call paths the bundle doesn't serve.
 
 Rows are first narrowed by `scope`, `since`, `endpoint`, `method` and `path`; candidates that then
-fail `rejected`, `headers` or `claims` are reported as near misses. The response is
+fail `rejected`, `unmatched`, `headers`, `query` or `claims` are reported as near misses. The response is
 `{ok, count, expected, matched, nearMisses: [{request, failed}], unattributed, message}`:
 `matched` is oldest first (compare a retry's token with the first call's), `nearMisses` holds up to
 10 rows with the labels of the predicates they failed, and `message` is a readable verdict to use as
@@ -505,6 +518,10 @@ an assertion failure message.
 curl -s -X POST http://127.0.0.1:8080/_admin/requests/query -H "X-Mock-Session: $SESSION" \
   -H 'Content-Type: application/json' \
   -d '{"endpoint":"GET /v1/me","times":1,"headers":[{"name":"Authorization","scheme":"Bearer"}],"claims":{"sub":"u1"}}'
+
+# GET /v1/items was sent with status=done (needs serve --capture-request-query)
+curl -s -X POST .../_admin/requests/query -H "X-Mock-Session: $SESSION" \
+  -d '{"endpoint":"GET /v1/items","query":[{"name":"status","equals":"done"}]}'
 
 # No request was rejected, and none reached the server without this session
 curl -s -X POST .../_admin/requests/query -H "X-Mock-Session: $SESSION" -d '{"rejected":true,"times":0}'

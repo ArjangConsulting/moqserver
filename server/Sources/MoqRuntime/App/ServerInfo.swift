@@ -36,4 +36,7 @@ public enum ServerCapability: String, CaseIterable, Sendable {
     case requestQuery = "request-query"
     /// `PUT /_admin/endpoints/:method/**/variant` accepts `times` for an override that clears itself.
     case limitedOverrides = "limited-overrides"
+    /// `serve --capture-request-query` records query parameters on history rows (`requestQuery`), and
+    /// request queries accept `query` predicates.
+    case requestQueryParameters = "request-query-parameters"
 }

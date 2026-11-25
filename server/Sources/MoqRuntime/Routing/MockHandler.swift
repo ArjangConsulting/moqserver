@@ -20,6 +20,8 @@ public struct MockHandler: Sendable {
     let requestBodyCaptureLimit: Int
     /// When true, history records request headers, with credential values redacted.
     let captureRequestHeaders: Bool
+    /// When true, history records query parameters, with credential values redacted.
+    let captureRequestQuery: Bool
     /// Lowercased header names to treat as credentials on top of `SensitiveHeaders`.
     let redactHeaders: Set<String>
 
@@ -32,6 +34,7 @@ public struct MockHandler: Sendable {
         requireSession: Bool = false,
         requestBodyCaptureLimit: Int = 0,
         captureRequestHeaders: Bool = false,
+        captureRequestQuery: Bool = false,
         redactHeaders: Set<String> = []
     ) {
         self.store = store
@@ -42,6 +45,7 @@ public struct MockHandler: Sendable {
         self.requireSession = requireSession
         self.requestBodyCaptureLimit = max(0, requestBodyCaptureLimit)
         self.captureRequestHeaders = captureRequestHeaders
+        self.captureRequestQuery = captureRequestQuery
         self.redactHeaders = redactHeaders
     }
 
@@ -82,6 +86,7 @@ public struct MockHandler: Sendable {
                     method: req.method.rawValue, path: req.url.path, endpoint: endpoint, status: 404,
                     variant: nil, reason: "unknown session", callNumber: nil, addons: traceAnnotations(facts),
                     requestBody: capturedBody(req), requestHeaders: capturedHeaders(req),
+                    requestQuery: capturedQuery(req),
                     rejection: RequestRejection(
                         kind: .session, code: "unknown_session",
                         message: "Unknown X-Mock-Session '\(id)': it was never created, expired, or was deleted")))
@@ -108,7 +113,7 @@ public struct MockHandler: Sendable {
                 method: req.method.rawValue, path: req.url.path, endpoint: nil, status: status,
                 variant: nil, reason: reason, callNumber: nil,
                 addons: traceAnnotations(facts), requestBody: capturedBody(req),
-                requestHeaders: capturedHeaders(req)))
+                requestHeaders: capturedHeaders(req), requestQuery: capturedQuery(req)))
     }
 
     /// With `requireSession`, a request that forgot `X-Mock-Session` would otherwise silently read
@@ -125,7 +130,7 @@ public struct MockHandler: Sendable {
                     method: req.method.rawValue, path: req.url.path, endpoint: nil, status: 428,
                     variant: nil, reason: "missing session", callNumber: nil, addons: traceAnnotations(facts),
                     requestBody: capturedBody(req),
-                    requestHeaders: capturedHeaders(req),
+                    requestHeaders: capturedHeaders(req), requestQuery: capturedQuery(req),
                     rejection: RequestRejection(
                         kind: .session, code: "session_required", message: "Missing X-Mock-Session header")))
         }
@@ -172,7 +177,8 @@ public struct MockHandler: Sendable {
             handler = MockHandler(
                 store: session, config: config, authValidator: authValidator, requestValidator: requestValidator,
                 addons: addons, requireSession: requireSession, requestBodyCaptureLimit: requestBodyCaptureLimit,
-                captureRequestHeaders: captureRequestHeaders, redactHeaders: redactHeaders)
+                captureRequestHeaders: captureRequestHeaders, captureRequestQuery: captureRequestQuery,
+                redactHeaders: redactHeaders)
         }
         let response = try await handler.handleResolved(req: req, matchedKey: matchedKey)
         if let runtime = handler.store as? InMemoryMockStore {
@@ -186,6 +192,7 @@ public struct MockHandler: Sendable {
                     callNumber: selection?.callNumber,
                     addons: traceAnnotations(req.storage[AddonFactsKey.self] ?? AddonFacts()),
                     requestBody: capturedBody(req), requestHeaders: capturedHeaders(req),
+                    requestQuery: capturedQuery(req),
                     rejection: selection?.rejection))
         }
         return response
@@ -620,6 +627,11 @@ public struct MockHandler: Sendable {
     private func capturedHeaders(_ req: Request) -> [CapturedHeader]? {
         guard captureRequestHeaders else { return nil }
         return req.headers.map { CapturedHeader.capture(name: $0.name, value: $0.value, redactHeaders: redactHeaders) }
+    }
+
+    private func capturedQuery(_ req: Request) -> [CapturedQueryParameter]? {
+        guard captureRequestQuery else { return nil }
+        return CapturedQueryParameter.captureAll(req.url.query, redactNames: redactHeaders)
     }
 
     private func capturedBody(_ req: Request) -> CapturedBody? {

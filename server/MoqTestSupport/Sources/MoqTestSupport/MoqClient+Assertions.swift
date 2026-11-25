@@ -41,6 +41,43 @@ public enum MoqHeaderExpectation: Encodable, Equatable, Sendable {
     }
 }
 
+/// One condition on a query parameter, evaluated by the server (`POST /_admin/requests/query`).
+/// Query expectations need the server to run with `--capture-request-query`. Names are
+/// case-sensitive; values are compared after percent-decoding.
+public enum MoqQueryExpectation: Encodable, Equatable, Sendable {
+    /// The parameter was sent.
+    case present(String)
+    /// The parameter was not sent.
+    case absent(String)
+    /// The parameter was sent with exactly this value, e.g. `.equals("status", "done")`. Refused for
+    /// credential-like parameters (`api_key`, `access_token`, ...), which store no value.
+    case equals(String, String)
+    /// A credential-like parameter carried this value. The server compares fingerprints.
+    case fingerprint(String, of: String)
+
+    private enum CodingKeys: String, CodingKey {
+        case name, present, equals, fingerprintOf
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        switch self {
+        case .present(let name):
+            try container.encode(name, forKey: .name)
+            try container.encode(true, forKey: .present)
+        case .absent(let name):
+            try container.encode(name, forKey: .name)
+            try container.encode(false, forKey: .present)
+        case .equals(let name, let value):
+            try container.encode(name, forKey: .name)
+            try container.encode(value, forKey: .equals)
+        case .fingerprint(let name, let credential):
+            try container.encode(name, forKey: .name)
+            try container.encode(credential, forKey: .fingerprintOf)
+        }
+    }
+}
+
 /// A question about request history, answered by the server. Every field is optional; see
 /// `docs/ADMIN_API.md` ("Request queries") for the exact semantics.
 public struct MoqRequestQuery: Encodable, Equatable, Sendable {
@@ -63,6 +100,7 @@ public struct MoqRequestQuery: Encodable, Equatable, Sendable {
     /// `true` keeps only requests to paths no endpoint serves (see ``MoqRequestRecord/isUnmatched``).
     public var unmatched: Bool?
     public var headers: [MoqHeaderExpectation]?
+    public var query: [MoqQueryExpectation]?
     public var claims: [String: String]?
     /// Exact match count expected; `nil` means at least one.
     public var times: Int?
@@ -72,7 +110,8 @@ public struct MoqRequestQuery: Encodable, Equatable, Sendable {
     public init(
         endpoint: String? = nil, method: String? = nil, path: String? = nil, since: Double? = nil,
         rejected: Bool? = nil, unmatched: Bool? = nil, headers: [MoqHeaderExpectation]? = nil,
-        claims: [String: String]? = nil, times: Int? = nil, scope: Scope? = nil, includeUnattributed: Bool? = nil
+        query: [MoqQueryExpectation]? = nil, claims: [String: String]? = nil, times: Int? = nil, scope: Scope? = nil,
+        includeUnattributed: Bool? = nil
     ) {
         self.endpoint = endpoint
         self.method = method
@@ -81,6 +120,7 @@ public struct MoqRequestQuery: Encodable, Equatable, Sendable {
         self.rejected = rejected
         self.unmatched = unmatched
         self.headers = headers
+        self.query = query
         self.claims = claims
         self.times = times
         self.scope = scope
@@ -120,11 +160,12 @@ extension MoqClient {
     var requestMarkURL: URL { baseURL.appendingPathComponent("_admin/requests/mark") }
 
     static func assertionQuery(
-        endpoint: String, times: Int?, headers: [MoqHeaderExpectation], claims: [String: String], since: Double?
+        endpoint: String?, times: Int?, headers: [MoqHeaderExpectation], query: [MoqQueryExpectation],
+        claims: [String: String], since: Double?
     ) -> MoqRequestQuery {
         MoqRequestQuery(
             endpoint: endpoint, since: since, headers: headers.isEmpty ? nil : headers,
-            claims: claims.isEmpty ? nil : claims, times: times)
+            query: query.isEmpty ? nil : query, claims: claims.isEmpty ? nil : claims, times: times)
     }
 
     static func sessionQuery(claims: [String: String], includeUnattributed: Bool, since: Double?) -> MoqRequestQuery {
@@ -159,21 +200,25 @@ extension MoqClient {
     }
 
     /// Asserts that `endpoint` (e.g. `GET /v1/me`) was called `times` times (at least once when
-    /// `nil`) with every header expectation and claim holding, and returns those calls oldest first.
-    /// `timeout` waits for calls the app hasn't made yet.
+    /// `nil`) with every header, query and claim expectation holding, and returns those calls oldest
+    /// first. Without `endpoint` it counts requests to any path, so `assertRequest(timeout: 5)` checks
+    /// that the app reached this session at all. `timeout` waits for calls the app hasn't made yet.
     ///
     /// ```swift
     /// let calls = try client.assertRequest(
     ///     endpoint: "GET /v1/me", times: 2, headers: [.scheme("Authorization", "Bearer")], claims: ["sub": uid])
     /// XCTAssertLessThan(Int(calls[0].claims["iat"] ?? "") ?? 0, Int(calls[1].claims["iat"] ?? "") ?? 0)
+    /// try client.assertRequest(endpoint: "GET /v1/items", query: [.equals("status", "done")])
     /// ```
     @discardableResult
     public func assertRequest(
-        endpoint: String, times: Int? = nil, headers: [MoqHeaderExpectation] = [], claims: [String: String] = [:],
-        since: Double? = nil, timeout: TimeInterval = 0
+        endpoint: String? = nil, times: Int? = nil, headers: [MoqHeaderExpectation] = [],
+        query: [MoqQueryExpectation] = [], claims: [String: String] = [:], since: Double? = nil,
+        timeout: TimeInterval = 0
     ) throws -> [MoqRequestRecord] {
         try assertQuery(
-            Self.assertionQuery(endpoint: endpoint, times: times, headers: headers, claims: claims, since: since),
+            Self.assertionQuery(
+                endpoint: endpoint, times: times, headers: headers, query: query, claims: claims, since: since),
             timeout: timeout
         ).matched
     }
@@ -247,11 +292,13 @@ extension MoqAsyncClient {
 
     @discardableResult
     public func assertRequest(
-        endpoint: String, times: Int? = nil, headers: [MoqHeaderExpectation] = [], claims: [String: String] = [:],
-        since: Double? = nil, timeout: TimeInterval = 0
+        endpoint: String? = nil, times: Int? = nil, headers: [MoqHeaderExpectation] = [],
+        query: [MoqQueryExpectation] = [], claims: [String: String] = [:], since: Double? = nil,
+        timeout: TimeInterval = 0
     ) async throws -> [MoqRequestRecord] {
         try await assertQuery(
-            MoqClient.assertionQuery(endpoint: endpoint, times: times, headers: headers, claims: claims, since: since),
+            MoqClient.assertionQuery(
+                endpoint: endpoint, times: times, headers: headers, query: query, claims: claims, since: since),
             timeout: timeout
         ).matched
     }

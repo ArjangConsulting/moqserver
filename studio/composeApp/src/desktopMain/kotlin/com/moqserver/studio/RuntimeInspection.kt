@@ -2,6 +2,7 @@ package com.moqserver.studio
 
 import com.moqserver.studio.domain.RuntimeHeader
 import com.moqserver.studio.domain.RuntimeInspectionState
+import com.moqserver.studio.domain.RuntimeQueryParameter
 import com.moqserver.studio.domain.RuntimeRejection
 import com.moqserver.studio.domain.RuntimeRequest
 import com.moqserver.studio.domain.RuntimeScenarioDefinition
@@ -161,7 +162,20 @@ internal fun decodeRuntimeRequest(value: JsonObject): RuntimeRequest = RuntimeRe
 		?.mapNotNull { (key, claim) -> claim.stringOrNull()?.let { key to it } }
 		?.toMap()
 		.orEmpty(),
+	query = (value["requestQuery"] as? JsonArray)
+		?.mapNotNull { parameter -> (parameter as? JsonObject)?.let(::decodeRuntimeQueryParameter) }
+		.orEmpty(),
 )
+
+private fun decodeRuntimeQueryParameter(value: JsonObject): RuntimeQueryParameter? {
+	val name = value["name"]?.stringOrNull() ?: return null
+	return RuntimeQueryParameter(
+		name = name,
+		value = value["value"]?.stringOrNull(),
+		redacted = (value["redacted"] as? JsonPrimitive)?.booleanOrNull == true,
+		fingerprint = value["fingerprint"]?.stringOrNull(),
+	)
+}
 
 private fun decodeRuntimeHeader(value: JsonObject): RuntimeHeader? {
 	val name = value["name"]?.stringOrNull() ?: return null

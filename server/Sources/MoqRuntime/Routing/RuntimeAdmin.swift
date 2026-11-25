@@ -18,7 +18,7 @@ extension AdminHandler {
         }
         return AdminHandler(
             store: session, config: config, captureRequestHeaders: captureRequestHeaders,
-            redactHeaders: redactHeaders)
+            captureRequestQuery: captureRequestQuery, redactHeaders: redactHeaders)
     }
 
     /// POST /_admin/requests/query — evaluates a ``RequestQuery`` over the caller's history.
@@ -28,10 +28,13 @@ extension AdminHandler {
         let routeKeys = Set(await store.allEndpoints().map { "\($0.key.method.rawValue) \($0.key.path)" })
         let query: RequestQuery
         do {
-            try decoded.validate(headerCaptureEnabled: captureRequestHeaders, redactHeaders: redactHeaders)
+            try decoded.validate(
+                headerCaptureEnabled: captureRequestHeaders, queryCaptureEnabled: captureRequestQuery,
+                redactHeaders: redactHeaders)
             query = try decoded.resolvingFilters(routeKeys: routeKeys)
         } catch let error as RequestQueryError {
-            throw Abort(error == .headerCaptureDisabled ? .conflict : .badRequest, reason: error.description)
+            let captureDisabled = error == .headerCaptureDisabled || error == .queryCaptureDisabled
+            throw Abort(captureDisabled ? .conflict : .badRequest, reason: error.description)
         }
         let rows: [RequestTrace]
         if query.scope == .sessionless {

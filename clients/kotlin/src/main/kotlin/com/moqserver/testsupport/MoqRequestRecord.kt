@@ -28,6 +28,8 @@ public data class MoqRequestRecord(
     val requestHeaders: List<MoqCapturedHeader>? = null,
     /** Set when the server refused the request itself. */
     val rejection: MoqRequestRejection? = null,
+    /** The query parameters in the order sent, when the server runs with `--capture-request-query`. */
+    val requestQuery: List<MoqCapturedQueryParameter>? = null,
 ) {
     /** Whether the request hit a path no endpoint in the bundle serves. */
     val isUnmatched: Boolean get() = endpoint == null && rejection == null
@@ -40,7 +42,27 @@ public data class MoqRequestRecord(
 
     /** The first captured header named [name] (any case). */
     public fun header(name: String): MoqCapturedHeader? = requestHeaders?.firstOrNull { it.name == name.lowercase() }
+
+    /** Every captured value of the query parameter [name] (case-sensitive), in the order sent. Redacted values are skipped. */
+    public fun queryValues(name: String): List<String> =
+        requestQuery.orEmpty().filter { it.name == name }.mapNotNull { it.value }
 }
+
+/**
+ * One query parameter recorded by `serve --capture-request-query`. Credential-like parameters carry
+ * no [value], only [fingerprint].
+ */
+@Serializable
+public data class MoqCapturedQueryParameter(
+    /** The name exactly as sent (case-sensitive). */
+    val name: String,
+    /** The percent-decoded value, or `null` when redacted. */
+    val value: String? = null,
+    val truncated: Boolean = false,
+    val redacted: Boolean = false,
+    /** First 16 hex characters of the SHA-256 of a redacted value. */
+    val fingerprint: String? = null,
+)
 
 /**
  * One request header recorded by `serve --capture-request-headers`. Credential headers carry no

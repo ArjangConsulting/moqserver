@@ -42,6 +42,7 @@ Supported `serve` flags:
 | `--capture-request-bodies` | No | `0` | Record up to N bytes of each mock request body in request history |
 | `--redact-header` | No | — | Treat this request header as a credential in history and validation messages, on top of the built-in names, name keywords and JWT-looking values. Repeatable |
 | `--capture-request-headers` | No | off | Record each mock request's headers in request history; credential headers keep only scheme, fingerprint and cookie names ([runtime workflows](RUNTIME_WORKFLOWS.md#asserting-what-the-app-sent)) |
+| `--capture-request-query` | No | off | Record each mock request's query parameters in request history; credential-like parameters keep only a fingerprint ([runtime workflows](RUNTIME_WORKFLOWS.md#asserting-what-the-app-sent)) |
 | `--allow-unverified-jwt` | No | off | Let the [`jwt-claims` add-on](ADDONS.md#jwt-claims) run on a non-loopback `--hostname` |
 | `--max-body-size` | No | `10485760` | Largest mock request body in bytes; larger bodies get `413` (`payload_too_large`) |
 | `--cors` | No | off | Allow every origin and answer CORS preflights, so browser clients can call the server. This also exposes `/_admin` to any page the browser opens; pair it with admin credentials off loopback |

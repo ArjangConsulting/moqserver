@@ -37,7 +37,10 @@ class MoqClientAssertionsTest {
          "matched":[
           {"id":"1","timestamp":1,"method":"GET","path":"/v1/me","endpoint":"GET /v1/me","status":200,"reason":"declared default",
            "addons":{"jwt-claims":{"sub":"u1","iat":"100"}},
-           "requestHeaders":[{"name":"authorization","truncated":false,"redacted":true,"scheme":"Bearer","fingerprint":"aaaaaaaaaaaaaaaa"}]},
+           "requestHeaders":[{"name":"authorization","truncated":false,"redacted":true,"scheme":"Bearer","fingerprint":"aaaaaaaaaaaaaaaa"}],
+           "requestQuery":[{"name":"tag","value":"a","truncated":false,"redacted":false},
+                           {"name":"api_key","truncated":false,"redacted":true,"fingerprint":"bbbbbbbbbbbbbbbb"},
+                           {"name":"tag","value":"b","truncated":false,"redacted":false}]},
           {"id":"2","timestamp":2,"method":"GET","path":"/v1/me","endpoint":"GET /v1/me","status":200,"reason":"declared default",
            "addons":{"jwt-claims":{"sub":"u1","iat":"200"}}}
          ]}
@@ -103,6 +106,41 @@ class MoqClientAssertionsTest {
         assertFalse(headers[1]["present"]!!.jsonPrimitive.boolean)
         assertEquals("tok", headers[2]["fingerprintOf"]?.jsonPrimitive?.content)
         assertFalse(query.containsKey("scope"))
+    }
+
+    @Test
+    fun `assertRequest sends query expectations and decodes the captured query`() {
+        responses += passing
+        val calls =
+            MoqClient(baseUrl, sessionId = "s1").assertRequest(
+                "GET /v1/me",
+                query =
+                    listOf(
+                        MoqQueryExpectation.Equals("status", "done"),
+                        MoqQueryExpectation.Absent("page"),
+                        MoqQueryExpectation.Present("tag"),
+                        MoqQueryExpectation.Fingerprint("api_key", "k"),
+                    ),
+            )
+
+        assertEquals(listOf("a", "b"), calls.first().queryValues("tag"))
+        assertEquals(emptyList(), calls.first().queryValues("api_key"))
+        assertEquals("bbbbbbbbbbbbbbbb", calls.first().requestQuery?.get(1)?.fingerprint)
+        val query = body()["query"]!!.jsonArray.map { it.jsonObject }
+        assertEquals("done", query[0]["equals"]?.jsonPrimitive?.content)
+        assertFalse(query[1]["present"]!!.jsonPrimitive.boolean)
+        assertTrue(query[2]["present"]!!.jsonPrimitive.boolean)
+        assertEquals("k", query[3]["fingerprintOf"]?.jsonPrimitive?.content)
+        assertFalse(body().containsKey("headers"))
+    }
+
+    @Test
+    fun `assertRequest without an endpoint checks that any request reached the session`() {
+        responses += failing
+        responses += passing
+        assertEquals(2, MoqClient(baseUrl, sessionId = "s1").assertRequest(timeoutMillis = 2_000).size)
+        assertEquals(emptyMap(), body(sent.size - 1))
+        assertEquals(listOf("s1", "s1"), sent.map { it.session })
     }
 
     @Test

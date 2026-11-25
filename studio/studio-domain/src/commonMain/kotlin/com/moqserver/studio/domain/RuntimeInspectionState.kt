@@ -15,6 +15,8 @@ data class RuntimeRequest(
 	val headers: List<RuntimeHeader> = emptyList(),
 	/** Claims the `jwt-claims` add-on recorded. */
 	val claims: Map<String, String> = emptyMap(),
+	/** Captured query parameters in the order sent (`serve --capture-request-query`). */
+	val query: List<RuntimeQueryParameter> = emptyList(),
 ) {
 	/** No endpoint serves this path; a refused request is not unmatched. */
 	val isUnmatched: Boolean get() = endpoint == null && rejection == null
@@ -30,6 +32,14 @@ data class RuntimeHeader(
 	val scheme: String? = null,
 	val fingerprint: String? = null,
 	val cookieNames: List<String> = emptyList(),
+)
+
+/** A captured query parameter; a credential-like one keeps only [fingerprint]. */
+data class RuntimeQueryParameter(
+	val name: String,
+	val value: String? = null,
+	val redacted: Boolean = false,
+	val fingerprint: String? = null,
 )
 
 /** What `GET /_admin/version` reported; [available] is false for a server that predates the route. */

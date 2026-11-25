@@ -11,17 +11,20 @@ public struct AdminHandler: Sendable {
     let reloader: MockReloader?
     /// Whether history rows carry `requestHeaders`, so header predicates can be answered.
     let captureRequestHeaders: Bool
+    /// Whether history rows carry `requestQuery`, so query predicates can be answered.
+    let captureRequestQuery: Bool
     /// Lowercased `--redact-header` names.
     let redactHeaders: Set<String>
 
     public init(
         store: any MockStoring, config: ServerConfig? = nil, reloader: MockReloader? = nil,
-        captureRequestHeaders: Bool = false, redactHeaders: Set<String> = []
+        captureRequestHeaders: Bool = false, captureRequestQuery: Bool = false, redactHeaders: Set<String> = []
     ) {
         self.store = store
         self.config = config
         self.reloader = reloader
         self.captureRequestHeaders = captureRequestHeaders
+        self.captureRequestQuery = captureRequestQuery
         self.redactHeaders = redactHeaders
     }
 

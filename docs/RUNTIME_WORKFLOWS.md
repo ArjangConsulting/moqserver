@@ -6,9 +6,10 @@ admin API, enter its bearer token. Refresh shows the server's release and capabi
 the returned status, selected variant, selection reason and call number. A request the server
 refused shows its rejection (kind, code and message), and one no endpoint serves is marked
 unmatched. With `serve --capture-request-headers`, each row also lists the captured headers (only
-scheme, fingerprint and cookie names for credentials) and any `jwt-claims` claims. History holds at
-most 500 requests per state store. Bodies and headers are recorded only with the capture flags, and
-query strings never are; paths may still contain user identifiers. Clear history when it is no
+scheme, fingerprint and cookie names for credentials) and any `jwt-claims` claims. With
+`serve --capture-request-query`, it also lists the query parameters (only a fingerprint for
+credential-like ones). History holds at most 500 requests per state store. Bodies, headers and query
+parameters are recorded only with the capture flags; paths may still contain user identifiers. Clear history when it is no
 longer needed.
 
 Studio's **Preferences → General → HAR import** sets the same options as `moq-author import har`:
@@ -113,6 +114,15 @@ What a credential header keeps:
 
 The same rules hide credential values in `request_rules` mismatch messages (`got a redacted value`),
 with or without header capture.
+
+Start the server with `serve --capture-request-query` to record query parameters as `requestQuery`:
+`[{name, value, truncated, redacted, fingerprint}]`, in the order the request sent them, repeats
+included. Names keep their case and values are percent-decoded and cut to 256 characters. A
+parameter is a credential under the same name rules as a header (so `api_key`, `access_token` and
+`session_id` are covered), when its value is a JWT, or when `--redact-header` names it; it keeps only
+`fingerprint` of the whole value. A request query's `query` predicates then check what the app
+asked for, not just that the value was legal: an app that shows one filter and sends another fails
+`{"endpoint": "GET /v1/items", "query": [{"name": "status", "equals": "done"}]}`.
 
 Decoded token claims come from the [`jwt-claims` add-on](ADDONS.md#jwt-claims) in `addons`, not from
 header capture. Its `trace_claims` records string, number and boolean claims as strings; array and
