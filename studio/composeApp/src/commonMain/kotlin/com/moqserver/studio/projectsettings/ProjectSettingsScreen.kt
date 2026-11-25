@@ -60,6 +60,16 @@ private object ProjectSettingsStrings {
 	const val VERIFY_COOKIES = "Require at least one cookie"
 	const val VERIFY_COOKIES_TOOLTIP =
 		"Rejects requests that send no cookies at all, on every endpoint that does not set its own value."
+	const val REDACT = "Credential names"
+	const val REDACT_DESCRIPTION =
+		"Request history, validation messages and HAR import hide values of well-known credential names " +
+			"(Authorization, Cookie, X-Api-Key, access_token, ...) and of any JWT. List this API's own " +
+			"credential names, or built-in names it uses for something else. Comma-separated."
+	const val REDACT_HEADERS = "Also hide these headers"
+	const val REDACT_QUERY = "Also hide these query parameters"
+	const val EXCEPT_HEADERS = "Keep these built-in headers visible"
+	const val EXCEPT_HEADERS_TOOLTIP = "Authorization, Proxy-Authorization, Cookie and Set-Cookie are always hidden."
+	const val EXCEPT_QUERY = "Keep these built-in query parameters visible"
 	const val ADDONS = "Add-ons"
 	const val ADDONS_DESCRIPTION =
 		"Features compiled into moqserver that this bundle turns on, as JSON: add-on id to its config. " +
@@ -85,6 +95,7 @@ internal fun ProjectSettingsScreen(
 		GeneralSection(manifest = manifest, onUpdateManifest = onUpdateManifest)
 		DefaultsSection(manifest = manifest, onUpdateManifest = onUpdateManifest)
 		GlobalRulesSection(manifest = manifest, onUpdateManifest = onUpdateManifest)
+		RedactSection(manifest = manifest, onUpdateManifest = onUpdateManifest)
 		AddonsSection(manifest = manifest, onUpdateManifest = onUpdateManifest)
 		ScenariosSection(
 			scenarios = manifest.scenarios.orEmpty(),
@@ -186,6 +197,51 @@ private fun GlobalRulesSection(manifest: ProjectManifest, onUpdateManifest: (Pro
 			showRequiredColumn = true,
 		)
 	}
+}
+
+@Composable
+private fun RedactSection(manifest: ProjectManifest, onUpdateManifest: (ProjectManifest) -> Unit) {
+	SectionCard(title = ProjectSettingsStrings.REDACT, description = ProjectSettingsStrings.REDACT_DESCRIPTION) {
+		RedactNamesField(manifest, RedactList.HEADERS, ProjectSettingsStrings.REDACT_HEADERS, null, onUpdateManifest)
+		RedactNamesField(manifest, RedactList.QUERY_PARAMETERS, ProjectSettingsStrings.REDACT_QUERY, null, onUpdateManifest)
+		RedactNamesField(
+			manifest,
+			RedactList.EXCEPT_HEADERS,
+			ProjectSettingsStrings.EXCEPT_HEADERS,
+			ProjectSettingsStrings.EXCEPT_HEADERS_TOOLTIP,
+			onUpdateManifest,
+		)
+		RedactNamesField(
+			manifest,
+			RedactList.EXCEPT_QUERY_PARAMETERS,
+			ProjectSettingsStrings.EXCEPT_QUERY,
+			null,
+			onUpdateManifest,
+		)
+	}
+}
+
+@Composable
+private fun RedactNamesField(
+	manifest: ProjectManifest,
+	list: RedactList,
+	label: String,
+	tooltip: String?,
+	onUpdateManifest: (ProjectManifest) -> Unit,
+) {
+	var text by remember { mutableStateOf(manifest.redact.names(list).joinToString(", ")) }
+	FormTextField(
+		value = text,
+		onValueChange = { updated ->
+			text = updated
+			val names = parseNameList(updated)
+			if (names != manifest.redact.names(list)) onUpdateManifest(manifest.withRedactNames(list, names))
+		},
+		label = label,
+		singleLine = true,
+		modifier = Modifier.fillMaxWidth(),
+		trailingContent = tooltip?.let { { InfoTooltip(it) } },
+	)
 }
 
 @Composable

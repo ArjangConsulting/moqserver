@@ -323,7 +323,8 @@ before relying on them instead of probing each feature.
   "version": "1.2.3",
   "commit": "0123456789abcdef0123456789abcdef01234567",
   "capabilities": [
-    "request-headers", "request-rejections", "request-query", "limited-overrides", "request-query-parameters"
+    "request-headers", "request-rejections", "request-query", "limited-overrides", "request-query-parameters",
+    "credential-name-lists"
   ]
 }
 ```
@@ -342,6 +343,7 @@ source builds pinned to a commit, too. A server without this route predates all 
 | `request-query` | `POST /_admin/requests/query` and `/_admin/requests/mark`, including the `unmatched` filter and the `400` for an unknown `endpoint` key |
 | `limited-overrides` | `PUT /_admin/endpoints/:method/**/variant` accepts `times` |
 | `request-query-parameters` | `serve --capture-request-query` records query parameters on history rows (`requestQuery`), and request queries accept `query` predicates |
+| `credential-name-lists` | Credentials are recognized by exact names only ([credential names](RUNTIME_WORKFLOWS.md#credential-names)): built-in lists, the bundle's `redact:`, declared auth headers and `--redact-*` flags, with `except` and `--no-redact-*` exemptions |
 
 Capability names are permanent. New behaviours add a name; a name disappears only with the
 behaviour it describes.
@@ -460,8 +462,8 @@ optional `variant`, `reason`, optional `callNumber`, optional `requestBody` (wit
 `serve --capture-request-bodies`: `{value, encoding, size, truncated}`), optional `requestHeaders` (with
 `serve --capture-request-headers`: `[{name, value, truncated, redacted, scheme, fingerprint, cookieNames}]`), optional
 `requestQuery` (with `serve --capture-request-query`: `[{name, value, truncated, redacted, fingerprint}]` in the order
-sent, repeats included; parameters whose name matches the credential header names and keywords, a `--redact-header`
-name, or whose value is a JWT keep only `fingerprint`), optional
+sent, repeats included; [credential parameters](RUNTIME_WORKFLOWS.md#credential-names) keep only `fingerprint`),
+optional
 `rejection` (`{kind, code, message}` when the server refused the request itself; `kind` is `auth`, `request_rule`,
 `session`, `call_count` or `no_variant`), and optional `addons` (add-on annotations
 keyed by add-on id, e.g. `{"jwt-claims": {"sub": "user-1"}}` — see [ADDONS.md](ADDONS.md)). See [runtime workflows](RUNTIME_WORKFLOWS.md)
@@ -495,8 +497,9 @@ value; `fingerprintOf` is a credential the server fingerprints for you (the toke
 
 A `QueryPredicate` is `{name, present?, equals?, fingerprint?, fingerprintOf?}`, with the same rules
 applied to one occurrence of a query parameter. Names compare case-sensitively and values are
-compared after percent-decoding. `equals` is refused (`400`) for credential-like parameters such as
-`api_key` or `access_token`, which store only a fingerprint. Near-miss lines show the parameters the
+compared after percent-decoding. `equals` is refused (`400`) for
+[credential parameters](RUNTIME_WORKFLOWS.md#credential-names) such as `api_key` or `access_token`,
+which store only a fingerprint; ordinary names such as `keyword` accept it. Near-miss lines show the parameters the
 request sent, e.g. `GET /v1/items?status=open → 200: failed query status = 'done'`.
 
 Filters that could never match are refused (`400`) rather than silently matching nothing, which

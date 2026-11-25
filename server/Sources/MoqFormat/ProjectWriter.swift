@@ -84,6 +84,20 @@ public struct ProjectWriter: ProjectWriting {
             }
         }
 
+        if let redact = manifest.redact {
+            lines.append("")
+            lines.append("redact:")
+            lines.append(
+                contentsOf: encodeNameLists(headers: redact.headers, queryParameters: redact.queryParameters, indent: 2)
+            )
+            if let except = redact.except {
+                lines.append("  except:")
+                lines.append(
+                    contentsOf: encodeNameLists(
+                        headers: except.headers, queryParameters: except.queryParameters, indent: 4))
+            }
+        }
+
         if let addons = manifest.addons, !addons.isEmpty {
             lines.append("")
             lines.append("addons:")
@@ -93,6 +107,16 @@ public struct ProjectWriter: ProjectWriting {
         }
 
         return lines.joined(separator: "\n") + "\n"
+    }
+
+    private func encodeNameLists(headers: [String]?, queryParameters: [String]?, indent: Int) -> [String] {
+        let pad = String(repeating: " ", count: indent)
+        var lines: [String] = []
+        if let headers { lines.append("\(pad)headers: [\(headers.map(yamlQuote).joined(separator: ", "))]") }
+        if let queryParameters {
+            lines.append("\(pad)query_parameters: [\(queryParameters.map(yamlQuote).joined(separator: ", "))]")
+        }
+        return lines
     }
 
     private func encodeEndpoint(_ endpoint: EndpointDocument) throws -> String {

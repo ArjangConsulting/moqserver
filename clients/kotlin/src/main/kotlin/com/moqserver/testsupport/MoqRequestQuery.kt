@@ -45,11 +45,11 @@ public sealed interface MoqQueryExpectation {
 
     /**
      * The parameter was sent with exactly this value, e.g. `Equals("status", "done")`. Refused for
-     * credential-like parameters (`api_key`, `access_token`, ...), which store no value.
+     * credential parameters (`api_key`, `access_token`, a bundle's `redact:` names, ...), which store no value.
      */
     public data class Equals(override val name: String, val value: String) : MoqQueryExpectation
 
-    /** A credential-like parameter carried this value. The server compares fingerprints. */
+    /** A credential parameter carried this value. The server compares fingerprints. */
     public data class Fingerprint(override val name: String, val credential: String) : MoqQueryExpectation
 }
 

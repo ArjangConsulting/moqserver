@@ -258,12 +258,18 @@ class FormatClient(private val process: FormatProcess) {
         path: String,
         redactHeaders: List<String> = emptyList(),
         inferHeaderRules: Boolean = false,
+        redactQueryParameters: List<String> = emptyList(),
+        exceptHeaders: List<String> = emptyList(),
+        exceptQueryParameters: List<String> = emptyList(),
     ): RemoteParsedSpec {
         val params = buildJsonObject {
             put("path", path)
-            if (redactHeaders.isNotEmpty()) {
-                put("redactHeaders", JsonArray(redactHeaders.map(::JsonPrimitive)))
-            }
+            mapOf(
+                "redactHeaders" to redactHeaders,
+                "redactQueryParameters" to redactQueryParameters,
+                "exceptHeaders" to exceptHeaders,
+                "exceptQueryParameters" to exceptQueryParameters,
+            ).forEach { (key, names) -> if (names.isNotEmpty()) put(key, JsonArray(names.map(::JsonPrimitive))) }
             if (inferHeaderRules) put("inferHeaderRules", true)
         }
         val result = call("import.parseHar", params)

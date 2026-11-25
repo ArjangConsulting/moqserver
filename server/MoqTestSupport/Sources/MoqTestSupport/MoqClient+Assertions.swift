@@ -50,9 +50,9 @@ public enum MoqQueryExpectation: Encodable, Equatable, Sendable {
     /// The parameter was not sent.
     case absent(String)
     /// The parameter was sent with exactly this value, e.g. `.equals("status", "done")`. Refused for
-    /// credential-like parameters (`api_key`, `access_token`, ...), which store no value.
+    /// credential parameters (`api_key`, `access_token`, a bundle's `redact:` names, ...), which store no value.
     case equals(String, String)
-    /// A credential-like parameter carried this value. The server compares fingerprints.
+    /// A credential parameter carried this value. The server compares fingerprints.
     case fingerprint(String, of: String)
 
     private enum CodingKeys: String, CodingKey {

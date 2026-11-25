@@ -153,6 +153,8 @@ struct Dispatcher {
             let input = try decode(ParseHARParams.self, params)
             return try service.parseHAR(
                 path: input.path, redactHeaders: input.redactHeaders ?? [],
+                redactQueryParameters: input.redactQueryParameters ?? [], exceptHeaders: input.exceptHeaders ?? [],
+                exceptQueryParameters: input.exceptQueryParameters ?? [],
                 inferHeaderRules: input.inferHeaderRules ?? false)
         case "import.parseOpenapi":
             let input = try decode(ImportOpenAPIInput.self, params)
@@ -193,6 +195,9 @@ private struct ValidateProjectParams: Decodable {
 private struct ParseHARParams: Decodable {
     let path: String
     let redactHeaders: [String]?
+    let redactQueryParameters: [String]?
+    let exceptHeaders: [String]?
+    let exceptQueryParameters: [String]?
     let inferHeaderRules: Bool?
 }
 

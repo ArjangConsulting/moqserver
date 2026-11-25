@@ -11,7 +11,7 @@ private let logger = Logger(label: "moqserver.import.HARImporter")
 /// time following the same approach as Cloudflare's HAR Sanitizer
 /// (https://github.com/cloudflare/har-sanitizer). Values are replaced with `[redacted]` so they
 /// never reach the parsed spec or a persisted `.moqproj`. Which headers count as credentials is
-/// decided by `SensitiveHeaders`, shared with request-history capture and request validation.
+/// decided by `CredentialNames`, shared with request-history capture and request validation.
 public enum HARImporter {
     private static let contentTypeHeader = "Content-Type"
     private static let cookieHeader = "Cookie"
@@ -27,37 +27,40 @@ public enum HARImporter {
     private static let redactionWarning =
         "HAR sensitive fields were redacted heuristically. Review imported response bodies because arbitrary secret names may not be detected."
 
-    /// Query parameter / post-data parameter names (case-insensitive) whose values are
-    /// redacted. Based on the Cloudflare default word list.
-    private static let sensitiveParamNames: Set<String> = [
-        "access_token",
-        "assertion",
-        "auth",
-        "authenticity_token",
-        "challenge",
-        "client_id",
-        "client_secret",
-        "code",
-        "code_challenge",
-        "code_verifier",
-        "email",
-        "id_token",
-        "password",
-        "refresh_token",
-        "samlrequest",
-        "samlresponse",
-        "state",
-        "token",
-    ]
+    /// Names HAR import also redacts in query strings, form fields and JSON bodies, on top of
+    /// ``CredentialNames``. A capture is committed to a bundle, so import errs further than the
+    /// runtime does: over-redacting here only turns a rule into a presence check, while at runtime
+    /// it would stop a test checking an ordinary value such as `?code=PROMO10`.
+    static let importOnlyParameters: Set<String> = Set(
+        [
+            "code", "state", "auth", "key", "sig", "signature", "client_id", "code_challenge", "challenge", "email",
+            "authenticity_token", "samlrequest",
+        ].map(CredentialNames.normalize))
 
-    /// Parses `content`. Response headers named in `redactHeaders` (any case) are redacted on top of
-    /// the `SensitiveHeaders` names and keywords. With `inferHeaderRules`, each endpoint requires
-    /// (presence only, never a value) the request headers its captured calls always sent; see
-    /// ``inferredRequiredHeaders(_:)``.
+    /// Response headers HAR import also redacts, on top of ``CredentialNames``.
+    static let importOnlyHeaders: Set<String> = Set(
+        ["x-forwarded-for", "www-authenticate"].map(CredentialNames.normalize))
+
+    /// Parses `content`, redacting the built-in credential names plus `redactHeaders` and
+    /// `redactQueryParameters`. See ``parse(_:credentialNames:inferHeaderRules:)``.
     public static func parse(
-        _ content: String, redactHeaders: [String] = [], inferHeaderRules: Bool = false
+        _ content: String, redactHeaders: [String] = [], redactQueryParameters: [String] = [],
+        inferHeaderRules: Bool = false
     ) throws -> ParsedSpec {
-        let extraNames = SensitiveHeaders.normalized(redactHeaders)
+        try parse(
+            content,
+            credentialNames: CredentialNames(extraHeaders: redactHeaders, extraQueryParameters: redactQueryParameters),
+            inferHeaderRules: inferHeaderRules)
+    }
+
+    /// Parses `content`. Response headers and request parameters `credentialNames` lists (plus
+    /// ``importOnlyHeaders`` and ``importOnlyParameters``) are redacted, and JWT signatures are
+    /// stripped everywhere. With `inferHeaderRules`, each endpoint requires (presence only, never a
+    /// value) the request headers its captured calls always sent; see ``inferredRequiredHeaders(_:names:)``.
+    public static func parse(
+        _ content: String, credentialNames: CredentialNames, inferHeaderRules: Bool = false
+    ) throws -> ParsedSpec {
+        let names = credentialNames
         logger.info("Parsing HAR file (\(content.utf8.count) bytes)")
         let har: HarFile
         do {
@@ -78,7 +81,7 @@ public enum HARImporter {
         for (index, entry) in entries.enumerated() {
             guard
                 let parsedEntry = parseEntry(
-                    entry, entryNumber: index + 1, redactHeaders: extraNames, warnings: &warnings)
+                    entry, entryNumber: index + 1, names: names, warnings: &warnings)
             else { continue }
             redactedResponseBody = redactedResponseBody || parsedEntry.responseBodyRedacted
             if grouped[parsedEntry.key] == nil {
@@ -101,7 +104,7 @@ public enum HARImporter {
                 alias: EndpointAlias.defaultAlias(method: key.method, path: key.path),
                 responses: responses,
                 queryParameters: collectRuleMatchers(exchanges) { $0.queryParameters },
-                requiredHeaders: inferHeaderRules ? inferredRequiredHeaders(exchanges) : [],
+                requiredHeaders: inferHeaderRules ? inferredRequiredHeaders(exchanges, names: names) : [],
                 cookies: collectRuleMatchers(exchanges) { $0.cookies }
             )
         }
@@ -133,7 +136,7 @@ public enum HARImporter {
     }
 
     private static func parseEntry(
-        _ entry: HarEntry, entryNumber: Int, redactHeaders: Set<String>, warnings: inout [String]
+        _ entry: HarEntry, entryNumber: Int, names: CredentialNames, warnings: inout [String]
     ) -> ParsedHarEntry? {
         guard let request = entry.request else {
             return warnAndSkip(&warnings, entryNumber, "missing request payload")
@@ -163,16 +166,16 @@ public enum HARImporter {
         {
             return warnAndSkip(&warnings, entryNumber, "incomplete or failed capture; re-capture before importing")
         }
-        let sanitizedBody = responseBody(response)
+        let sanitizedBody = responseBody(response, names: names)
         return ParsedHarEntry(
             key: GroupKey(method: method, path: normalizedPath(components)),
             exchange: CapturedExchange(
                 statusCode: status,
-                headers: responseHeaders(response, redactHeaders: redactHeaders),
+                headers: responseHeaders(response, names: names),
                 body: sanitizedBody.value,
                 bodyIsBase64: sanitizedBody.isBase64,
                 cookies: extractRequestCookies(request),
-                queryParameters: requestQueryParameters(request, components),
+                queryParameters: requestQueryParameters(request, components, names: names),
                 requestHeaderNames: requestHeaderNames(request)
             ),
             responseBodyRedacted: sanitizedBody.redacted
@@ -187,12 +190,12 @@ public enum HARImporter {
 
     /// Extracts response headers, redacting values for any header whose name matches a
     /// known-sensitive pattern. JWT signatures in non-redacted header values are also stripped.
-    private static func responseHeaders(_ response: HarResponse, redactHeaders: Set<String>) -> [String: String] {
+    private static func responseHeaders(_ response: HarResponse, names: CredentialNames) -> [String: String] {
         var headers: [String: String] = [:]
         for header in response.headers {
             let name = header.name ?? ""
             guard !name.isEmpty else { continue }
-            headers[name] = sanitizeHeaderValue(name: name, value: header.value ?? "", redactHeaders: redactHeaders)
+            headers[name] = sanitizeHeaderValue(name: name, value: header.value ?? "", names: names)
         }
         let mimeType = response.content.mimeType ?? ""
         if !mimeType.isEmpty
@@ -203,7 +206,7 @@ public enum HARImporter {
         return headers
     }
 
-    private static func responseBody(_ response: HarResponse) -> SanitizedBody {
+    private static func responseBody(_ response: HarResponse, names: CredentialNames) -> SanitizedBody {
         guard let text = response.content.text else { return SanitizedBody(value: nil, redacted: false) }
 
         if response.content.encoding?.lowercased() == "base64" {
@@ -215,11 +218,11 @@ public enum HARImporter {
             }
             guard let decodedData = Data(base64Encoded: text), let decoded = String(data: decodedData, encoding: .utf8)
             else {
-                return sanitizeStructuredBody(text, mimeType: response.content.mimeType)
+                return sanitizeStructuredBody(text, mimeType: response.content.mimeType, names: names)
             }
-            return sanitizeStructuredBody(decoded, mimeType: response.content.mimeType)
+            return sanitizeStructuredBody(decoded, mimeType: response.content.mimeType, names: names)
         }
-        return sanitizeStructuredBody(text, mimeType: response.content.mimeType)
+        return sanitizeStructuredBody(text, mimeType: response.content.mimeType, names: names)
     }
 
     /// Extracts request cookies, replacing every value with `[redacted]`. Cookie values are
@@ -276,7 +279,9 @@ public enum HARImporter {
         return "\(base)-\(suffix)"
     }
 
-    private static func requestQueryParameters(_ request: HarRequest, _ components: URLComponents) -> [String: String] {
+    private static func requestQueryParameters(
+        _ request: HarRequest, _ components: URLComponents, names: CredentialNames
+    ) -> [String: String] {
         let items: [(name: String, value: String)]
         if !request.queryString.isEmpty {
             items = request.queryString.map { ($0.name ?? "", $0.value ?? "") }
@@ -300,7 +305,7 @@ public enum HARImporter {
         for (rawName, rawValue) in items {
             let name = rawName.trimmingCharacters(in: .whitespaces)
             guard !name.isEmpty else { continue }
-            result[name] = sanitizeParamValue(name: name, value: rawValue)
+            result[name] = sanitizeParamValue(name: name, value: rawValue, names: names)
         }
         return result
     }
@@ -318,9 +323,9 @@ public enum HARImporter {
     ]
 
     /// Header names to require on an endpoint: those sent on every successful (2xx) captured call,
-    /// or on every call when none succeeded, that are credentials (``SensitiveHeaders``) or custom
+    /// or on every call when none succeeded, that are credentials (`names`) or custom
     /// `X-` headers. Sorted, in their captured spelling.
-    private static func inferredRequiredHeaders(_ exchanges: [CapturedExchange]) -> [String] {
+    private static func inferredRequiredHeaders(_ exchanges: [CapturedExchange], names: CredentialNames) -> [String] {
         let successful = exchanges.filter { (200...299).contains($0.statusCode) }
         let basis = successful.isEmpty ? exchanges : successful
         guard let first = basis.first else { return [] }
@@ -328,7 +333,7 @@ public enum HARImporter {
         for exchange in basis.dropFirst() { common.formIntersection(exchange.requestHeaderNames.keys) }
         let kept = common.filter { name in
             !name.hasPrefix(":") && !name.hasPrefix("sec-") && !ignoredInferenceHeaders.contains(name)
-                && (SensitiveHeaders.isCredentialName(name) || name.hasPrefix("x-"))
+                && (names.isCredentialHeader(name) || name.hasPrefix("x-"))
         }
         return kept.sorted().map { first.requestHeaderNames[$0] ?? $0 }
     }
@@ -385,8 +390,9 @@ public enum HARImporter {
 
     /// Returns `[redacted]` if the header name marks a credential, otherwise strips any JWT
     /// signatures from the value and returns the result.
-    private static func sanitizeHeaderValue(name: String, value: String, redactHeaders: Set<String>) -> String {
-        if SensitiveHeaders.isCredentialName(name, additionalNames: redactHeaders) {
+    private static func sanitizeHeaderValue(name: String, value: String, names: CredentialNames) -> String {
+        if names.isExemptHeader(name) { return value }
+        if names.isCredentialHeader(name) || importOnlyHeaders.contains(CredentialNames.normalize(name)) {
             return redacted
         }
         return redactJWT(value)
@@ -394,11 +400,19 @@ public enum HARImporter {
 
     /// Returns `[redacted]` if the param name matches a known-sensitive token name, otherwise
     /// strips JWT signatures from the value.
-    private static func sanitizeParamValue(name: String, value: String) -> String {
-        if sensitiveParamNames.contains(name.lowercased()) {
+    private static func sanitizeParamValue(name: String, value: String, names: CredentialNames) -> String {
+        if names.isExemptQueryParameter(name) { return value }
+        if isSensitiveParameter(name, names: names) {
             return redacted
         }
         return redactJWT(value)
+    }
+
+    /// Whether a query parameter, form field or JSON key holds a credential.
+    private static func isSensitiveParameter(_ name: String, names: CredentialNames) -> Bool {
+        guard !names.isExemptQueryParameter(name) else { return false }
+        return names.isCredentialQueryParameter(name)
+            || importOnlyParameters.contains(CredentialNames.normalize(name))
     }
 
     /// Replaces the cryptographic signature in any JWT found in `value` with "redacted",
@@ -406,10 +420,12 @@ public enum HARImporter {
     /// JWT is present.
     private static func redactJWT(_ value: String) -> String {
         value.replacingOccurrences(
-            of: SensitiveHeaders.jwtPattern, with: "$1.$2.redacted", options: .regularExpression)
+            of: CredentialNames.jwtPattern, with: "$1.$2.redacted", options: .regularExpression)
     }
 
-    private static func sanitizeStructuredBody(_ text: String, mimeType: String?) -> SanitizedBody {
+    private static func sanitizeStructuredBody(
+        _ text: String, mimeType: String?, names: CredentialNames
+    ) -> SanitizedBody {
         let mime = (mimeType ?? "").lowercased()
         if mime.contains("json") {
             guard let data = text.data(using: .utf8),
@@ -418,7 +434,7 @@ public enum HARImporter {
             else {
                 return SanitizedBody(value: text, redacted: false)
             }
-            let (sanitized, redactedFlag) = sanitizeJSON(object)
+            let (sanitized, redactedFlag) = sanitizeJSON(object, names: names)
             guard
                 let sanitizedData = try? JSONSerialization.data(
                     withJSONObject: sanitized, options: [.fragmentsAllowed]),
@@ -434,7 +450,7 @@ public enum HARImporter {
                 guard let separatorIndex = pair.firstIndex(of: "=") else { return String(pair) }
                 let rawName = String(pair[pair.startIndex..<separatorIndex])
                 let decodedName = urlDecode(rawName)
-                if sensitiveParamNames.contains(decodedName.lowercased()) {
+                if isSensitiveParameter(decodedName, names: names) {
                     didRedact = true
                     return "\(rawName)=\(encodedRedacted)"
                 }
@@ -446,16 +462,16 @@ public enum HARImporter {
         return SanitizedBody(value: sanitized, redacted: sanitized != text)
     }
 
-    private static func sanitizeJSON(_ value: Any) -> (value: Any, redacted: Bool) {
+    private static func sanitizeJSON(_ value: Any, names: CredentialNames) -> (value: Any, redacted: Bool) {
         if let dict = value as? [String: Any] {
             var didRedact = false
             var result: [String: Any] = [:]
             for (key, child) in dict {
-                if sensitiveParamNames.contains(key.lowercased()) {
+                if isSensitiveParameter(key, names: names) {
                     didRedact = true
                     result[key] = redacted
                 } else {
-                    let (sanitizedChild, childRedacted) = sanitizeJSON(child)
+                    let (sanitizedChild, childRedacted) = sanitizeJSON(child, names: names)
                     didRedact = didRedact || childRedacted
                     result[key] = sanitizedChild
                 }
@@ -465,7 +481,7 @@ public enum HARImporter {
         if let array = value as? [Any] {
             var didRedact = false
             let result = array.map { element -> Any in
-                let (sanitizedElement, childRedacted) = sanitizeJSON(element)
+                let (sanitizedElement, childRedacted) = sanitizeJSON(element, names: names)
                 didRedact = didRedact || childRedacted
                 return sanitizedElement
             }

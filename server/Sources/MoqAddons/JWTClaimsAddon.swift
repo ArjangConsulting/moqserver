@@ -187,6 +187,12 @@ public struct JWTClaimsAddon: MoqAddon {
         let all: [AddonDiagnostic]
     }
 
+    /// The header the token is read from (`header`, default `Authorization`).
+    public static func credentialHeaders(config: AnyCodableValue) -> [String] {
+        guard case .success(let parsed) = parseConfig(config) else { return [] }
+        return [parsed.header]
+    }
+
     static func parseConfig(_ value: AnyCodableValue) -> Result<Config, ConfigDiagnostics> {
         guard case .object(let fields) = value else {
             return .failure(

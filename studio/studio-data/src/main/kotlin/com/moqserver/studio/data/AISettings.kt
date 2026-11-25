@@ -82,4 +82,5 @@ data class GeminiSettings(
 data class HARImportSettings(
     val redactHeaders: List<String> = emptyList(),
     val inferHeaderRules: Boolean = false,
+    val redactQueryParameters: List<String> = emptyList(),
 )

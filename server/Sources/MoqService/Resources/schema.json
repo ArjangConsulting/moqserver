@@ -495,6 +495,9 @@
             "$ref": "#/$defs/scenario"
           },
           "maxProperties": 100
+        },
+        "redact": {
+          "$ref": "#/$defs/redaction"
         }
       },
       "required": [
@@ -502,6 +505,51 @@
         "name",
         "defaults"
       ]
+    },
+    "redactionNames": {
+      "type": "object",
+      "$comment": "Header and query parameter names. Compared case-insensitively, ignoring '-' and '_'.",
+      "additionalProperties": false,
+      "properties": {
+        "headers": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "query_parameters": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      }
+    },
+    "redaction": {
+      "type": "object",
+      "$comment": "Credential names for this API: added to the built-in lists, or (under except) built-in names this API uses for something else. Authorization, Proxy-Authorization, Cookie and Set-Cookie cannot be excepted.",
+      "additionalProperties": false,
+      "properties": {
+        "headers": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "query_parameters": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "except": {
+          "$ref": "#/$defs/redactionNames"
+        }
+      }
     }
   },
   "oneOf": [

@@ -26,6 +26,10 @@ public protocol MoqAddon: Sendable {
     /// H8: checks one `request_match.addons.<id>` spec without a running server.
     static func validateMatch(_ spec: AnyCodableValue) -> [AddonDiagnostic]
 
+    /// Request headers that carry a credential under this config, e.g. the header a token is read
+    /// from. They are redacted like the built-in credential headers. Defaults to none.
+    static func credentialHeaders(config: AnyCodableValue) -> [String]
+
     /// Builds the add-on for serving. Throws `AddonActivationError` when the config or the
     /// environment (for example a non-loopback bind) does not allow it to run.
     init(config: AnyCodableValue, environment: AddonEnvironment) throws
@@ -50,6 +54,8 @@ public protocol MoqAddon: Sendable {
 }
 
 extension MoqAddon {
+    public static func credentialHeaders(config: AnyCodableValue) -> [String] { [] }
+
     public static func validateMatch(_ spec: AnyCodableValue) -> [AddonDiagnostic] {
         [AddonDiagnostic(message: "Add-on \"\(id)\" does not provide request_match predicates.")]
     }

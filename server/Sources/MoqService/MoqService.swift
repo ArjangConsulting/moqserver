@@ -304,10 +304,15 @@ public struct MoqService: Sendable {
         guard let content = try? String(contentsOfFile: input.path, encoding: .utf8) else {
             throw MoqServiceError.importReadFailed(input.path)
         }
+        // The target bundle's credential names apply too, so an import never commits a value the
+        // bundle says is a credential.
+        let names = CredentialNames.forProject(
+            await store.currentProject, extraHeaders: input.redactHeaders ?? [],
+            extraQueryParameters: input.redactQueryParameters ?? [])
         let spec: ParsedSpec
         do {
             spec = try HARImporter.parse(
-                content, redactHeaders: input.redactHeaders ?? [], inferHeaderRules: input.inferHeaderRules ?? false)
+                content, credentialNames: names, inferHeaderRules: input.inferHeaderRules ?? false)
         } catch {
             throw MoqServiceError.importParseFailed("\(error)")
         }
@@ -343,14 +348,21 @@ public struct MoqService: Sendable {
     /// wants to hold the parsed result for interactive review — accept/reject entries, generate
     /// AI content, rename responses — before anything is committed, rather than merge-and-save
     /// in one call the way an agent-driven MCP session does.
+    ///
+    /// The caller passes the credential names itself, including the target bundle's `redact:`
+    /// lists and declared auth headers, since nothing is opened here.
     public func parseHAR(
-        path: String, redactHeaders: [String] = [], inferHeaderRules: Bool = false
+        path: String, redactHeaders: [String] = [], redactQueryParameters: [String] = [],
+        exceptHeaders: [String] = [], exceptQueryParameters: [String] = [], inferHeaderRules: Bool = false
     ) throws -> ParsedSpec {
         guard let content = try? String(contentsOfFile: path, encoding: .utf8) else {
             throw MoqServiceError.importReadFailed(path)
         }
+        let names = CredentialNames(
+            extraHeaders: redactHeaders, extraQueryParameters: redactQueryParameters, exceptHeaders: exceptHeaders,
+            exceptQueryParameters: exceptQueryParameters)
         do {
-            return try HARImporter.parse(content, redactHeaders: redactHeaders, inferHeaderRules: inferHeaderRules)
+            return try HARImporter.parse(content, credentialNames: names, inferHeaderRules: inferHeaderRules)
         } catch {
             throw MoqServiceError.importParseFailed("\(error)")
         }

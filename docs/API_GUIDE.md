@@ -40,9 +40,12 @@ Supported `serve` flags:
 | `--log-level` | No | `info` | `trace`, `debug`, `info`, `notice`, `warning`, `error`, or `critical` |
 | `--require-session` | No | off | Reject mock requests without `X-Mock-Session` (`428`); see [runtime workflows](RUNTIME_WORKFLOWS.md#parallel-tests) |
 | `--capture-request-bodies` | No | `0` | Record up to N bytes of each mock request body in request history |
-| `--redact-header` | No | — | Treat this request header as a credential in history and validation messages, on top of the built-in names, name keywords and JWT-looking values. Repeatable |
+| `--redact-header` | No | — | Treat this request header as a credential in history and validation messages, on top of the built-in list and the bundle's `redact:` ([credential names](RUNTIME_WORKFLOWS.md#credential-names)). Repeatable |
+| `--redact-query-parameter` | No | — | Treat this query parameter as a credential. Repeatable |
+| `--no-redact-header` | No | — | Keep this built-in credential header visible; `Authorization`, `Proxy-Authorization`, `Cookie` and `Set-Cookie` are refused. Repeatable |
+| `--no-redact-query-parameter` | No | — | Keep this built-in credential query parameter visible (e.g. `token` used as a page cursor). Repeatable |
 | `--capture-request-headers` | No | off | Record each mock request's headers in request history; credential headers keep only scheme, fingerprint and cookie names ([runtime workflows](RUNTIME_WORKFLOWS.md#asserting-what-the-app-sent)) |
-| `--capture-request-query` | No | off | Record each mock request's query parameters in request history; credential-like parameters keep only a fingerprint ([runtime workflows](RUNTIME_WORKFLOWS.md#asserting-what-the-app-sent)) |
+| `--capture-request-query` | No | off | Record each mock request's query parameters in request history; credential parameters keep only a fingerprint ([runtime workflows](RUNTIME_WORKFLOWS.md#asserting-what-the-app-sent)) |
 | `--allow-unverified-jwt` | No | off | Let the [`jwt-claims` add-on](ADDONS.md#jwt-claims) run on a non-loopback `--hostname` |
 | `--max-body-size` | No | `10485760` | Largest mock request body in bytes; larger bodies get `413` (`payload_too_large`) |
 | `--cors` | No | off | Allow every origin and answer CORS preflights, so browser clients can call the server. This also exposes `/_admin` to any page the browser opens; pair it with admin credentials off loopback |

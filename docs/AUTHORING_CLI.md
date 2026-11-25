@@ -83,10 +83,17 @@ moq-author import har --project ./api.moqproj --har-path capture.har
 moq-author import openapi --project ./api.moqproj --source specification.yaml
 ```
 
-HAR import redacts credential response headers by the same rules as request-history capture (see
-[runtime workflows](RUNTIME_WORKFLOWS.md#asserting-what-the-app-sent)). Add
-`--redact-header <name>` (repeatable) for a custom auth header those rules miss; `import.parseHar`
-over `moq-format` takes the same list as `redactHeaders`.
+HAR import redacts credentials by the same [credential names](RUNTIME_WORKFLOWS.md#credential-names)
+as request-history capture, including the target bundle's `redact:` section and declared auth
+headers. Because a capture is committed to the bundle, it also redacts `X-Forwarded-For` and
+`WWW-Authenticate` headers and the parameters, form fields and JSON keys `code`, `state`, `auth`,
+`key`, `sig`, `signature`, `client_id`, `code_challenge`, `challenge`, `email`,
+`authenticity_token` and `SAMLRequest`; a redacted query parameter imports as a presence-only rule.
+JWT signatures are stripped from every other value. Add `--redact-header <name>` or
+`--redact-query-parameter <name>` (both repeatable) for names your API uses. `import.parseHar` over
+`moq-format` takes `redactHeaders`, `redactQueryParameters`, `exceptHeaders` and
+`exceptQueryParameters`, since it opens no bundle. Search a capture for tokens before importing: a
+custom credential header nobody listed is kept as captured unless its value is a JWT.
 
 `--infer-header-rules` (`inferHeaderRules` over `moq-format`) adds presence-only `request_rules`
 headers to each imported endpoint: credential headers (by the same rules) and custom `X-` headers

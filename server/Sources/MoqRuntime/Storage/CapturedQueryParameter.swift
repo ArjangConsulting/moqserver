@@ -4,9 +4,8 @@ import MoqCore
 /// One query parameter recorded in history by `serve --capture-request-query`.
 ///
 /// Parameters are kept in the order the request sent them, repeats included, with names exactly as
-/// sent (query names are case-sensitive). A parameter whose name marks it as a credential (the
-/// ``SensitiveHeaders`` name list and keywords, plus `--redact-header` names) or whose value holds a
-/// JWT never stores its value, only a fingerprint a test can compare against.
+/// sent (query names are case-sensitive). A parameter ``CredentialNames`` lists, or whose value
+/// holds a JWT, never stores its value, only a fingerprint a test can compare against.
 public struct CapturedQueryParameter: Codable, Sendable, Equatable {
     /// The name, percent-decoded, exactly as sent.
     public let name: String
@@ -27,10 +26,11 @@ public struct CapturedQueryParameter: Codable, Sendable, Equatable {
         self.fingerprint = fingerprint
     }
 
-    /// Records one parameter, redacting it when it looks like a credential. `redactNames` holds the
-    /// lowercased `--redact-header` names.
-    public static func capture(name: String, value: String, redactNames: Set<String> = []) -> CapturedQueryParameter {
-        if SensitiveHeaders.isCredential(name: name.lowercased(), value: value, additionalNames: redactNames) {
+    /// Records one parameter, redacting it when `credentialNames` says it is a credential.
+    public static func capture(
+        name: String, value: String, credentialNames: CredentialNames = .builtIn
+    ) -> CapturedQueryParameter {
+        if credentialNames.isCredentialQueryParameter(name, value: value) {
             return CapturedQueryParameter(
                 name: name, value: nil, redacted: true, fingerprint: CapturedHeader.fingerprint(of: value))
         }
@@ -41,13 +41,16 @@ public struct CapturedQueryParameter: Codable, Sendable, Equatable {
     }
 
     /// Every parameter in `query` (the raw query string, without `?`), in order, repeats included.
-    public static func captureAll(_ query: String?, redactNames: Set<String> = []) -> [CapturedQueryParameter] {
+    public static func captureAll(
+        _ query: String?, credentialNames: CredentialNames = .builtIn
+    ) -> [CapturedQueryParameter] {
         guard let query, !query.isEmpty else { return [] }
         return query.split(separator: "&").compactMap { pair in
             let parts = pair.split(separator: "=", maxSplits: 1, omittingEmptySubsequences: false)
             let name = decode(parts[0])
             guard !name.isEmpty else { return nil }
-            return capture(name: name, value: parts.count == 2 ? decode(parts[1]) : "", redactNames: redactNames)
+            return capture(
+                name: name, value: parts.count == 2 ? decode(parts[1]) : "", credentialNames: credentialNames)
         }
     }
 

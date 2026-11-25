@@ -49,7 +49,7 @@ public data class MoqRequestRecord(
 }
 
 /**
- * One query parameter recorded by `serve --capture-request-query`. Credential-like parameters carry
+ * One query parameter recorded by `serve --capture-request-query`. Credential parameters carry
  * no [value], only [fingerprint].
  */
 @Serializable

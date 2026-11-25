@@ -23,8 +23,10 @@ import com.moqserver.studio.projectformat.NetworkBehavior
 import com.moqserver.studio.projectformat.ProjectAuthConfig
 import com.moqserver.studio.projectformat.ProjectDefaults
 import com.moqserver.studio.projectformat.ProjectManifest
+import com.moqserver.studio.projectformat.ProjectRedaction
 import com.moqserver.studio.projectformat.ProjectScenario
 import com.moqserver.studio.projectformat.ProjectVariant
+import com.moqserver.studio.projectformat.RedactionNames
 import com.moqserver.studio.projectformat.RuleMatcher
 import com.moqserver.studio.projectformat.YamlValue
 import com.moqserver.studio.projectsettings.ADDONS_MUST_BE_OBJECT
@@ -101,6 +103,22 @@ class ProjectSettingsScreenTest {
 		compose.onNodeWithText("Another scenario already has this name").assertExists()
 		compose.runOnIdle { assertEquals(listOf("logged-out", "scenario-1"), manifest.scenarios?.keys?.toList()) }
 		captureEvidence("project-settings-scenarios")
+	}
+
+	@Test
+	fun `credential names are written to redact and cleared when emptied`() {
+		show()
+		field("Also hide these headers").performScrollTo().replaceTextVerified("X-Session-Ref, x-session-ref")
+		field("Keep these built-in query parameters visible").performScrollTo().replaceTextVerified("token")
+		compose.runOnIdle {
+			assertEquals(
+				ProjectRedaction(headers = listOf("X-Session-Ref"), except = RedactionNames(queryParameters = listOf("token"))),
+				manifest.redact,
+			)
+		}
+		field("Also hide these headers").performScrollTo().replaceTextVerified("")
+		field("Keep these built-in query parameters visible").performScrollTo().replaceTextVerified("")
+		compose.runOnIdle { assertEquals(null, manifest.redact) }
 	}
 
 	@Test

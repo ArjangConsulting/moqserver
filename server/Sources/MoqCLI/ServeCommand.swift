@@ -67,8 +67,9 @@ public struct ServeCommand: AsyncParsableCommand {
         name: .long,
         help: ArgumentHelp(
             "Record each mock request's headers in request history (GET /_admin/requests). Credential "
-                + "headers (see --redact-header) keep only their scheme, a SHA-256 "
-                + "fingerprint and cookie names, never the value.")
+                + "headers (the built-in list, the bundle's redact: and declared auth headers, "
+                + "--redact-header, or a JWT value) keep only their scheme, a SHA-256 fingerprint and "
+                + "cookie names, never the value.")
     )
     var captureRequestHeaders = false
 
@@ -76,19 +77,42 @@ public struct ServeCommand: AsyncParsableCommand {
         name: .long,
         help: ArgumentHelp(
             "Record each mock request's query parameters in request history (GET /_admin/requests). "
-                + "Credential-like parameters (the same names and keywords as headers, plus --redact-header "
-                + "names, or a JWT value) keep only a SHA-256 fingerprint, never the value.")
+                + "Credential parameters (the built-in list, the bundle's redact:, --redact-query-parameter, "
+                + "or a JWT value) keep only a SHA-256 fingerprint, never the value.")
     )
     var captureRequestQuery = false
 
     @ArgumentParser.Option(
         name: .customLong("redact-header"),
         help: ArgumentHelp(
-            "A request header name whose value is a credential, on top of the built-in list, name "
-                + "keywords (auth, token, key, secret, session, ...) and JWT-looking values. Redacted in "
-                + "request history and validation messages. Repeat for several.")
+            "A request header whose value is a credential, on top of the built-in list and the bundle's "
+                + "redact: section. Redacted in request history and validation messages. Repeat for several.")
     )
     var redactHeaders: [String] = []
+
+    @ArgumentParser.Option(
+        name: .customLong("redact-query-parameter"),
+        help: ArgumentHelp(
+            "A query parameter whose value is a credential, on top of the built-in list and the bundle's "
+                + "redact: section. Repeat for several.")
+    )
+    var redactQueryParameters: [String] = []
+
+    @ArgumentParser.Option(
+        name: .customLong("no-redact-header"),
+        help: ArgumentHelp(
+            "A built-in credential header this API uses for something else, kept visible. Authorization, "
+                + "Proxy-Authorization, Cookie and Set-Cookie are always redacted. Repeat for several.")
+    )
+    var exceptHeaders: [String] = []
+
+    @ArgumentParser.Option(
+        name: .customLong("no-redact-query-parameter"),
+        help: ArgumentHelp(
+            "A built-in credential query parameter this API uses for something else (e.g. token as a page "
+                + "cursor), kept visible. Repeat for several.")
+    )
+    var exceptQueryParameters: [String] = []
 
     @ArgumentParser.Option(
         name: .long,
@@ -172,6 +196,14 @@ public struct ServeCommand: AsyncParsableCommand {
             throw ExitCode.failure
         }
 
+        let protectedExceptions = exceptHeaders.filter {
+            CredentialNames.protectedHeaders.contains(CredentialNames.normalize($0))
+        }
+        guard protectedExceptions.isEmpty else {
+            print("Invalid --no-redact-header \(protectedExceptions.joined(separator: ", ")): always redacted.")
+            throw ExitCode.validationFailure
+        }
+
         guard captureRequestBodies >= 0 else {
             print("Invalid --capture-request-bodies \(captureRequestBodies). Use 0 or a positive byte count.")
             throw ExitCode.validationFailure
@@ -201,12 +233,16 @@ public struct ServeCommand: AsyncParsableCommand {
             "Starting mock server", metadata: ["hostname": "\(hostname)", "port": "\(port)", "scheme": "\(scheme)"])
 
         let projectPath = project
+        let flags = CredentialFlags(
+            headers: redactHeaders, queryParameters: redactQueryParameters, exceptHeaders: exceptHeaders,
+            exceptQueryParameters: exceptQueryParameters)
         let app = try await buildApp(
             store: store, config: serverConfig, addons: addons, requireSession: requireSession,
             requestBodyCaptureLimit: captureRequestBodies, captureRequestHeaders: captureRequestHeaders,
-            captureRequestQuery: captureRequestQuery, redactHeaders: redactHeaders, maxRequestBodySize: maxBodySize,
-            cors: cors, tls: tls,
-            reloadSource: { try Self.loadSnapshot(from: projectPath) }, hostname: hostname, port: port)
+            captureRequestQuery: captureRequestQuery, credentialNames: flags.names(for: loadedProject),
+            maxRequestBodySize: maxBodySize, cors: cors, tls: tls,
+            reloadSource: { try Self.loadSnapshot(from: projectPath, credentialFlags: flags) }, hostname: hostname,
+            port: port)
 
         let watcher = watch ? app.mockReloader.map { ProjectWatcher(path: projectPath, reloader: $0).start() } : nil
         defer { watcher?.cancel() }
@@ -224,7 +260,9 @@ public struct ServeCommand: AsyncParsableCommand {
 
     /// Loads, validates and converts the bundle for `POST /_admin/reload` and `--watch`. Errors
     /// leave the previous version serving.
-    static func loadSnapshot(from path: String) throws -> RuntimeProjectSnapshot {
+    static func loadSnapshot(
+        from path: String, credentialFlags: CredentialFlags = CredentialFlags()
+    ) throws -> RuntimeProjectSnapshot {
         let project = try ProjectLoader().load(from: path)
         let errors = ProjectValidator().validate(project).filter { $0.severity == .error }
         guard errors.isEmpty else {
@@ -232,7 +270,8 @@ public struct ServeCommand: AsyncParsableCommand {
         }
         return RuntimeProjectSnapshot(
             endpoints: try ProjectToRuntimeConverter.convert(project),
-            scenarios: ProjectToRuntimeConverter.scenarioOverrides(project))
+            scenarios: ProjectToRuntimeConverter.scenarioOverrides(project),
+            credentialNames: credentialFlags.names(for: project))
     }
 
     /// Warns when the server is reachable from other machines but the admin API has no credentials.
@@ -321,5 +360,19 @@ enum ProjectSnapshotError: Error, CustomStringConvertible {
         case .invalid(let errors):
             return "Project has \(errors.count) validation error(s): " + errors.joined(separator: "; ")
         }
+    }
+}
+
+/// The credential names given on the `serve` command line, combined with each loaded bundle's.
+struct CredentialFlags: Sendable {
+    var headers: [String] = []
+    var queryParameters: [String] = []
+    var exceptHeaders: [String] = []
+    var exceptQueryParameters: [String] = []
+
+    func names(for project: MoqProject) -> CredentialNames {
+        CredentialNames.forProject(
+            project, extraHeaders: headers, extraQueryParameters: queryParameters, exceptHeaders: exceptHeaders,
+            exceptQueryParameters: exceptQueryParameters)
     }
 }

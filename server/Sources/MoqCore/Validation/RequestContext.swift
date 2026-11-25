@@ -7,9 +7,8 @@ public struct RequestContext: Sendable {
     public let cookies: [String: String]
     public let hasBody: Bool
     public let contentType: String?
-    /// Lowercased header names to treat as credentials in validation messages, on top of
-    /// `SensitiveHeaders`.
-    public let redactHeaders: Set<String>
+    /// Which names are credentials, so validation messages never echo their values.
+    public let credentialNames: CredentialNames
 
     public init(
         queryParameters: [String: String] = [:],
@@ -17,13 +16,13 @@ public struct RequestContext: Sendable {
         cookies: [String: String] = [:],
         hasBody: Bool = false,
         contentType: String? = nil,
-        redactHeaders: Set<String> = []
+        credentialNames: CredentialNames = .builtIn
     ) {
         self.queryParameters = queryParameters
         self.headers = headers
         self.cookies = cookies
         self.hasBody = hasBody
         self.contentType = contentType
-        self.redactHeaders = redactHeaders
+        self.credentialNames = credentialNames
     }
 }

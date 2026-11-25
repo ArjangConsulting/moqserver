@@ -9,6 +9,9 @@ import com.moqserver.studio.domain.ImportState
 import com.moqserver.studio.domain.ParsedSpec
 import com.moqserver.studio.domain.toParsedSpec
 import com.moqserver.studio.logging.loggerFor
+import com.moqserver.studio.projectformat.AuthType
+import com.moqserver.studio.projectformat.MoqProject
+import com.moqserver.studio.projectformat.YamlValue
 import com.moqserver.studio.projectformat.format.FormatClient
 import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineScope
@@ -28,10 +31,42 @@ internal enum class ImportFileKind(
 	HAR("HAR File", setOf("har", "json"), ImportSourceType.HAR, "Failed to parse HAR file"),
 	;
 
-	suspend fun parse(client: FormatClient, path: String, har: HARImportSettings): ParsedSpec = when (this) {
+	/**
+	 * Parses the file. A HAR import redacts the Preferences names plus, when importing into
+	 * [project], that bundle's `redact:` lists and the headers it declares as credentials.
+	 */
+	suspend fun parse(
+		client: FormatClient,
+		path: String,
+		har: HARImportSettings,
+		project: MoqProject? = null,
+	): ParsedSpec = when (this) {
 		OPENAPI, SWAGGER -> client.parseOpenapi(path).spec.toParsedSpec()
-		HAR -> client.parseHar(path, har.redactHeaders, har.inferHeaderRules).toParsedSpec()
+		HAR -> {
+			val redact = project?.manifest?.redact
+			client.parseHar(
+				path,
+				redactHeaders = har.redactHeaders + redact?.headers.orEmpty() + project?.declaredCredentialHeaders().orEmpty(),
+				inferHeaderRules = har.inferHeaderRules,
+				redactQueryParameters = har.redactQueryParameters + redact?.queryParameters.orEmpty(),
+				exceptHeaders = redact?.except?.headers.orEmpty(),
+				exceptQueryParameters = redact?.except?.queryParameters.orEmpty(),
+			).toParsedSpec()
+		}
 	}
+}
+
+/**
+ * Headers the bundle says carry a credential: its default and per-endpoint auth headers and the
+ * `jwt-claims` add-on's token header (default `Authorization`). Mirrors the server's
+ * `CredentialNames.forProject`.
+ */
+internal fun MoqProject.declaredCredentialHeaders(): List<String> {
+	val auths = listOf(manifest.defaults.auth) + endpoints.mapNotNull { it.auth }
+	val authHeaders = auths.filter { it.type != AuthType.NONE }.mapNotNull { it.headerName }
+	val jwtConfig = manifest.addons?.get("jwt-claims") as? YamlValue.Obj
+	val jwtHeader = jwtConfig?.let { (it.value["header"] as? YamlValue.Str)?.value ?: "Authorization" }
+	return (authHeaders + listOfNotNull(jwtHeader)).distinctBy(String::lowercase)
 }
 
 /** Import and update-from-spec commands, and confirming the Import Review dialog. */
@@ -72,7 +107,7 @@ internal class ImportActions(
 			val file = chooseImportFile(kind, "Update from ${kind.label}") ?: return@launch
 			logger.info("Updating project '{}' from {}: {}", currentProject.manifest.name, kind.label, file.absolutePath)
 			runReporting(kind.failureContext, viewModel::setError) {
-				val spec = kind.parse(services.formatClient, file.absolutePath, appState.aiSettings.harImport)
+				val spec = kind.parse(services.formatClient, file.absolutePath, appState.aiSettings.harImport, currentProject)
 				val previouslyDeselected = loadDeselected(
 					services.importHistoryRepo,
 					currentProject,

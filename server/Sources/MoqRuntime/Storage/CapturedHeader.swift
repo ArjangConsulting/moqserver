@@ -4,8 +4,8 @@ import MoqCore
 
 /// One request header recorded in history by `serve --capture-request-headers`.
 ///
-/// Headers that ``SensitiveHeaders`` marks as credentials (by name, name keyword, `--redact-header`,
-/// or a JWT in the value) never store their value. They keep only what a test needs to
+/// Headers that ``CredentialNames`` marks as credentials (a listed name, or a JWT in the value)
+/// never store their value. They keep only what a test needs to
 /// assert on: the auth scheme, a fingerprint of the credential, and, for `Cookie`, the cookie names.
 public struct CapturedHeader: Codable, Sendable, Equatable {
     /// Longest non-sensitive value kept; longer values are cut and marked `truncated`.
@@ -38,11 +38,15 @@ public struct CapturedHeader: Codable, Sendable, Equatable {
         self.cookieNames = cookieNames
     }
 
-    /// Records one header, redacting it when `SensitiveHeaders` says it is a credential.
-    /// `redactHeaders` holds extra lowercased names from `--redact-header`.
-    public static func capture(name: String, value: String, redactHeaders: Set<String> = []) -> CapturedHeader {
+    /// Headers whose value starts with an auth scheme, such as `Bearer`.
+    static let schemeHeaders: Set<String> = ["authorization", "proxyauthorization", "xauthorization"]
+
+    /// Records one header, redacting it when `credentialNames` says it is a credential.
+    public static func capture(
+        name: String, value: String, credentialNames: CredentialNames = .builtIn
+    ) -> CapturedHeader {
         let lowered = name.lowercased()
-        guard SensitiveHeaders.isCredential(name: lowered, value: value, additionalNames: redactHeaders) else {
+        guard credentialNames.isCredentialHeader(lowered, value: value) else {
             let truncated = value.count > valueLimit
             return CapturedHeader(
                 name: lowered, value: truncated ? String(value.prefix(valueLimit)) : value, truncated: truncated)
@@ -57,8 +61,7 @@ public struct CapturedHeader: Codable, Sendable, Equatable {
         }
         let trimmed = value.trimmingCharacters(in: .whitespaces)
         let parts = trimmed.split(separator: " ", maxSplits: 1)
-        let hasScheme =
-            parts.count == 2 && (lowered == "authorization" || lowered == "proxy-authorization")
+        let hasScheme = parts.count == 2 && schemeHeaders.contains(CredentialNames.normalize(lowered))
         let credential = hasScheme ? parts[1].trimmingCharacters(in: .whitespaces) : trimmed
         return CapturedHeader(
             name: lowered, value: nil, redacted: true, scheme: hasScheme ? String(parts[0]) : nil,

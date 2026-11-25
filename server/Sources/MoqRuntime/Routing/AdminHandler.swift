@@ -13,19 +13,20 @@ public struct AdminHandler: Sendable {
     let captureRequestHeaders: Bool
     /// Whether history rows carry `requestQuery`, so query predicates can be answered.
     let captureRequestQuery: Bool
-    /// Lowercased `--redact-header` names.
-    let redactHeaders: Set<String>
+    /// Which header and query parameter names are credentials.
+    let credentialNames: RuntimeCredentialNames
 
     public init(
         store: any MockStoring, config: ServerConfig? = nil, reloader: MockReloader? = nil,
-        captureRequestHeaders: Bool = false, captureRequestQuery: Bool = false, redactHeaders: Set<String> = []
+        captureRequestHeaders: Bool = false, captureRequestQuery: Bool = false,
+        credentialNames: RuntimeCredentialNames = RuntimeCredentialNames()
     ) {
         self.store = store
         self.config = config
         self.reloader = reloader
         self.captureRequestHeaders = captureRequestHeaders
         self.captureRequestQuery = captureRequestQuery
-        self.redactHeaders = redactHeaders
+        self.credentialNames = credentialNames
     }
 
     /// GET /_admin/endpoints — list all endpoints with variants and active variant.

@@ -10,14 +10,14 @@ public struct RequestValidator: RequestValidating {
 
     public func validate(endpoint: Endpoint, context: RequestContext) -> RequestValidationError? {
         if let error = validateRules(
-            endpoint.queryParamRules, values: context.queryParameters, kind: .queryParam, redact: context.redactHeaders)
-        {
+            endpoint.queryParamRules, values: context.queryParameters, kind: .queryParam, names: context.credentialNames
+        ) {
             logger.debug("Request validation failed: \(error.message)")
             return error
         }
 
         if let error = validateRules(
-            endpoint.headerRules, values: context.headers, kind: .header, redact: context.redactHeaders)
+            endpoint.headerRules, values: context.headers, kind: .header, names: context.credentialNames)
         {
             logger.debug("Request validation failed: \(error.message)")
             return error
@@ -27,7 +27,7 @@ public struct RequestValidator: RequestValidating {
             endpoint.verifyCookies
             ? mergedCookieValues(endpoint.cookieRules, cookies: context.cookies) : context.cookies
         if let error = validateRules(
-            endpoint.cookieRules, values: cookieValues, kind: .cookie, redact: context.redactHeaders)
+            endpoint.cookieRules, values: cookieValues, kind: .cookie, names: context.credentialNames)
         {
             logger.debug("Request validation failed: \(error.message)")
             return error
@@ -127,7 +127,7 @@ public struct RequestValidator: RequestValidating {
         _ rules: [RuleMatcher],
         values: [String: String],
         kind: RuleKind,
-        redact: Set<String>
+        names: CredentialNames
     ) -> RequestValidationError? {
         for rule in rules {
             let actualValue = resolvedValue(for: rule.name, in: values, caseInsensitive: kind == .header)
@@ -142,7 +142,9 @@ public struct RequestValidator: RequestValidating {
                 case .mismatch(let expectedDescription, let actualValue):
                     let hidesValue =
                         kind == .cookie
-                        || SensitiveHeaders.isCredential(name: rule.name, value: actualValue, additionalNames: redact)
+                        || (kind == .queryParam
+                            ? names.isCredentialQueryParameter(rule.name, value: actualValue)
+                            : names.isCredentialHeader(rule.name, value: actualValue))
                     let actualDescription =
                         actualValue.map { hidesValue ? "got a redacted value" : "got '\($0)'" } ?? "but was missing"
                     return RequestValidationError(

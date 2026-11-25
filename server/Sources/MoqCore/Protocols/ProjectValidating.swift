@@ -116,4 +116,6 @@ public enum DiagnosticCode: String, Sendable, Equatable {
     case ruleWithoutMatchValue = "W_RULE_WITHOUT_MATCH_VALUE"
     case blankRuleName = "E_BLANK_RULE_NAME"
     case blankAcceptedContentType = "E_BLANK_ACCEPTED_CONTENT_TYPE"
+    case blankRedactName = "E_BLANK_REDACT_NAME"
+    case protectedRedactException = "E_PROTECTED_REDACT_EXCEPTION"
 }

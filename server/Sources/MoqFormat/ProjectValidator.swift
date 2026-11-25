@@ -581,6 +581,7 @@ public struct ProjectValidator: ProjectValidating {
         }
 
         diagnostics.append(contentsOf: validateAddons(project))
+        diagnostics.append(contentsOf: validateRedact(project.manifest.redact))
         diagnostics.append(contentsOf: validateScenarios(project))
         diagnostics.append(
             contentsOf: validateRulePatterns(
@@ -739,6 +740,36 @@ public struct ProjectValidator: ProjectValidating {
     }
 
     // MARK: - Add-on Validation
+
+    /// `redact:` names must be non-blank, and the protected headers can never be excepted.
+    private func validateRedact(_ redact: ProjectRedaction?) -> [ValidationDiagnostic] {
+        guard let redact else { return [] }
+        var diagnostics: [ValidationDiagnostic] = []
+        let lists: [(String, [String]?)] = [
+            ("redact.headers", redact.headers), ("redact.query_parameters", redact.queryParameters),
+            ("redact.except.headers", redact.except?.headers),
+            ("redact.except.query_parameters", redact.except?.queryParameters),
+        ]
+        for (field, names) in lists {
+            for (index, name) in (names ?? []).enumerated()
+            where CredentialNames.normalize(name).isEmpty {
+                diagnostics.append(
+                    .init(
+                        severity: .error, message: "A redact name must not be blank.", file: "project.yml",
+                        field: "\(field)[\(index)]", code: .blankRedactName))
+            }
+        }
+        for (index, name) in (redact.except?.headers ?? []).enumerated()
+        where CredentialNames.protectedHeaders.contains(CredentialNames.normalize(name)) {
+            diagnostics.append(
+                .init(
+                    severity: .error,
+                    message: "\(name) is always redacted: Authorization, Proxy-Authorization, Cookie and Set-Cookie "
+                        + "cannot be excepted.",
+                    file: "project.yml", field: "redact.except.headers[\(index)]", code: .protectedRedactException))
+        }
+        return diagnostics
+    }
 
     private func validateAddons(_ project: MoqProject) -> [ValidationDiagnostic] {
         var diagnostics: [ValidationDiagnostic] = []

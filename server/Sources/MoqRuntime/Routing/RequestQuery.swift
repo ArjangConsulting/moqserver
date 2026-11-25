@@ -259,20 +259,20 @@ extension RequestQuery {
 
     /// Checks the query before evaluation, so a predicate that cannot be answered fails loudly
     /// instead of silently passing.
-    func validate(headerCaptureEnabled: Bool, queryCaptureEnabled: Bool = false, redactHeaders: Set<String>) throws {
+    func validate(
+        headerCaptureEnabled: Bool, queryCaptureEnabled: Bool = false, credentialNames: CredentialNames = .builtIn
+    ) throws {
         if let times, times < 0 { throw RequestQueryError.negativeTimes }
         for predicate in headers ?? [] {
             let name = predicate.name.trimmingCharacters(in: .whitespaces)
             if name.isEmpty { throw RequestQueryError.emptyHeaderName }
-            if predicate.equals != nil, SensitiveHeaders.isCredentialName(name, additionalNames: redactHeaders) {
+            if predicate.equals != nil, credentialNames.isCredentialHeader(name) {
                 throw RequestQueryError.valueOfCredential(name.lowercased())
             }
         }
         for predicate in query ?? [] {
             if predicate.name.isEmpty { throw RequestQueryError.emptyQueryName }
-            if predicate.equals != nil,
-                SensitiveHeaders.isCredentialName(predicate.name, additionalNames: redactHeaders)
-            {
+            if predicate.equals != nil, credentialNames.isCredentialQueryParameter(predicate.name) {
                 throw RequestQueryError.valueOfCredentialParameter(predicate.name)
             }
         }

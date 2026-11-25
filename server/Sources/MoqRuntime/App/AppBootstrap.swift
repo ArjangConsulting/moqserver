@@ -17,7 +17,7 @@ public func buildApp(
     requestBodyCaptureLimit: Int = 0,
     captureRequestHeaders: Bool = false,
     captureRequestQuery: Bool = false,
-    redactHeaders: [String] = [],
+    credentialNames: CredentialNames = .builtIn,
     maxRequestBodySize: Int = MockRouter.defaultMaxBodySize,
     cors: Bool = false,
     tls: TLSFiles? = nil,
@@ -54,6 +54,7 @@ public func buildApp(
         ? ActiveAddons(addons.addons + [OAuthMockAddon(config: config?.oauthMockConfig ?? OAuthMockConfig())])
         : addons
 
+    let runtimeCredentialNames = RuntimeCredentialNames(credentialNames)
     let handler = MockHandler(
         store: store,
         config: config,
@@ -64,7 +65,7 @@ public func buildApp(
         requestBodyCaptureLimit: requestBodyCaptureLimit,
         captureRequestHeaders: captureRequestHeaders,
         captureRequestQuery: captureRequestQuery,
-        redactHeaders: SensitiveHeaders.normalized(redactHeaders)
+        credentialNames: runtimeCredentialNames
     )
 
     app.get("health") { _ async -> [String: String] in
@@ -76,13 +77,14 @@ public func buildApp(
     let table = MockRouteTable(endpoints: await store.allEndpoints())
     var reloader: MockReloader?
     if let reloadSource, let root = store as? InMemoryMockStore {
-        reloader = MockReloader(store: root, table: table, source: reloadSource)
+        reloader = MockReloader(
+            store: root, table: table, source: reloadSource, credentialNames: runtimeCredentialNames)
         app.storage[MockReloaderKey.self] = reloader
     }
 
     let adminHandler = AdminHandler(
         store: store, config: config, reloader: reloader, captureRequestHeaders: captureRequestHeaders,
-        captureRequestQuery: captureRequestQuery, redactHeaders: SensitiveHeaders.normalized(redactHeaders))
+        captureRequestQuery: captureRequestQuery, credentialNames: runtimeCredentialNames)
     let adminRouter = AdminRouter(handler: adminHandler)
     adminRouter.registerRoutes(on: app)
 

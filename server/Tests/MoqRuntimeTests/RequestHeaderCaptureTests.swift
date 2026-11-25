@@ -62,17 +62,19 @@ struct RequestHeaderCaptureTests {
         try await app.asyncShutdown()
     }
 
-    @Test("Custom auth headers are redacted by keyword, JWT value, or --redact-header")
+    @Test("Custom auth headers are redacted by built-in name, JWT value, or --redact-header; others are kept")
     func redactsCustomAuthHeaders() async throws {
         let store = InMemoryMockStore()
         await store.register(makeTestEndpoint(method: .get, path: "/me"))
-        let app = try await buildApp(store: store, captureRequestHeaders: true, redactHeaders: ["X-App-Device"])
+        let app = try await buildApp(
+            store: store, captureRequestHeaders: true, credentialNames: CredentialNames(extraHeaders: ["X-App-Device"]))
         let id = try await store.createRuntimeSession()
         try await app.testing().test(
             .GET, "/me",
             headers: [
                 "X-Firebase-AppCheck": "appcheck-raw", "X-Correlation": token, "X-App-Device": "device-raw",
-                "X-Mock-Session": id, "Accept": "application/json",
+                "X-Mock-Session": id, "Accept": "application/json", "X-Author-Id": "author-1",
+                "X-Session-Ref": "ref-1",
             ]
         ) { _ async in }
 
@@ -84,6 +86,8 @@ struct RequestHeaderCaptureTests {
         #expect(byName["x-app-device"]?.redacted == true)
         #expect(byName["x-mock-session"]?.value == id)
         #expect(byName["accept"]?.value == "application/json")
+        #expect(byName["x-author-id"]?.value == "author-1")
+        #expect(byName["x-session-ref"]?.value == "ref-1")
 
         let raw = String(decoding: try JSONEncoder().encode(headers), as: UTF8.self)
         #expect(!raw.contains("appcheck-raw"))

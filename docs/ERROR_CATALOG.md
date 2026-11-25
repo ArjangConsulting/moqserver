@@ -99,12 +99,15 @@ Any other status a request is aborted with reports its reason phrase in snake_ca
 | `E_SCENARIO_UNKNOWN_VARIANT` | A scenario selects a variant (by name or reference_name) the endpoint doesn't have. |
 | `E_INVALID_REGEX` | A `matches_regex` rule has no `match` pattern, or the pattern doesn't compile. Without this check every request would get a 400. |
 | `E_BLANK_RULE_NAME` | A header, query or cookie rule has a blank `name`. A required blank rule would reject every request. |
+| `E_BLANK_REDACT_NAME` | A name under `redact:` in `project.yml` is blank. |
+| `E_PROTECTED_REDACT_EXCEPTION` | `redact.except.headers` names `Authorization`, `Proxy-Authorization`, `Cookie` or `Set-Cookie`, which are always redacted. |
 | `E_BLANK_ACCEPTED_CONTENT_TYPE` | `accepted_content_types` has a blank entry, which matches no `Content-Type`. |
 | `W_RULE_WITHOUT_MATCH_VALUE` | A rule compares the request's value (`equal_to`, `contains`, `gte`, ...) but has no `match` and is not `required`, so it accepts every request. Set `match`, or set `required: true` to require the value to be present. A required rule with no `match` checks presence only. |
 | `E_INVALID_ADDON_ID` | Add-on ids are lowercase alphanumeric with hyphens. |
 | `E_INVALID_ADDON_CONFIG` | Fix the add-on's config at the reported field (see [ADDONS.md](ADDONS.md)). |
 | `E_ADDON_NOT_ENABLED` | A variant matches on an add-on that `project.yml` doesn't enable; add it under `addons:`. |
 | `E_INVALID_ADDON_MATCH` | Fix the add-on's `request_match` spec at the reported field. |
+| `E_ADDON_IN_USE` | `moq-author addon disable` only: a variant's `request_match.addons` still names the add-on; remove those matches first. |
 | `E_FORMAT_UNAVAILABLE` | Retry the format service from Studio's Tools menu. |
 
 `moq-author` suppresses routine library logs so failures are one parseable JSON document on stderr.

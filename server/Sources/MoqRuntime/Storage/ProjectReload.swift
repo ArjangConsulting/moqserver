@@ -10,10 +10,15 @@ public struct RuntimeProjectSnapshot: Sendable {
     public let endpoints: [Endpoint]
     /// Bundle scenarios: name → (`Endpoint.stateKey` → variant).
     public let scenarios: [String: [String: String]]
+    /// The credential names to redact from now on; `nil` keeps the current ones.
+    public let credentialNames: CredentialNames?
 
-    public init(endpoints: [Endpoint], scenarios: [String: [String: String]]) {
+    public init(
+        endpoints: [Endpoint], scenarios: [String: [String: String]], credentialNames: CredentialNames? = nil
+    ) {
         self.endpoints = endpoints
         self.scenarios = scenarios
+        self.credentialNames = credentialNames
     }
 }
 
@@ -48,11 +53,16 @@ public actor MockReloader {
     let store: InMemoryMockStore
     let table: MockRouteTable
     let source: RuntimeProjectSource
+    let credentialNames: RuntimeCredentialNames?
 
-    public init(store: InMemoryMockStore, table: MockRouteTable, source: @escaping RuntimeProjectSource) {
+    public init(
+        store: InMemoryMockStore, table: MockRouteTable, source: @escaping RuntimeProjectSource,
+        credentialNames: RuntimeCredentialNames? = nil
+    ) {
         self.store = store
         self.table = table
         self.source = source
+        self.credentialNames = credentialNames
     }
 
     public func reload() async throws -> ReloadSummary {
@@ -67,6 +77,7 @@ public actor MockReloader {
         // Store first: a request routed by the new table must find its endpoint in the store.
         let summary = await store.replaceProject(snapshot)
         table.replace(with: snapshot.endpoints)
+        if let names = snapshot.credentialNames { credentialNames?.replace(with: names) }
         for warning in summary.warnings {
             logger.warning("Reload: \(warning)")
         }

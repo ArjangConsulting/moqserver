@@ -85,8 +85,11 @@ private object PreferencesStrings {
 	const val SHOW = "Show"
 	const val HIDE = "Hide"
 	const val HAR_IMPORT = "HAR import"
-	const val HAR_IMPORT_HELP = "Credential headers in a capture are always redacted on import."
+	const val HAR_IMPORT_HELP =
+		"Well-known credential names and the project's redact list are always redacted on import. " +
+			"Add names your API uses here."
 	const val REDACT_HEADERS = "Also redact these headers (comma-separated)"
+	const val REDACT_QUERY = "Also redact these query parameters and body fields (comma-separated)"
 	const val INFER_RULES = "Require the headers every call sent"
 	const val INFER_RULES_TOOLTIP =
 		"Adds presence-only request rules for credential and X- headers that every successful call sent."
@@ -201,13 +204,25 @@ private fun GeneralPreferencesPane(
 @Composable
 private fun HARImportSection(saved: HARImportSettings, onSave: (HARImportSettings) -> Unit) {
 	var redactText by remember(saved) { mutableStateOf(saved.redactHeaders.joinToString(", ")) }
+	var redactQueryText by remember(saved) { mutableStateOf(saved.redactQueryParameters.joinToString(", ")) }
 	var inferRules by remember(saved) { mutableStateOf(saved.inferHeaderRules) }
-	val draft = HARImportSettings(redactHeaders = parseHeaderNames(redactText), inferHeaderRules = inferRules)
+	val draft = HARImportSettings(
+		redactHeaders = parseHeaderNames(redactText),
+		inferHeaderRules = inferRules,
+		redactQueryParameters = parseHeaderNames(redactQueryText),
+	)
 	SectionCard(title = PreferencesStrings.HAR_IMPORT, description = PreferencesStrings.HAR_IMPORT_HELP) {
 		FormTextField(
 			label = PreferencesStrings.REDACT_HEADERS,
 			value = redactText,
 			onValueChange = { redactText = it },
+			singleLine = true,
+			modifier = Modifier.fillMaxWidth(),
+		)
+		FormTextField(
+			label = PreferencesStrings.REDACT_QUERY,
+			value = redactQueryText,
+			onValueChange = { redactQueryText = it },
 			singleLine = true,
 			modifier = Modifier.fillMaxWidth(),
 		)

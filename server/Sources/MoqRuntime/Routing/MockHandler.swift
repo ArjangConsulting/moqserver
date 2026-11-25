@@ -22,8 +22,8 @@ public struct MockHandler: Sendable {
     let captureRequestHeaders: Bool
     /// When true, history records query parameters, with credential values redacted.
     let captureRequestQuery: Bool
-    /// Lowercased header names to treat as credentials on top of `SensitiveHeaders`.
-    let redactHeaders: Set<String>
+    /// Which header and query parameter names are credentials.
+    let credentialNames: RuntimeCredentialNames
 
     public init(
         store: any MockStoring,
@@ -35,7 +35,7 @@ public struct MockHandler: Sendable {
         requestBodyCaptureLimit: Int = 0,
         captureRequestHeaders: Bool = false,
         captureRequestQuery: Bool = false,
-        redactHeaders: Set<String> = []
+        credentialNames: RuntimeCredentialNames = RuntimeCredentialNames()
     ) {
         self.store = store
         self.config = config
@@ -46,7 +46,7 @@ public struct MockHandler: Sendable {
         self.requestBodyCaptureLimit = max(0, requestBodyCaptureLimit)
         self.captureRequestHeaders = captureRequestHeaders
         self.captureRequestQuery = captureRequestQuery
-        self.redactHeaders = redactHeaders
+        self.credentialNames = credentialNames
     }
 
     /// Called by the catch-all fallback route for paths not matched by any registered endpoint.
@@ -178,7 +178,7 @@ public struct MockHandler: Sendable {
                 store: session, config: config, authValidator: authValidator, requestValidator: requestValidator,
                 addons: addons, requireSession: requireSession, requestBodyCaptureLimit: requestBodyCaptureLimit,
                 captureRequestHeaders: captureRequestHeaders, captureRequestQuery: captureRequestQuery,
-                redactHeaders: redactHeaders)
+                credentialNames: credentialNames)
         }
         let response = try await handler.handleResolved(req: req, matchedKey: matchedKey)
         if let runtime = handler.store as? InMemoryMockStore {
@@ -238,7 +238,7 @@ public struct MockHandler: Sendable {
             cookies: extractCookies(from: req),
             hasBody: (req.body.data?.readableBytes ?? 0) > 0,
             contentType: req.headers.first(name: .contentType),
-            redactHeaders: redactHeaders
+            credentialNames: credentialNames.current
         )
         if let validationError = requestValidator.validate(endpoint: endpoint, context: requestContext) {
             req.storage[SelectionKey.self] = SelectionDetail(
@@ -626,12 +626,13 @@ public struct MockHandler: Sendable {
 
     private func capturedHeaders(_ req: Request) -> [CapturedHeader]? {
         guard captureRequestHeaders else { return nil }
-        return req.headers.map { CapturedHeader.capture(name: $0.name, value: $0.value, redactHeaders: redactHeaders) }
+        let names = credentialNames.current
+        return req.headers.map { CapturedHeader.capture(name: $0.name, value: $0.value, credentialNames: names) }
     }
 
     private func capturedQuery(_ req: Request) -> [CapturedQueryParameter]? {
         guard captureRequestQuery else { return nil }
-        return CapturedQueryParameter.captureAll(req.url.query, redactNames: redactHeaders)
+        return CapturedQueryParameter.captureAll(req.url.query, credentialNames: credentialNames.current)
     }
 
     private func capturedBody(_ req: Request) -> CapturedBody? {

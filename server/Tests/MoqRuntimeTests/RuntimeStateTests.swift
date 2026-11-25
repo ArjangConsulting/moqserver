@@ -308,6 +308,28 @@ struct ProjectReloadTests {
         try await app.asyncShutdown()
     }
 
+    @Test("A reload applies the bundle's new credential names to request capture")
+    func reloadUpdatesCredentialNames() async throws {
+        let store = InMemoryMockStore()
+        await store.register(endpoint("/users"))
+        let source = Source(RuntimeProjectSnapshot(endpoints: [endpoint("/users")], scenarios: [:]))
+        let app = try await buildApp(store: store, captureRequestHeaders: true, reloadSource: { try source.load() })
+        try await app.testing().test(.GET, "/users", headers: ["X-Session-Ref": "ref-1"]) { _ async in }
+        #expect(
+            await store.recentRequests().first?.requestHeaders?.first { $0.name == "x-session-ref" }?.value == "ref-1")
+
+        source.set(
+            RuntimeProjectSnapshot(
+                endpoints: [endpoint("/users")], scenarios: [:],
+                credentialNames: CredentialNames(extraHeaders: ["X-Session-Ref"])))
+        try await app.testing().test(.POST, "/_admin/reload") { res async in #expect(res.status == .ok) }
+        try await app.testing().test(.GET, "/users", headers: ["X-Session-Ref": "ref-2"]) { _ async in }
+        let header = await store.recentRequests().first?.requestHeaders?.first { $0.name == "x-session-ref" }
+        #expect(header?.redacted == true)
+        #expect(header?.value == nil)
+        try await app.asyncShutdown()
+    }
+
     @Test("Without a reload source the route answers 501")
     func reloadUnavailable() async throws {
         let app = try await buildApp(store: InMemoryMockStore())

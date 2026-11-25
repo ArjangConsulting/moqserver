@@ -81,9 +81,10 @@ turn those flags on. Importing a URL needs `MOQ_AUTHOR_ALLOW_NETWORK=1`; a local
 
 - **Check a capture for secrets before it touches the bundle.** Search the HAR for `Bearer `,
   `eyJ`, `token`, `password` and email addresses. Anything not already redacted becomes a
-  committed fixture. Header names containing `auth`, `token`, `key`, `secret`, `session` or
-  `appcheck` are redacted automatically; pass `--redact-header <name>` for any other custom auth
-  header the app sends. Add `--infer-header-rules` to require (by name only) the auth and `X-`
+  committed fixture. Only well-known credential names (Authorization, Cookie, X-Api-Key,
+  access_token, api_key, ...), the bundle's `redact:` list and its declared auth headers are
+  redacted; nothing is guessed from the name. List the API's own credential names under `redact:`
+  in `project.yml` before importing, or pass `--redact-header` / `--redact-query-parameter`. Add `--infer-header-rules` to require (by name only) the auth and `X-`
   headers every successful captured call sent, so a call that drops its token is rejected visibly.
 
 - **Variant names are case-insensitive.** `Success` and `success` are the *same* variant.

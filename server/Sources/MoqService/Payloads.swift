@@ -271,14 +271,20 @@ public struct ImportSummary: Codable, Sendable {
 
 public struct ImportHARInput: Decodable, Sendable {
     public let path: String
-    /// Extra response-header names to redact, on top of `SensitiveHeaders`.
+    /// Extra header names to redact, on top of the built-in list and the bundle's `redact:`.
     public let redactHeaders: [String]?
+    /// Extra query parameter, form field and JSON key names to redact.
+    public let redactQueryParameters: [String]?
     /// Require, presence only, the request headers each endpoint's captured calls always sent.
     public let inferHeaderRules: Bool?
 
-    public init(path: String, redactHeaders: [String]? = nil, inferHeaderRules: Bool? = nil) {
+    public init(
+        path: String, redactHeaders: [String]? = nil, redactQueryParameters: [String]? = nil,
+        inferHeaderRules: Bool? = nil
+    ) {
         self.path = path
         self.redactHeaders = redactHeaders
+        self.redactQueryParameters = redactQueryParameters
         self.inferHeaderRules = inferHeaderRules
     }
 }

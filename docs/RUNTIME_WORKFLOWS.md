@@ -8,7 +8,7 @@ refused shows its rejection (kind, code and message), and one no endpoint serves
 unmatched. With `serve --capture-request-headers`, each row also lists the captured headers (only
 scheme, fingerprint and cookie names for credentials) and any `jwt-claims` claims. With
 `serve --capture-request-query`, it also lists the query parameters (only a fingerprint for
-credential-like ones). History holds at most 500 requests per state store. Bodies, headers and query
+credential ones). History holds at most 500 requests per state store. Bodies, headers and query
 parameters are recorded only with the capture flags; paths may still contain user identifiers. Clear history when it is no
 longer needed.
 
@@ -92,17 +92,7 @@ variant is a served response, not a rejection. Unmatched paths have `endpoint: n
 Start the server with `serve --capture-request-headers` to record request headers as
 `requestHeaders`: `[{name, value, truncated, redacted, scheme, fingerprint, cookieNames}]`. Names are
 lowercased. Ordinary headers keep their value, cut to 256 characters. Credential headers never
-store a value. A header is a credential when any of these holds:
-
-- its name is `authorization`, `proxy-authorization`, `cookie`, `set-cookie`, `x-api-key`,
-  `x-auth-token`, `x-csrf-token`, `x-forwarded-for` or `www-authenticate`;
-- its name contains `auth`, `token`, `secret`, `password`, `passwd`, `credential`, `signature`,
-  `session`, `cookie`, `key` or `appcheck`, so custom headers such as `X-Firebase-AppCheck` or
-  `X-Refresh-Token` are covered without configuration (`x-mock-session`, `x-mock-variant` and
-  `access-control-allow-credentials` are exempt);
-- its value contains a JWT, signed or not (the Firebase Auth emulator issues unsigned ones);
-- you named it with `serve --redact-header <name>` (repeatable), for a custom auth header none of the
-  above catches.
+store a value; see [Credential names](#credential-names) for which ones those are.
 
 What a credential header keeps:
 
@@ -118,11 +108,50 @@ with or without header capture.
 Start the server with `serve --capture-request-query` to record query parameters as `requestQuery`:
 `[{name, value, truncated, redacted, fingerprint}]`, in the order the request sent them, repeats
 included. Names keep their case and values are percent-decoded and cut to 256 characters. A
-parameter is a credential under the same name rules as a header (so `api_key`, `access_token` and
-`session_id` are covered), when its value is a JWT, or when `--redact-header` names it; it keeps only
-`fingerprint` of the whole value. A request query's `query` predicates then check what the app
+credential parameter keeps only `fingerprint` of the whole value. A request query's `query` predicates then check what the app
 asked for, not just that the value was legal: an app that shows one filter and sends another fails
 `{"endpoint": "GET /v1/items", "query": [{"name": "status", "equals": "done"}]}`.
+
+### Credential names
+
+moqserver hides a header or query parameter value only when it knows the name is a credential. It
+does not guess from parts of a name, so `keyword`, `sort_key`, `author` or `X-Session-Ref` keep their
+values and can be checked with `equals`. Names compare ignoring case, `-` and `_` (`api_key`,
+`apiKey` and `API-KEY` are one name).
+
+A header is a credential when it is:
+
+- built in: `Authorization`, `Proxy-Authorization`, `Cookie`, `Set-Cookie`, `X-Authorization`,
+  `X-Api-Key`, `Api-Key`, `X-Auth-Token`, `X-Access-Token`, `X-Refresh-Token`, `X-Id-Token`,
+  `X-CSRF-Token`, `X-XSRF-Token`, `X-Amz-Security-Token`, `X-Goog-Api-Key`, `X-Firebase-AppCheck`,
+  `Ocp-Apim-Subscription-Key`;
+- declared by the bundle as carrying a credential: `defaults.auth.header_name`, an endpoint's
+  `auth.header_name`, or the header an add-on reads a token from (`jwt-claims` `header`);
+- listed under `redact.headers` in `project.yml`, or passed as `serve --redact-header <name>`.
+
+A query parameter is a credential when it is built in (`access_token`, `refresh_token`, `id_token`,
+`id_token_hint`, `client_secret`, `client_assertion`, `assertion`, `code_verifier`, `device_code`,
+`subject_token`, `actor_token`, `token`, `password`, `api_key`, `SAMLResponse`, `X-Amz-Signature`,
+`X-Amz-Security-Token`, `X-Goog-Signature`), listed under `redact.query_parameters`, or passed as
+`serve --redact-query-parameter <name>`.
+
+Any other header or parameter whose value contains a JWT is hidden too, so a token sent under a name
+nobody listed is not stored. Your API's own credential names are yours to list:
+
+```yaml
+# project.yml
+redact:
+  headers: [X-Session-Ref]
+  query_parameters: [sig]
+  except:
+    query_parameters: [token]   # this API uses ?token= as a page cursor
+```
+
+`except` (or `serve --no-redact-header` / `--no-redact-query-parameter`) keeps a name visible,
+including a JWT value under it. `Authorization`, `Proxy-Authorization`, `Cookie` and `Set-Cookie` are
+always hidden; excepting one is a validation error (`E_PROTECTED_REDACT_EXCEPTION`). A header the
+bundle declares as an auth header stays hidden even if excepted. A reload picks up changes to
+`redact:`. Servers report this behaviour as the `credential-name-lists` capability.
 
 Decoded token claims come from the [`jwt-claims` add-on](ADDONS.md#jwt-claims) in `addons`, not from
 header capture. Its `trace_claims` records string, number and boolean claims as strings; array and

@@ -91,6 +91,8 @@ class ProjectModelsGenerator(schemaFile: File) {
         "scenario" to "ProjectScenario",
         "variant" to "ProjectVariant",
         "endpoint" to "EndpointDocument",
+        "redaction" to "ProjectRedaction",
+        "redactionNames" to "RedactionNames",
     )
 
     /** `$defs` that resolve to an existing Kotlin type instead of a generated one. */

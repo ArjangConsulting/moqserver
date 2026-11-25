@@ -29,7 +29,7 @@ public struct RequestTrace: Codable, Sendable {
     /// headers never carry their value; see ``CapturedHeader``.
     public var requestHeaders: [CapturedHeader]? = nil
     /// The query parameters in the order sent, captured only with `serve --capture-request-query`.
-    /// Credential-like parameters never carry their value; see ``CapturedQueryParameter``.
+    /// Credential parameters never carry their value; see ``CapturedQueryParameter``.
     public var requestQuery: [CapturedQueryParameter]? = nil
     /// Why the server refused to serve a mock response, when it did. `nil` for served requests and
     /// for requests no endpoint matched (those have `endpoint == nil`).

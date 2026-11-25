@@ -34,7 +34,7 @@ data class RuntimeHeader(
 	val cookieNames: List<String> = emptyList(),
 )
 
-/** A captured query parameter; a credential-like one keeps only [fingerprint]. */
+/** A captured query parameter; a credential one keeps only [fingerprint]. */
 data class RuntimeQueryParameter(
 	val name: String,
 	val value: String? = null,

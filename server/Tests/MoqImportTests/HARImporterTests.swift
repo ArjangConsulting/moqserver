@@ -109,6 +109,27 @@ struct HARImporterTests {
         #expect(endpoint.queryParameters.first { $0.name == "sort" }?.matchType == .equalTo)
     }
 
+    @Test("An API key query parameter imports as presence only; an ordinary keyword keeps its value")
+    func apiKeyQueryIsNotCommitted() throws {
+        let har = """
+            { "log": { "version": "1.2", "entries": [ {
+              "request": { "method": "GET", "url": "https://api.test/search?api_key=real-key\\u0026keyword=shoes\\u0026sig=s1",
+                           "headers": [] },
+              "response": { "status": 200, "headers": [], "content": { "mimeType": "application/json", "text": "{}" } }
+            } ] } }
+            """
+        let names = CredentialNames(extraQueryParameters: ["sig"])
+        let spec = try HARImporter.parse(har, credentialNames: names)
+        let rules = try #require(spec.endpoints.first).queryParameters
+        #expect(rules.first { $0.name == "api_key" }?.match == nil)
+        #expect(rules.first { $0.name == "sig" }?.match == nil)
+        #expect(rules.first { $0.name == "keyword" }?.match == "shoes")
+        #expect(!String(describing: spec).contains("real-key"))
+
+        let exempt = try HARImporter.parse(har, credentialNames: CredentialNames(exceptQueryParameters: ["api_key"]))
+        #expect(exempt.endpoints.first?.queryParameters.first { $0.name == "api_key" }?.match == "real-key")
+    }
+
     @Test("Redacts sensitive query parameters, passes non-sensitive through")
     func redactsSensitiveQueryParameters() throws {
         let har = """

@@ -4,6 +4,7 @@ import com.moqserver.studio.projectformat.ProjectRepository
 import com.moqserver.studio.projectformat.format.FormatBinaryLocator
 import com.moqserver.studio.projectformat.format.FormatClient
 import com.moqserver.studio.projectformat.format.FormatProcess
+import com.moqserver.studio.projectformat.format.RemoteParsedEndpoint
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
 import java.io.File
@@ -100,6 +101,18 @@ class RemoteHARImportTest {
                     ).endpoints.single()
                     assertEquals("[redacted]", tuned.responses.single().headers["X-Request-Ref"])
                     assertEquals(listOf("X-App-Device"), tuned.requiredHeaders)
+
+                    fun match(endpoint: RemoteParsedEndpoint, name: String) =
+                        endpoint.queryParameters.single { it.name == name }.match
+                    assertEquals("shoes", match(plain, "keyword"))
+                    assertEquals(null, match(plain, "token"))
+                    val query = client.parseHar(
+                        harPath.absolutePath,
+                        redactQueryParameters = listOf("keyword"),
+                        exceptQueryParameters = listOf("token"),
+                    ).endpoints.single()
+                    assertEquals(null, match(query, "keyword"))
+                    assertEquals("cursor-2", match(query, "token"))
                 }
             }
         } finally {
@@ -117,7 +130,7 @@ class RemoteHARImportTest {
               {
                 "request": {
                   "method": "GET",
-                  "url": "https://api.example.test/v1/items",
+                  "url": "https://api.example.test/v1/items?keyword=shoes&token=cursor-2",
                   "headers": [{ "name": "X-App-Device", "value": "device-1" }],
                   "queryString": []
                 },

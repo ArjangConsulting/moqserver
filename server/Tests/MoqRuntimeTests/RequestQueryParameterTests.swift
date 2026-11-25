@@ -11,7 +11,9 @@ struct RequestQueryParameterTests {
     private func makeApp(captureRequestQuery: Bool = true) async throws -> Application {
         let store = InMemoryMockStore()
         await store.register(makeTestEndpoint(method: .get, path: "/v1/items"))
-        return try await buildApp(store: store, captureRequestQuery: captureRequestQuery, redactHeaders: ["X-Signed"])
+        return try await buildApp(
+            store: store, captureRequestQuery: captureRequestQuery,
+            credentialNames: CredentialNames(extraQueryParameters: ["X-Signed"]))
     }
 
     private func query(
@@ -41,13 +43,33 @@ struct RequestQueryParameterTests {
         #expect(CapturedQueryParameter.captureAll("").isEmpty)
     }
 
-    @Test("Credential-like parameters keep only a fingerprint")
+    @Test("Listed parameters keep only a fingerprint; ordinary names that contain credential words are kept")
     func redactsCredentials() {
         let captured = CapturedQueryParameter.captureAll(
-            "api_key=secret-1&access_token=t&x-signed=s&page=2", redactNames: ["x-signed"])
-        #expect(captured.filter(\.redacted).map(\.name) == ["api_key", "access_token", "x-signed"])
-        #expect(captured.allSatisfy { $0.redacted ? $0.value == nil : $0.value == "2" })
+            "api_key=secret-1&apiKey=k&access_token=t&x-signed=s&page=2&keyword=shoes&author=ann&session_count=3",
+            credentialNames: CredentialNames(extraQueryParameters: ["X-Signed"]))
+        #expect(captured.filter(\.redacted).map(\.name) == ["api_key", "apiKey", "access_token", "x-signed"])
+        #expect(captured.filter { !$0.redacted }.map(\.value) == ["2", "shoes", "ann", "3"])
         #expect(captured[0].fingerprint == CapturedHeader.fingerprint(of: "secret-1"))
+    }
+
+    @Test("An exempt built-in name keeps its value, even a JWT")
+    func exemptNameIsKept() {
+        let jwt = "eyJhbGciOiJub25lIn0.eyJzdWIiOiJ1c2VyLTEifQ."
+        let names = CredentialNames(exceptQueryParameters: ["token"])
+        let captured = CapturedQueryParameter.captureAll("token=\(jwt)&cursor=\(jwt)", credentialNames: names)
+        #expect(captured.map(\.redacted) == [false, true])
+        #expect(captured[0].value == jwt)
+    }
+
+    @Test("equals works on an ordinary name that contains a credential word")
+    func equalsOnKeyword() async throws {
+        let app = try await makeApp()
+        try await call(app, "/v1/items?keyword=shoes")
+        let result = try #require(
+            try await query(app, RequestQuery(query: [QueryPredicate(name: "keyword", equals: "shoes")], times: 1)))
+        #expect(result.ok)
+        try await app.asyncShutdown()
     }
 
     @Test("A query predicate tells the filter the app sent from another legal one")

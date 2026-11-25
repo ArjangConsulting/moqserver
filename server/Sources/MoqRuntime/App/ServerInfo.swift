@@ -39,4 +39,8 @@ public enum ServerCapability: String, CaseIterable, Sendable {
     /// `serve --capture-request-query` records query parameters on history rows (`requestQuery`), and
     /// request queries accept `query` predicates.
     case requestQueryParameters = "request-query-parameters"
+    /// Credentials are recognized by exact names only: the built-in lists, the bundle's `redact:`,
+    /// declared auth headers and `--redact-header`/`--redact-query-parameter`, with exemptions via
+    /// `redact.except` and `--no-redact-*`. Other names such as `keyword` keep their values.
+    case credentialNameLists = "credential-name-lists"
 }

@@ -61,6 +61,8 @@ A response body (inline `body`, `body_file`, or a streamed body) may contain `{{
 
 `project.yml` may declare `addons:` (keyed by add-on id) and a variant's `request_match` may declare `addons:` (predicates keyed by add-on id). Both values are opaque to the core format and validated by the named add-on; see [ADDONS.md](ADDONS.md). `/_addons` is a reserved path.
 
+`project.yml` may declare `redact:` with `headers`, `query_parameters` and `except: {headers, query_parameters}`, each a list of non-blank names compared ignoring case, `-` and `_`. They add to or exempt from the built-in credential names ([RUNTIME_WORKFLOWS.md](RUNTIME_WORKFLOWS.md#credential-names)). `except.headers` may not name `Authorization`, `Proxy-Authorization`, `Cookie` or `Set-Cookie` (`E_PROTECTED_REDACT_EXCEPTION`); a blank name is `E_BLANK_REDACT_NAME`.
+
 ### YAML loading
 
 - parse YAML into raw structures

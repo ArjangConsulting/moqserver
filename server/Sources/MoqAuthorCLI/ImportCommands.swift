@@ -16,10 +16,18 @@ public struct ImportHARCommand: AsyncParsableCommand {
     @Option(
         name: .customLong("redact-header"),
         help: ArgumentHelp(
-            "A header name whose value is a credential, on top of the built-in list and name keywords "
-                + "(auth, token, key, secret, session, ...). Repeat for several.")
+            "A header whose value is a credential, on top of the built-in list and the bundle's redact: "
+                + "section. Repeat for several.")
     )
     var redactHeaders: [String] = []
+
+    @Option(
+        name: .customLong("redact-query-parameter"),
+        help: ArgumentHelp(
+            "A query parameter, form field or JSON key whose value is a credential, on top of the built-in "
+                + "list and the bundle's redact: section. Repeat for several.")
+    )
+    var redactQueryParameters: [String] = []
 
     @Flag(
         name: .long,
@@ -47,7 +55,9 @@ public struct ImportHARCommand: AsyncParsableCommand {
             let (service, handle) = try await openProjectForEditing(project, allowNetworkImport: false)
             let summary = try await service.importHAR(
                 handle: handle,
-                input: ImportHARInput(path: harPath, redactHeaders: redactHeaders, inferHeaderRules: inferHeaderRules),
+                input: ImportHARInput(
+                    path: harPath, redactHeaders: redactHeaders, redactQueryParameters: redactQueryParameters,
+                    inferHeaderRules: inferHeaderRules),
                 common: common,
                 autosave: true)
             try printJSON(summary)

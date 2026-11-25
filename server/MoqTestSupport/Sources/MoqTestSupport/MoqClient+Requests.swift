@@ -69,7 +69,7 @@ public struct MoqRequestRejection: Decodable, Equatable, Sendable {
 }
 
 /// One row of the server's request history (`GET /_admin/requests`).
-/// A query parameter recorded by `serve --capture-request-query`. Credential-like parameters keep
+/// A query parameter recorded by `serve --capture-request-query`. Credential parameters keep
 /// only `fingerprint`.
 public struct MoqCapturedQueryParameter: Decodable, Equatable, Sendable {
     /// The name exactly as sent (case-sensitive).
