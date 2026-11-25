@@ -44,7 +44,11 @@ what is enforced. Read them when unsure of a field's shape instead of guessing.
    --path /users/{id}` prints the id the importers would use.
 3. `moq-author variant upsert --project api.moqproj --json variant.json` per response shape. Pass
    an inline `body`, never `body_file`; the store externalizes it to a fixture on save.
-4. `moq-author project validate --project api.moqproj --strict`. It prints every diagnostic as
+4. If variants match on token claims, enable the add-on first:
+   `printf '%s' '{"verify_signature": false}' | moq-author addon enable --project api.moqproj --id jwt-claims --config -`.
+   `addon list` shows what is enabled and what this build provides; `addon disable` refuses while
+   a variant still matches on the add-on. Don't edit `project.yml` by hand for this.
+5. `moq-author project validate --project api.moqproj --strict`. It prints every diagnostic as
    JSON and exits 2 on errors; `--strict` also fails on warnings. Run it after every batch of
    edits, since authoring deliberately allows an incomplete bundle while you assemble it.
 

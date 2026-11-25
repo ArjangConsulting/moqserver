@@ -17,6 +17,7 @@ public struct MoqAuthorCommand: AsyncParsableCommand {
             ProjectCommand.self,
             EndpointCommand.self,
             VariantCommand.self,
+            AddonCommand.self,
             ImportCommand.self,
             SchemaCommand.self,
             RulesCommand.self,
@@ -52,6 +53,15 @@ public struct VariantCommand: AsyncParsableCommand {
         commandName: "variant",
         abstract: "Create, replace, or remove a response variant on an endpoint",
         subcommands: [VariantUpsertCommand.self, VariantRemoveCommand.self]
+    )
+    public init() {}
+}
+
+public struct AddonCommand: AsyncParsableCommand {
+    public static let configuration = CommandConfiguration(
+        commandName: "addon",
+        abstract: "List, enable, or disable the add-ons a bundle turns on in project.yml",
+        subcommands: [AddonListCommand.self, AddonEnableCommand.self, AddonDisableCommand.self]
     )
     public init() {}
 }

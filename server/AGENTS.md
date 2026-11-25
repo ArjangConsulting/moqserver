@@ -103,10 +103,12 @@ swift build --product moq-author
 .build/debug/moq-author endpoint upsert --project ./my-api.moqproj --json endpoint.json
 .build/debug/moq-author variant upsert --project ./my-api.moqproj --json variant.json
 .build/debug/moq-author endpoint list --project ./my-api.moqproj
+.build/debug/moq-author addon enable --project ./my-api.moqproj --id jwt-claims --config addon.json
 .build/debug/moq-author project validate --project ./my-api.moqproj --strict
 ```
 
-Read commands (`project describe`/`validate`, `endpoint list`/`get`/`suggest-id`) never save.
+Read commands (`project describe`/`validate`, `endpoint list`/`get`/`suggest-id`, `addon list`)
+never save.
 `schema` and `rules` print the format contract from `MoqService.AuthoringReference`, the same
 source the `moq-mcp` resources read. `format/schema.json` is compiled into `MoqService` with
 `.embedInCode` (as `Sources/MoqService/Resources/schema.json`, kept byte-identical by test), so

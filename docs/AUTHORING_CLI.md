@@ -47,6 +47,23 @@ files. It holds nothing; keep it out of version control:
 .*.moqproj.lock
 ```
 
+## Add-ons
+
+```sh
+moq-author addon list --project ./api.moqproj
+printf '%s' '{"verify_signature": false, "trace_claims": ["sub"]}' |
+  moq-author addon enable --project ./api.moqproj --id jwt-claims --config -
+moq-author addon disable --project ./api.moqproj --id jwt-claims
+```
+
+Each prints `{"enabled": {id: config}, "available": [ids]}`. `enable` writes the add-on under
+`addons:` in `project.yml`, replacing any config it already had, and omitting `--config` means `{}`.
+It checks the id and config before saving and refuses with the validator's code:
+`E_UNKNOWN_ADDON` for an id this build doesn't have, or `E_INVALID_ADDON_CONFIG` naming the key, for
+example `verify_signature: Required, and must be false`. `disable` does nothing for an add-on that
+isn't enabled, and refuses with `E_ADDON_IN_USE` while a variant's `request_match.addons` still
+names it. [ADDONS.md](ADDONS.md) lists each add-on's keys.
+
 ## Output and errors
 
 Every successful operation emits one JSON document on stdout. Operational errors emit one

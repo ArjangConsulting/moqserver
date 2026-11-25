@@ -1,10 +1,14 @@
 package com.moqserver.studio.projectsettings
 
+import com.moqserver.studio.endpointdetail.invalidJsonMessage
+import com.moqserver.studio.endpointdetail.parseJsonBodyText
+import com.moqserver.studio.endpointdetail.yamlValueToJsonString
 import com.moqserver.studio.projectformat.EndpointDocument
 import com.moqserver.studio.projectformat.GlobalRules
 import com.moqserver.studio.projectformat.ProjectManifest
 import com.moqserver.studio.projectformat.ProjectScenario
 import com.moqserver.studio.projectformat.RuleMatcher
+import com.moqserver.studio.projectformat.YamlValue
 
 /** Longest scenario name the format accepts (`MoqFormatRules.maxScenarioNameLength`). */
 internal const val MAX_SCENARIO_NAME_LENGTH = 100
@@ -30,6 +34,28 @@ internal fun scenarioNameProblem(
 /** The manifest with [scenarios], writing no `scenarios:` key when there are none. */
 internal fun ProjectManifest.withScenarios(scenarios: Map<String, ProjectScenario>): ProjectManifest =
 	copy(scenarios = scenarios.ifEmpty { null })
+
+/** The manifest with [addons], writing no `addons:` key when none is enabled. */
+internal fun ProjectManifest.withAddons(addons: Map<String, YamlValue>): ProjectManifest =
+	copy(addons = addons.ifEmpty { null })
+
+/** The `addons:` mapping as the JSON the Add-ons editor shows; `{}` when none is enabled. */
+internal fun addonsJsonText(addons: Map<String, YamlValue>?): String =
+	yamlValueToJsonString(YamlValue.Obj(addons.orEmpty()))
+
+/**
+ * Parses the Add-ons editor's text: a JSON object of add-on id to that add-on's config. Fails with a
+ * message for anything else; which ids and keys are valid is left to validation, since each add-on
+ * owns its config.
+ */
+internal fun parseAddonsJsonText(text: String): Result<Map<String, YamlValue>> {
+	val parsed = parseJsonBodyText(text.ifBlank { "{}" })
+	val value = parsed.getOrElse { return Result.failure(IllegalArgumentException(invalidJsonMessage(it))) }
+	if (value !is YamlValue.Obj) return Result.failure(IllegalArgumentException(ADDONS_MUST_BE_OBJECT))
+	return Result.success(value.value)
+}
+
+internal const val ADDONS_MUST_BE_OBJECT = "Must be a JSON object of add-on id to its config, e.g. {\"jwt-claims\": {}}"
 
 /** The manifest with [globalRules], writing no `global_rules:` key when it holds nothing. */
 internal fun ProjectManifest.withGlobalRules(globalRules: GlobalRules): ProjectManifest {

@@ -63,6 +63,27 @@ struct MoqAuthorCLITests {
         try await describe.run()
     }
 
+    @Test("addon enable writes project.yml from a config file and addon disable removes it")
+    func addonEnableAndDisable() async throws {
+        let path = tempPath("addon")
+        defer { try? FileManager.default.removeItem(atPath: path) }
+        var create = try ProjectCreateCommand.parse(["--path", path, "--name", "Addons"])
+        try await create.run()
+
+        let config = try writeJSON("addon", #"{"verify_signature": false}"#)
+        var enable = try AddonEnableCommand.parse(["--project", path, "--id", "jwt-claims", "--config", config])
+        try await enable.run()
+        let manifestPath = (path as NSString).appendingPathComponent("project.yml")
+        #expect(try String(contentsOfFile: manifestPath, encoding: .utf8).contains("jwt-claims"))
+
+        var refused = try AddonEnableCommand.parse(["--project", path, "--id", "nope"])
+        await #expect(throws: ExitCode.failure) { try await refused.run() }
+
+        var disable = try AddonDisableCommand.parse(["--project", path, "--id", "jwt-claims"])
+        try await disable.run()
+        #expect(!(try String(contentsOfFile: manifestPath, encoding: .utf8).contains("jwt-claims")))
+    }
+
     @Test("variant upsert reports replaced, not created, on a case-only re-upsert")
     func variantUpsertReportsReplacement() async throws {
         let path = tempPath("replace")

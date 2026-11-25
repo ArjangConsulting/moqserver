@@ -10,6 +10,9 @@ public enum MoqServiceError: Error, CustomStringConvertible, Equatable, Sendable
     case importReadFailed(String)
     case importParseFailed(String)
     case importFetchFailed(String)
+    /// An add-on id or config that validation refuses; `code` is the validator's, e.g. `E_UNKNOWN_ADDON`.
+    case addonRejected(code: String, message: String)
+    case addonInUse(id: String, endpointIDs: [String])
 
     public var description: String {
         switch self {
@@ -30,6 +33,12 @@ public enum MoqServiceError: Error, CustomStringConvertible, Equatable, Sendable
             return "Failed to parse import source: \(detail)"
         case .importFetchFailed(let detail):
             return "Failed to fetch import source: \(detail)"
+        case .addonRejected(_, let message):
+            return message
+        case .addonInUse(let id, let endpointIDs):
+            return
+                "Add-on \"\(id)\" is still used by request_match.addons in: \(endpointIDs.joined(separator: ", ")). "
+                + "Remove those matches first."
         }
     }
 
@@ -45,6 +54,8 @@ public enum MoqServiceError: Error, CustomStringConvertible, Equatable, Sendable
         case .importReadFailed: return "E_IMPORT_READ_FAILED"
         case .importParseFailed: return "E_IMPORT_PARSE_FAILED"
         case .importFetchFailed: return "E_IMPORT_FETCH_FAILED"
+        case .addonRejected(let code, _): return code
+        case .addonInUse: return "E_ADDON_IN_USE"
         }
     }
 }

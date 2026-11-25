@@ -32,7 +32,7 @@ public struct MoqService: Sendable {
         await sessions.close(handle)
     }
 
-    private func session(_ handle: String) async throws -> ProjectSession {
+    func session(_ handle: String) async throws -> ProjectSession {
         try await sessions.session(handle)
     }
 

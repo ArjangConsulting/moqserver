@@ -26,6 +26,8 @@ import com.moqserver.studio.projectformat.ProjectManifest
 import com.moqserver.studio.projectformat.ProjectScenario
 import com.moqserver.studio.projectformat.ProjectVariant
 import com.moqserver.studio.projectformat.RuleMatcher
+import com.moqserver.studio.projectformat.YamlValue
+import com.moqserver.studio.projectsettings.ADDONS_MUST_BE_OBJECT
 import com.moqserver.studio.projectsettings.ProjectSettingsScreen
 import io.github.maniramezan.testcommons.compose.ThemedComposeRule
 import io.github.maniramezan.testcommons.compose.captureToPng
@@ -99,6 +101,22 @@ class ProjectSettingsScreenTest {
 		compose.onNodeWithText("Another scenario already has this name").assertExists()
 		compose.runOnIdle { assertEquals(listOf("logged-out", "scenario-1"), manifest.scenarios?.keys?.toList()) }
 		captureEvidence("project-settings-scenarios")
+	}
+
+	@Test
+	fun `add-ons are edited as JSON and invalid text leaves the manifest unchanged`() {
+		show()
+		val addonsJson = """{"jwt-claims": {"verify_signature": false}}"""
+		field("Enabled add-ons (JSON)").performScrollTo().replaceTextVerified(addonsJson)
+		val enabled = mapOf("jwt-claims" to YamlValue.Obj(mapOf("verify_signature" to YamlValue.Bool(false))))
+		compose.runOnIdle { assertEquals(enabled, manifest.addons) }
+
+		field("Enabled add-ons (JSON)").performScrollTo().replaceTextVerified("""["jwt-claims"]""")
+		compose.onNodeWithText(ADDONS_MUST_BE_OBJECT).assertExists()
+		compose.runOnIdle { assertEquals(enabled, manifest.addons) }
+
+		field("Enabled add-ons (JSON)").performScrollTo().replaceTextVerified("{}")
+		compose.runOnIdle { assertEquals(null, manifest.addons) }
 	}
 
 	@Test

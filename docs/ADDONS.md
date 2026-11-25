@@ -17,8 +17,10 @@ addons:
   gets the same behaviour.
 - An add-on id this build doesn't have is an error (`E_UNKNOWN_ADDON`), in both
   `moqserver validate` and `serve`.
-- Each add-on checks its own config (`E_INVALID_ADDON_CONFIG`). Studio treats `addons` as opaque
-  and saves it back unchanged.
+- Each add-on checks its own config (`E_INVALID_ADDON_CONFIG`).
+- `moq-author addon enable|disable|list` edits this section without touching `project.yml` by hand
+  ([AUTHORING_CLI.md](AUTHORING_CLI.md#add-ons)). Studio edits it as JSON in **Project Settings →
+  Add-ons**; validation reports an unknown id or a config the add-on refuses.
 
 A variant can match on facts an add-on computes, under `request_match.addons.<id>`:
 

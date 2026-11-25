@@ -12,6 +12,10 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import com.moqserver.studio.designsystem.StudioDimens
 import com.moqserver.studio.endpointdetail.AuthFields
@@ -56,11 +60,16 @@ private object ProjectSettingsStrings {
 	const val VERIFY_COOKIES = "Require at least one cookie"
 	const val VERIFY_COOKIES_TOOLTIP =
 		"Rejects requests that send no cookies at all, on every endpoint that does not set its own value."
+	const val ADDONS = "Add-ons"
+	const val ADDONS_DESCRIPTION =
+		"Features compiled into moqserver that this bundle turns on, as JSON: add-on id to its config. " +
+			"docs/ADDONS.md lists each add-on's keys; validation reports an unknown id or a config the add-on refuses."
+	const val ADDONS_LABEL = "Enabled add-ons (JSON)"
 }
 
 /**
- * Edits `project.yml`: name and description, defaults, project-wide request rules and scenarios.
- * Add-on configuration is kept as it is; it has no editor because each add-on owns its format.
+ * Edits `project.yml`: name and description, defaults, project-wide request rules, add-ons and
+ * scenarios. Add-on configs are edited as JSON, since each add-on owns its format.
  */
 @Composable
 internal fun ProjectSettingsScreen(
@@ -76,6 +85,7 @@ internal fun ProjectSettingsScreen(
 		GeneralSection(manifest = manifest, onUpdateManifest = onUpdateManifest)
 		DefaultsSection(manifest = manifest, onUpdateManifest = onUpdateManifest)
 		GlobalRulesSection(manifest = manifest, onUpdateManifest = onUpdateManifest)
+		AddonsSection(manifest = manifest, onUpdateManifest = onUpdateManifest)
 		ScenariosSection(
 			scenarios = manifest.scenarios.orEmpty(),
 			endpoints = endpoints,
@@ -174,6 +184,33 @@ private fun GlobalRulesSection(manifest: ProjectManifest, onUpdateManifest: (Pro
 			deleteContentDescription = ProjectSettingsStrings.DELETE_REQUIRED_HEADER,
 			availableMatchTypes = requestRuleMatchTypes,
 			showRequiredColumn = true,
+		)
+	}
+}
+
+@Composable
+private fun AddonsSection(manifest: ProjectManifest, onUpdateManifest: (ProjectManifest) -> Unit) {
+	var text by remember { mutableStateOf(addonsJsonText(manifest.addons)) }
+	var error by remember { mutableStateOf<String?>(null) }
+	SectionCard(title = ProjectSettingsStrings.ADDONS, description = ProjectSettingsStrings.ADDONS_DESCRIPTION) {
+		FormTextField(
+			value = text,
+			onValueChange = { updated ->
+				text = updated
+				parseAddonsJsonText(updated)
+					.onSuccess { addons ->
+						error = null
+						if (addons != manifest.addons.orEmpty()) onUpdateManifest(manifest.withAddons(addons))
+					}
+					.onFailure { error = it.message }
+			},
+			label = ProjectSettingsStrings.ADDONS_LABEL,
+			singleLine = false,
+			errorText = error,
+			modifier = Modifier.fillMaxWidth().heightIn(
+				min = StudioDimens.multilineFieldMinHeight,
+				max = StudioDimens.multilineFieldMaxHeight,
+			),
 		)
 	}
 }
