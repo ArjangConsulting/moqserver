@@ -13,6 +13,7 @@ on:
       - "Makefile"
       - "scripts/test_author_cli.py"
       - "scripts/test_support_consumer.py"
+      - "Package.swift"
 
 permissions:
   contents: read
@@ -84,7 +85,7 @@ jobs:
       - name: Test Apple test-support package and downstream consumer
         if: ${{ matrix.os == 'macos-latest' }}
         run: |
-          swift test --package-path MoqTestSupport
+          swift test --package-path ..
           python3 ../scripts/test_support_consumer.py
 
       - name: Enforce Server coverage floor

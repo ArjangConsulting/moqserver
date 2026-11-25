@@ -126,12 +126,13 @@ the note on `MoqCLI` above.
 
 ## Test Support for Consuming Apps
 
-`server/MoqTestSupport/` is a **separate** Swift package (its own `Package.swift`, targeting
-iOS/macOS) providing `MoqControl` — drives a running `moqserver`'s admin API from an app's own UI
-tests (select/reset a variant, reset a call count). It is not a target of this directory's own
-`Package.swift` and has its own `swift build`/`swift test`, run from `server/MoqTestSupport/`, since
-it links XCTest and targets Apple platforms only — see its README for why and how a consuming app
-adds it as a dependency.
+`server/MoqTestSupport/` holds the sources of a **separate** Swift package (iOS/macOS) providing
+`MoqClient` and `MoqControl`, which drive a running `moqserver`'s admin API from an app's own UI
+tests. Its manifest is the repository-root `Package.swift`, so an app adds it by repository URL and
+gets only this library. It is not a target of this directory's `Package.swift`, since it links
+XCTest and targets Apple platforms only; run its `swift build`/`swift test` from the repo root.
+`scripts/test_support_consumer.py` checks that a fresh package can consume it. See its README for
+how a consuming app adds it.
 
 ## AI Skills for `.moqproj` authors
 

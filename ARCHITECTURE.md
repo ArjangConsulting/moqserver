@@ -43,7 +43,8 @@ flowchart LR
 
 The HTTP server binary stays independent of the MCP SDK and OpenAPI import machinery.
 Authoring tools do not call an LLM; Studio's optional AI providers live in `studio-ai`.
-`server/MoqTestSupport` is a separate Apple-platform Swift package for downstream tests.
+`server/MoqTestSupport` is a separate Apple-platform Swift package for downstream tests; its manifest
+is the repository-root `Package.swift`, so apps depend on it by repository URL.
 
 ## Persistence and recovery
 

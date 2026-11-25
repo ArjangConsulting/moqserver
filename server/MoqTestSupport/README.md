@@ -6,20 +6,23 @@ tests — select a variant, reset one, or reset a call counter — via moqserver
 `X-Mock-Variant` can't select a scenario from the test side; only the admin API can reach in from
 outside.
 
-Originally written inline in a consuming app's UI-test support code and lifted here so every
-app pointing at moqserver gets it rather than re-implementing the same HTTP calls. See `server/skills/moqserver-scenario-design` for when to reach for this versus a
-bundle's own `call_count`.
+See `server/skills/moqserver-scenario-design` for when to reach for this versus a bundle's own
+`call_count`.
 
 ## Adding it to an app
 
-Add this directory as a local Swift Package dependency (Xcode: File > Add Package Dependencies >
-Add Local...) to your test target, or reference it by path in your own `Package.swift`:
+The package manifest is at the repository root, so add the repository URL (Xcode: File > Add
+Package Dependencies...) and link the `MoqTestSupport` product to your UI test target. It brings in
+only this library, not the server. In your own `Package.swift`:
 
 ```swift
-.package(path: "../moqserver/server/MoqTestSupport")
+.package(url: "https://github.com/<owner>/moqserver.git", revision: "<commit>"),
+// ...
+.product(name: "MoqTestSupport", package: "moqserver")
 ```
 
-then depend on the `MoqTestSupport` product from your UI test target.
+No release is tagged yet, so pin a commit; switch to `from: "<version>"` once releases exist. For
+a local checkout, use `.package(path: "../moqserver")` with the same product.
 
 ## Usage
 
@@ -27,7 +30,7 @@ then depend on the `MoqTestSupport` product from your UI test target.
 import MoqTestSupport
 import XCTest
 
-final class VideoDetailsUITests: XCTestCase {
+final class ItemDetailsUITests: XCTestCase {
     override func tearDown() {
         MoqControl.resetAll(for: "GET", path: "/v1/items/42/")
         super.tearDown()

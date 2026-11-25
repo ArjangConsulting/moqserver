@@ -83,7 +83,7 @@ Do not duplicate those product guides in new files unless the repo structure cha
 - `MoqCLITests`
 - `MoqAuthorCLITests`
 - `MoqMCPTests`
-- `server/MoqTestSupport` is a separate package: `cd server/MoqTestSupport && swift test`
+- `server/MoqTestSupport` is a separate package whose manifest is the repo-root `Package.swift`, so apps can depend on it by repository URL: `swift test` from the repo root
 
 ## Server Testing Notes
 - `swift test --filter` accepts a target name or a test name substring.
