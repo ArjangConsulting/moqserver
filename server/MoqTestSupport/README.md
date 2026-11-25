@@ -16,7 +16,7 @@ Package Dependencies...) and link the `MoqTestSupport` product to your UI test t
 only this library, not the server. In your own `Package.swift`:
 
 ```swift
-.package(url: "https://github.com/<owner>/moqserver.git", revision: "<commit>"),
+.package(url: "https://github.com/ArjangConsulting/moqserver.git", revision: "<commit>"),
 // ...
 .product(name: "MoqTestSupport", package: "moqserver")
 ```
